@@ -47,3 +47,11 @@ Mouse only. `M` mutes. Hover anything for a tooltip.
   rectangles, Balatro-style swirling background rendered per-pixel, CRT scanlines
 - WebAudio-synthesized sound effects and a little swamp bass groove
 - Zero dependencies, zero network, ~1,300 lines of vanilla JS
+
+---
+
+## Also in this repo
+
+🕹️ **[Poké Auto Arena](poke-auto-arena/)** — a Super Auto Pets-style Pokémon auto battler
+with catching, a Pokédex, crafting, held items, idle camp income, and real-time eggs & chests.
+Open `poke-auto-arena/index.html` to play.
