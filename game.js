@@ -1,9 +1,10 @@
 'use strict';
 /* ==========================================================================
-   BITE DOWN — a push-your-luck dental roguelike (Balatro-style structure)
-   - Rounds: Small Croc / Big Croc / Boss Croc across 8 antes
+   BITE DOWN — a push-your-luck dental roguelike set in a living swamp.
+   - Rounds: Small Gator / Big Gator / Boss Gator across 8 antes
    - Bites (hands), X-Rays (discards), Charms (jokers), tooth deck, shop
-   - All art procedural pixel-art on a 480x270 buffer, WebAudio synth sfx
+   - Procedural pixel art on a 480x270 buffer, WebAudio synth sfx
+   - Drag cards to use/sell, click cards for details, unlockable gloves
    ========================================================================== */
 
 // ------------------------------------------------------------ canvas ------
@@ -11,6 +12,7 @@ const W = 480, H = 270;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+canvas.style.cursor = 'none'; // we draw our own pixel hand
 
 function fit() {
   const raw = Math.min(innerWidth / W, innerHeight / H);
@@ -75,7 +77,6 @@ const C = {
   blue: '#3ea6ff', blueD: '#1c5c9e', red: '#ff5348', redD: '#95251f',
   gold: '#ffc843', goldD: '#a4741a', green: '#63d66a', greenD: '#2c7d3a',
   purple: '#c07dff', orange: '#ff9838',
-  crocA: '#5aa843', crocB: '#3c7c2e', crocC: '#8cd34f', crocD: '#295722',
   maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a',
   gum: '#a03a4a',
 };
@@ -99,7 +100,7 @@ function tone(freq, dur, type, vol, slide, delay) {
   o.connect(g); g.connect(ac.destination);
   o.start(t0); o.stop(t0 + dur + 0.02);
 }
-function noiseHit(dur, vol, delay) {
+function noiseHit(dur, vol, delay, lp) {
   const ac = AC; if (!ac || muted) return;
   const t0 = ac.currentTime + (delay || 0);
   const n = Math.floor(ac.sampleRate * dur);
@@ -109,7 +110,7 @@ function noiseHit(dur, vol, delay) {
   const s = ac.createBufferSource(); s.buffer = buf;
   const g = ac.createGain(); g.gain.setValueAtTime(vol, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp || 900;
   s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t0);
 }
 const sfx = {
@@ -118,13 +119,18 @@ const sfx = {
   bank() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.12, 'triangle', 0.11, 0, i * 0.06)); },
   coin() { tone(988, 0.06, 'triangle', 0.1); tone(1319, 0.1, 'triangle', 0.1, 0, 0.06); },
   snap() { noiseHit(0.35, 0.35); tone(140, 0.3, 'sawtooth', 0.22, -100); tone(70, 0.4, 'sine', 0.25, -35, 0.05); },
-  xray() { tone(420, 0.14, 'sine', 0.09, 480); },
+  splash() { noiseHit(0.4, 0.18, 0.08, 500); },
+  xray() { tone(420, 0.14, 'sine', 0.09, 480); tone(1200, 0.03, 'square', 0.05, 0, 0.18); tone(1200, 0.03, 'square', 0.05, 0, 0.32); },
   error() { tone(110, 0.12, 'square', 0.12, -20); },
   buy() { tone(660, 0.06, 'triangle', 0.1); tone(880, 0.08, 'triangle', 0.1, 0, 0.05); tone(1320, 0.1, 'triangle', 0.08, 0, 0.1); },
   boss() { tone(82, 0.4, 'sawtooth', 0.16, -20); tone(62, 0.5, 'sawtooth', 0.16, -14, 0.35); },
   win() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.16, 'square', 0.08, 0, i * 0.09)); },
   defuse() { tone(880, 0.08, 'sine', 0.1, 220); tone(1200, 0.1, 'sine', 0.08, 200, 0.07); },
   sweep() { [392, 523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.13, 'triangle', 0.1, 0, i * 0.05)); },
+  pickup() { tone(500, 0.05, 'triangle', 0.09, 250); },
+  drop() { tone(700, 0.06, 'triangle', 0.09, -280); },
+  thunk() { tone(160, 0.08, 'square', 0.09, -50); },
+  ach() { [659, 831, 988, 1319].forEach((f, i) => tone(f, 0.15, 'square', 0.07, 0, i * 0.08)); },
 };
 // tiny swamp groove
 let musicNext = 0;
@@ -157,36 +163,6 @@ function musicTick() {
   }
 }
 
-// ------------------------------------------------------- swirl background -
-const bgC = document.createElement('canvas'); bgC.width = 120; bgC.height = 68;
-const bgX = bgC.getContext('2d');
-const bgD = bgX.createImageData(120, 68);
-const BGPALS = {
-  play: [[9, 24, 19], [13, 38, 27], [19, 56, 37], [27, 76, 47]],
-  boss: [[26, 10, 14], [40, 13, 18], [58, 19, 24], [80, 27, 30]],
-  shop: [[10, 18, 30], [14, 27, 44], [20, 39, 60], [28, 53, 78]],
-  menu: [[9, 24, 19], [13, 38, 27], [20, 58, 38], [30, 82, 50]],
-};
-function drawBG(t, pal) {
-  const d = bgD.data; let i = 0;
-  for (let y = 0; y < 68; y++) {
-    const cy = y - 34;
-    for (let x = 0; x < 120; x++) {
-      const cx = x - 60;
-      const r = Math.sqrt(cx * cx + cy * cy);
-      const a = Math.atan2(cy, cx);
-      let v = Math.sin(a * 3 + t * 0.38 - r * 0.13 + Math.sin(r * 0.055 - t * 0.22) * 2.3);
-      v += Math.sin(x * 0.16 + t * 0.3) * Math.sin(y * 0.19 - t * 0.24) * 0.65;
-      let idx = Math.floor((v + 1.9) / 3.8 * pal.length);
-      idx = clamp(idx, 0, pal.length - 1);
-      const c = pal[idx];
-      d[i++] = c[0]; d[i++] = c[1]; d[i++] = c[2]; d[i++] = 255;
-    }
-  }
-  bgX.putImageData(bgD, 0, 0);
-  ctx.drawImage(bgC, 0, 0, W, H);
-}
-
 // ------------------------------------------------------------ primitives --
 function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w | 0, h | 0); }
 const RCUT = { 1: [1], 2: [2, 1], 3: [3, 1, 1], 4: [4, 2, 1, 1] };
@@ -208,6 +184,242 @@ function panel(x, y, w, h, opts) {
   rr(x + 1, y + 2, w, h, r, opts.sh || '#00000066');
   rr(x, y, w, h, r, opts.edge || C.edge);
   rr(x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1), opts.face || C.panel);
+}
+function fillCircle(cx, cy, r, col) {
+  for (let dy = -r; dy <= r; dy++) {
+    const w2 = Math.floor(Math.sqrt(r * r - dy * dy));
+    rect(cx - w2, cy + dy, w2 * 2 + 1, 1, col);
+  }
+}
+
+// --------------------------------------------------- swamp scene themes ---
+const WATERY = 198; // waterline
+const THEMES = {
+  night: {
+    sky: ['#0a1626', '#0c1c2e', '#0f2434', '#132c3c', '#17343f'],
+    treeFar: '#0d2028', tree: '#071318', water: '#0a2028', waterHi: '#1e4a52',
+    waterFront: '#081c24', moon: '#e8e8d0', moonHalo: '#e8e8d022', stars: true,
+    reed: '#132d1e', reedHead: '#4a3320', pad: '#1a4a30', padHi: '#2a6a42',
+  },
+  boss: {
+    sky: ['#180a12', '#1e0d16', '#26101a', '#2e141e', '#361822'],
+    treeFar: '#22101a', tree: '#120711', water: '#1a0d14', waterHi: '#4a2030',
+    waterFront: '#160a10', moon: '#c03830', moonHalo: '#c0383026', stars: false, rain: true,
+    reed: '#241018', reedHead: '#3a1a20', pad: '#301820', padHi: '#48242e',
+  },
+  shop: {
+    sky: ['#170f20', '#1e1428', '#281a32', '#32203c', '#3c2a44'],
+    treeFar: '#241a30', tree: '#120c1c', water: '#120e20', waterHi: '#3c2a54',
+    waterFront: '#100c1a', moon: '#f0d8a0', moonHalo: '#f0d8a022', stars: true,
+    reed: '#1e1430', reedHead: '#4a3a28', pad: '#243048', padHi: '#38445e',
+  },
+};
+function themeNow() {
+  if (G.state === 'shop') return THEMES.shop;
+  if (G.round === 2 && G.state !== 'menu') return THEMES.boss;
+  return THEMES.night;
+}
+
+// scene entities
+const fireflies = [];
+for (let i = 0; i < 16; i++) fireflies.push({ x: rnd() * W, y: 60 + rnd() * 150, vx: 0, vy: 0, ph: rnd() * 9 });
+let ripples = []; // {x,y,r,vr,t,life}
+let bubbles = []; // {x,y,t}
+let birds = [];   // {x,y,vx,vy,t}
+const rain = [];
+for (let i = 0; i < 42; i++) rain.push({ x: rnd() * W, y: rnd() * H, s: 2.4 + rnd() * 1.6 });
+let bubbleTimer = 0;
+
+function addRipple(x, y, big) {
+  ripples.push({ x, y, r: 2, vr: big ? 34 : 20, t: 0, life: big ? 1.1 : 0.7 });
+  if (big) ripples.push({ x, y, r: 1, vr: 22, t: -0.15, life: 1.2 });
+}
+function scareFireflies(x, y, pow) {
+  fireflies.forEach(f => {
+    const dx = f.x - x, dy = f.y - y, d = Math.max(8, Math.hypot(dx, dy));
+    if (d < 90) { f.vx += dx / d * pow; f.vy += dy / d * pow; }
+  });
+}
+function scatterBirds() {
+  for (let i = 0; i < 5; i++) {
+    birds.push({ x: 20 + rnd() * 90 + (i % 2 ? 330 : 0), y: 92 + rnd() * 30, vx: (rnd() < 0.5 ? -1 : 1) * (40 + rnd() * 30), vy: -30 - rnd() * 25, t: 0 });
+  }
+}
+function splashWater() {
+  addRipple(200 + rnd() * 180, 250, true);
+  addRipple(180 + rnd() * 220, 258, true);
+  for (let i = 0; i < 12; i++) parts.push({ x: 200 + rnd() * 180, y: 250, vx: (rnd() - 0.5) * 90, vy: -60 - rnd() * 80, g: 300, t: 0, life: 0.5 + rnd() * 0.4, col: '#7fb8c8', sz: ri(1, 2) });
+  sfx.splash();
+}
+
+function updateScene(dt) {
+  fireflies.forEach(f => {
+    f.vx += (rnd() - 0.5) * 26 * dt; f.vy += (rnd() - 0.5) * 20 * dt;
+    f.vx *= 0.985; f.vy *= 0.985;
+    f.x += f.vx * dt; f.y += f.vy * dt;
+    if (f.x < -8) f.x = W + 8; if (f.x > W + 8) f.x = -8;
+    if (f.y < 46) { f.y = 46; f.vy = Math.abs(f.vy); }
+    if (f.y > H - 6) { f.y = H - 6; f.vy = -Math.abs(f.vy); }
+  });
+  ripples = ripples.filter(rp => { rp.t += dt; rp.r += rp.vr * dt; return rp.t < rp.life; });
+  bubbles = bubbles.filter(b => { b.t += dt; b.y -= 9 * dt; return b.t < 1.4; });
+  birds = birds.filter(b => { b.t += dt; b.x += b.vx * dt; b.y += b.vy * dt; return b.x > -20 && b.x < W + 20 && b.y > -20; });
+  bubbleTimer -= dt;
+  if (bubbleTimer <= 0) { bubbleTimer = 1.4 + rnd() * 2.2; bubbles.push({ x: 150 + rnd() * 220, y: 246 + rnd() * 18, t: 0 }); }
+  if (themeNow().rain) rain.forEach(d => { d.y += d.s * 150 * dt; d.x -= d.s * 22 * dt; if (d.y > H) { d.y = -6; d.x = rnd() * (W + 60); } });
+}
+
+function drawSceneBack(th) {
+  // sky bands
+  const bandH = Math.ceil(WATERY / th.sky.length);
+  th.sky.forEach((c, i) => rect(0, i * bandH, W, bandH, c));
+  // stars
+  if (th.stars) {
+    for (let i = 0; i < 34; i++) {
+      const sx = (i * 97 + 13) % W, sy = (i * 53 + 7) % 105;
+      const tw = Math.sin(tNow * 1.7 + i * 2.3);
+      if (tw > -0.3) {
+        ctx.globalAlpha = 0.25 + tw * 0.3;
+        rect(sx, sy, 1, 1, '#cfe8f0');
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+  // moon + halo
+  const mx0 = 404, my0 = 40, mr = th === THEMES.boss ? 24 : 19;
+  ctx.globalAlpha = 0.25; fillCircle(mx0, my0, mr + 6, th.moon); ctx.globalAlpha = 1;
+  fillCircle(mx0, my0, mr, th.moon);
+  ctx.globalAlpha = 0.22;
+  fillCircle(mx0 - 6, my0 - 4, 4, '#000'); fillCircle(mx0 + 5, my0 + 6, 3, '#000'); fillCircle(mx0 + 8, my0 - 7, 2, '#000');
+  ctx.globalAlpha = 1;
+  // drifting clouds
+  for (let k = 0; k < 3; k++) {
+    const cw = 70 + k * 28;
+    const cx0 = ((tNow * (4 + k * 2) + k * 210) % (W + cw + 60)) - cw - 30;
+    ctx.globalAlpha = 0.16;
+    rr(cx0, 32 + k * 22, cw, 8, 3, '#000');
+    rr(cx0 + 12, 28 + k * 22, cw - 30, 6, 3, '#000');
+    ctx.globalAlpha = 1;
+  }
+  // far treeline (jagged silhouette)
+  for (let x = 0; x < W; x += 6) {
+    const h1 = 34 + ((Math.sin(x * 0.13) * 12) | 0) + ((x * 7) % 9);
+    rect(x, WATERY - h1, 6, h1, th.treeFar);
+  }
+  // near trees: two big canopies with trunks + hanging moss
+  const treeBlob = (bx, bw, bh) => {
+    rr(bx, WATERY - bh, bw, bh, 4, th.tree);
+    rr(bx + bw / 4, WATERY - bh - 12, bw / 2, 16, 4, th.tree);
+    rect(bx + bw / 2 - 3, WATERY - 28, 6, 28, th.tree);
+  };
+  treeBlob(-30, 130, 66); treeBlob(392, 120, 74);
+  // moss strands
+  for (let k = 0; k < 9; k++) {
+    const x0 = k < 5 ? 8 + k * 20 : 396 + (k - 5) * 22;
+    const len = 10 + (k * 37) % 14;
+    const sway = Math.sin(tNow * 1.1 + k * 1.9) * 2;
+    for (let seg = 0; seg < len; seg += 2) {
+      rect(x0 + sway * (seg / len), WATERY - 62 + seg, 1, 2, th.treeFar);
+    }
+  }
+  // water
+  rect(0, WATERY, W, H - WATERY, th.water);
+  // moon reflection shimmer
+  for (let k = 0; k < 8; k++) {
+    const yy = WATERY + 4 + k * 8;
+    const off = Math.sin(tNow * 1.3 + k) * (3 + k);
+    ctx.globalAlpha = 0.35 - k * 0.035;
+    rect(mx0 - 8 + off, yy, 14 - k, 1, th.moon);
+    ctx.globalAlpha = 1;
+  }
+  // ripple highlight rows
+  for (let k = 0; k < 5; k++) {
+    const yy = WATERY + 6 + k * 13;
+    const off = Math.sin(tNow * 0.8 + k * 2.2) * 9;
+    for (let d = 0; d < 5; d++) {
+      rect(((d * 100 + off + k * 31) % (W + 40)) - 20, yy, 12 + k * 2, 1, th.waterHi);
+    }
+  }
+  // lilypads
+  const pad = (px, py, w2) => {
+    rr(px, py, w2, 4, 2, th.pad);
+    rect(px + 2, py, w2 - 6, 1, th.padHi);
+    rect(px + w2 - 4, py + 1, 3, 1, th.water); // notch
+  };
+  pad(52, 216, 20); pad(438, 228, 22); pad(88, 250, 18);
+  rect(58, 213, 2, 2, '#e8a0c0'); // little flower
+  // expanding click ripples (behind gator)
+  drawRipples(0.5);
+}
+
+function drawRipples(alphaMul) {
+  ripples.forEach(rp => {
+    const a = clamp(1 - rp.t / rp.life, 0, 1) * (alphaMul || 1);
+    if (rp.t < 0) return;
+    ctx.globalAlpha = a * 0.6;
+    const rx = rp.r, ry = rp.r * 0.32;
+    for (let k = 0; k < 10; k++) {
+      const ang = k / 10 * Math.PI * 2;
+      rect(rp.x + Math.cos(ang) * rx, rp.y + Math.sin(ang) * ry, 2, 1, '#9fd8e0');
+    }
+    ctx.globalAlpha = 1;
+  });
+}
+
+function drawSceneFront(th) {
+  // water strip in front of the gator (he sits IN the swamp)
+  ctx.globalAlpha = 0.62;
+  rect(0, 250, W, H - 250, th.waterFront);
+  ctx.globalAlpha = 1;
+  for (let d = 0; d < 6; d++) {
+    const off = Math.sin(tNow * 0.9 + d * 1.7) * 7;
+    rect(((d * 90 + off) % (W + 30)) - 15, 253 + (d % 3) * 5, 16, 1, th.waterHi);
+  }
+  drawRipples(1);
+  // bubbles
+  bubbles.forEach(b => {
+    const a = 1 - b.t / 1.4;
+    ctx.globalAlpha = a * 0.7;
+    if (b.t > 1.15) { rect(b.x - 1, b.y, 3, 1, '#9fd8e0'); rect(b.x, b.y - 1, 1, 3, '#9fd8e0'); }
+    else rect(b.x, b.y, 2, 2, '#7fb8c8');
+    ctx.globalAlpha = 1;
+  });
+  // cattail reeds in the corners (clear of the sidebar)
+  const reedAt = (x0, hh, k) => {
+    const sway = Math.sin(tNow * 1.4 + k * 2.1) * 2;
+    for (let seg = 0; seg < hh; seg += 2) {
+      rect(x0 + sway * (seg / hh), H - seg - 2, 1, 2, th.reed);
+    }
+    rr(x0 + sway - 1, H - hh - 8, 3, 8, 1, th.reedHead);
+  };
+  reedAt(120, 26, 0); reedAt(128, 34, 1); reedAt(137, 22, 2);
+  reedAt(458, 30, 3); reedAt(466, 40, 4); reedAt(473, 24, 5);
+  // fireflies
+  fireflies.forEach((f, i) => {
+    const br = (Math.sin(tNow * 2.1 + f.ph) + 1) / 2;
+    if (br > 0.55) {
+      ctx.globalAlpha = (br - 0.55) * 0.8;
+      rect(f.x - 1, f.y - 1, 3, 3, '#d8ff9033');
+      rect(f.x, f.y, 1, 1, '#eaffa0');
+      ctx.globalAlpha = 1;
+      rect(f.x, f.y, 1, 1, '#eaffa0');
+    } else {
+      ctx.globalAlpha = 0.3; rect(f.x, f.y, 1, 1, '#a8c870'); ctx.globalAlpha = 1;
+    }
+  });
+  // scattering birds
+  birds.forEach(b => {
+    const fl = Math.floor(b.t * 10) % 2;
+    rect(b.x - 2, b.y + (fl ? 0 : -1), 2, 1, '#0a0f12');
+    rect(b.x + 1, b.y + (fl ? 0 : -1), 2, 1, '#0a0f12');
+    rect(b.x, b.y, 1, 1, '#0a0f12');
+  });
+  // rain (boss rounds)
+  if (th.rain) {
+    ctx.globalAlpha = 0.3;
+    rain.forEach(d => { rect(d.x, d.y, 1, 5, '#9fb8d8'); rect(d.x - 1, d.y + 5, 1, 2, '#9fb8d8'); });
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ------------------------------------------------------------ icons -------
@@ -232,6 +444,15 @@ const ICONS = {
   xrayic(x, y) { rr(x + 1, y + 2, 10, 8, 2, '#123'); rr(x + 2, y + 3, 8, 6, 1, '#1a3a55'); ICONS.tooth(x, y - 1, '#9fe8ff'); },
   money(x, y) { rr(x + 1, y + 3, 10, 7, 1, C.greenD); rr(x + 2, y + 4, 8, 5, 1, C.green); drawText('$', x + 4, y + 5, C.greenD); },
   pliers(x, y) { rect(x + 3, y + 1, 2, 5, '#9fb2b8'); rect(x + 7, y + 1, 2, 5, '#9fb2b8'); rect(x + 4, y + 6, 4, 2, '#748a91'); rect(x + 3, y + 8, 2, 3, C.red); rect(x + 7, y + 8, 2, 3, C.red); },
+  mirror(x, y) { rr(x + 2, y + 1, 8, 8, 3, '#c8b060'); rr(x + 3, y + 2, 6, 6, 2, '#bfe8ff'); rect(x + 4, y + 3, 2, 2, '#fff'); rect(x + 5, y + 9, 2, 3, '#c8b060'); },
+  bottle(x, y) { rect(x + 5, y + 1, 2, 2, '#8a6a3a'); rect(x + 4, y + 3, 4, 2, '#4fae5c'); rr(x + 3, y + 5, 6, 6, 2, '#4fae5c'); rect(x + 4, y + 7, 2, 2, '#8fe89c'); },
+  mud(x, y) { rr(x + 1, y + 6, 10, 5, 2, '#6a4a2a'); rect(x + 3, y + 4, 3, 3, '#8a6238'); rect(x + 7, y + 5, 2, 2, '#8a6238'); rect(x + 5, y + 2, 2, 2, '#8a6238'); },
+  bolt(x, y) { rect(x + 6, y + 1, 3, 4, C.gold); rect(x + 4, y + 4, 4, 3, C.gold); rect(x + 3, y + 7, 3, 4, C.gold); },
+  snake(x, y) { rect(x + 2, y + 2, 6, 2, '#7ec850'); rect(x + 7, y + 3, 2, 4, '#7ec850'); rect(x + 3, y + 6, 5, 2, '#7ec850'); rect(x + 2, y + 8, 2, 3, '#7ec850'); rect(x + 2, y + 2, 1, 1, C.red); },
+  moonic(x, y) { fillCircle(x + 6, y + 6, 5, '#e8e8c0'); fillCircle(x + 8, y + 5, 4, '#232f3a'); },
+  hourglass(x, y) { rect(x + 3, y + 1, 6, 2, '#c8b060'); rect(x + 3, y + 9, 6, 2, '#c8b060'); rect(x + 4, y + 3, 4, 2, '#bfe8ff'); rect(x + 5, y + 5, 2, 2, '#e8d090'); rect(x + 4, y + 7, 4, 2, '#e8d090'); },
+  trap(x, y) { rr(x + 1, y + 4, 10, 5, 2, '#9fb2b8'); rect(x + 2, y + 2, 2, 3, '#e8e8e0'); rect(x + 5, y + 2, 2, 3, '#e8e8e0'); rect(x + 8, y + 2, 2, 3, '#e8e8e0'); rect(x + 5, y + 9, 2, 2, '#748a91'); },
+  glove(x, y, a) { a = a || '#e8b088'; rr(x + 2, y + 3, 8, 6, 2, a); rect(x + 1, y + 5, 2, 3, a); rect(x + 3, y + 1, 2, 3, a); rect(x + 6, y + 1, 2, 3, a); rect(x + 2, y + 9, 8, 2, '#3a5560'); },
 };
 
 // ------------------------------------------------------------ tooth art ---
@@ -255,20 +476,14 @@ function drawTooth(x, y, w, h, up, type, o) {
   ctx.translate(x + w / 2, y + h / 2);
   if (!up) ctx.scale(1, -1);
   ctx.translate(-w / 2, -h / 2);
-  // now draw as if crown up, root at bottom (local 0,0 top-left)
   const bodyC = o.pressedTint ? st.b : st.a;
-  // outline
   rr(-1, 0, w + 2, h, 3, o.outline || '#00000055');
-  // crown
   rr(0, 0, w, h - 3, 3, bodyC);
-  // roots (two nubs at bottom)
   rect(1, h - 4, Math.floor(w / 2) - 2, 4, bodyC);
   rect(w - Math.floor(w / 2) + 1, h - 4, Math.floor(w / 2) - 2, 4, bodyC);
-  // shading right + bottom for 3D
   rect(w - 3, 2, 2, h - 6, st.b);
   rect(w - 2, 3, 1, h - 8, st.c);
   rect(2, h - 6, w - 5, 2, st.b);
-  // shine top-left
   rect(2, 2, 2, Math.max(2, Math.floor(h / 3)), '#ffffff88');
   if (type === 'rotten') { rect(Math.floor(w / 2) - 1, 3, 3, 3, st.gem); rect(2, h - 9, 2, 2, st.gem); }
   if (type === 'vamp') { rect(Math.floor(w / 2) - 1, 0, 3, 3, st.gem); }
@@ -280,53 +495,107 @@ function drawTooth(x, y, w, h, up, type, o) {
   }
   if (type === 'gold') { rect(2, Math.floor(h / 2) - 2, w - 4, 2, '#fff6c8aa'); }
   if (type === 'steel') { rect(2, Math.floor(h / 2) - 3, w - 4, 1, '#ffffffaa'); rect(2, Math.floor(h / 2) - 1, w - 4, 1, '#77909b'); }
+  // x-ray overlay: skeletal negative with root (and the trap, if it is a snapper)
+  if (o.xray) {
+    rr(0, 0, w, h, 3, '#0a2440e6');
+    const cxx = Math.floor(w / 2);
+    rect(cxx - 1, 2, 2, h - 8, '#bfe8ff');
+    rect(cxx - 3, h - 7, 2, 5, '#bfe8ff'); rect(cxx + 1, h - 7, 2, 5, '#bfe8ff');
+    if (o.xraySnap) {
+      rect(cxx - 3, Math.floor(h / 2) - 3, 6, 2, C.red);
+      rect(cxx - 3, Math.floor(h / 2), 2, 2, C.red); rect(cxx + 1, Math.floor(h / 2), 2, 2, C.red);
+    }
+    // scan line sweep
+    const sw = (o.xrayT * 2.4) % 1;
+    ctx.globalAlpha = 0.85;
+    rect(0, Math.floor(sw * (h - 1)), w, 1, '#8fe8ff');
+    ctx.globalAlpha = 1;
+  }
   ctx.restore();
+}
+
+// ------------------------------------------------------ gator variants ----
+// body tones a(base) b(dark) c(light) d(outline), maw colors, feature flags
+const CROC_STYLES = {
+  small: { a: '#5aa843', b: '#3c7c2e', c: '#8cd34f', d: '#295722', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f8f4dc' },
+  big: { a: '#4e8f3d', b: '#2f6626', c: '#79b944', d: '#1f4519', maw: '#40101c', mawD: '#2a0a12', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e8c8', scars: true, ridge: true },
+  twofang: { a: '#57755a', b: '#3a523e', c: '#7d9a80', d: '#263a2a', maw: '#3a0e18', mawD: '#260810', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e0c0', fangs: true, scars: true },
+  murky: { a: '#7a6a40', b: '#584a28', c: '#9c8c58', d: '#3a3018', maw: '#3a2010', mawD: '#281408', tongue: '#a86040', tongueHi: '#c08058', sclera: '#d8d0a8', algae: true, sleepy: true },
+  cotton: { a: '#b8b0a0', b: '#8c8474', c: '#d8d0c0', d: '#5a5448', maw: '#f0ece0', mawD: '#c8c2b2', tongue: '#e08898', tongueHi: '#f0aab8', sclera: '#fff', paleMaw: true },
+  lockjaw: { a: '#6a8a5a', b: '#48633c', c: '#8fae7c', d: '#2e4426', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', brace: true },
+  loanshark: { a: '#3a8a8a', b: '#256060', c: '#5cb0ac', d: '#173e3e', maw: '#3a1024', mawD: '#280a18', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f8f4dc', hat: true, goldTooth: true },
+  ironjaw: { a: '#707a82', b: '#4c545c', c: '#98a2aa', d: '#30363c', maw: '#38141c', mawD: '#240c12', tongue: '#a84858', tongueHi: '#c06a78', sclera: '#e0e0d8', metal: true },
+  tender: { a: '#6aa060', b: '#477043', c: '#92c688', d: '#2c4a28', maw: '#78243a', mawD: '#521626', tongue: '#e87890', tongueHi: '#f89cb0', sclera: '#f8f4dc', bandage: true, teary: true },
+  diet: { a: '#8a9a78', b: '#647250', c: '#aebc9c', d: '#42503a', maw: '#4a2430', mawD: '#321820', tongue: '#b06a78', tongueHi: '#c88a96', sclera: '#e8e8d0', skinny: true },
+  restless: { a: '#6a5a8a', b: '#484060', c: '#8f7cae', d: '#2e2844', maw: '#38102a', mawD: '#240a1c', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#e8c8c8', redEye: true, bags: true },
+  king: { a: '#4a7a3a', b: '#305424', c: '#74a858', d: '#1e3a16', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', crown: true, moss: true },
+  apexpred: { a: '#2e3a34', b: '#1c2620', c: '#48584e', d: '#0e1612', maw: '#2e0810', mawD: '#1c040a', tongue: '#8a3040', tongueHi: '#a84858', sclera: '#e8d0c0', redEye: true, scars: true, fangs: true, ridge: true },
+};
+function crocStyle() {
+  if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
+  if (G.state !== 'menu' && G.round === 1) return CROC_STYLES.big;
+  return CROC_STYLES.small;
 }
 
 // ------------------------------------------------------------ game data ---
 const TOOTH_DEFS = {
-  plain: { name: 'TOOTH', base: 3, desc: 'A plain tooth.' },
-  gold: { name: 'GOLD TOOTH', base: 3, cost: 3, desc: 'Earn $2 when pressed' },
-  ruby: { name: 'RUBY TOOTH', base: 2, cost: 3, desc: '+4 MULT when pressed' },
-  sapph: { name: 'SAPPHIRE TOOTH', base: 12, cost: 4, desc: 'A hefty +12 TEETH' },
-  steel: { name: 'STEEL TOOTH', base: 2, cost: 4, desc: 'X1.5 MULT when pressed' },
-  lucky: { name: 'LUCKY TOOTH', base: 2, cost: 3, desc: '1 IN 3 chance: +5 MULT' },
-  rotten: { name: 'ROTTEN TOOTH', base: 0, cost: 2, desc: '+6 MULT when pressed' },
-  vamp: { name: 'VAMPIRE FANG', base: 4, cost: 4, desc: '+2 TEETH for each tooth pressed before it this bite' },
+  plain: { name: 'TOOTH', base: 3, desc: 'A plain tooth. Adds its value to Teeth.', flav: 'Brushed twice a day, allegedly.' },
+  gold: { name: 'GOLD TOOTH', base: 3, cost: 3, desc: 'Earn $2 when pressed', flav: 'The swamp dentist retirement plan.' },
+  ruby: { name: 'RUBY TOOTH', base: 2, cost: 3, desc: '+4 MULT when pressed', flav: 'Bites back with style.' },
+  sapph: { name: 'SAPPHIRE TOOTH', base: 12, cost: 4, desc: 'A hefty +12 TEETH', flav: 'Dense. Very dense.' },
+  steel: { name: 'STEEL TOOTH', base: 2, cost: 4, desc: 'X1.5 MULT when pressed', flav: 'Forged in a bog-side smithy.' },
+  lucky: { name: 'LUCKY TOOTH', base: 2, cost: 3, desc: '1 IN 3 chance: +5 MULT', flav: 'Found under a swamp pillow.' },
+  rotten: { name: 'ROTTEN TOOTH', base: 0, cost: 2, desc: '+6 MULT when pressed', flav: 'Smells awful. Scores great.' },
+  vamp: { name: 'VAMPIRE FANG', base: 4, cost: 4, desc: '+2 TEETH for each tooth pressed before it this bite', flav: 'It vants to count your clicks.' },
 };
 const SHOP_TEETH = ['gold', 'ruby', 'sapph', 'steel', 'lucky', 'rotten', 'vamp'];
 
 const CHARMS = [
-  { id: 'sweet', name: 'SWEET TOOTH', cost: 4, rar: 0, ico: 'candy', desc: '+1 extra MULT for every tooth pressed this bite' },
-  { id: 'overbite', name: 'OVERBITE', cost: 4, rar: 0, ico: 'tooth', desc: 'First tooth of each bite gives +12 TEETH' },
-  { id: 'greedy', name: 'GREEDY GATOR', cost: 5, rar: 0, ico: 'coin', desc: 'Earn $1 for every 4 teeth pressed' },
-  { id: 'magnet', name: 'MOLAR MAGNET', cost: 4, rar: 0, ico: 'magnet', desc: '+15 TEETH when you bank' },
-  { id: 'babyfangs', name: 'BABY FANGS', cost: 5, rar: 0, ico: 'heart', desc: 'Teeth of value 2 or less give +4 MULT' },
-  { id: 'crown', name: 'GOLD CROWN', cost: 5, rar: 0, ico: 'crown', desc: 'Gold Teeth earn double money and +5 TEETH' },
-  { id: 'license', name: 'DENTIST LICENSE', cost: 5, rar: 0, ico: 'eye', desc: '+1 X-RAY every round' },
-  { id: 'fairy', name: 'TOOTH FAIRY', cost: 5, rar: 0, ico: 'fairy', desc: 'Earn $2 at the end of every round' },
-  { id: 'numb', name: 'NUMBING GEL', cost: 7, rar: 1, ico: 'syringe', desc: 'The first SNAP each round is defused' },
-  { id: 'glass', name: 'GLASS JAW', cost: 6, rar: 1, ico: 'skull', desc: 'X2 MULT when banking, but -1 BITE every round' },
-  { id: 'rootcanal', name: 'ROOT CANAL', cost: 7, rar: 1, ico: 'drill', desc: 'Bank with 7+ teeth pressed: X2 MULT' },
-  { id: 'chewtoy', name: 'CHEW TOY', cost: 6, rar: 1, ico: 'shield', desc: '+1 BITE every round' },
-  { id: 'coldblood', name: 'COLD BLOOD', cost: 6, rar: 1, ico: 'snow', desc: '+3 starting MULT for each snap tooth hidden in the mouth' },
-  { id: 'collector', name: 'FANG COLLECTOR', cost: 7, rar: 1, ico: 'star', desc: 'CLEAN SWEEP bonus becomes X2 MULT (instead of X1.25)' },
-  { id: 'loose', name: 'LOOSE TOOTH', cost: 6, rar: 1, ico: 'pliers', desc: '1 in 3 chance a pressed snap tooth pops out harmlessly' },
-  { id: 'braces', name: 'BRACES', cost: 6, rar: 1, ico: 'gem', desc: '+2 teeth in every mouth' },
-  { id: 'wisdom', name: 'WISDOM TOOTH', cost: 8, rar: 2, ico: 'gem', desc: 'Every bite starts with +MULT equal to your ANTE' },
-  { id: 'apex', name: 'APEX INSTINCT', cost: 9, rar: 2, ico: 'fang', desc: 'X3 MULT when banking with 8+ teeth pressed' },
+  { id: 'sweet', name: 'SWEET TOOTH', cost: 4, rar: 0, ico: 'candy', desc: '+1 extra MULT for every tooth pressed this bite', flav: 'The gator has a candy problem.' },
+  { id: 'overbite', name: 'OVERBITE', cost: 4, rar: 0, ico: 'tooth', desc: 'First tooth of each bite gives +12 TEETH', flav: 'Start strong, bite stronger.' },
+  { id: 'greedy', name: 'GREEDY GATOR', cost: 5, rar: 0, ico: 'coin', desc: 'Earn $1 for every 4 teeth pressed', flav: 'Every molar is a money-maker.' },
+  { id: 'magnet', name: 'MOLAR MAGNET', cost: 4, rar: 0, ico: 'magnet', desc: '+15 TEETH when you bank', flav: 'Attracts calcium and compliments.' },
+  { id: 'babyfangs', name: 'BABY FANGS', cost: 5, rar: 0, ico: 'heart', desc: 'Teeth of value 2 or less give +4 MULT', flav: 'Small teeth, big feelings.' },
+  { id: 'crown', name: 'GOLD CROWN', cost: 5, rar: 0, ico: 'crown', desc: 'Gold Teeth earn double money and +5 TEETH', flav: 'Fit for swamp royalty.' },
+  { id: 'license', name: 'DENTIST LICENSE', cost: 5, rar: 0, ico: 'eye', desc: '+1 X-RAY every round', flav: 'Framed. Probably real.' },
+  { id: 'fairy', name: 'TOOTH FAIRY', cost: 5, rar: 0, ico: 'fairy', desc: 'Earn $2 at the end of every round', flav: 'She works the swamp shift now.' },
+  { id: 'tinfang', name: 'TIN FANG', cost: 5, rar: 0, ico: 'shield', desc: 'Plain teeth give double TEETH', flav: 'Cheap alloy, honest work.' },
+  { id: 'snaggle', name: 'SNAGGLETOOTH', cost: 4, rar: 0, ico: 'money', desc: 'CLEAN SWEEP also pays +$5', flav: 'Crooked tooth, straight cash.' },
+  { id: 'numb', name: 'NUMBING GEL', cost: 7, rar: 1, ico: 'syringe', desc: 'The first SNAP each round is defused', flav: 'You will feel a little pressure.' },
+  { id: 'glass', name: 'GLASS JAW', cost: 6, rar: 1, ico: 'skull', desc: 'X2 MULT when banking, but -1 BITE every round', flav: 'Fragile. Furious. Effective.' },
+  { id: 'rootcanal', name: 'ROOT CANAL', cost: 7, rar: 1, ico: 'drill', desc: 'Bank with 7+ teeth pressed: X2 MULT', flav: 'Deep work pays deep.' },
+  { id: 'chewtoy', name: 'CHEW TOY', cost: 6, rar: 1, ico: 'heart', desc: '+1 BITE every round', flav: 'Squeaks to distract the gator.' },
+  { id: 'coldblood', name: 'COLD BLOOD', cost: 6, rar: 1, ico: 'snow', desc: '+3 starting MULT for each snap tooth hidden in the mouth', flav: 'Danger keeps you focused.' },
+  { id: 'collector', name: 'FANG COLLECTOR', cost: 7, rar: 1, ico: 'star', desc: 'CLEAN SWEEP bonus becomes X2 MULT (instead of X1.25)', flav: 'One of every kind, thanks.' },
+  { id: 'loose', name: 'LOOSE TOOTH', cost: 6, rar: 1, ico: 'pliers', desc: '1 in 3 chance a pressed snap tooth pops out harmlessly', flav: 'Wiggle room, literally.' },
+  { id: 'braces', name: 'BRACES', cost: 6, rar: 1, ico: 'gem', desc: '+2 teeth in every mouth', flav: 'Two more years, two more teeth.' },
+  { id: 'mirror', name: 'MIRROR MOLAR', cost: 6, rar: 1, ico: 'mirror', desc: '+2 starting MULT for each special tooth in the mouth', flav: 'Reflects well on your deck.' },
+  { id: 'goldrush', name: 'GOLD RUSH', cost: 6, rar: 1, ico: 'bolt', desc: '+1 TEETH per $ held when banking (max +30)', flav: 'Wealth you can chew on.' },
+  { id: 'slowbite', name: 'PATIENT JAWS', cost: 6, rar: 1, ico: 'hourglass', desc: '+8 TEETH per unpressed tooth when you bank', flav: 'Restraint is a flavor.' },
+  { id: 'swampheart', name: 'SWAMP HEART', cost: 7, rar: 1, ico: 'mud', desc: 'The first SNAP each round refunds its bite', flav: 'The bog forgives. Once.' },
+  { id: 'wisdom', name: 'WISDOM TOOTH', cost: 8, rar: 2, ico: 'gem', desc: 'Every bite starts with +MULT equal to your ANTE', flav: 'It knows things.' },
+  { id: 'apex', name: 'APEX INSTINCT', cost: 9, rar: 2, ico: 'fang', desc: 'X3 MULT when banking with 8+ teeth pressed', flav: 'Eat like nothing can eat you.' },
+  { id: 'echo', name: 'ECHO CHOMP', cost: 8, rar: 2, ico: 'moonic', desc: '1 in 4 chance a pressed tooth counts twice', flav: 'chomp. Chomp. CHOMP.' },
+  { id: 'bloodpact', name: 'BLOOD PACT', cost: 8, rar: 2, ico: 'snake', desc: 'X3 MULT when banking, but each bank costs $2', flav: 'Sign on the dotted fang.' },
+  { id: 'venom', name: 'VENOM GLAND', cost: 8, rar: 2, ico: 'bottle', desc: '+1 starting MULT per 2 teeth pressed this round', flav: 'It builds up in your system.' },
 ];
 
 const CONS = [
-  { id: 'panorama', name: 'PANORAMA', cost: 4, ico: 'xrayic', need: 'bite', desc: 'Reveal every snap tooth in the current mouth' },
-  { id: 'novocaine', name: 'NOVOCAINE', cost: 4, ico: 'syringe', need: 'bite', desc: 'Defuse the next snap in this mouth' },
-  { id: 'extract', name: 'EXTRACTION', cost: 3, ico: 'pliers', need: 'bite', desc: 'Yank any one tooth out of the mouth, risk free' },
-  { id: 'fluoride', name: 'FLUORIDE', cost: 3, ico: 'shield', need: 'bite', desc: '+25 TEETH added to your current bite' },
-  { id: 'shot', name: 'ADRENALINE', cost: 5, ico: 'heart', need: 'round', desc: '+1 BITE this round' },
-  { id: 'goldmolar', name: 'GOLD MOLAR', cost: 4, ico: 'coin', desc: 'Add a GOLD TOOTH to your deck' },
-  { id: 'rubymolar', name: 'RUBY MOLAR', cost: 4, ico: 'gem', desc: 'Add a RUBY TOOTH to your deck' },
-  { id: 'polish', name: 'POLISH', cost: 4, ico: 'star', desc: 'Upgrade 3 random plain teeth by +2 value, permanently' },
-  { id: 'cavity', name: 'CAVITY', cost: 4, ico: 'skull', desc: 'Remove the 2 weakest plain teeth from your deck' },
+  { id: 'panorama', name: 'PANORAMA', cost: 4, ico: 'xrayic', need: 'bite', desc: 'Reveal every snap tooth in the current mouth', flav: 'Say cheese.' },
+  { id: 'novocaine', name: 'NOVOCAINE', cost: 4, ico: 'syringe', need: 'bite', desc: 'Defuse the next snap in this mouth', flav: 'A little pinch, then nothing.' },
+  { id: 'extract', name: 'EXTRACTION', cost: 3, ico: 'pliers', target: 'tooth', need: 'bite', desc: 'Drag onto a tooth to yank it out, risk free', flav: 'One good pull.' },
+  { id: 'fluoride', name: 'FLUORIDE', cost: 3, ico: 'shield', need: 'bite', desc: '+25 TEETH added to your current bite', flav: 'Swish and swallow. Wait, no.' },
+  { id: 'shot', name: 'ADRENALINE', cost: 5, ico: 'heart', need: 'round', desc: '+1 BITE this round', flav: 'Straight to the heart.' },
+  { id: 'mudbath', name: 'MUD BATH', cost: 4, ico: 'mud', need: 'bite', desc: 'Swap in a fresh mouth without spending a bite', flav: 'Everyone relax.' },
+  { id: 'fairydust', name: 'FAIRY DUST', cost: 5, ico: 'star', need: 'bite', desc: 'Double your current bite TEETH', flav: 'Do not inhale.' },
+  { id: 'loupe', name: 'LOUPE', cost: 3, ico: 'eye', need: 'bite', desc: 'X-ray 3 random unknown teeth for free', flav: 'Squint professionally.' },
+  { id: 'snack', name: 'GATOR SNACK', cost: 5, ico: 'candy', need: 'bite', desc: 'Remove one random snap tooth from this mouth', flav: 'A well-fed gator forgets a trap.' },
+  { id: 'goldmolar', name: 'GOLD MOLAR', cost: 4, ico: 'coin', desc: 'Add a GOLD TOOTH to your deck', flav: 'Investment dentistry.' },
+  { id: 'rubymolar', name: 'RUBY MOLAR', cost: 4, ico: 'gem', desc: 'Add a RUBY TOOTH to your deck', flav: 'Sparkles when it bites.' },
+  { id: 'polish', name: 'POLISH', cost: 4, ico: 'star', desc: 'Upgrade 3 random plain teeth by +2 value, permanently', flav: 'Buff till they blind.' },
+  { id: 'cavity', name: 'CAVITY', cost: 4, ico: 'skull', desc: 'Remove the 2 weakest plain teeth from your deck', flav: 'Addition by subtraction.' },
+  { id: 'roottonic', name: 'ROOT TONIC', cost: 6, ico: 'bottle', desc: 'ALL plain teeth in your deck gain +1 value', flav: 'Tastes like pond. Works like magic.' },
+  { id: 'swampbrew', name: 'SWAMP BREW', cost: 2, ico: 'money', desc: 'Gain $3', flav: 'Legally distilled. Swamp-legal.' },
 ];
 
 const BOSSES = [
@@ -338,13 +607,15 @@ const BOSSES = [
   { id: 'ironjaw', name: 'IRON JAW', desc: 'Chain MULT only grows every 2nd tooth' },
   { id: 'tender', name: 'TENDER GUMS', desc: '2 fewer teeth in every mouth' },
   { id: 'diet', name: 'PLAIN DIET', desc: 'Special teeth lose their powers' },
+  { id: 'restless', name: 'THE RESTLESS', desc: 'Snap teeth relocate after every 3rd press' },
+  { id: 'king', name: 'SWAMP KING', desc: '+2 teeth per mouth, but +1 snap tooth' },
 ];
 const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth, and only 1 X-Ray' };
 
 const ANTE_BASE = [60, 150, 340, 750, 1600, 3000, 5200, 6000];
 const ROUND_MULT = [1, 1.5, 2];
 const ROUND_REWARD = [4, 5, 8];
-const ROUND_NAMES = ['SMALL CROC', 'BIG CROC', 'BOSS'];
+const ROUND_NAMES = ['SMALL GATOR', 'BIG GATOR', 'BOSS'];
 
 function targetFor(ante, round) {
   let base = ante <= 8 ? ANTE_BASE[ante - 1] : ANTE_BASE[7] * Math.pow(1.6, ante - 8);
@@ -354,19 +625,58 @@ function rewardFor(ante, round) {
   return ROUND_REWARD[round] + Math.floor(ante / 3); // gentle income scaling for late antes
 }
 
+// -------------------------------------------------- gloves + achievements -
+const GLOVES = {
+  bare: { name: 'BARE HAND', skin: '#e8b088', shade: '#c07850', cuff: '#3a5560', ach: null, flav: 'Just you and the swamp.' },
+  rubber: { name: 'RUBBER GLOVE', skin: '#7fd4e8', shade: '#4fa8c8', cuff: '#e8f4f8', ach: 'firstpress', flav: 'Snaps when you put it on.' },
+  leather: { name: 'LEATHER MITT', skin: '#b0793a', shade: '#845423', cuff: '#5a3a1a', ach: 'ante3', flav: 'Smells like adventure.' },
+  croc: { name: 'CROC-SKIN', skin: '#5aa843', shade: '#3c7c2e', cuff: '#295722', ach: 'boss', pat: 'scale', flav: 'Awkward, honestly.' },
+  gold: { name: 'MIDAS TOUCH', skin: '#ffd54a', shade: '#c9941a', cuff: '#8a6510', ach: 'rich', pat: 'shine', flav: 'Everything you press turns to points.' },
+  bone: { name: 'BONE SAW', skin: '#e8e8e0', shade: '#a8a89a', cuff: '#1a1a22', ach: 'snap25', pat: 'bones', flav: 'A skeleton of your former grip.' },
+  pearl: { name: 'PEARL WHITE', skin: '#f4f0f8', shade: '#c8c0d8', cuff: '#8878a8', ach: 'sweep3', pat: 'dot', flav: 'Immaculate technique.' },
+  royal: { name: 'ROYAL GRIP', skin: '#8a4fd0', shade: '#5a2a90', cuff: '#ffd54a', ach: 'win', pat: 'gem', flav: 'The hand that rules the swamp.' },
+};
+const GLOVE_ORDER = ['bare', 'rubber', 'leather', 'croc', 'gold', 'bone', 'pearl', 'royal'];
+const ACHS = [
+  { id: 'firstpress', name: 'FIRST BITE', desc: 'Press your first tooth', glove: 'rubber' },
+  { id: 'ante3', name: 'GETTING TOOTHY', desc: 'Reach Ante 3', glove: 'leather' },
+  { id: 'boss', name: 'DE-BOSSED', desc: 'Defeat a Boss Gator', glove: 'croc' },
+  { id: 'rich', name: 'SWAMP MONEY', desc: 'Hold $50 at once', glove: 'gold' },
+  { id: 'snap25', name: 'PAIN TOLERANCE', desc: 'Get snapped 25 times (lifetime)', glove: 'bone' },
+  { id: 'sweep3', name: 'SPOTLESS', desc: '3 Clean Sweeps in one run', glove: 'pearl' },
+  { id: 'win', name: 'APEX DENTIST', desc: 'Beat all 8 antes', glove: 'royal' },
+];
+let meta = { ach: {}, lifeSnaps: 0, glove: 'bare' };
+try { const m = JSON.parse(localStorage.getItem('bd_meta') || 'null'); if (m) meta = Object.assign(meta, m); } catch (e) { }
+function saveMeta() { try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
+let toasts = []; // {name, glove, t}
+function unlock(id) {
+  if (meta.ach[id]) return;
+  meta.ach[id] = true;
+  const a = ACHS.find(a => a.id === id);
+  toasts.push({ name: a.name, glove: a.glove, t: 0 });
+  saveMeta();
+  sfx.ach();
+}
+const gloveUnlocked = k => !GLOVES[k].ach || !!meta.ach[GLOVES[k].ach];
+
 // ------------------------------------------------------------ state -------
 const G = {
-  state: 'menu', // menu | play | snap | roundend | shop | gameover | win | bossintro | how
+  state: 'menu', // menu | play | swap | snap | roundend | shop | gameover | win | bossintro | how
   ante: 1, round: 0, money: 0, target: 0, score: 0, dispScore: 0,
   bites: 0, xrays: 0, deck: [], drawPile: [], mouth: [], pool: null,
   charms: [], cons: [], boss: null, bossOrder: [],
-  mode: 'idle', // idle | xray | extract
+  mode: 'idle', // idle | xray | extract (extract kept for programmatic use)
   extractCons: -1,
   novocaine: false, numbUsed: false, greedyCount: 0,
   shopItems: [], rerollCost: 4,
-  snapT: 0, snapIdx: -1, jawClose: 0,
+  snapT: 0, snapIdx: -1, jawClose: 0, swapT: 0,
   cash: null, stats: null, wonOnce: false,
   deckOpen: false, howFrom: 'menu',
+  drag: null,      // {kind:'cons'|'charm', idx, x, y, vx}
+  inspect: null,   // {kind, def, ...}
+  xanim: null,     // {i, t}
+  runSweeps: 0, roundPressed: 0, heartUsed: false,
 };
 let best = 0;
 try { best = parseInt(localStorage.getItem('bitedown_best') || '0') || 0; } catch (e) { }
@@ -376,7 +686,7 @@ const has = id => G.charms.some(c => c.id === id);
 const bossIs = id => !!(G.boss && G.round === 2 && G.boss.id === id);
 const xraysBlocked = () => bossIs('murky');
 const snapCountFor = () => {
-  return 1 + ((bossIs('twofang') || bossIs('apexpred')) ? 1 : 0);
+  return 1 + ((bossIs('twofang') || bossIs('apexpred') || bossIs('king')) ? 1 : 0);
 };
 
 function mkTooth(type, base) {
@@ -403,7 +713,8 @@ function newRun() {
   for (let v = 1; v <= 5; v++) for (let k = 0; k < 4; k++) G.deck.push(mkTooth('plain', v));
   G.bossOrder = shuffle(BOSSES.slice());
   G.stats = { pressed: 0, snaps: 0, banks: 0, bestBank: 0, moneyEarned: 0 };
-  G.wonOnce = false; G.deckOpen = false;
+  G.wonOnce = false; G.deckOpen = false; G.inspect = null; G.drag = null;
+  G.runSweeps = 0;
   floats = []; parts = []; shake = 0;
   startRound();
 }
@@ -416,15 +727,17 @@ function startRound() {
   G.xrays = 3 + (has('license') ? 1 : 0);
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
   G.numbUsed = false; G.greedyCount = 0;
+  G.roundPressed = 0; G.heartUsed = false;
   G.drawPile = shuffle(G.deck.slice());
-  G.deckOpen = false;
+  G.deckOpen = false; G.inspect = null; G.drag = null; G.xanim = null;
+  if (G.ante >= 3) unlock('ante3');
   newMouth();
   if (G.boss) { G.state = 'bossintro'; sfx.boss(); }
   else { G.state = 'play'; }
 }
 
 function mouthSizeFor() {
-  let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0);
+  let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0) + (bossIs('king') ? 2 : 0);
   return Math.max(6, Math.min(size, G.deck.length));
 }
 
@@ -439,11 +752,17 @@ function newMouth() {
   G.pool = { teeth: 0, mult: 1, clicks: 0 };
   if (has('wisdom')) G.pool.mult += G.ante;
   if (has('coldblood')) G.pool.mult += 3 * snaps;
-  G.novocaine = false; G.mode = 'idle'; G.extractCons = -1;
+  if (has('mirror')) G.pool.mult += 2 * G.mouth.filter(s => s.t.type !== 'plain').length;
+  if (has('venom')) G.pool.mult += Math.floor(G.roundPressed / 2);
+  G.novocaine = false; G.mode = 'idle'; G.extractCons = -1; G.xanim = null;
   G.jawClose = 0;
 }
 
-function gainMoney(n) { G.money += n; G.stats.moneyEarned += Math.max(0, n); }
+function gainMoney(n) {
+  G.money += n;
+  G.stats.moneyEarned += Math.max(0, n);
+  if (G.money >= 50) unlock('rich');
+}
 
 function toothScreenPos(i) {
   const L = mouthLayout();
@@ -451,13 +770,27 @@ function toothScreenPos(i) {
   return s ? { x: s.x + s.w / 2, y: s.y + s.h / 2 } : { x: W / 2, y: H / 2 };
 }
 
+// THE RESTLESS: snap teeth relocate among hidden teeth after every 3rd press
+function relocateSnaps() {
+  const hidden = G.mouth.map((s, i) => ({ s, i })).filter(o => !o.s.pressed && !o.s.gone);
+  if (hidden.length < 2) return;
+  const snapCount = hidden.filter(o => o.s.snap).length;
+  if (!snapCount) return;
+  hidden.forEach(o => { o.s.snap = false; o.s.revealed = null; });
+  shuffle(hidden.slice()).slice(0, snapCount).forEach(o => { o.s.snap = true; });
+  float(W / 2 + 40, 96, 'THE SNAPPERS MOVED!', C.purple, 1, 1.4);
+  sfx.thunk();
+}
+
 function pressTooth(i) {
   if (G.state !== 'play') return;
   const s = G.mouth[i];
   if (!s || s.pressed || s.gone) return;
+  if (G.xanim && G.xanim.i === i && G.xanim.t < 0.5) return; // mid-scan
   if (G.mode === 'xray') { doXray(i); return; }
   if (G.mode === 'extract') { doExtract(i); return; }
   const p = toothScreenPos(i);
+  unlock('firstpress');
 
   if (s.snap) {
     // possible defusals
@@ -480,32 +813,43 @@ function pressTooth(i) {
   s.pressed = true; s.pop = 0.25;
   G.pool.clicks++;
   G.stats.pressed++;
+  G.roundPressed++;
   const diet = bossIs('diet');
-  let add = s.t.base;
-  let mgain = 1;
-  if (bossIs('ironjaw') && (G.pool.clicks % 2 === 1)) mgain = 0;
-  if (has('sweet')) mgain += 1;
-  if (has('babyfangs') && s.t.base <= 2) mgain += 4;
-  if (has('overbite') && G.pool.clicks === 1) { add += 12; float(p.x, p.y - 22, 'OVERBITE +12', C.blue, 1); }
-  let steel = false;
-  if (!diet) {
-    switch (s.t.type) {
-      case 'gold': { const m = has('crown') ? 4 : 2; gainMoney(m); if (has('crown')) add += 5; float(p.x, p.y - 22, '+$' + m, C.gold, 1); sfx.coin(); break; }
-      case 'ruby': mgain += 4; break;
-      case 'steel': steel = true; break;
-      case 'lucky': if (ri(0, 2) === 0) { mgain += 5; float(p.x, p.y - 22, 'LUCKY! +5 MULT', C.green, 1); } break;
-      case 'rotten': mgain += 6; break;
-      case 'vamp': { const v = 2 * (G.pool.clicks - 1); add += v; if (v > 0) float(p.x, p.y - 22, 'DRAIN +' + v, C.purple, 1); break; }
+  const applyPress = (echoed) => {
+    let add = s.t.base;
+    let mgain = 1;
+    if (bossIs('ironjaw') && (G.pool.clicks % 2 === 1)) mgain = 0;
+    if (has('sweet')) mgain += 1;
+    if (has('babyfangs') && s.t.base <= 2) mgain += 4;
+    if (has('overbite') && G.pool.clicks === 1 && !echoed) { add += 12; float(p.x, p.y - 22, 'OVERBITE +12', C.blue, 1); }
+    if (has('tinfang') && s.t.type === 'plain') add *= 2;
+    let steel = false;
+    if (!diet) {
+      switch (s.t.type) {
+        case 'gold': { const m = has('crown') ? 4 : 2; gainMoney(m); if (has('crown')) add += 5; float(p.x, p.y - 22, '+$' + m, C.gold, 1); sfx.coin(); break; }
+        case 'ruby': mgain += 4; break;
+        case 'steel': steel = true; break;
+        case 'lucky': if (ri(0, 2) === 0) { mgain += 5; float(p.x, p.y - 22, 'LUCKY! +5 MULT', C.green, 1); } break;
+        case 'rotten': mgain += 6; break;
+        case 'vamp': { const v = 2 * (G.pool.clicks - 1); add += v; if (v > 0) float(p.x, p.y - 22, 'DRAIN +' + v, C.purple, 1); break; }
+      }
     }
+    G.pool.teeth += add;
+    G.pool.mult += mgain;
+    if (steel) { G.pool.mult = Math.round(G.pool.mult * 1.5); float(p.x, p.y - 22, 'X1.5 MULT', C.red, 1); }
+    return { add, mgain };
+  };
+  const r1 = applyPress(false);
+  if (has('echo') && ri(0, 3) === 0) {
+    applyPress(true);
+    float(p.x, p.y - 30, 'ECHO!', C.purple, 1);
   }
-  G.pool.teeth += add;
-  G.pool.mult += mgain;
-  if (steel) { G.pool.mult = Math.round(G.pool.mult * 1.5); float(p.x, p.y - 22, 'X1.5 MULT', C.red, 1); }
   if (has('greedy')) { G.greedyCount++; if (G.greedyCount % 4 === 0) { gainMoney(1); float(p.x, p.y - 28, 'GREEDY +$1', C.gold, 1); } }
-  float(p.x - 8, p.y - 12, '+' + add, C.blue, 1);
-  if (mgain > 0) float(p.x + 10, p.y - 6, '+' + mgain, C.red, 1);
+  float(p.x - 8, p.y - 12, '+' + r1.add, C.blue, 1);
+  if (r1.mgain > 0) float(p.x + 10, p.y - 6, '+' + r1.mgain, C.red, 1);
   burst(p.x, p.y, '#fef9e6', 5, 40);
   sfx.click(G.pool.clicks);
+  if (bossIs('restless') && G.pool.clicks % 3 === 0) relocateSnaps();
   checkSweep();
 }
 
@@ -516,6 +860,9 @@ function checkSweep() {
       float(W / 2 + 50, 96, 'CLEAN SWEEP!', C.gold, 2, 1.6);
       sfx.sweep();
       burst(W / 2 + 50, 130, C.gold, 20, 90);
+      G.runSweeps++;
+      if (G.runSweeps >= 3) unlock('sweep3');
+      if (has('snaggle')) { gainMoney(5); float(W / 2 + 50, 116, 'SNAGGLETOOTH +$5', C.gold, 1, 1.4); }
       bank(true);
     } else {
       // only snappers left and nothing pressed: the bite fizzles out
@@ -528,7 +875,10 @@ function checkSweep() {
 function bankMath(sweep) {
   let t = G.pool.teeth, m = G.pool.mult;
   if (has('magnet')) t += 15;
+  if (has('goldrush')) t += Math.min(30, G.money);
+  if (has('slowbite')) t += 8 * G.mouth.filter(s => !s.pressed && !s.gone).length;
   if (has('glass')) m *= 2;
+  if (has('bloodpact')) m *= 3;
   if (has('rootcanal') && G.pool.clicks >= 7) m *= 2;
   if (has('apex') && G.pool.clicks >= 8) m *= 3;
   if (sweep) m *= has('collector') ? 2 : 1.25;
@@ -545,8 +895,10 @@ function bank(sweep) {
   G.stats.banks++;
   if (val > G.stats.bestBank) G.stats.bestBank = val;
   if (bossIs('loanshark')) { G.money = Math.max(0, G.money - 2); float(60, 190, '-$2', C.red, 1); }
+  if (has('bloodpact')) { G.money = Math.max(0, G.money - 2); float(60, 198, 'PACT -$2', C.red, 1); }
   float(60, 96, '+' + fmt(val), C.gold, 2, 1.4);
   burst(60, 100, C.gold, 14, 80);
+  addRipple(180 + rnd() * 200, 254, false);
   if (!sweep) sfx.bank();
   endBite();
 }
@@ -555,7 +907,7 @@ function startSnap(i) {
   const s = G.mouth[i];
   s.pressed = true; s.revealed = 'snap';
   G.state = 'snap'; G.snapT = 0; G.snapIdx = i;
-  G.deckOpen = false;
+  G.deckOpen = false; G.drag = null; G.inspect = null;
   sfx.snap();
 }
 
@@ -575,7 +927,8 @@ function roundWon() {
   const fairy = has('fairy') ? 2 : 0;
   G.cash = { base, perBite, interest, fairy, total: base + perBite + interest + fairy };
   G.state = 'roundend';
-  G.deckOpen = false; clearFx();
+  G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
+  if (G.round === 2) unlock('boss');
   sfx.win();
   if (G.ante > best) { best = G.ante; saveBest(); }
 }
@@ -584,6 +937,7 @@ function cashOut() {
   gainMoney(G.cash.total);
   if (G.ante === 8 && G.round === 2 && !G.wonOnce) {
     G.wonOnce = true;
+    unlock('win');
     G.state = 'win';
     return;
   }
@@ -594,11 +948,10 @@ function enterShop() {
   G.rerollCost = 4;
   rollShop();
   G.state = 'shop';
-  G.deckOpen = false; clearFx();
+  G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
 }
 
 function weightedCharm(pool) {
-  // rar 0 common, 1 uncommon, 2 rare
   const w = pool.map(c => c.rar === 0 ? 6 : c.rar === 1 ? 3 : 1);
   let tot = w.reduce((a, b) => a + b, 0);
   let r = rnd() * tot;
@@ -668,7 +1021,7 @@ function nextRound() {
 
 function gameOver() {
   G.state = 'gameover';
-  G.deckOpen = false; clearFx();
+  G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
   if (G.ante > best) { best = G.ante; saveBest(); }
   sfx.boss();
 }
@@ -680,8 +1033,9 @@ function doXray(i) {
   s.revealed = s.snap ? 'snap' : 'safe';
   G.xrays--;
   G.mode = 'idle';
+  G.xanim = { i, t: 0 };
   const p = toothScreenPos(i);
-  float(p.x, p.y - 14, s.snap ? 'SNAPPER!' : 'SAFE', s.snap ? C.red : C.green, 1);
+  float(p.x, p.y - 20, 'SCANNING...', '#9fe8ff', 1, 0.5);
   sfx.xray();
 }
 
@@ -698,7 +1052,8 @@ function doExtract(i) {
   checkSweep();
 }
 
-function useCons(i) {
+// useCons(i, targetTooth): drag UI passes a tooth index for targeted cards.
+function useCons(i, targetTooth) {
   const def = G.cons[i]; if (!def) return;
   if (G.mode === 'extract' && def.id !== 'extract') { G.mode = 'idle'; G.extractCons = -1; }
   const inPlay = G.state === 'play';
@@ -713,11 +1068,45 @@ function useCons(i) {
     }
     case 'novocaine': G.novocaine = true; float(mx, my - 10, 'NUMBED UP', C.green, 1); sfx.defuse(); break;
     case 'extract':
+      if (targetTooth !== undefined && targetTooth >= 0) {
+        const s = G.mouth[targetTooth];
+        if (!s || s.pressed || s.gone) { sfx.error(); float(mx, my - 10, 'PICK A STANDING TOOTH', C.red, 1); return; }
+        G.extractCons = i;
+        doExtract(targetTooth);
+        return; // doExtract consumed the card
+      }
       if (G.mode === 'extract' && G.extractCons === i) { G.mode = 'idle'; G.extractCons = -1; return; }
       G.mode = 'extract'; G.extractCons = i; sfx.xray();
       return; // consumed on use
     case 'fluoride': G.pool.teeth += 25; float(60, 120, '+25 TEETH', C.blue, 1); sfx.defuse(); break;
     case 'shot': G.bites++; float(60, 160, '+1 BITE', C.green, 1); sfx.defuse(); break;
+    case 'mudbath': {
+      newMouth();
+      float(W / 2 + 50, 96, 'FRESH MOUTH!', '#8a6238', 1, 1.2);
+      addRipple(240, 252, true);
+      sfx.splash(); break;
+    }
+    case 'fairydust': {
+      G.pool.teeth *= 2;
+      float(60, 120, 'TEETH DOUBLED!', C.gold, 1, 1.3);
+      burst(W / 2 + 50, 130, C.gold, 14, 70);
+      sfx.sweep(); break;
+    }
+    case 'loupe': {
+      const unknown = shuffle(G.mouth.map((s, k) => ({ s, k })).filter(o => !o.s.pressed && !o.s.gone && !o.s.revealed));
+      unknown.slice(0, 3).forEach(o => { o.s.revealed = o.s.snap ? 'snap' : 'safe'; });
+      float(W / 2 + 50, 96, Math.min(3, unknown.length) + ' TEETH SCANNED', C.blue, 1, 1.3);
+      sfx.xray(); break;
+    }
+    case 'snack': {
+      const snaps = G.mouth.filter(s => s.snap && !s.pressed && !s.gone);
+      if (!snaps.length) { sfx.error(); float(mx, my - 10, 'NO SNAPPERS LEFT', C.red, 1); return; }
+      const s = choice(snaps);
+      s.gone = true; s.revealed = 'snap';
+      float(W / 2 + 50, 96, 'THE GATOR IS FED. -1 SNAPPER', C.green, 1, 1.4);
+      sfx.defuse();
+      checkSweep(); break;
+    }
     case 'goldmolar': G.deck.push(mkTooth('gold')); float(mx, my - 10, 'GOLD TOOTH ADDED', C.gold, 1); sfx.coin(); break;
     case 'rubymolar': G.deck.push(mkTooth('ruby')); float(mx, my - 10, 'RUBY TOOTH ADDED', C.red, 1); sfx.coin(); break;
     case 'polish': {
@@ -725,6 +1114,11 @@ function useCons(i) {
       shuffle(plains).slice(0, 3).forEach(t => t.base += 2);
       float(mx, my - 10, '3 TEETH POLISHED +2', C.blue, 1); sfx.buy(); break;
     }
+    case 'roottonic': {
+      G.deck.forEach(t => { if (t.type === 'plain') t.base += 1; });
+      float(mx, my - 10, 'ALL PLAIN TEETH +1', C.green, 1, 1.3); sfx.buy(); break;
+    }
+    case 'swampbrew': gainMoney(3); float(mx, my - 10, '+$3', C.gold, 1); sfx.coin(); break;
     case 'cavity': {
       const plains = G.deck.filter(t => t.type === 'plain').sort((a, b) => a.base - b.base);
       if (G.deck.length <= 8 || plains.length < 2) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH TEETH', C.red, 1); return; }
@@ -765,13 +1159,24 @@ function mouthLayout() {
       slots.push({ x: x0 + k * (tw + 3), y: rowY, w: tw, h: th, up });
     }
   };
-  mk(topN, false, maw.y + 2 + jawDrop);  // top row hangs down, moves with jaw
+  mk(topN, false, maw.y + 2 + jawDrop);
   mk(botN, true, maw.y + maw.h - 28);
   return { maw, slots, jawDrop };
 }
+function toothAt(px, py) {
+  const L = mouthLayout();
+  for (let i = 0; i < L.slots.length; i++) {
+    const sl = L.slots[i], s = G.mouth[i];
+    if (!s || s.pressed || s.gone) continue;
+    if (px >= sl.x - 1 && px < sl.x + sl.w + 1 && py >= sl.y - 2 && py < sl.y + sl.h + 2) return i;
+  }
+  return -1;
+}
 
 // ------------------------------------------------------------ input -------
-let mx = -10, my = -10, hits = [], hotId = null, tooltip = null;
+let mx = -40, my = -40, mouseSeen = false, hits = [], hotId = null;
+let down = null;        // {x, y, hit} potential click/drag origin
+let handPressT = 0;
 function hit(x, y, w, h, o) { o.x = x; o.y = y; o.w = w; o.h = h; hits.push(o); }
 function topHitAt(px, py) {
   for (let i = hits.length - 1; i >= 0; i--) {
@@ -786,27 +1191,294 @@ function pointFromEvent(e) {
   const cy = (e.touches ? e.touches[0].clientY : e.clientY);
   return { x: (cx - r.left) / r.width * W, y: (cy - r.top) / r.height * H };
 }
-canvas.addEventListener('mousemove', e => { const p = pointFromEvent(e); mx = p.x; my = p.y; });
+function onDown() {
+  handPressT = 0.16;
+  scareFireflies(mx, my, 60);
+  if (my > WATERY + 8) addRipple(mx, my, false);
+  const h = topHitAt(mx, my);
+  if (h && (h.dragKind !== undefined || h.click) && !h.disabled) {
+    down = { x: mx, y: my, hit: h }; // resolved on mouseup: click or drag
+    return;
+  }
+  if (h && h.cb && !h.disabled) h.cb();
+  hits.length = 0; // one action per rendered frame: stale rects must not double-fire
+  down = null;
+}
+function onUp() {
+  if (G.drag) { resolveDrop(); G.drag = null; down = null; return; }
+  if (down && down.hit && down.hit.click && !down.hit.disabled) {
+    down.hit.click();
+    hits.length = 0;
+  }
+  down = null;
+}
+canvas.addEventListener('mousemove', e => { const p = pointFromEvent(e); mx = p.x; my = p.y; mouseSeen = true; maybeStartDrag(); });
 canvas.addEventListener('mousedown', e => {
   if (e.button !== 0) return;
   audio();
-  const p = pointFromEvent(e); mx = p.x; my = p.y;
-  const h = topHitAt(mx, my);
-  if (h && h.cb && !h.disabled) h.cb();
-  hits.length = 0; // one action per rendered frame: stale rects must not double-fire
+  const p = pointFromEvent(e); mx = p.x; my = p.y; mouseSeen = true;
+  onDown();
 });
+addEventListener('mouseup', e => { if (e.button !== 0) return; onUp(); });
 canvas.addEventListener('touchstart', e => {
   audio();
-  const p = pointFromEvent(e); mx = p.x; my = p.y;
-  const h = topHitAt(mx, my);
-  if (h && h.cb && !h.disabled) h.cb();
-  hits.length = 0;
+  const p = pointFromEvent(e); mx = p.x; my = p.y; mouseSeen = true;
+  onDown();
   e.preventDefault();
 }, { passive: false });
+canvas.addEventListener('touchmove', e => { const p = pointFromEvent(e); mx = p.x; my = p.y; maybeStartDrag(); e.preventDefault(); }, { passive: false });
+addEventListener('touchend', () => onUp());
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') muted = !muted;
 });
+
+function maybeStartDrag() {
+  if (G.drag || !down || down.hit.dragKind === undefined) return;
+  if (Math.hypot(mx - down.x, my - down.y) > 5) {
+    G.drag = { kind: down.hit.dragKind, idx: down.hit.dragIdx, x: mx, y: my, px: mx, py: my };
+    sfx.pickup();
+  }
+}
+
+function resolveDrop() {
+  const d = G.drag; if (!d) return;
+  sfx.drop();
+  if (d.kind === 'charm') {
+    // sell barrel (shop only)
+    if (G.state === 'shop' && mx >= BARREL.x - 6 && mx < BARREL.x + BARREL.w + 6 && my >= BARREL.y - 8 && my < BARREL.y + BARREL.h + 8) {
+      sellCharm(d.idx);
+      burst(BARREL.x + BARREL.w / 2, BARREL.y + 8, C.gold, 10, 70);
+      return;
+    }
+    sfx.thunk();
+    return;
+  }
+  if (d.kind === 'cons') {
+    const def = G.cons[d.idx]; if (!def) return;
+    const L = mouthLayout();
+    const overMouth = mx > L.maw.x - 30 && mx < L.maw.x + L.maw.w + 30 && my > L.maw.y - 70 && my < L.maw.y + L.maw.h + 50;
+    if (def.target === 'tooth') {
+      const ti = toothAt(mx, my);
+      if (ti >= 0 && G.state === 'play') { useCons(d.idx, ti); return; }
+      sfx.thunk(); float(mx, my - 10, 'DROP IT ON A TOOTH', C.dim, 1);
+      return;
+    }
+    if (def.need === 'bite' || def.need === 'round') {
+      if (G.state === 'play' && overMouth) { useCons(d.idx); return; }
+      sfx.thunk();
+      if (G.state === 'play') float(mx, my - 10, 'DROP IT ON THE GATOR', C.dim, 1);
+      else float(mx, my - 10, 'USE DURING A ROUND', C.red, 1);
+      return;
+    }
+    // global cards: drop anywhere outside the card row
+    if (my > 58) { useCons(d.idx); return; }
+    sfx.thunk();
+  }
+}
+
+// ------------------------------------------------------------ gator -------
+function drawCroc(closeT, opts) {
+  opts = opts || {};
+  const st = crocStyle();
+  const L = mouthLayout();
+  const maw = L.maw;
+  const bodyX = maw.x - 22, bodyW = maw.w + 44;
+  const jawDrop = closeT * (maw.h - 26);
+  const breathe = (G.state === 'play' || G.state === 'menu') ? Math.sin(tNow * 1.6) * 1 : 0;
+  const mawC = st.maw, mawD = st.mawD;
+
+  // --- lower jaw base (behind maw) ---
+  rr(bodyX, maw.y + maw.h - 6, bodyW, 40, 4, st.d);
+  rr(bodyX + 1, maw.y + maw.h - 6, bodyW - 2, 38, 4, st.b);
+  rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, st.a);
+  if (st.skinny) { rect(bodyX + 14, maw.y + maw.h + 14, 3, 14, st.b); rect(bodyX + bodyW - 17, maw.y + maw.h + 14, 3, 14, st.b); }
+
+  // --- maw interior ---
+  rr(maw.x - 6, maw.y - 4, maw.w + 12, maw.h + 10, 4, mawD);
+  rr(maw.x - 3, maw.y - 1, maw.w + 6, maw.h + 4, 4, mawC);
+  rr(maw.x + 30, maw.y + maw.h - 34, maw.w - 60, 28, 4, st.tongue);
+  rr(maw.x + 40, maw.y + maw.h - 32, maw.w - 80, 10, 3, st.tongueHi);
+  rect(maw.x + maw.w / 2 - 1, maw.y + maw.h - 30, 2, 22, st.paleMaw ? '#c88898' : '#a83a4e');
+
+  // --- teeth ---
+  L.slots.forEach((sl, i) => {
+    const s = G.mouth[i]; if (!s) return;
+    if (s.gone) {
+      rr(sl.x + 2, sl.up ? sl.y + sl.h - 8 : sl.y, sl.w - 4, 6, 2, '#00000055');
+      return;
+    }
+    const dragTarget = G.drag && G.drag.kind === 'cons' && G.cons[G.drag.idx] && G.cons[G.drag.idx].target === 'tooth';
+    const hov = G.state === 'play' && mx >= sl.x && mx < sl.x + sl.w && my >= sl.y && my < sl.y + sl.h && !s.pressed;
+    let ty = sl.y, th = sl.h;
+    if (s.pressed) {
+      th = Math.floor(sl.h * 0.55);
+      if (!sl.up) ty = sl.y; else ty = sl.y + (sl.h - th);
+    } else if (hov) {
+      ty += sl.up ? -2 : 2;
+    }
+    if (s.pop > 0) { ty += sl.up ? 2 : -2; }
+    const snappingThis = (G.state === 'snap' && G.snapIdx === i);
+    const scanning = G.xanim && G.xanim.i === i && G.xanim.t < 0.5;
+    let outline = '#00000055';
+    if (hov) outline = dragTarget ? C.green : C.gold;
+    if (s.revealed === 'snap' && !s.pressed) outline = C.red;
+    if (snappingThis) outline = (Math.floor(tNow * 14) % 2) ? C.red : C.white;
+    drawTooth(sl.x, ty, sl.w, th, sl.up, s.t.type, {
+      pressedTint: s.pressed, outline,
+      xray: scanning, xraySnap: scanning && s.snap, xrayT: scanning ? G.xanim.t : 0,
+    });
+    if (!s.pressed && !scanning) {
+      const hideVal = bossIs('cotton');
+      const vs = hideVal ? '?' : '' + s.t.base;
+      const vy = sl.up ? ty + th - 7 : ty + 2;
+      if (hideVal) drawTextCSh(vs, sl.x + sl.w / 2 + 1, vy, C.white, 1, '#4a1060');
+      else drawTextC(vs, sl.x + sl.w / 2, vy, '#6d5c3a', 1);
+    }
+    if (s.revealed === 'safe' && !s.pressed && !scanning) {
+      rr(sl.x + sl.w - 7, sl.up ? sl.y - 5 : sl.y + sl.h - 1, 7, 7, 2, C.greenD);
+      drawText('+', sl.x + sl.w - 6, (sl.up ? sl.y - 4 : sl.y + sl.h), C.white, 1);
+    }
+    if (s.revealed === 'snap' && !s.pressed && !s.gone && !scanning) {
+      rr(sl.x + sl.w - 7, sl.up ? sl.y - 5 : sl.y + sl.h - 1, 7, 7, 2, C.redD);
+      drawText('!', sl.x + sl.w - 5, (sl.up ? sl.y - 4 : sl.y + sl.h), C.white, 1);
+    }
+    if (bossIs('diet') && s.t.type !== 'plain' && !s.pressed) {
+      rect(sl.x + 1, sl.up ? sl.y + 2 : sl.y + sl.h - 4, 4, 4, C.redD);
+      drawText('X', sl.x + 1, sl.up ? sl.y + 2 : sl.y + sl.h - 4, C.white, 1);
+    }
+    if (G.state === 'play' && !s.pressed) {
+      hit(sl.x, sl.y - 2, sl.w, sl.h + 4, {
+        cb: () => pressTooth(i),
+        id: 'tooth' + i,
+        cursor: true,
+        tip: toothTip(s),
+      });
+    }
+  });
+
+  // --- lower lip over teeth roots ---
+  rr(bodyX, maw.y + maw.h - 2, bodyW, 10, 3, st.b);
+  rect(bodyX + 2, maw.y + maw.h - 2, bodyW - 4, 3, st.d);
+
+  // --- upper jaw (snout) ---
+  const jy = maw.y - 58 + jawDrop + breathe;
+  rr(bodyX - 4, jy, bodyW + 8, 62, 4, st.d);
+  rr(bodyX - 3, jy + 1, bodyW + 6, 60, 4, st.b);
+  rr(bodyX - 1, jy + 3, bodyW + 2, 52, 4, st.a);
+  rr(bodyX + 6, jy + 5, bodyW - 12, 10, 3, st.c);
+  for (let k = 0; k < 7; k++) {
+    rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, st.b);
+  }
+  if (st.ridge) { rect(bodyX + 10, jy + 3, bodyW - 20, 2, st.b); rect(bodyX + 30, jy + 6, bodyW - 60, 1, st.b); }
+  if (st.scars) {
+    [[bodyX + 30, jy + 18], [bodyX + bodyW - 60, jy + 26]].forEach(([sx, sy]) => {
+      rect(sx, sy, 10, 2, st.c); rect(sx + 2, sy - 3, 2, 8, st.c); rect(sx + 6, sy - 3, 2, 8, st.c);
+    });
+  }
+  if (st.moss) {
+    [[bodyX + 20, jy + 12], [bodyX + bodyW - 50, jy + 8], [bodyX + 90, jy + 30]].forEach(([sx, sy]) => {
+      rr(sx, sy, 14, 4, 2, '#2c5a24'); rect(sx + 3, sy + 4, 3, 3, '#2c5a24');
+    });
+  }
+  if (st.algae) {
+    [[bodyX + 24, jy + 40], [bodyX + 90, jy + 46], [bodyX + bodyW - 44, jy + 38]].forEach(([sx, sy], k) => {
+      rect(sx, sy, 2, 10 + k * 3, '#4a6a2a'); rect(sx + 4, sy + 4, 2, 7, '#4a6a2a');
+    });
+  }
+  // nostrils
+  rr(maw.x + maw.w / 2 - 34, jy + 8, 12, 8, 2, st.b);
+  rr(maw.x + maw.w / 2 + 22, jy + 8, 12, 8, 2, st.b);
+  rect(maw.x + maw.w / 2 - 31, jy + 11, 4, 3, st.d);
+  rect(maw.x + maw.w / 2 + 27, jy + 11, 4, 3, st.d);
+  // metal snout plate (iron jaw)
+  if (st.metal) {
+    rr(maw.x + maw.w / 2 - 50, jy + 20, 100, 22, 3, '#8a949c');
+    rr(maw.x + maw.w / 2 - 48, jy + 22, 96, 18, 3, '#aab4bc');
+    [[-42, 24], [38, 24], [-42, 34], [38, 34]].forEach(([ox, oy]) => rect(maw.x + maw.w / 2 + ox, jy + oy, 2, 2, '#5a646c'));
+    rect(maw.x + maw.w / 2 - 40, jy + 24, 30, 2, '#d8e2e8');
+  }
+  // jaw brace (lockjaw)
+  if (st.brace) {
+    rect(bodyX + 20, jy + 6, 8, 52, '#8a949c');
+    rect(bodyX + bodyW - 28, jy + 6, 8, 52, '#8a949c');
+    rect(bodyX + 22, jy + 10, 4, 44, '#aab4bc');
+    rect(bodyX + bodyW - 26, jy + 10, 4, 44, '#aab4bc');
+    [[24, 12], [24, 46], [bodyW - 24, 12], [bodyW - 24, 46]].forEach(([ox, oy]) => rect(bodyX + ox, jy + oy, 2, 2, '#404a52'));
+  }
+  // bandage (tender gums)
+  if (st.bandage) {
+    rect(maw.x + maw.w / 2 - 20, jy + 24, 40, 10, '#f0ece0');
+    rect(maw.x + maw.w / 2 - 20, jy + 28, 40, 2, '#d0ccc0');
+    rect(maw.x + maw.w / 2 - 4, jy + 20, 8, 18, '#f0ece0');
+  }
+  // upper lip edge
+  rect(bodyX - 1, jy + 55, bodyW + 2, 3, st.d);
+  rr(bodyX - 1, jy + 52, bodyW + 2, 6, 2, st.b);
+  // big corner fangs (two-fang / apex)
+  if (st.fangs) {
+    const fy = jy + 56;
+    [[maw.x - 14, 0], [maw.x + maw.w + 2, 0]].forEach(([fx]) => {
+      rect(fx, fy, 10, 8, '#f4f0dc'); rect(fx + 2, fy + 8, 6, 6, '#f4f0dc');
+      rect(fx + 4, fy + 14, 3, 4, '#f4f0dc'); rect(fx + 8, fy + 2, 2, 8, '#cfc8a8');
+    });
+  }
+  // gold glint tooth (loan shark) on the lip
+  if (st.goldTooth) { rect(maw.x + 20, jy + 54, 8, 6, '#ffd54a'); rect(maw.x + 22, jy + 55, 2, 2, '#fff6c8'); }
+
+  // --- eyes on top --- (kept left of the charm row, which ends at x~270)
+  const squeeze = closeT > 0.5 || opts.angry;
+  const exL = maw.x + 18, exR = maw.x + maw.w - 48, ey = jy - 10;
+  [exL, exR].forEach((ex) => {
+    rr(ex - 4, ey, 30, 20, 4, st.b);
+    rr(ex - 3, ey + 1, 28, 17, 4, st.a);
+    if (squeeze) {
+      rect(ex + 2, ey + 8, 18, 3, st.d);
+    } else {
+      const blink = (tNow % 4.3) > 4.15 || (st.sleepy && (tNow % 4.3) > 3.9);
+      rr(ex + 3, ey + 4, 16, 12, 3, st.redEye ? '#e8b0a0' : st.sclera);
+      if (blink) {
+        rect(ex + 3, ey + 4, 16, 12, st.a);
+      } else {
+        const dx = clamp((mx - (ex + 11)) / 60, -1, 1) * 3;
+        const dy = clamp((my - (ey + 10)) / 60, -1, 1) * 2;
+        rect(ex + 9 + dx, ey + 6 + dy, 4, 8, st.redEye ? '#8a1010' : '#1b1408');
+        rect(ex + 10 + dx, ey + 7 + dy, 1, 2, '#fff');
+        if (st.sleepy) rect(ex + 3, ey + 4, 16, 5, st.a); // heavy lids
+      }
+    }
+    rect(ex - 2, ey - 2, 26, 3, st.d);
+    if (st.bags) { rect(ex + 2, ey + 17, 18, 2, '#3a2a4a'); rect(ex + 4, ey + 19, 14, 1, '#3a2a4a'); }
+    if (st.teary) { rect(ex + 4, ey + 16, 2, 3, '#7fd4e8'); rect(ex + 5, ey + 19 + ((tNow * 6 | 0) % 3), 1, 2, '#7fd4e8'); }
+  });
+  // crown (swamp king)
+  if (st.crown) {
+    const kx = maw.x + maw.w / 2 - 14, ky = ey - 12;
+    rect(kx, ky + 6, 28, 6, C.gold);
+    rect(kx, ky, 4, 8, C.gold); rect(kx + 8, ky + 2, 4, 6, C.gold);
+    rect(kx + 16, ky, 4, 8, C.gold); rect(kx + 24, ky + 2, 4, 6, C.gold);
+    rect(kx + 6, ky + 8, 2, 2, C.red); rect(kx + 20, ky + 8, 2, 2, '#3f8cff');
+  }
+  // top hat (loan shark)
+  if (st.hat) {
+    const hx = exR - 2, hy = ey - 20;
+    rect(hx - 4, hy + 14, 32, 4, '#14181c');
+    rect(hx, hy, 24, 15, '#1c2226');
+    rect(hx, hy + 10, 24, 3, C.gold);
+    rect(hx + 2, hy + 2, 3, 8, '#3a4248');
+  }
+}
+
+function toothTip(s) {
+  const d = TOOTH_DEFS[s.t.type];
+  let lines = d.name + '|';
+  if (bossIs('cotton')) lines += 'VALUE: ?';
+  else lines += 'VALUE: ' + s.t.base + ' TEETH';
+  if (s.t.type !== 'plain') lines += '|' + d.desc + (bossIs('diet') ? '|(DEBUFFED BY BOSS!)' : '');
+  if (s.revealed === 'safe') lines += '|X-RAY: SAFE TO PRESS';
+  if (s.revealed === 'snap') lines += '|X-RAY: THIS IS A SNAPPER!';
+  return lines;
+}
 
 // ------------------------------------------------------------ UI pieces ---
 function button(x, y, w, h, label, col, colD, cb, o) {
@@ -830,175 +1502,101 @@ function chip(x, y, w, h, val, colA, colB, sc) {
   drawTextC(fmt(val), x + w / 2, y + Math.floor((h - 5 * sc) / 2) + 1, C.white, sc);
 }
 
-function drawCharmCard(x, y, def, idx, opts) {
-  opts = opts || {};
-  const wob = Math.sin(tNow * 2.1 + idx * 1.7) * 1.2;
-  const hov = mx >= x && mx < x + 26 && my >= y - 4 && my < y + 40;
-  const yy = y + (hov ? -3 : wob);
-  const rarCol = def.rar === 2 ? C.red : def.rar === 1 ? C.blue : '#5d7a86';
-  rr(x + 1, yy + 3, 26, 36, 2, '#00000077');
-  rr(x, yy, 26, 36, 2, rarCol);
-  rr(x + 1, yy + 1, 24, 34, 2, '#26333c');
-  rr(x + 2, yy + 2, 22, 12, 1, '#31414c');
-  (ICONS[def.ico] || ICONS.star)(x + 7, yy + 12);
-  drawTextC(def.name.split(' ')[0].slice(0, 4), x + 13, yy + 28, C.white, 1);
-  let tip = def.name + '|' + def.desc;
-  if (opts.sell) tip += '|CLICK TO SELL FOR $' + Math.ceil(def.cost / 2);
-  hit(x, y - 2, 26, 40, { cb: opts.cb, tip, id: 'charm' + idx + def.id, cursor: !!opts.cb });
-}
-
-function drawConsCard(x, y, def, idx, opts) {
-  opts = opts || {};
-  const wob = Math.sin(tNow * 2.3 + idx * 2.9) * 1.2;
-  const hov = mx >= x && mx < x + 26 && my >= y - 4 && my < y + 40;
-  const yy = y + (hov ? -3 : wob);
-  rr(x + 1, yy + 3, 26, 36, 2, '#00000077');
-  rr(x, yy, 26, 36, 2, C.purple);
-  rr(x + 1, yy + 1, 24, 34, 2, '#332640');
-  rr(x + 2, yy + 2, 22, 12, 1, '#443355');
-  (ICONS[def.ico] || ICONS.star)(x + 7, yy + 12);
-  drawTextC(def.name.slice(0, 4), x + 13, yy + 28, C.white, 1);
-  let tip = def.name + '|' + def.desc;
-  if (opts.use) tip += '|CLICK TO USE';
-  hit(x, y - 2, 26, 40, { cb: opts.cb, tip, id: 'cons' + idx + def.id, cursor: !!opts.cb });
-}
-
-// ------------------------------------------------------------ croc --------
-function drawCroc(closeT, opts) {
-  opts = opts || {};
-  const L = mouthLayout();
-  const maw = L.maw;
-  const bodyX = maw.x - 22, bodyW = maw.w + 44;
-  const jawDrop = closeT * (maw.h - 26);
-  const breathe = G.state === 'play' ? Math.sin(tNow * 1.6) * 1 : 0;
-
-  // --- lower jaw base (behind maw) ---
-  rr(bodyX, maw.y + maw.h - 6, bodyW, 40, 4, C.crocD);
-  rr(bodyX + 1, maw.y + maw.h - 6, bodyW - 2, 38, 4, C.crocB);
-  rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, C.crocA);
-
-  // --- maw interior ---
-  rr(maw.x - 6, maw.y - 4, maw.w + 12, maw.h + 10, 4, C.mawD);
-  rr(maw.x - 3, maw.y - 1, maw.w + 6, maw.h + 4, 4, C.maw);
-  // tongue
-  rr(maw.x + 30, maw.y + maw.h - 34, maw.w - 60, 28, 4, C.tongue);
-  rr(maw.x + 40, maw.y + maw.h - 32, maw.w - 80, 10, 3, C.tongueHi);
-  rect(maw.x + maw.w / 2 - 1, maw.y + maw.h - 30, 2, 22, '#a83a4e');
-
-  // --- teeth ---
-  const hoveredTooth = (G.state === 'play' && (G.mode !== 'idle' || true));
-  L.slots.forEach((sl, i) => {
-    const s = G.mouth[i]; if (!s) return;
-    if (s.gone) {
-      // empty socket
-      rr(sl.x + 2, sl.up ? sl.y + sl.h - 8 : sl.y, sl.w - 4, 6, 2, '#00000055');
-      return;
-    }
-    const hov = G.state === 'play' && mx >= sl.x && mx < sl.x + sl.w && my >= sl.y && my < sl.y + sl.h && !s.pressed;
-    let ty = sl.y, th = sl.h;
-    if (s.pressed) {
-      // sunk into gum
-      th = Math.floor(sl.h * 0.55);
-      if (!sl.up) ty = sl.y; else ty = sl.y + (sl.h - th);
-    } else if (hov) {
-      ty += sl.up ? -2 : 2;
-    }
-    if (s.pop > 0) { ty += sl.up ? 2 : -2; }
-    const snappingThis = (G.state === 'snap' && G.snapIdx === i);
-    let outline = '#00000055';
-    if (hov) outline = C.gold;
-    if (s.revealed === 'snap' && !s.pressed) outline = C.red;
-    if (snappingThis) outline = (Math.floor(tNow * 14) % 2) ? C.red : C.white;
-    drawTooth(sl.x, ty, sl.w, th, sl.up, s.t.type, { pressedTint: s.pressed, outline });
-    // value label
-    if (!s.pressed) {
-      const hideVal = bossIs('cotton');
-      const vs = hideVal ? '?' : '' + s.t.base;
-      const vy = sl.up ? ty + th - 7 : ty + 2;
-      if (hideVal) drawTextCSh(vs, sl.x + sl.w / 2 + 1, vy, C.white, 1, '#4a1060');
-      else drawTextC(vs, sl.x + sl.w / 2, vy, '#6d5c3a', 1);
-    }
-    // revealed badges
-    if (s.revealed === 'safe' && !s.pressed) {
-      rr(sl.x + sl.w - 7, sl.up ? sl.y - 5 : sl.y + sl.h - 1, 7, 7, 2, C.greenD);
-      drawText('+', sl.x + sl.w - 6, (sl.up ? sl.y - 4 : sl.y + sl.h), C.white, 1);
-    }
-    if (s.revealed === 'snap' && !s.pressed && !s.gone) {
-      rr(sl.x + sl.w - 7, sl.up ? sl.y - 5 : sl.y + sl.h - 1, 7, 7, 2, C.redD);
-      drawText('!', sl.x + sl.w - 5, (sl.up ? sl.y - 4 : sl.y + sl.h), C.white, 1);
-    }
-    // debuffed marker
-    if (bossIs('diet') && s.t.type !== 'plain' && !s.pressed) {
-      rect(sl.x + 1, sl.up ? sl.y + 2 : sl.y + sl.h - 4, 4, 4, C.redD);
-      drawText('X', sl.x + 1, sl.up ? sl.y + 2 : sl.y + sl.h - 4, C.white, 1);
-    }
-    if (G.state === 'play' && !s.pressed) {
-      hit(sl.x, sl.y - 2, sl.w, sl.h + 4, {
-        cb: () => pressTooth(i),
-        id: 'tooth' + i,
-        cursor: true,
-        tip: toothTip(s),
-      });
-    }
-  });
-
-  // --- lower lip over teeth roots ---
-  rr(bodyX, maw.y + maw.h - 2, bodyW, 10, 3, C.crocB);
-  rect(bodyX + 2, maw.y + maw.h - 2, bodyW - 4, 3, C.crocD);
-
-  // --- upper jaw (snout) ---
-  const jy = maw.y - 58 + jawDrop + breathe;
-  rr(bodyX - 4, jy, bodyW + 8, 62, 4, C.crocD);
-  rr(bodyX - 3, jy + 1, bodyW + 6, 60, 4, C.crocB);
-  rr(bodyX - 1, jy + 3, bodyW + 2, 52, 4, C.crocA);
-  rr(bodyX + 6, jy + 5, bodyW - 12, 10, 3, C.crocC);
-  // scale dots
-  for (let k = 0; k < 7; k++) {
-    rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, C.crocB);
+// ---- unified card face (30x42) -------------------------------------------
+const RAR_COL = ['#5d7a86', '#3e8cd0', '#d0563e'];
+const RAR_NAME = ['COMMON', 'UNCOMMON', 'RARE'];
+function drawCardFace(x, y, def, kind, o) {
+  o = o || {};
+  const isCons = kind === 'cons';
+  const frame = isCons ? '#8a5fd0' : RAR_COL[def.rar || 0];
+  const face = isCons ? '#2c2238' : '#232f3a';
+  const plate = isCons ? '#3c2f4c' : '#31414c';
+  // shadow + frame + face
+  rr(x + 1, y + 3, 30, 42, 2, '#00000077');
+  rr(x, y, 30, 42, 2, frame);
+  rr(x + 1, y + 1, 28, 40, 2, face);
+  // icon plate with pinstripes
+  rr(x + 3, y + 3, 24, 18, 1, plate);
+  for (let k = 0; k < 3; k++) rect(x + 5 + k * 8, y + 4, 1, 16, '#ffffff10');
+  (ICONS[def.ico] || ICONS.star)(x + 9, y + 6);
+  // corner studs
+  rect(x + 2, y + 2, 1, 1, frame); rect(x + 27, y + 2, 1, 1, frame);
+  rect(x + 2, y + 39, 1, 1, frame); rect(x + 27, y + 39, 1, 1, frame);
+  // name strip
+  rr(x + 3, y + 24, 24, 9, 1, '#00000044');
+  const short = def.name.split(' ')[0].slice(0, 4);
+  drawTextC(short, x + 15, y + 26, C.white, 1);
+  // rarity gem / use arrow
+  if (isCons) { drawText('>', x + 22, y + 35, '#c8a8f8', 1); drawText('USE', x + 5, y + 35, '#8a70a8', 1); }
+  else { rect(x + 24, y + 35, 3, 3, frame); rect(x + 25, y + 36, 1, 1, '#ffffffaa'); }
+  if (o.price !== undefined) {
+    rr(x - 3, y - 5, 20, 9, 2, '#00000088');
+    drawText('$' + o.price, x - 1, y - 3, o.afford ? C.gold : C.red, 1);
   }
-  // nostrils
-  rr(maw.x + maw.w / 2 - 34, jy + 8, 12, 8, 2, C.crocB);
-  rr(maw.x + maw.w / 2 + 22, jy + 8, 12, 8, 2, C.crocB);
-  rect(maw.x + maw.w / 2 - 31, jy + 11, 4, 3, C.crocD);
-  rect(maw.x + maw.w / 2 + 27, jy + 11, 4, 3, C.crocD);
-  // upper lip edge
-  rect(bodyX - 1, jy + 55, bodyW + 2, 3, C.crocD);
-  rr(bodyX - 1, jy + 52, bodyW + 2, 6, 2, C.crocB);
-
-  // --- eyes on top --- (kept left of the charm row, which ends at x~270)
-  const squeeze = closeT > 0.5 || opts.angry;
-  const exL = maw.x + 18, exR = maw.x + maw.w - 48, ey = jy - 10;
-  [exL, exR].forEach((ex) => {
-    rr(ex - 4, ey, 30, 20, 4, C.crocB);
-    rr(ex - 3, ey + 1, 28, 17, 4, C.crocA);
-    if (squeeze) {
-      rect(ex + 2, ey + 8, 18, 3, C.crocD);
-    } else {
-      const blink = (tNow % 4.3) > 4.15;
-      rr(ex + 3, ey + 4, 16, 12, 3, '#f8f4dc');
-      if (blink) {
-        rect(ex + 3, ey + 4, 16, 12, C.crocA);
-      } else {
-        const dx = clamp((mx - (ex + 11)) / 60, -1, 1) * 3;
-        const dy = clamp((my - (ey + 10)) / 60, -1, 1) * 2;
-        rect(ex + 9 + dx, ey + 6 + dy, 4, 8, '#1b1408');
-        rect(ex + 10 + dx, ey + 7 + dy, 1, 2, '#fff');
-      }
-    }
-    // brow
-    rect(ex - 2, ey - 2, 26, 3, C.crocD);
-  });
 }
 
-function toothTip(s) {
-  const d = TOOTH_DEFS[s.t.type];
-  let lines = d.name + '|';
-  if (bossIs('cotton')) lines += 'VALUE: ?';
-  else lines += 'VALUE: ' + s.t.base + ' TEETH';
-  if (s.t.type !== 'plain') lines += '|' + d.desc + (bossIs('diet') ? '|(DEBUFFED BY BOSS!)' : '');
-  if (s.revealed === 'safe') lines += '|X-RAY: SAFE TO PRESS';
-  if (s.revealed === 'snap') lines += '|X-RAY: THIS IS A SNAPPER!';
-  return lines;
+// motion wrapper: idle bob + hover lift; skips render if being dragged
+function drawCardAnim(x, y, def, kind, idx, o) {
+  o = o || {};
+  if (G.drag && G.drag.kind === o.dragKind && G.drag.idx === o.dragIdx) {
+    // origin slot ghost
+    rr(x + 2, y + 2, 26, 38, 2, '#ffffff14');
+    return;
+  }
+  const ph = (def.id || '').length * 1.37 + idx * 2.1;
+  const hov = mx >= x - 2 && mx < x + 32 && my >= y - 6 && my < y + 44;
+  const bob = hov ? -4 : Math.sin(tNow * 1.8 + ph) * 1.6;
+  const rot = hov ? 0 : Math.sin(tNow * 1.3 + ph) * 0.05;
+  ctx.save();
+  ctx.translate(x + 15, y + 21 + bob);
+  ctx.rotate(rot);
+  drawCardFace(-15, -21, def, kind, o);
+  if (hov) { rr(-16, -22, 32, 44, 2, '#ffffff00'); ctx.globalAlpha = 0.5; rr(-16, -22, 32, 44, 2, '#ffe8a044'); ctx.globalAlpha = 1; }
+  ctx.restore();
+  const meta2 = { id: o.id || (kind + idx + (def.id || '')), cursor: true, tip: o.tip };
+  if (o.dragKind !== undefined) { meta2.dragKind = o.dragKind; meta2.dragIdx = o.dragIdx; }
+  if (o.click) meta2.click = o.click;
+  if (o.cb) meta2.cb = o.cb;
+  hit(x - 2, y - 4, 34, 48, meta2);
+}
+
+// the card currently being dragged, drawn near the cursor with swing
+function drawDraggedCard() {
+  const d = G.drag; if (!d) return;
+  const def = d.kind === 'cons' ? G.cons[d.idx] : G.charms[d.idx];
+  if (!def) { G.drag = null; return; }
+  d.px = d.px + (mx - d.px) * 0.55;
+  d.py = d.py + (my - d.py) * 0.55;
+  const vx = mx - d.px;
+  ctx.save();
+  ctx.translate(d.px, d.py + 8);
+  ctx.rotate(clamp(vx * 0.04, -0.4, 0.4));
+  ctx.globalAlpha = 0.92;
+  drawCardFace(-15, -21, def, d.kind === 'cons' ? 'cons' : 'charm', {});
+  ctx.globalAlpha = 1;
+  ctx.restore();
+  d.x = mx; d.y = my;
+  // drop hints
+  if (d.kind === 'cons' && G.state === 'play') {
+    const L = mouthLayout();
+    const t2 = G.cons[d.idx];
+    ctx.globalAlpha = 0.35 + Math.sin(tNow * 6) * 0.15;
+    if (t2 && t2.target === 'tooth') {
+      drawTextCSh('DROP ON A TOOTH', L.maw.x + L.maw.w / 2, L.maw.y - 66, C.green, 1);
+    } else if (t2 && (t2.need === 'bite' || t2.need === 'round')) {
+      rr(L.maw.x - 10, L.maw.y - 8, L.maw.w + 20, L.maw.h + 16, 4, '#63d66a22');
+      drawTextCSh('DROP ON THE GATOR', L.maw.x + L.maw.w / 2, L.maw.y - 66, C.green, 1);
+    } else {
+      drawTextCSh('RELEASE TO USE', L.maw.x + L.maw.w / 2, L.maw.y - 66, C.green, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (d.kind === 'charm' && G.state === 'shop') {
+    ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.2;
+    rr(BARREL.x - 4, BARREL.y - 6, BARREL.w + 8, BARREL.h + 10, 3, '#ffc84333');
+    drawTextCSh('SELL', BARREL.x + BARREL.w / 2, BARREL.y - 14, C.gold, 1);
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ------------------------------------------------------------ sidebar -----
@@ -1007,7 +1605,6 @@ function drawSidebar() {
   const x = SIDEBAR.x + 5, w = SIDEBAR.w - 10;
   let y = SIDEBAR.y + 5;
 
-  // round plate
   const isBoss = G.round === 2;
   const plateCol = isBoss ? C.redD : G.round === 1 ? '#8a5a16' : '#2c6b38';
   const plateHi = isBoss ? C.red : G.round === 1 ? C.orange : C.green;
@@ -1022,20 +1619,17 @@ function drawSidebar() {
     y += 24;
   }
 
-  // target + score
   panel(x, y, w, 40, { face: C.dark2 });
   drawText('TARGET', x + 4, y + 4, C.dim, 1);
   drawText(fmt(G.target), x + 4, y + 12, C.orange, 1);
   drawText('SCORE', x + 4, y + 22, C.dim, 1);
   const sc = G.dispScore >= 100000 ? 1 : 2;
   drawText(fmt(Math.round(G.dispScore)), x + 4, y + 29, C.gold, sc);
-  // progress bar
   const pw = Math.floor(clamp(G.score / G.target, 0, 1) * (w - 8));
   rect(x + 4, y + 41 - 3, w - 8, 2, '#0a1215');
   if (pw > 0) rect(x + 4, y + 41 - 3, pw, 2, C.gold);
   y += 44;
 
-  // teeth x mult
   const half = Math.floor((w - 12) / 2);
   chip(x, y, half, 16, G.pool ? G.pool.teeth : 0, '#1565b5', '#0c3f75', 1);
   drawTextC('*', x + half + 6, y + 5, C.red, 2);
@@ -1044,17 +1638,14 @@ function drawSidebar() {
   drawText('MULT', x + half + 14, y + 18, '#ff9a90', 1);
   y += 27;
 
-  // bite value preview
   panel(x, y, w, 14, { face: '#252017', edge: '#6b5a2a' });
   drawText('BITE', x + 4, y + 4, C.dim, 1);
   drawText(fmt(G.pool ? bankValue() : 0), x + 30, y + 4, C.gold, 1);
   y += 19;
 
-  // bites + xrays
   drawText('BITES', x + 2, y + 2, C.dim, 1);
   for (let i = 0; i < Math.min(6, G.bites); i++) {
-    const bx = x + 34 + i * 12;
-    ICONS.tooth(bx, y - 2);
+    ICONS.tooth(x + 34 + i * 12, y - 2);
   }
   if (G.bites > 6) drawText('+' + (G.bites - 6), x + 34 + 6 * 12, y + 2, C.white, 1);
   y += 13;
@@ -1069,19 +1660,16 @@ function drawSidebar() {
   }
   y += 15;
 
-  // money
   panel(x, y, w, 18, { face: '#26321e', edge: '#5a7a3a' });
   drawText('$' + G.money, x + 6, y + 5, C.gold, 2);
   drawTextC('MONEY', x + w - 22, y + 7, '#9ab87a', 1);
   y += 23;
 
-  // deck button (only interactive where the overlay can render)
   const deckOk = G.state === 'play' || G.state === 'shop' || G.state === 'swap';
   button(x, y, w, 14, 'TEETH ' + G.drawPile.length + '/' + G.deck.length, '#3a5560', '#243a44',
     () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', disabled: !deckOk, tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
   y += 19;
 
-  // best
   drawTextC('BEST ANTE: ' + best, x + w / 2, SIDEBAR.y + SIDEBAR.h - 18, C.dim, 1);
   drawTextC(muted ? 'M: UNMUTE' : 'M: MUTE', x + w / 2, SIDEBAR.y + SIDEBAR.h - 9, '#54707a', 1);
 }
@@ -1100,29 +1688,36 @@ function drawSmallWrapped(txt, x, y, w, col) {
 
 // ------------------------------------------------------------ top bar -----
 function drawTopBar(inShop) {
-  // charm slots
   const cx0 = 120;
   drawText('CHARMS ' + G.charms.length + '/5', cx0, 2, C.dim, 1);
   for (let i = 0; i < 5; i++) {
     const x = cx0 + i * 31, y = 12;
     if (i < G.charms.length) {
-      drawCharmCard(x, y, G.charms[i], i, inShop ? { sell: true, cb: () => sellCharm(i) } : {});
+      const def = G.charms[i];
+      const o = {
+        id: 'charm' + i + def.id,
+        tip: def.name + '|CLICK FOR DETAILS' + (inShop ? '|DRAG TO THE BARREL TO SELL' : ''),
+        click: () => { G.inspect = { kind: 'charm', def, idx: i }; },
+      };
+      if (inShop) { o.dragKind = 'charm'; o.dragIdx = i; }
+      drawCardAnim(x, y, def, 'charm', i, o);
     } else {
       rr(x, y, 26, 36, 2, '#ffffff18');
       rr(x + 1, y + 1, 24, 34, 2, '#00000030');
     }
   }
-  // consumable slots
   const kx0 = 416;
   drawText('CARDS', kx0, 2, C.dim, 1);
   for (let i = 0; i < 2; i++) {
     const x = kx0 + i * 31, y = 12;
     if (i < G.cons.length) {
-      const active = G.mode === 'extract' && G.extractCons === i;
-      drawConsCard(x, y, G.cons[i], i, { use: true, cb: () => useCons(i) });
-      if (active) {
-        rr(x - 1, y - 1, 28, 38, 2, '#ffffff44');
-      }
+      const def = G.cons[i];
+      drawCardAnim(x, y, def, 'cons', i, {
+        id: 'cons' + i + def.id,
+        tip: def.name + '|CLICK FOR DETAILS|DRAG ONTO THE GATOR TO USE',
+        click: () => { G.inspect = { kind: 'cons', def, idx: i }; },
+        dragKind: 'cons', dragIdx: i,
+      });
     } else {
       rr(x, y, 26, 36, 2, '#ffffff18');
       rr(x + 1, y + 1, 24, 34, 2, '#00000030');
@@ -1132,19 +1727,19 @@ function drawTopBar(inShop) {
 
 // ------------------------------------------------------------ play screen -
 function drawPlay() {
-  drawBG(tNow, G.round === 2 ? BGPALS.boss : BGPALS.play);
+  const th = themeNow();
+  drawSceneBack(th);
   drawCroc(G.jawClose);
+  drawSceneFront(th);
   drawSidebar();
   drawTopBar(false);
 
-  // mode banner
   if (G.mode === 'xray') {
     drawTextCSh('CLICK A TOOTH TO X-RAY IT', W / 2 + 50, 66, '#9fe8ff', 1);
   } else if (G.mode === 'extract') {
     drawTextCSh('CLICK A TOOTH TO YANK IT OUT', W / 2 + 50, 66, '#9fe8ff', 1);
   }
 
-  // buttons
   const canBank = G.state === 'play' && G.pool && G.pool.clicks > 0 && !(bossIs('lockjaw') && G.pool.clicks < 4);
   button(150, 240, 130, 24, 'BANK BITE', '#e8a020', '#98650e',
     () => bank(false), {
@@ -1156,7 +1751,6 @@ function drawPlay() {
   button(290, 240, 86, 24, G.mode === 'xray' ? 'CANCEL' : 'X-RAY (' + G.xrays + ')', '#2277cc', '#124a80',
     toggleXrayMode, { id: 'xray', disabled: xdis && G.mode !== 'xray', tip: 'X-RAY|Check one tooth: safe or snapper?|' + (xraysBlocked() ? 'BLOCKED THIS ROUND!' : G.xrays + ' LEFT THIS ROUND') });
 
-  // risk meter: teeth remaining vs snaps hidden
   const unpressed = G.mouth.filter(s => !s.pressed && !s.gone);
   const snapsLeft = unpressed.filter(s => s.snap).length;
   if (unpressed.length > 0 && G.pool) {
@@ -1172,7 +1766,7 @@ function updateSnap(dt) {
   if (G.snapT < 0.22) {
     G.jawClose = easeIn(G.snapT / 0.22);
   } else {
-    if (G.jawClose < 1) { shake = 7; flashRed = 0.35; burstTeethShards(); }
+    if (G.jawClose < 1) { shake = 7; flashRed = 0.35; burstTeethShards(); scatterBirds(); splashWater(); scareFireflies(W / 2, 150, 140); }
     G.jawClose = 1;
   }
   if (G.snapT > 1.5) {
@@ -1180,7 +1774,15 @@ function updateSnap(dt) {
     G.jawClose = 0;
     G.state = 'play';
     G.stats.snaps++;
+    meta.lifeSnaps++;
+    if (meta.lifeSnaps >= 25) unlock('snap25');
+    saveMeta();
     if (lost > 0) float(60, 96, 'LOST ' + fmt(lost) + '!', C.red, 1, 1.4);
+    if (has('swampheart') && !G.heartUsed) {
+      G.heartUsed = true;
+      G.bites++; // endBite will take it right back: net zero
+      float(W / 2 + 50, 96, 'SWAMP HEART: BITE REFUNDED', C.green, 1, 1.5);
+    }
     endBite();
   }
 }
@@ -1212,58 +1814,88 @@ function drawSnap() {
 }
 
 // ------------------------------------------------------------ shop --------
+const BARREL = { x: 124, y: 200, w: 44, h: 46 };
+function drawBarrel() {
+  // wooden sell barrel
+  rr(BARREL.x, BARREL.y + 4, BARREL.w, BARREL.h - 4, 3, '#5a3a1e');
+  rr(BARREL.x + 2, BARREL.y + 6, BARREL.w - 4, BARREL.h - 8, 3, '#7a5230');
+  for (let k = 1; k < 5; k++) rect(BARREL.x + 2 + k * 8, BARREL.y + 6, 1, BARREL.h - 8, '#5a3a1e');
+  rect(BARREL.x, BARREL.y + 12, BARREL.w, 3, '#3a444c');
+  rect(BARREL.x, BARREL.y + BARREL.h - 10, BARREL.w, 3, '#3a444c');
+  // open top with coins glinting
+  rr(BARREL.x + 3, BARREL.y, BARREL.w - 6, 8, 3, '#2a1a0c');
+  rect(BARREL.x + 10, BARREL.y + 2, 6, 2, C.gold);
+  rect(BARREL.x + 22, BARREL.y + 3, 5, 2, '#c9941a');
+  rect(BARREL.x + 16, BARREL.y + 4, 4, 2, '#fff6c8');
+  drawTextC('SELL', BARREL.x + BARREL.w / 2, BARREL.y + BARREL.h + 4, C.gold, 1);
+  hit(BARREL.x, BARREL.y, BARREL.w, BARREL.h, { id: 'barrel', tip: 'SELL BARREL|Drag a charm here to sell it|for half its price' });
+}
+
 function drawShop() {
-  drawBG(tNow, BGPALS.shop);
+  const th = themeNow();
+  drawSceneBack(th);
+  drawSceneFront(th);
   drawSidebar();
   drawTopBar(true);
 
   drawTextCSh('GATOR SHOP', 296, 58, C.gold, 3, '#00000088');
-  drawTextCSh('CLICK YOUR CHARMS ABOVE TO SELL THEM', 296, 82, C.dim, 1);
+  drawTextCSh('CLICK CARDS FOR DETAILS. DRAG CHARMS TO THE BARREL TO SELL', 296, 82, C.dim, 1);
 
-  // items
-  const bx0 = 140;
+  const bx0 = 180;
   G.shopItems.forEach((it, i) => {
-    const x = bx0 + i * 66, y = 104;
-    panel(x - 4, y - 6, 58, 92, { face: '#1a2530dd' });
+    const x = bx0 + i * 60, y = 104;
+    panel(x - 4, y - 6, 54, 92, { face: '#1a2530dd' });
     if (it.sold) {
-      drawTextC('SOLD', x + 25, y + 34, C.dim, 1);
+      drawTextC('SOLD', x + 23, y + 34, C.dim, 1);
       return;
     }
-    if (it.kind === 'charm') {
-      drawCharmCard(x + 12, y + 2, it.def, i + 10, { cb: () => buyItem(it) });
-    } else if (it.kind === 'cons') {
-      drawConsCard(x + 12, y + 2, it.def, i + 10, { cb: () => buyItem(it) });
-    } else {
-      const hov = mx >= x + 12 && mx < x + 40 && my >= y && my < y + 40;
-      drawTooth(x + 14, y + 4 + (hov ? -3 : Math.sin(tNow * 2 + i) * 1.2), 22, 30, true, it.type, {});
-      hit(x + 10, y, 30, 40, { cb: () => buyItem(it), tip: it.def.name + '|' + it.def.desc + '|ADDS TO YOUR DECK', id: 'shoptooth' + i, cursor: true });
-    }
     const afford = G.money >= it.price;
-    drawTextC('$' + it.price, x + 25, y + 48, afford ? C.gold : C.red, 2);
-    const label = it.kind === 'charm' ? 'CHARM' : it.kind === 'cons' ? 'CARD' : 'TOOTH';
-    drawTextC(label, x + 25, y + 64, C.dim, 1);
-    const nm = it.def.name;
-    if (nm.length > 10 && nm.includes(' ')) {
-      const cut = nm.lastIndexOf(' ');
-      drawTextC(nm.slice(0, cut), x + 25, y + 72, C.white, 1);
-      drawTextC(nm.slice(cut + 1), x + 25, y + 80, C.white, 1);
+    if (it.kind === 'tooth') {
+      const hov = mx >= x + 8 && mx < x + 38 && my >= y && my < y + 40;
+      drawTooth(x + 12, y + 4 + (hov ? -3 : Math.sin(tNow * 2 + i) * 1.2), 22, 30, true, it.type, {});
+      rr(x + 6, y - 4, 20, 9, 2, '#00000088');
+      drawText('$' + it.price, x + 8, y - 2, afford ? C.gold : C.red, 1);
+      hit(x + 6, y - 2, 34, 44, {
+        click: () => { G.inspect = { kind: 'shop', item: it }; },
+        tip: it.def.name + '|CLICK FOR DETAILS', id: 'shoptooth' + i, cursor: true,
+      });
     } else {
-      drawTextC(nm, x + 25, y + 74, C.white, 1);
+      drawCardAnim(x + 8, y + 2, it.def, it.kind, i + 10, {
+        id: 'shopitem' + i,
+        price: it.price, afford,
+        tip: it.def.name + '|CLICK FOR DETAILS',
+        click: () => { G.inspect = { kind: 'shop', item: it }; },
+      });
     }
+    const label = it.kind === 'charm' ? 'CHARM' : it.kind === 'cons' ? 'CARD' : 'TOOTH';
+    drawTextC(label, x + 23, y + 52, C.dim, 1);
+    const nm = it.def.name;
+    if (nm.length > 9 && nm.includes(' ')) {
+      const cut = nm.lastIndexOf(' ');
+      drawTextC(nm.slice(0, cut), x + 23, y + 62, C.white, 1);
+      drawTextC(nm.slice(cut + 1), x + 23, y + 70, C.white, 1);
+    } else {
+      drawTextC(nm, x + 23, y + 64, C.white, 1);
+    }
+    if (it.kind !== 'tooth') drawTextC('$' + it.price, x + 23, y + 78, afford ? C.gold : C.red, 1);
+    else drawTextC('DECK', x + 23, y + 78, '#7fb8e8', 1);
   });
 
-  button(160, 216, 100, 22, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
+  drawBarrel();
+  button(184, 220, 86, 20, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
     { id: 'reroll', disabled: G.money < G.rerollCost, tip: 'REROLL|Refresh all shop items' });
   const nextName = G.round === 2 ? 'NEXT ANTE' : 'NEXT ROUND';
-  button(290, 212, 120, 30, nextName + ' >', '#d94f30', '#8a2a16', nextRound, { id: 'next', sc: 1, tip: 'Onward to the ' + (G.round === 2 ? 'next ante!' : ROUND_NAMES[G.round + 1] + '!') });
+  button(290, 214, 120, 30, nextName + ' >', '#d94f30', '#8a2a16', nextRound, { id: 'next', sc: 1, tip: 'Onward to the ' + (G.round === 2 ? 'next ante!' : ROUND_NAMES[G.round + 1] + '!') });
 }
 
 // ------------------------------------------------------------ overlays ----
 function overlayDim(a) { rect(0, 0, W, H, 'rgba(5,10,10,' + (a === undefined ? 0.72 : a) + ')'); }
 
 function drawRoundEnd() {
-  drawBG(tNow, G.round === 2 ? BGPALS.boss : BGPALS.play);
+  const th = themeNow();
+  drawSceneBack(th);
   drawCroc(0.9);
+  drawSceneFront(th);
   drawSidebar();
   overlayDim(0.55);
   const px = 150, py = 60, pw = 260, ph = 140;
@@ -1275,7 +1907,7 @@ function drawRoundEnd() {
     drawText('$' + val, px + pw - 24 - textW('$' + val, 1), y, col || C.gold, 1);
     y += 12;
   };
-  line('CROC DEFEATED', G.cash.base);
+  line('GATOR DEFEATED', G.cash.base);
   if (G.cash.perBite > 0) line('UNUSED BITES', G.cash.perBite, C.green);
   if (G.cash.interest > 0) line('INTEREST (MAX $5)', G.cash.interest, C.blue);
   if (G.cash.fairy > 0) line('TOOTH FAIRY', G.cash.fairy, C.purple);
@@ -1286,12 +1918,14 @@ function drawRoundEnd() {
 }
 
 function drawBossIntro() {
-  drawBG(tNow, BGPALS.boss);
+  const th = THEMES.boss;
+  drawSceneBack(th);
   drawCroc(Math.abs(Math.sin(tNow * 2.2)) * 0.25, { angry: true });
+  drawSceneFront(th);
   drawSidebar();
   overlayDim(0.6);
   const pulse = 1 + Math.sin(tNow * 4) * 0.06;
-  drawTextCSh('BOSS CROC', W / 2, 62, C.red, 2);
+  drawTextCSh('BOSS GATOR', W / 2, 62, C.red, 2);
   drawTextCSh(G.boss.name, W / 2, 84, C.white, Math.round(3 * pulse));
   const dw = Math.max(textW(G.boss.desc, 1), textW('TARGET: ' + fmt(G.target), 1)) + 20;
   panel(W / 2 - dw / 2, 116, dw, 34, { face: '#2a0e12ee', edge: C.redD });
@@ -1301,8 +1935,10 @@ function drawBossIntro() {
 }
 
 function drawGameOver() {
-  drawBG(tNow, BGPALS.boss);
+  const th = THEMES.boss;
+  drawSceneBack(th);
   drawCroc(1, { angry: true });
+  drawSceneFront(th);
   overlayDim(0.66);
   drawTextCSh('SNAPPED!', W / 2, 44, C.red, 4);
   drawTextCSh('THE SWAMP CLAIMS ANOTHER DENTIST', W / 2, 80, '#ffb0a8', 1);
@@ -1321,11 +1957,13 @@ function drawGameOver() {
 }
 
 function drawWin() {
-  drawBG(tNow, BGPALS.menu);
+  const th = THEMES.night;
+  drawSceneBack(th);
   drawCroc(0.15);
+  drawSceneFront(th);
   overlayDim(0.6);
   drawTextCSh('YOU WIN!', W / 2, 40, C.gold, 4);
-  drawTextCSh('ALL 8 ANTES SURVIVED. THE CROC RESPECTS YOU.', W / 2, 76, C.white, 1);
+  drawTextCSh('ALL 8 ANTES SURVIVED. THE GATOR RESPECTS YOU.', W / 2, 76, C.white, 1);
   const px = 160, pw = 160;
   panel(px, 92, pw, 72, { face: '#1c2b33f2' });
   let y = 100;
@@ -1340,48 +1978,74 @@ function drawWin() {
 
 // ------------------------------------------------------------ menu --------
 function drawMenu() {
-  drawBG(tNow, BGPALS.menu);
-  // menu croc: needs a mouth to display — fake a chomping preview
+  const th = THEMES.night;
+  drawSceneBack(th);
   const chomp = Math.max(0, Math.sin(tNow * 1.4)) * 0.9;
   drawCroc(chomp);
+  drawSceneFront(th);
 
-  // title
   const ty = 20 + Math.sin(tNow * 1.8) * 2;
   drawTextCSh('BITE', W / 2 - 62, ty, C.gold, 5, '#00000088');
   drawTextCSh('DOWN', W / 2 + 66, ty, '#63d66a', 5, '#00000088');
   drawTextCSh('A PUSH-YOUR-LUCK DENTAL ROGUELIKE', W / 2, ty + 32, C.white, 1);
 
-  button(W / 2 - 65, 218, 130, 30, 'NEW RUN', '#d94f30', '#8a2a16', () => { newRun(); }, { id: 'start', sc: 2 });
-  button(W / 2 - 65, 252, 62, 14, 'HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, { id: 'how' });
-  button(W / 2 + 3, 252, 62, 14, muted ? 'UNMUTE' : 'MUTE', '#3a5560', '#243a44', () => { muted = !muted; }, { id: 'mute' });
-  if (best > 0) drawTextCSh('BEST ANTE: ' + best, W / 2, 202, C.gold, 1);
+  button(W / 2 - 65, 214, 130, 30, 'NEW RUN', '#d94f30', '#8a2a16', () => { newRun(); }, { id: 'start', sc: 2 });
+  button(W / 2 - 65, 248, 62, 14, 'HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, { id: 'how' });
+  button(W / 2 + 3, 248, 62, 14, muted ? 'UNMUTE' : 'MUTE', '#3a5560', '#243a44', () => { muted = !muted; }, { id: 'mute' });
+  if (best > 0) drawTextCSh('BEST ANTE: ' + best, W / 2, 200, C.gold, 1);
+
+  // glove rack (bottom left)
+  panel(6, 196, 104, 66, { face: '#16222acc' });
+  drawTextC('GLOVES', 58, 201, C.dim, 1);
+  GLOVE_ORDER.forEach((k, i) => {
+    const gx = 12 + (i % 4) * 25, gy = 212 + Math.floor(i / 4) * 24;
+    const g = GLOVES[k];
+    const open = gloveUnlocked(k);
+    const sel = meta.glove === k;
+    rr(gx, gy, 21, 20, 2, sel ? C.gold : '#0d161b');
+    rr(gx + 1, gy + 1, 19, 18, 2, open ? '#243642' : '#141c22');
+    if (open) ICONS.glove(gx + 4, gy + 4, g.skin);
+    else { drawTextC('?', gx + 10, gy + 7, '#41565e', 1); }
+    const a = ACHS.find(a => a.id === g.ach);
+    hit(gx, gy, 21, 20, {
+      id: 'glove' + k, cursor: open,
+      tip: open ? (g.name + '|' + g.flav + (sel ? '|EQUIPPED' : '|CLICK TO EQUIP'))
+        : ('LOCKED: ' + g.name + '|' + (a ? 'ACHIEVEMENT: ' + a.name + '|' + a.desc : '')),
+      cb: () => { if (open) { meta.glove = k; saveMeta(); sfx.buy(); } else sfx.error(); },
+    });
+  });
+  const done = ACHS.filter(a => meta.ach[a.id]).length;
+  drawTextC(done + '/' + ACHS.length + ' UNLOCKED', 58, 254, '#54707a', 1);
 }
 
 function drawHow() {
-  drawBG(tNow, BGPALS.shop);
+  const th = THEMES.shop;
+  drawSceneBack(th);
+  drawSceneFront(th);
   overlayDim(0.4);
-  const px = 60, py = 12, pw = 360, ph = 246;
+  const px = 60, py = 10, pw = 360, ph = 252;
   panel(px, py, pw, ph, { face: '#16222af5' });
   drawTextCSh('HOW TO BITE', px + pw / 2, py + 8, C.gold, 2);
   const L = [
-    ['PRESS TEETH.', C.white],
-    ['Each safe tooth adds its value to TEETH', C.dim],
-    ['and grows your MULT chain by +1.', C.dim],
+    ['PRESS TEETH. Each safe tooth adds its value to', C.white],
+    ['TEETH and grows your MULT chain by +1.', C.dim],
     ['', C.dim],
-    ['ONE (OR MORE) TOOTH IS A SNAPPER.', C.red],
-    ['Press it and the jaw SNAPS: your whole', C.dim],
-    ['unbanked bite is LOST.', C.dim],
+    ['ONE (OR MORE) TOOTH IS A SNAPPER. Press it and', C.red],
+    ['the jaw SNAPS: your whole unbanked bite is LOST.', C.dim],
     ['', C.dim],
-    ['BANK BITE to lock in TEETH X MULT.', C.gold],
-    ['Each round you get 3 BITES to reach the', C.dim],
-    ['target score. X-RAYS scan a tooth safely.', C.dim],
+    ['BANK BITE to lock in TEETH X MULT. 3 BITES per', C.gold],
+    ['round to reach the target. X-RAYS scan teeth.', C.dim],
     ['', C.dim],
-    ['Between rounds: THE SHOP. Buy CHARMS', C.purple],
-    ['(passive powers), CARDS (one-time use) and', C.dim],
-    ['SPECIAL TEETH that join your tooth deck.', C.dim],
+    ['THE SHOP: buy CHARMS (passive powers), CARDS', C.purple],
+    ['(one-shot) and SPECIAL TEETH for your deck.', C.dim],
+    ['CLICK any card for details. DRAG cards onto the', C.white],
+    ['gator to use them. DRAG charms to the barrel', C.white],
+    ['to sell. EXTRACTION drags onto a single tooth.', C.white],
     ['', C.dim],
-    ['Beat 8 antes of SMALL, BIG and BOSS crocs.', C.green],
-    ['Bosses bend the rules. Good luck, dentist.', C.dim],
+    ['Beat 8 antes of SMALL, BIG and BOSS gators.', C.green],
+    ['Bosses bend the rules. Earn ACHIEVEMENTS to', C.dim],
+    ['unlock GLOVES for your pressing hand.', C.dim],
+    ['Good luck, dentist.', C.green],
   ];
   let y = py + 26;
   L.forEach(([t, c]) => { drawTextC(t, px + pw / 2, y, c, 1); y += 11; });
@@ -1391,12 +2055,10 @@ function drawHow() {
 // ------------------------------------------------------------ deck view ---
 function drawDeckOverlay() {
   overlayDim(0.6);
-  // blocker registered first so overlay buttons stay on top of it
   hit(0, 0, W, H, { cb: () => { G.deckOpen = false; }, id: 'deckblock' });
   const px = 100, py = 30, pw = 280, ph = 210;
   panel(px, py, pw, ph, { face: '#16222af5' });
   drawTextCSh('YOUR TOOTH DECK (' + G.deck.length + ')', px + pw / 2, py + 8, C.gold, 2);
-  // group plain by value; specials by type; lay out in two columns
   const plain = {};
   const spec = {};
   G.deck.forEach(t => {
@@ -1429,22 +2091,140 @@ function drawDeckOverlay() {
   button(px + pw / 2 - 40, py + ph - 20, 80, 14, 'CLOSE', '#3a5560', '#243a44', () => { G.deckOpen = false; }, { id: 'deckclose' });
 }
 
+// ------------------------------------------------------- inspect modal ----
+function drawInspect() {
+  const ins = G.inspect; if (!ins) return;
+  overlayDim(0.7);
+  hit(0, 0, W, H, { cb: () => { G.inspect = null; }, id: 'inspectblock' });
+  const px = 90, py = 55, pw = 300, ph = 160;
+  panel(px, py, pw, ph, { face: '#16222af8', edge: C.gold });
+
+  let def, kind, price, isShop = false, toothType = null;
+  if (ins.kind === 'shop') {
+    isShop = true;
+    def = ins.item.def; kind = ins.item.kind; price = ins.item.price; toothType = ins.item.type;
+  } else { def = ins.def; kind = ins.kind; }
+
+  // left: big rendered card (2x)
+  ctx.save();
+  ctx.translate(px + 18, py + 24);
+  ctx.scale(2, 2);
+  if (kind === 'tooth') drawTooth(4, 4, 22, 32, true, toothType, {});
+  else drawCardFace(0, 0, def, kind, {});
+  ctx.restore();
+
+  // right: details
+  const tx = px + 92;
+  drawText(def.name, tx, py + 12, C.gold, 2);
+  let sub;
+  if (kind === 'charm') sub = 'CHARM  -  ' + RAR_NAME[def.rar || 0];
+  else if (kind === 'cons') sub = 'CARD  -  ONE-TIME USE';
+  else sub = 'SPECIAL TOOTH  -  JOINS YOUR DECK';
+  drawText(sub, tx, py + 26, kind === 'cons' ? C.purple : RAR_COL[def.rar || 0], 1);
+  let y = py + 40;
+  y = drawSmallWrapped(def.desc, tx, y, pw - 110, C.white) + 4;
+  if (def.flav) y = drawSmallWrapped("'" + def.flav + "'", tx, y, pw - 110, '#6f8a90') + 6;
+
+  if (isShop) {
+    const afford = G.money >= price;
+    button(tx, py + ph - 34, 90, 22, 'BUY  $' + price, '#e8a020', '#98650e',
+      () => { buyItem(ins.item); if (ins.item.sold) G.inspect = null; },
+      { id: 'inspectbuy', disabled: !afford, tip: afford ? null : 'Not enough money' });
+  } else if (kind === 'charm') {
+    if (G.state === 'shop') {
+      button(tx, py + ph - 34, 100, 22, 'SELL  $' + Math.ceil(def.cost / 2), '#7a4fd0', '#4a2a8a',
+        () => { sellCharm(ins.idx); G.inspect = null; }, { id: 'inspectsell' });
+    } else {
+      drawText('SELL IN THE SHOP FOR $' + Math.ceil(def.cost / 2), tx, py + ph - 24, C.dim, 1);
+    }
+  } else if (kind === 'cons') {
+    drawText(def.target === 'tooth' ? 'DRAG ONTO A TOOTH TO USE' : 'DRAG ONTO THE GATOR TO USE', tx, py + ph - 24, C.green, 1);
+  }
+  drawTextC('CLICK ANYWHERE TO CLOSE', px + pw / 2, py + ph - 10, '#54707a', 1);
+}
+
+// ------------------------------------------------------------ toasts ------
+function drawToasts(dt) {
+  toasts.forEach(t => t.t += dt);
+  toasts = toasts.filter(t => t.t < 3.4);
+  toasts.forEach((t, i) => {
+    const slide = t.t < 0.3 ? easeOut(t.t / 0.3) : t.t > 3.0 ? 1 - easeIn((t.t - 3.0) / 0.4) : 1;
+    const y = -30 + slide * 34 + i * 30;
+    const g = GLOVES[t.glove];
+    const w2 = 190;
+    panel(W / 2 - w2 / 2, y, w2, 26, { face: '#26321ef2', edge: C.gold });
+    drawText('ACHIEVEMENT: ' + t.name, W / 2 - w2 / 2 + 8, y + 5, C.gold, 1);
+    if (g) drawText('UNLOCKED: ' + g.name, W / 2 - w2 / 2 + 8, y + 15, C.white, 1);
+    if (g) ICONS.glove(W / 2 + w2 / 2 - 18, y + 7, g.skin);
+  });
+}
+
 // ------------------------------------------------------------ tooltip -----
 function drawTooltip() {
+  if (G.drag) return; // no tooltips while dragging
   const h = topHitAt(mx, my);
-  canvas.style.cursor = (h && h.cursor) ? 'pointer' : 'default';
   if (h && h.id !== hotId) { hotId = h.id; if (h.cursor) sfx.hover(); }
   if (!h) hotId = null;
   if (!h || !h.tip) return;
   const lines = h.tip.split('|').filter(s => s.length);
   const wmax = Math.max(...lines.map(l => textW(l, 1))) + 12;
   const hh = lines.length * 9 + 8;
-  let tx = clamp(mx + 8, 2, W - wmax - 2), ty = clamp(my + 12, 2, H - hh - 2);
+  let tx = clamp(mx + 10, 2, W - wmax - 2), ty = clamp(my + 14, 2, H - hh - 2);
   panel(tx, ty, wmax, hh, { face: '#10181cf5', edge: '#5d7a86' });
   lines.forEach((l, i) => {
-    const col = i === 0 ? C.gold : (l.includes('SNAPPER') || l.includes('DEBUFF') || l.includes('BLOCKED') ? '#ff9a90' : C.white);
+    const col = i === 0 ? C.gold : (l.includes('SNAPPER') || l.includes('DEBUFF') || l.includes('BLOCKED') || l.includes('LOCKED') ? '#ff9a90' : C.white);
     drawText(l, tx + 6, ty + 5 + i * 9, col, 1);
   });
+}
+
+// ------------------------------------------------------------ the hand ----
+function drawHand() {
+  if (!mouseSeen) return;
+  const g = GLOVES[gloveUnlocked(meta.glove) ? meta.glove : 'bare'];
+  const press = handPressT > 0 ? 2 : 0;
+  const grab = !!G.drag;
+  const x = mx, y = my + press;
+  const skin = g.skin, shade = g.shade, dark = '#20140c';
+  if (grab) {
+    // fist gripping the card (card already drawn at drag pos)
+    rr(x - 7, y - 2, 16, 13, 3, dark);
+    rr(x - 6, y - 1, 14, 11, 3, skin);
+    for (let k = 0; k < 4; k++) rect(x - 5 + k * 3, y - 1, 2, 3, shade);
+    rect(x + 6, y + 2, 2, 5, shade);
+    rr(x - 8, y + 3, 4, 6, 2, skin); // thumb wrapping
+    rr(x - 7, y + 10, 16, 5, 1, dark);
+    rr(x - 6, y + 10, 14, 4, 1, g.cuff);
+  } else {
+    // pointing hand, fingertip at cursor
+    const fl = press ? 7 : 9; // finger length
+    rr(x - 2, y - 1, 5, fl + 2, 2, dark);
+    rr(x - 1, y, 3, fl, 1, skin);
+    rect(x, y + 1, 1, 2, '#ffffff88'); // nail shine
+    rect(x + 1, y + 2, 1, fl - 3, shade);
+    // palm
+    rr(x - 5, y + fl - 2, 16, 13, 3, dark);
+    rr(x - 4, y + fl - 1, 14, 11, 3, skin);
+    // folded fingers
+    for (let k = 0; k < 3; k++) {
+      rect(x + 3 + k * 3, y + fl - 1 + k, 3, 4, shade);
+      rect(x + 3 + k * 3, y + fl + 3 + k, 3, 1, dark);
+    }
+    // thumb
+    rr(x - 7, y + fl + 2, 5, 7, 2, dark);
+    rr(x - 6, y + fl + 3, 4, 5, 2, skin);
+    // knuckle crease
+    rect(x - 2, y + fl + 6, 6, 1, shade);
+    // pattern
+    if (g.pat === 'scale') { rect(x - 2, y + fl + 2, 2, 2, shade); rect(x + 2, y + fl + 4, 2, 2, shade); rect(x - 1, y + fl + 7, 2, 2, shade); }
+    if (g.pat === 'dot') { rect(x - 2, y + fl + 3, 1, 1, shade); rect(x + 2, y + fl + 5, 1, 1, shade); rect(x, y + fl + 8, 1, 1, shade); }
+    if (g.pat === 'bones') { rect(x - 3, y + fl + 4, 8, 1, '#fff'); rect(x - 1, y + fl + 2, 1, 5, '#fff'); }
+    if (g.pat === 'gem') { rect(x + 1, y + fl + 4, 2, 2, C.gold); }
+    if (g.pat === 'shine') { rect(x - 3, y + fl + 1, 2, 4, '#fff6c8'); }
+    // cuff
+    rr(x - 5, y + fl + 9, 16, 5, 1, dark);
+    rr(x - 4, y + fl + 9, 14, 4, 1, g.cuff);
+    rect(x - 4, y + fl + 9, 14, 1, '#ffffff44');
+  }
 }
 
 // ------------------------------------------------------------ fx update ---
@@ -1458,9 +2238,11 @@ function updateFx(dt) {
   });
   shake = Math.max(0, shake - dt * 22);
   flashRed = Math.max(0, flashRed - dt);
+  handPressT = Math.max(0, handPressT - dt);
   if (G.pool) G.dispScore = lerp(G.dispScore, G.score, 1 - Math.pow(0.002, dt));
   else G.dispScore = G.score;
   G.mouth.forEach(s => { if (s.pop > 0) s.pop -= dt; });
+  if (G.xanim) { G.xanim.t += dt; if (G.xanim.t > 0.55) G.xanim = null; }
 }
 function drawFx() {
   parts.forEach(p => {
@@ -1486,6 +2268,7 @@ function frame(ms) {
 
   hits = [];
   updateFx(dt);
+  updateScene(dt);
   if (G.state === 'snap') updateSnap(dt); else shardsDone = false;
   if (G.state === 'swap') {
     G.swapT += dt;
@@ -1510,6 +2293,7 @@ function frame(ms) {
   }
 
   if (G.deckOpen && (G.state === 'play' || G.state === 'shop' || G.state === 'swap')) drawDeckOverlay();
+  if (G.inspect) drawInspect();
 
   drawFx();
   ctx.restore();
@@ -1523,11 +2307,14 @@ function frame(ms) {
   rect(0, 0, W, 2, '#00000088'); rect(0, H - 2, W, 2, '#00000088');
   rect(0, 0, 2, H, '#00000088'); rect(W - 2, 0, 2, H, '#00000088');
 
+  drawToasts(dt);
   drawTooltip();
+  drawDraggedCard();
+  drawHand();
 }
 requestAnimationFrame(frame);
 
-// menu needs a mouth for the croc preview
+// menu needs a mouth for the gator preview
 (function menuMouth() {
   G.mouth = [];
   for (let i = 0; i < 10; i++) G.mouth.push({ t: mkTooth('plain', ri(1, 5)), snap: false, pressed: false, revealed: null, gone: false, pop: 0 });
@@ -1547,4 +2334,6 @@ window.BD = {
   buy: i => buyItem(G.shopItems[i]),
   next: nextRound,
   cashOut,
+  meta,
+  unlock,
 };

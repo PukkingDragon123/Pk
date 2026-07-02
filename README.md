@@ -1,11 +1,11 @@
 # 🐊 BITE DOWN
 
-**A push-your-luck dental roguelike.** Balatro's bones, a crocodile's teeth.
+**A push-your-luck dental roguelike, set in a living swamp.**
 
-Instead of poker hands, you play the croc-dentist snap game: press teeth one at a
-time and hope the jaw doesn't slam shut. Every safe tooth pumps up your **TEETH ×
-MULT** score — but somewhere in that mouth is a **snap tooth**, and pressing it
-costs you the whole unbanked bite.
+You're a back-bayou dentist with a lantern-lit shop and a very bad idea: press a
+gator's teeth one at a time and hope the jaw doesn't slam shut. Every safe tooth
+pumps up your **TEETH × MULT** score — but somewhere in that mouth is a **snap
+tooth**, and pressing it costs you the whole unbanked bite.
 
 ![Bite Down screenshot](screenshot.png)
 
@@ -16,34 +16,51 @@ Open `index.html` in a browser — that's it. No build, no dependencies, no asse
 
 ### The loop
 
-| Balatro | Bite Down |
-|---|---|
-| Play a poker hand | **Press teeth** — each safe tooth adds its value to TEETH and grows the MULT chain +1 |
-| Chips × Mult | **TEETH × MULT**, locked in when you **BANK BITE** |
-| Hands | **BITES** — 3 per round; a snap or a bank spends one |
-| Discards | **X-RAYS** — scan a tooth to learn if it's a snapper |
-| Blinds | **SMALL CROC → BIG CROC → BOSS CROC**, 8 antes deep |
-| Boss Blind effects | Boss gimmicks: extra snap teeth, blocked X-rays, hidden values, Lockjaw, Loan Shark… |
-| Jokers | **CHARMS** — 5 slots of passive build-warping powers |
-| Tarot cards | **CARDS** — one-shot consumables (Panorama, Novocaine, Extraction…) |
-| Your deck of 52 | **Your tooth deck** — buy Gold, Ruby, Sapphire, Steel, Lucky, Rotten and Vampire teeth that shuffle into future mouths |
-| The shop | **THE GATOR SHOP** — charms, cards, teeth, rerolls, interest on savings |
+- **Press teeth** — each safe tooth adds its value to TEETH and grows the MULT chain +1
+- **BANK BITE** to lock in TEETH × MULT, or push deeper and risk the snap
+- 3 **BITES** and 3 **X-RAYS** per round; reach the target score before you run out
+- Climb 8 antes of **Small Gator → Big Gator → Boss Gator**, then Endless Mode
 
-### Tips
+### The swamp is alive
 
-- Banking early is safe money; clean-sweeping every safe tooth pays a ×1.25 bonus.
-- Risk rises as the mouth empties — the SNAP RISK meter tells you the truth.
-- Gold teeth print money. Rotten teeth are free MULT. Glass Jaw is a deal with the devil.
-- Survive all 8 antes to win; **Endless Mode** waits on the other side.
+Night sky, moon and fireflies over animated water — the gator sits *in* it.
+Clicks ripple the surface, snaps scatter birds from the trees and splash the
+water, and boss rounds roll in under a blood moon and rain.
+
+### The gators
+
+Every round type has its own gator, and each of the **11 boss gators** has a look
+to match its rule-bend: Loan Shark wears a top hat and taxes your banks, Lockjaw
+is bolted into a steel brace, The Restless relocates its snap teeth mid-bite,
+the Swamp King wears a crown over a bigger, meaner mouth… and the ante-8
+**Apex Predator** is waiting at the end with two snappers and red eyes.
+
+### Cards, charms and the barrel
+
+- **27 CHARMS** (passive powers, 5 slots) and **15 one-shot CARDS**
+- **Click any card** for a full-detail view with flavor text
+- **Drag cards onto the gator** to use them — EXTRACTION drags onto a single tooth
+- **Drag charms into the sell barrel** at the shop to cash them out
+- Special teeth (Gold, Ruby, Sapphire, Steel, Lucky, Rotten, Vampire) join your
+  tooth deck and show up in future mouths
+
+### Your hand, your gloves
+
+You press with an on-screen pixel hand — and it's customizable. Earn
+**achievements** (first press, beating bosses, holding $50, surviving 25 snaps,
+clean sweeps, winning a run…) to unlock **8 gloves**, from the humble Rubber
+Glove to the Midas Touch and the Royal Grip. Pick yours from the rack on the
+title screen.
 
 ### Controls
 
-Mouse only. `M` mutes. Hover anything for a tooltip.
+Mouse only. Click teeth and buttons; click cards to inspect; drag cards to act.
+`M` mutes. Hover anything for a tooltip.
 
 ## Tech
 
-- Single 480×270 canvas scaled up with nearest-neighbor for the chunky pixel look
-- Everything procedural: hand-rolled 4×5 pixel font, croc and teeth drawn from
-  rectangles, Balatro-style swirling background rendered per-pixel, CRT scanlines
+- Single 480×270 canvas scaled with nearest-neighbor for the chunky pixel look
+- Everything procedural: hand-rolled 4×5 pixel font, the swamp scene, every
+  gator variant, teeth, cards and the hand are drawn from rectangles at runtime
 - WebAudio-synthesized sound effects and a little swamp bass groove
-- Zero dependencies, zero network, ~1,300 lines of vanilla JS
+- Zero dependencies, zero network, one HTML file + one JS file
