@@ -19,7 +19,20 @@ Open `index.html` in a browser — that's it. No build, no dependencies, no asse
 - **Press teeth** — each safe tooth adds its value to TEETH and grows the MULT chain +1
 - **BANK BITE** to lock in TEETH × MULT, or push deeper and risk the snap
 - 3 **BITES** and 3 **X-RAYS** per round; reach the target score before you run out
-- Climb 8 antes of **Small Gator → Big Gator → Boss Gator**, then Endless Mode
+- Climb 8 antes, then Endless Mode
+
+### The Swamp Trail
+
+Every ante is a journey across a map. Pick your path at each fork:
+
+- **EASY GATOR** — a gentle target, modest pay
+- **RISKY GATOR** — 1.5× the target, better pay
+- **GOLDEN GATOR** — a gilded monster with 1.9× the target and a fat purse
+- **? EVENTS** — no fight, no shop: a choice. Dive for the sunken chest, haggle
+  with the hermit dentist, chase the firefly swarm, rob a sleeping gator, or
+  trade teeth with the swamp witch. Five events, all with consequences.
+
+…and the **BOSS GATOR** always waits at the end of the trail.
 
 ### The swamp is alive
 
@@ -29,11 +42,14 @@ water, and boss rounds roll in under a blood moon and rain.
 
 ### The gators
 
-Every round type has its own gator, and each of the **11 boss gators** has a look
+Every round type has its own gator, and each of the **15 boss gators** has a look
 to match its rule-bend: Loan Shark wears a top hat and taxes your banks, Lockjaw
 is bolted into a steel brace, The Restless relocates its snap teeth mid-bite,
-the Swamp King wears a crown over a bigger, meaner mouth… and the ante-8
-**Apex Predator** is waiting at the end with two snappers and red eyes.
+the Swamp King wears a crown over a bigger, meaner mouth, Shellback hides under
+a turtle shell demanding six presses per bank, Mudcake halves your teeth,
+Two-Timer's four eyes demand two banks per round, The Albino's X-rays *lie*…
+and the ante-8 **Apex Predator** is waiting at the end with two snappers and
+red eyes.
 
 ### Cards, charms and the barrel
 
@@ -46,11 +62,14 @@ the Swamp King wears a crown over a bigger, meaner mouth… and the ante-8
 
 ### Rangers
 
-Pick your ranger before every run:
+Pick your ranger before every run — five animal rangers with big, blinking,
+cursor-tracking eyes:
 
-- **BAYOU SCOUT** — +1 tooth in every mouth, and one tooth per mouth starts X-rayed
-- **SWAMP MEDIC** — +1 bite every round, starts each run holding a Novocaine
-- **BOG TRADER** — starts with $12 and an interest cap of $8
+- **BAYOU SCOUT** (the heron) — +1 tooth in every mouth, one free reveal per mouth
+- **SWAMP MEDIC** (the opossum) — +1 bite every round, starts holding a Novocaine
+- **BOG TRADER** (the raccoon) — starts with $12 and an interest cap of $8
+- **BULLFROG BRAWLER** (the bullfrog) — Clean Sweeps pay ×1.75 instead of ×1.25
+- **SNAIL SAGE** (the snail) — every bite starts at +3 MULT, but −1 bite per round
 
 ### The Swamp Pass
 

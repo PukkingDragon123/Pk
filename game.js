@@ -463,26 +463,82 @@ const ICONS = {
   moonshine(x, y) { rect(x + 4, y + 1, 4, 2, '#8a6a3a'); rr(x + 2, y + 3, 8, 8, 2, '#d8ccb8'); rect(x + 3, y + 6, 6, 4, '#c0b4a0'); drawText('X', x + 4, y + 5, '#6a4a2a', 1); },
 };
 
-// ranger portraits (28x28-ish): wide-brim hat + face + bandana per ranger
+// -------- animal ranger portraits, gator-style tracking eyes --------------
+// a big expressive eye that blinks and follows the cursor (like the gator's)
+function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
+  rr(ex - 1, ey - 1, ew + 2, eh + 2, 2, '#20140c');
+  const blink = ((tNow + (phase || 0)) % 4.1) > 3.95;
+  rr(ex, ey, ew, eh, 2, sclera);
+  if (blink) { rr(ex, ey, ew, eh, 2, lidCol); return; }
+  const dx = clamp((mx - (ex + ew / 2)) / 70, -1, 1) * Math.max(1, ew / 5);
+  const dy = clamp((my - (ey + eh / 2)) / 70, -1, 1) * Math.max(1, eh / 6);
+  const pw = Math.max(2, (ew / 3) | 0), ph2 = Math.max(3, (eh / 2) | 0);
+  rect(ex + ew / 2 - pw / 2 + dx, ey + eh / 2 - ph2 / 2 + dy, pw, ph2, pupilCol || '#1b1408');
+  rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
+}
+
+// 28x28 animal faces (animal-crossing-ish: big head, big eyes, tiny features)
 function drawRangerFace(x, y, key) {
-  const cols = { scout: '#63d66a', medic: '#7fd4e8', trader: '#ffc843' };
-  const c = cols[key] || '#63d66a';
-  // hat
-  rect(x + 2, y + 8, 24, 3, '#4a3320');
-  rr(x + 6, y + 1, 16, 9, 2, '#5a4028');
-  rect(x + 6, y + 7, 16, 2, c);
-  // face
-  rr(x + 7, y + 11, 14, 11, 2, '#e8b088');
-  rect(x + 8, y + 11, 12, 2, '#00000022'); // hat shadow
-  // eyes
-  rect(x + 10, y + 15, 2, 2, C.ink); rect(x + 16, y + 15, 2, 2, C.ink);
-  // per-ranger detail
-  if (key === 'scout') { rect(x + 9, y + 14, 10, 1, '#2c3c2c'); } // camo stripe
-  if (key === 'medic') { rect(x + 13, y + 12, 2, 1, C.red); }     // tiny cross
-  if (key === 'trader') { rect(x + 12, y + 19, 4, 1, '#c9941a'); } // gold grin
-  // bandana
-  rr(x + 6, y + 22, 16, 5, 2, c);
-  rect(x + 8, y + 24, 12, 2, '#00000033');
+  const hat = (hx, hy, hw, band) => {
+    rect(hx - 3, hy + 6, hw + 6, 3, '#4a3320');
+    rr(hx, hy, hw, 8, 2, '#5a4028');
+    rect(hx, hy + 5, hw, 2, band);
+  };
+  if (key === 'scout') { // heron: blue-grey, long yellow beak
+    hat(x + 5, y, 18, '#63d66a');
+    rr(x + 5, y + 9, 18, 14, 3, '#9fb2c8');
+    rect(x + 6, y + 9, 16, 2, '#00000022');
+    critterEye(x + 7, y + 12, 6, 7, '#9fb2c8', '#f8f4dc', '#1b1408', 0);
+    critterEye(x + 15, y + 12, 6, 7, '#9fb2c8', '#f8f4dc', '#1b1408', 0.4);
+    rect(x + 11, y + 20, 14, 3, '#e8c04a'); // long beak
+    rect(x + 22, y + 21, 4, 2, '#c89a2a');
+    rect(x + 11, y + 22, 10, 1, '#c89a2a');
+    rr(x + 3, y + 24, 22, 4, 2, '#63d66a'); // scarf
+  } else if (key === 'medic') { // opossum: grey, pink round ears, pink nose
+    fillCircle(x + 7, y + 6, 4, '#8a8a92'); fillCircle(x + 7, y + 6, 2, '#e8a0b0');
+    fillCircle(x + 21, y + 6, 4, '#8a8a92'); fillCircle(x + 21, y + 6, 2, '#e8a0b0');
+    rr(x + 4, y + 8, 20, 16, 4, '#b8b8c0');
+    rr(x + 8, y + 14, 12, 10, 3, '#e8e8e8'); // white muzzle patch
+    critterEye(x + 6, y + 11, 6, 7, '#b8b8c0', '#f8f4dc', '#2a1a2a', 0.8);
+    critterEye(x + 16, y + 11, 6, 7, '#b8b8c0', '#f8f4dc', '#2a1a2a', 1.2);
+    rect(x + 12, y + 19, 4, 3, '#e88898'); // pink nose
+    rect(x + 13, y + 22, 2, 1, '#8a6a72');
+    rr(x + 4, y + 24, 20, 4, 2, '#7fd4e8'); // medic scarf
+    rect(x + 12, y + 25, 4, 2, C.red); rect(x + 13, y + 24, 2, 4, C.red); // cross
+  } else if (key === 'trader') { // raccoon: mask, striped ears, grin
+    rect(x + 4, y + 2, 6, 6, '#6a6258'); rect(x + 18, y + 2, 6, 6, '#6a6258');
+    rect(x + 6, y + 4, 2, 2, '#3a342c'); rect(x + 20, y + 4, 2, 2, '#3a342c');
+    rr(x + 4, y + 6, 20, 17, 4, '#8a8276');
+    rect(x + 4, y + 11, 20, 6, '#3a342c'); // bandit mask
+    critterEye(x + 6, y + 11, 6, 6, '#3a342c', '#f8f4dc', '#1b1408', 1.6);
+    critterEye(x + 16, y + 11, 6, 6, '#3a342c', '#f8f4dc', '#1b1408', 2.0);
+    rr(x + 10, y + 17, 8, 6, 2, '#d8d0c0');
+    rect(x + 13, y + 18, 3, 2, '#3a342c'); // nose
+    rect(x + 11, y + 21, 6, 1, '#8a6a3a'); // sly grin
+    rect(x + 16, y + 20, 2, 1, '#ffd54a'); // gold tooth glint
+    rr(x + 4, y + 23, 20, 4, 2, '#ffc843');
+  } else if (key === 'frog') { // bullfrog: eyes on top like the gator
+    fillCircle(x + 8, y + 6, 5, '#5a9a3c'); fillCircle(x + 20, y + 6, 5, '#5a9a3c');
+    critterEye(x + 5, y + 3, 6, 6, '#5a9a3c', '#f8f4dc', '#1b1408', 2.4);
+    critterEye(x + 17, y + 3, 6, 6, '#5a9a3c', '#f8f4dc', '#1b1408', 2.8);
+    rr(x + 3, y + 8, 22, 15, 5, '#7ec850');
+    rect(x + 5, y + 16, 18, 1, '#4a7c2e'); // wide mouth
+    rect(x + 4, y + 15, 2, 2, '#4a7c2e'); rect(x + 22, y + 15, 2, 2, '#4a7c2e');
+    rect(x + 9, y + 12, 2, 1, '#4a7c2e'); rect(x + 17, y + 12, 2, 1, '#4a7c2e'); // nostrils
+    rr(x + 6, y + 19, 16, 4, 2, '#e8e0b0'); // pale chin
+    rr(x + 3, y + 23, 22, 4, 2, '#d94f30'); // brawler bandana
+  } else if (key === 'snail') { // snail sage: shell + eye stalks
+    fillCircle(x + 19, y + 14, 9, '#a87848');
+    fillCircle(x + 19, y + 14, 7, '#c8a878');
+    fillCircle(x + 20, y + 13, 4, '#a87848');
+    rect(x + 19, y + 12, 2, 2, '#7a5430'); // spiral core
+    rect(x + 4, y + 5, 2, 8, '#d8c8a8'); rect(x + 10, y + 3, 2, 10, '#d8c8a8'); // stalks
+    critterEye(x + 2, y + 1, 5, 5, '#d8c8a8', '#f8f4dc', '#1b1408', 3.2);
+    critterEye(x + 8, y - 1, 5, 5, '#d8c8a8', '#f8f4dc', '#1b1408', 3.6);
+    rr(x + 2, y + 12, 14, 12, 4, '#e0d0b0'); // head/body
+    rect(x + 4, y + 18, 6, 1, '#a89068'); // wise little smile
+    rect(x + 3, y + 24, 12, 3, '#8878a8'); // sage wrap
+  }
 }
 
 // ------------------------------------------------------------ tooth art ---
@@ -560,10 +616,16 @@ const CROC_STYLES = {
   diet: { a: '#8a9a78', b: '#647250', c: '#aebc9c', d: '#42503a', maw: '#4a2430', mawD: '#321820', tongue: '#b06a78', tongueHi: '#c88a96', sclera: '#e8e8d0', skinny: true },
   restless: { a: '#6a5a8a', b: '#484060', c: '#8f7cae', d: '#2e2844', maw: '#38102a', mawD: '#240a1c', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#e8c8c8', redEye: true, bags: true },
   king: { a: '#4a7a3a', b: '#305424', c: '#74a858', d: '#1e3a16', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', crown: true, moss: true },
+  mudcake: { a: '#8a6a3a', b: '#644a24', c: '#a88c54', d: '#40300f', maw: '#3a2410', mawD: '#281808', tongue: '#a86040', tongueHi: '#c08058', sclera: '#d8d0a8', mudDrips: true },
+  shellback: { a: '#6a8a4a', b: '#486030', c: '#8fae68', d: '#2e401e', maw: '#4a2810', mawD: '#321a08', tongue: '#c98a63', tongueHi: '#e0aa8a', sclera: '#f0e8c8', shell: true },
+  albino: { a: '#e0d4cc', b: '#b8a89e', c: '#f4ece6', d: '#8a7a70', maw: '#e88898', mawD: '#c06878', tongue: '#f0a8b8', tongueHi: '#f8c8d4', sclera: '#ffe8e8', redEye: true, paleMaw: true },
+  twin: { a: '#3a6a72', b: '#26484e', c: '#5a929c', d: '#142a30', maw: '#301024', mawD: '#1e0a16', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#e8e8d0', twinEyes: true, ridge: true },
+  gold: { a: '#d8b842', b: '#a8882a', c: '#f0d868', d: '#7a6014', maw: '#5a3010', mawD: '#3e2008', tongue: '#e0a050', tongueHi: '#f0c078', sclera: '#fff6dc', goldTooth: true },
   apexpred: { a: '#2e3a34', b: '#1c2620', c: '#48584e', d: '#0e1612', maw: '#2e0810', mawD: '#1c040a', tongue: '#8a3040', tongueHi: '#a84858', sclera: '#e8d0c0', redEye: true, scars: true, fangs: true, ridge: true },
 };
 function crocStyle() {
   if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
+  if (G.state !== 'menu' && G.nodeType === 'gold') return CROC_STYLES.gold;
   if (G.state !== 'menu' && G.round === 1) return CROC_STYLES.big;
   return CROC_STYLES.small;
 }
@@ -650,8 +712,21 @@ const BOSSES = [
   { id: 'diet', name: 'PLAIN DIET', desc: 'Special teeth lose their powers' },
   { id: 'restless', name: 'THE RESTLESS', desc: 'Snap teeth relocate after every 3rd press' },
   { id: 'king', name: 'SWAMP KING', desc: '+2 teeth per mouth, but +1 snap tooth' },
+  { id: 'mudcake', name: 'MUDCAKE', desc: 'Pressed teeth are worth half their TEETH value' },
+  { id: 'shellback', name: 'SHELLBACK', desc: 'You cannot bank until 6+ teeth are pressed' },
+  { id: 'albino', name: 'THE ALBINO', desc: 'X-Rays LIE 1 in 4 times' },
+  { id: 'twin', name: 'TWO-TIMER', desc: 'You must bank at least TWICE to win the round' },
 ];
 const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth, and only 1 X-Ray' };
+
+// ------------------------------------------------------------ map nodes ---
+const NODE_DEFS = {
+  small: { name: 'EASY GATOR', mult: 1, reward: 4, col: '#63d66a' },
+  big: { name: 'RISKY GATOR', mult: 1.5, reward: 6, col: '#ff9838' },
+  gold: { name: 'GOLDEN GATOR', mult: 1.9, reward: 11, col: '#ffc843' },
+  event: { name: 'SWAMP EVENT', col: '#c07dff' },
+  boss: { name: 'BOSS GATOR', mult: 2, reward: 8, col: '#ff5348' },
+};
 
 const ANTE_BASE = [60, 150, 340, 750, 1600, 3000, 5200, 6000];
 const ROUND_MULT = [1, 1.5, 2];
@@ -687,25 +762,133 @@ const ACHS = [
   { id: 'sweep3', name: 'SPOTLESS', desc: '3 Clean Sweeps in one run', glove: 'pearl' },
   { id: 'win', name: 'APEX DENTIST', desc: 'Beat all 8 antes', glove: 'royal' },
 ];
-// ---------------------------------------------- rangers (run characters) --
+// ------------------------------------- rangers (animal run characters) ----
 const RANGERS = {
   scout: {
-    name: 'BAYOU SCOUT', col: '#63d66a',
+    name: 'BAYOU SCOUT', animal: 'THE HERON', col: '#63d66a',
     lines: ['+1 tooth in every mouth', 'One tooth in every mouth', 'starts already X-rayed'],
     flav: 'Knows every log that blinks.',
   },
   medic: {
-    name: 'SWAMP MEDIC', col: '#7fd4e8',
+    name: 'SWAMP MEDIC', animal: 'THE OPOSSUM', col: '#7fd4e8',
     lines: ['+1 BITE every round', 'Start every run holding', 'a free NOVOCAINE card'],
     flav: 'Prescribes more biting.',
   },
   trader: {
-    name: 'BOG TRADER', col: '#ffc843',
+    name: 'BOG TRADER', animal: 'THE RACCOON', col: '#ffc843',
     lines: ['Start the run with $12', 'Interest cap raised', 'from $5 to $8'],
     flav: 'Sells swamp to swimmers.',
   },
+  frog: {
+    name: 'BULLFROG BRAWLER', animal: 'THE BULLFROG', col: '#7ec850',
+    lines: ['CLEAN SWEEP bonus is', 'X1.75 MULT', 'instead of X1.25'],
+    flav: 'Croaks first, counts later.',
+  },
+  snail: {
+    name: 'SNAIL SAGE', animal: 'THE SNAIL', col: '#c8a878',
+    lines: ['Every bite starts', 'at +3 MULT', 'but -1 BITE every round'],
+    flav: 'Slow is smooth. Smooth is rich.',
+  },
 };
-const RANGER_ORDER = ['scout', 'medic', 'trader'];
+const RANGER_ORDER = ['scout', 'medic', 'trader', 'frog', 'snail'];
+
+// -------------------------------------------------- swamp events (5) ------
+// resolve() applies the outcome and returns the outcome text
+const EVENTS = [
+  {
+    id: 'chest', name: 'THE SUNKEN CHEST', scene: 'chest',
+    text: 'Something glints under the duckweed. An old strongbox, half buried in the silt. The water is dark... and something moved down there.',
+    choices: [
+      {
+        label: 'DIVE FOR IT', sub: '50/50: treasure or trouble',
+        resolve() {
+          if (rnd() < 0.5) { gainMoney(10); return 'You wrench it free! Inside: $10 in dry-ish bills. The swamp giveth.'; }
+          G.eventBuffs.bites -= 1;
+          return 'Something CLAMPS your boot. You escape, but you are rattled: -1 BITE next round.';
+        },
+      },
+      { label: 'LEAVE IT', sub: '+4 RP for discipline', resolve() { addRP(4); return 'A true ranger knows which glints are teeth. +4 RANGER POINTS.'; } },
+    ],
+  },
+  {
+    id: 'hermit', name: 'THE HERMIT DENTIST', scene: 'hermit',
+    text: 'A campfire crackles on a stump island. An old hermit grins with suspiciously perfect teeth. \'Polish yer chompers, ranger? Cheap-ish.\'',
+    choices: [
+      {
+        label: 'PAY $4', sub: 'Polish 3 plain teeth +2', money: 4,
+        resolve() {
+          G.money -= 4;
+          const plains = G.deck.filter(t => t.type === 'plain');
+          shuffle(plains).slice(0, 3).forEach(t => t.base += 2);
+          return 'He hums a shanty and buffs 3 of your plain teeth to +2. Money well spent.';
+        },
+      },
+      {
+        label: 'ROB HIM', sub: 'Free polish... 50% bad karma',
+        resolve() {
+          const plains = G.deck.filter(t => t.type === 'plain');
+          shuffle(plains).slice(0, 3).forEach(t => t.base += 2);
+          if (rnd() < 0.5) { G.eventBuffs.snapNext += 1; return 'You grab his kit and run. 3 teeth polished... but the swamp saw you. +1 SNAPPER next mouth.'; }
+          return 'You grab his kit and run. 3 teeth polished +2. He just laughs. Unsettling.';
+        },
+      },
+      { label: 'WALK AWAY', sub: 'No thanks', resolve() { return 'You nod politely and pole away. His teeth glow in the dark behind you.'; } },
+    ],
+  },
+  {
+    id: 'swarm', name: 'THE FIREFLY SWARM', scene: 'swarm',
+    text: 'A river of fireflies pours through the reeds, bright as a carnival. Your jar is right there.',
+    choices: [
+      { label: 'CATCH A JARFUL', sub: '+2 X-RAYS next round', resolve() { G.eventBuffs.xrays += 2; return 'The jar glows like a lantern. +2 X-RAYS next round.'; } },
+      { label: 'SELL THE LIGHT', sub: '+$5', resolve() { gainMoney(5); return 'A passing bootlegger pays $5 for the jar. The swamp economy is weird.'; } },
+      { label: 'JUST WATCH', sub: '+3 MULT next round', resolve() { G.eventBuffs.mult += 3; return 'You watch until the last light fades. You feel sharper. +3 starting MULT next round.'; } },
+    ],
+  },
+  {
+    id: 'sleeper', name: 'THE SLEEPING GATOR', scene: 'sleeper',
+    text: 'A colossal gator snores on the bank. One golden tooth glitters in its half-open jaw. Its belly rises... and falls... and rises...',
+    choices: [
+      {
+        label: 'STEAL THE TOOTH', sub: '60%: gold tooth. 40%: uh oh',
+        resolve() {
+          if (rnd() < 0.6) { G.deck.push(mkTooth('gold')); return 'Your fingers close on gold. A GOLD TOOTH joins your deck. It never even woke up.'; }
+          G.eventBuffs.snapNext += 1;
+          return 'The eye SNAPS open. You flee through the reeds. Word spreads: +1 SNAPPER next mouth.';
+        },
+      },
+      { label: 'TIPTOE PAST', sub: '+$3', resolve() { gainMoney(3); return 'You slip past and find $3 someone dropped while fleeing earlier. Pragmatism pays.'; } },
+    ],
+  },
+  {
+    id: 'witch', name: 'THE SWAMP WITCH', scene: 'witch',
+    text: 'A cauldron bubbles violet under a crooked cypress. The witch stirs it with a femur. \'Teeth for treasures, ranger. Fair trades only.\'',
+    choices: [
+      {
+        label: 'TRADE 2 TEETH', sub: 'Weakest 2 plain > 1 RUBY',
+        resolve() {
+          const plains = G.deck.filter(t => t.type === 'plain').sort((a, b) => a.base - b.base);
+          if (plains.length < 2 || G.deck.length <= 8) return 'The witch peers in your bag and cackles. \'Too few teeth to trade, dearie.\'';
+          for (let k = 0; k < 2; k++) { const i = G.deck.indexOf(plains[k]); if (i >= 0) G.deck.splice(i, 1); }
+          G.drawPile = G.drawPile.filter(t => G.deck.includes(t));
+          G.deck.push(mkTooth('ruby'));
+          return 'She plucks your two weakest teeth and presses a RUBY TOOTH into your palm. It is warm. Do not ask why.';
+        },
+      },
+      {
+        label: 'PAY $5', sub: 'A random card', money: 5,
+        resolve() {
+          G.money -= 5;
+          const pool = CONS.filter(cardUnlocked);
+          const def = choice(pool);
+          if (G.cons.length >= 2) { gainMoney(5); return 'Your card slots are full. She shrugs and refunds you. Surprisingly professional.'; }
+          G.cons.push(def);
+          return 'She ladles out... a ' + def.name + '. \'No refunds,\' she says, refunding nothing.';
+        },
+      },
+      { label: 'REFUSE', sub: '+2 RP', resolve() { addRP(2); return 'Never trade teeth with a witch. +2 RANGER POINTS for wisdom.'; } },
+    ],
+  },
+];
 
 // -------------------------------------- swamp pass: RP, tiers, dailies ----
 const PASS_REQ = [25, 50, 80, 110, 145, 180, 220, 260];
@@ -795,7 +978,7 @@ ensureDaily();
 
 // ------------------------------------------------------------ state -------
 const G = {
-  state: 'menu', // menu | play | swap | snap | roundend | shop | gameover | win | bossintro | how
+  state: 'menu', // menu | ranger | pass | map | event | play | swap | snap | roundend | shop | gameover | win | bossintro | how
   ante: 1, round: 0, money: 0, target: 0, score: 0, dispScore: 0,
   bites: 0, xrays: 0, deck: [], drawPile: [], mouth: [], pool: null,
   charms: [], cons: [], boss: null, bossOrder: [],
@@ -811,7 +994,17 @@ const G = {
   xanim: null,     // {i, t}
   runSweeps: 0, roundPressed: 0, heartUsed: false,
   ranger: 'scout',
+  map: null,       // {stages:[[node,..],[node,..],[boss]], stage, picked:[]}
+  nodeType: 'small', nodeName: 'SMALL GATOR',
+  eventBuffs: { bites: 0, xrays: 0, mult: 0, snapNext: 0 },
+  roundBanks: 0,
+  event: null,     // {def, phase:'intro'|'outcome', textT, outcome}
+  boat: null,      // {x,y,tx,ty,t,node,k} travel animation on the map
+  biStart: 0,      // boss intro slam timer
 };
+let trans = null;  // iris wipe: {t, cb, fired}
+function startTransition(cb) { if (trans) return; trans = { t: 0, cb, fired: false }; }
+let flyers = [];   // bought cards flying to their slot
 let best = 0;
 try { best = parseInt(localStorage.getItem('bitedown_best') || '0') || 0; } catch (e) { }
 function saveBest() { try { localStorage.setItem('bitedown_best', '' + best); } catch (e) { } }
@@ -857,26 +1050,105 @@ function newRun(rangerKey) {
   G.stats = { pressed: 0, snaps: 0, banks: 0, bestBank: 0, moneyEarned: 0 };
   G.wonOnce = false; G.deckOpen = false; G.inspect = null; G.drag = null;
   G.runSweeps = 0;
-  floats = []; parts = []; shake = 0;
-  startRound();
+  G.eventBuffs = { bites: 0, xrays: 0, mult: 0, snapNext: 0 };
+  floats = []; parts = []; shake = 0; flyers = [];
+  genMap();
+  G.state = 'map';
 }
 
-function startRound() {
-  G.boss = (G.round === 2) ? (G.ante === 8 ? FINAL_BOSS : G.bossOrder[(G.ante - 1) % G.bossOrder.length]) : null;
-  G.target = targetFor(G.ante, G.round);
+// ---------------------------------------------------------- swamp map -----
+function genMap() {
+  const mk = t => ({ type: t });
+  const opt = base => {
+    const r = rnd();
+    if (r < 0.32) return mk('event');
+    if (r < 0.55) return mk('gold');
+    return mk(base);
+  };
+  G.map = {
+    stages: [
+      [mk('small'), opt('small')],
+      [mk('big'), opt('big')],
+      [mk('boss')],
+    ],
+    stage: 0, picked: [],
+  };
+  G.boat = null;
+}
+
+function pickNode(k) {
+  if (G.state !== 'map' || !G.map || trans) return;
+  const opts = G.map.stages[G.map.stage];
+  if (!opts || !opts[k]) return;
+  const node = opts[k];
+  G.map.picked[G.map.stage] = k;
+  G.map.stage++;
+  startTransition(() => launchNode(node));
+  sfx.pickup();
+}
+
+function launchNode(node) {
+  if (node.type === 'event') { startEvent(); return; }
+  startFight(node);
+}
+
+function startFight(node) {
+  G.nodeType = node.type;
+  G.nodeName = NODE_DEFS[node.type].name;
+  G.round = node.type === 'boss' ? 2 : node.type === 'small' ? 0 : 1;
+  G.boss = node.type === 'boss' ? (G.ante === 8 ? FINAL_BOSS : G.bossOrder[(G.ante - 1) % G.bossOrder.length]) : null;
+  G.target = Math.round((G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.6, G.ante - 8)) * NODE_DEFS[node.type].mult);
   G.score = 0; G.dispScore = 0;
   G.bites = Math.max(1, 3 + (has('chewtoy') ? 1 : 0) + (has('moonshine') ? 1 : 0)
-    + (G.ranger === 'medic' ? 1 : 0) - (has('glass') ? 1 : 0));
-  G.xrays = 3 + (has('license') ? 1 : 0) + (has('moonshine') ? 1 : 0);
+    + (G.ranger === 'medic' ? 1 : 0) - (has('glass') ? 1 : 0) - (G.ranger === 'snail' ? 1 : 0)
+    + G.eventBuffs.bites);
+  G.xrays = 3 + (has('license') ? 1 : 0) + (has('moonshine') ? 1 : 0) + G.eventBuffs.xrays;
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
   G.numbUsed = false; G.greedyCount = 0;
-  G.roundPressed = 0; G.heartUsed = false;
+  G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
+  G.roundBuffMult = G.eventBuffs.mult || 0;
   G.drawPile = shuffle(G.deck.slice());
   G.deckOpen = false; G.inspect = null; G.drag = null; G.xanim = null;
   if (G.ante >= 3) { unlock('ante3'); quest('ante3q', 1); }
   newMouth();
-  if (G.boss) { G.state = 'bossintro'; sfx.boss(); }
+  G.eventBuffs = { bites: 0, xrays: 0, mult: 0, snapNext: 0 };
+  if (G.boss) { G.state = 'bossintro'; G.biStart = tNow; sfx.boss(); }
   else { G.state = 'play'; }
+}
+
+function afterShop() {
+  if (G.map.stage >= 3) { G.ante++; genMap(); }
+  G.state = 'map';
+}
+
+// -------------------------------------------------------- swamp events ----
+function startEvent() {
+  const recent = G.seenEvents || (G.seenEvents = []);
+  let pool = EVENTS.filter(e => !recent.includes(e.id));
+  if (!pool.length) { G.seenEvents = []; pool = EVENTS.slice(); }
+  const def = choice(pool);
+  recent.push(def.id);
+  G.event = { def, phase: 'intro', textT: 0, outcome: '' };
+  G.state = 'event';
+}
+
+function chooseEvent(k) {
+  const ev = G.event; if (!ev || ev.phase !== 'intro') return;
+  const ch = ev.def.choices[k]; if (!ch) return;
+  if (ch.money && G.money < ch.money) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH $', C.red, 1); return; }
+  ev.outcome = ch.resolve();
+  ev.phase = 'outcome'; ev.textT = 0;
+  sfx.buy();
+}
+
+function closeEvent() {
+  if (!G.event) return;
+  G.event = null;
+  const go = () => {
+    if (G.map.stage >= 3) { G.ante++; genMap(); }
+    G.state = 'map';
+  };
+  if (trans) go(); else startTransition(go); // never drop the state change
 }
 
 function mouthSizeFor() {
@@ -887,7 +1159,8 @@ function mouthSizeFor() {
 
 function newMouth() {
   const size = mouthSizeFor();
-  let snaps = Math.min(snapCountFor(), Math.max(1, size - 4));
+  let snaps = Math.min(snapCountFor() + (G.eventBuffs.snapNext > 0 ? 1 : 0), Math.max(1, size - 4));
+  if (G.eventBuffs.snapNext > 0) { G.eventBuffs.snapNext = 0; float(W / 2 + 50, 100, 'THE SWAMP REMEMBERS: +1 SNAPPER', C.red, 1, 1.6); }
   if (G.drawPile.length < size) G.drawPile = shuffle(G.deck.slice());
   const drawn = G.drawPile.splice(0, size);
   const order = shuffle(drawn.map((_, i) => i));
@@ -898,6 +1171,8 @@ function newMouth() {
   if (has('coldblood')) G.pool.mult += 3 * snaps;
   if (has('mirror')) G.pool.mult += 2 * G.mouth.filter(s => s.t.type !== 'plain').length;
   if (has('venom')) G.pool.mult += Math.floor(G.roundPressed / 2);
+  if (G.ranger === 'snail') G.pool.mult += 3;
+  if (G.roundBuffMult) G.pool.mult += G.roundBuffMult;
   G.novocaine = false; G.mode = 'idle'; G.extractCons = -1; G.xanim = null;
   G.jawClose = 0;
   if (G.ranger === 'scout') {
@@ -989,6 +1264,7 @@ function pressTooth(i) {
         case 'vamp': { const v = 2 * (G.pool.clicks - 1); add += v; if (v > 0) float(p.x, p.y - 22, 'DRAIN +' + v, C.purple, 1); break; }
       }
     }
+    if (bossIs('mudcake')) add = Math.max(1, Math.ceil(add / 2));
     G.pool.teeth += add;
     G.pool.mult += mgain;
     if (steel) { G.pool.mult = Math.round(G.pool.mult * 1.5); float(p.x, p.y - 22, 'X1.5 MULT', C.red, 1); }
@@ -1038,7 +1314,7 @@ function bankMath(sweep) {
   if (has('rootcanal') && G.pool.clicks >= 7) m *= 2;
   if (has('apex') && G.pool.clicks >= 8) m *= 3;
   if (has('totem') && G.round === 2) m *= 1.5;
-  if (sweep) m *= has('collector') ? 2 : 1.25;
+  if (sweep) m *= has('collector') ? 2 : (G.ranger === 'frog' ? 1.75 : 1.25);
   return Math.floor(t * m);
 }
 const bankValue = () => bankMath(false);
@@ -1047,9 +1323,12 @@ function bank(sweep) {
   if (G.state !== 'play') return;
   if (G.pool.clicks === 0) { sfx.error(); float(248, 232, 'PRESS A TOOTH FIRST!', C.red, 1); return; }
   if (!sweep && bossIs('lockjaw') && G.pool.clicks < 4) { sfx.error(); float(248, 232, 'LOCKJAW: NEED 4+ TEETH', C.red, 1); return; }
+  if (!sweep && bossIs('shellback') && G.pool.clicks < 6) { sfx.error(); float(248, 232, 'SHELLBACK: NEED 6+ TEETH', C.red, 1); return; }
   const val = bankMath(!!sweep);
   G.score += val;
   G.stats.banks++;
+  G.roundBanks++;
+  G.scorePulse = 0.4;
   quest('bank8', 1);
   if (val > G.stats.bestBank) G.stats.bestBank = val;
   if (has('canteen') && G.pool.clicks <= 3) { gainMoney(3); float(60, 182, 'CANTEEN +$3', C.gold, 1); }
@@ -1073,14 +1352,16 @@ function startSnap(i) {
 function endBite() {
   G.bites--;
   G.mode = 'idle'; G.extractCons = -1; G.deckOpen = false;
-  if (G.score >= G.target) { roundWon(); return; }
+  const twinBlock = bossIs('twin') && G.roundBanks < 2;
+  if (G.score >= G.target && !twinBlock) { roundWon(); return; }
+  if (G.score >= G.target && twinBlock) float(W / 2 + 50, 100, 'TWO-TIMER: BANK ONCE MORE!', C.purple, 1, 1.6);
   if (G.bites <= 0) { gameOver(); return; }
   // short beat before the fresh mouth slides in
   G.state = 'swap'; G.swapT = 0;
 }
 
 function roundWon() {
-  const base = rewardFor(G.ante, G.round);
+  const base = (NODE_DEFS[G.nodeType].reward || 4) + Math.floor(G.ante / 3);
   const perBite = G.bites; // unused bites, $1 each
   const cap = G.ranger === 'trader' ? 8 : 5;
   const interest = Math.min(cap, Math.floor(G.money / 5));
@@ -1147,11 +1428,14 @@ function buyItem(it) {
   if (it.kind === 'charm') {
     if (G.charms.length >= 5) { sfx.error(); float(mx, my - 10, 'CHARM SLOTS FULL', C.red, 1); return; }
     G.charms.push(it.def);
+    flyers.push({ x: mx, y: my, tx: 120 + (G.charms.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#3e8cd0' });
   } else if (it.kind === 'cons') {
     if (G.cons.length >= 2) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
     G.cons.push(it.def);
+    flyers.push({ x: mx, y: my, tx: 416 + (G.cons.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#8a5fd0' });
   } else if (it.kind === 'tooth') {
     G.deck.push(mkTooth(it.type));
+    flyers.push({ x: mx, y: my, tx: 57, ty: 218, t: 0, tooth: it.type });
   }
   G.money -= it.price;
   it.sold = true;
@@ -1177,11 +1461,8 @@ function reroll() {
   sfx.buy();
 }
 
-function nextRound() {
-  G.round++;
-  if (G.round > 2) { G.round = 0; G.ante++; }
-  startRound();
-}
+// kept as the programmatic "advance" for bots and the shop button
+function nextRound() { afterShop(); }
 
 function gameOver() {
   G.state = 'gameover';
@@ -1198,7 +1479,9 @@ function gameOver() {
 function doXray(i) {
   const s = G.mouth[i];
   if (!s || s.pressed || s.gone || s.revealed) { sfx.error(); return; }
-  s.revealed = s.snap ? 'snap' : 'safe';
+  let truth = s.snap;
+  if (bossIs('albino') && rnd() < 0.25) truth = !truth; // the Albino's x-rays lie
+  s.revealed = truth ? 'snap' : 'safe';
   G.xrays--;
   G.mode = 'idle';
   quest('xray8', 1);
@@ -1207,6 +1490,8 @@ function doXray(i) {
   float(p.x, p.y - 20, 'SCANNING...', '#9fe8ff', 1, 0.5);
   sfx.xray();
 }
+// what the scan DISPLAYS must match what was reported (the Albino lies)
+function xrayShowsSnap(i) { return G.mouth[i] && G.mouth[i].revealed === 'snap'; }
 
 function doExtract(i) {
   const s = G.mouth[i];
@@ -1386,6 +1671,7 @@ function pointFromEvent(e) {
   return { x: (cx - r.left) / r.width * W, y: (cy - r.top) / r.height * H };
 }
 function onDown() {
+  if (trans) return; // no input during screen transitions
   handPressT = 0.16;
   scareFireflies(mx, my, 60);
   if (my > WATERY + 8) addRipple(mx, my, false);
@@ -1540,7 +1826,7 @@ function drawCroc(closeT, opts) {
     if (snappingThis) outline = (Math.floor(tNow * 14) % 2) ? C.red : C.white;
     drawTooth(sl.x, ty, sl.w, th, sl.up, s.t.type, {
       pressedTint: s.pressed, outline,
-      xray: scanning, xraySnap: scanning && s.snap, xrayT: scanning ? G.xanim.t : 0,
+      xray: scanning, xraySnap: scanning && xrayShowsSnap(i), xrayT: scanning ? G.xanim.t : 0,
     });
     if (!s.pressed && !scanning) {
       const hideVal = bossIs('cotton');
@@ -1599,6 +1885,20 @@ function drawCroc(closeT, opts) {
     [[bodyX + 24, jy + 40], [bodyX + 90, jy + 46], [bodyX + bodyW - 44, jy + 38]].forEach(([sx, sy], k) => {
       rect(sx, sy, 2, 10 + k * 3, '#4a6a2a'); rect(sx + 4, sy + 4, 2, 7, '#4a6a2a');
     });
+  }
+  if (st.mudDrips) {
+    [[bodyX + 30, jy + 34], [bodyX + 84, jy + 42], [bodyX + 150, jy + 30], [bodyX + bodyW - 52, jy + 40]].forEach(([sx, sy], k) => {
+      rr(sx, sy, 10, 6, 2, '#5a4020');
+      rect(sx + 3, sy + 6, 2, 6 + ((tNow * 3 + k) % 3 | 0), '#5a4020');
+    });
+  }
+  if (st.shell) {
+    // turtle shell dome perched on the head
+    const shx = maw.x + maw.w / 2 - 42, shy = jy - 22;
+    rr(shx, shy, 84, 24, 4, '#4a5a2e');
+    rr(shx + 4, shy + 3, 76, 18, 4, '#5c7038');
+    for (let k = 0; k < 3; k++) rect(shx + 14 + k * 22, shy + 6, 12, 10, '#4a5a2e');
+    rect(shx + 2, shy + 20, 80, 3, '#38441e');
   }
   // nostrils
   rr(maw.x + maw.w / 2 - 34, jy + 8, 12, 8, 2, st.b);
@@ -1670,6 +1970,17 @@ function drawCroc(closeT, opts) {
       rect(sx, sy, 5, 6, st.b); rect(sx + 1, sy - 3, 3, 3, st.b); rect(sx + 2, sy - 5, 1, 2, st.b);
     });
   });
+  // second, smaller pair of eyes (two-timer)
+  if (st.twinEyes) {
+    const tx2 = maw.x + maw.w / 2 - 14, ty2 = ey + 6;
+    [tx2, tx2 + 18].forEach(ex2 => {
+      rr(ex2 - 2, ty2, 14, 10, 3, st.b);
+      rr(ex2 - 1, ty2 + 1, 12, 8, 3, st.a);
+      rr(ex2 + 1, ty2 + 2, 8, 6, 2, st.sclera);
+      const dx = clamp((mx - ex2) / 60, -1, 1) * 2;
+      rect(ex2 + 4 + dx, ty2 + 3, 2, 4, '#1b1408');
+    });
+  }
   // crown (swamp king)
   if (st.crown) {
     const kx = maw.x + maw.w / 2 - 14, ky = ey - 12;
@@ -1846,6 +2157,11 @@ function drawSidebar() {
   drawText(fmt(G.target), x + 4, y + 12, C.orange, 1);
   drawText('SCORE', x + 4, y + 22, C.dim, 1);
   const sc = G.dispScore >= 100000 ? 1 : 2;
+  if (G.scorePulse > 0) {
+    ctx.globalAlpha = G.scorePulse * 1.6;
+    rr(x + 1, y + 26, w - 2, 14, 2, '#ffc84355');
+    ctx.globalAlpha = 1;
+  }
   drawText(fmt(Math.round(G.dispScore)), x + 4, y + 29, C.gold, sc);
   const pw = Math.floor(clamp(G.score / G.target, 0, 1) * (w - 8));
   rect(x + 4, y + 41 - 3, w - 8, 2, '#0a1215');
@@ -2106,8 +2422,8 @@ function drawShop() {
   drawBarrel();
   button(184, 220, 86, 20, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
     { id: 'reroll', disabled: G.money < G.rerollCost, tip: 'REROLL|Refresh all shop items' });
-  const nextName = G.round === 2 ? 'NEXT ANTE' : 'NEXT ROUND';
-  button(290, 214, 120, 30, nextName + ' >', '#d94f30', '#8a2a16', nextRound, { id: 'next', sc: 1, tip: 'Onward to the ' + (G.round === 2 ? 'next ante!' : ROUND_NAMES[G.round + 1] + '!') });
+  const nextName = G.map && G.map.stage >= 3 ? 'NEXT ANTE' : 'BACK TO TRAIL';
+  button(290, 214, 120, 30, nextName + ' >', '#d94f30', '#8a2a16', () => startTransition(afterShop), { id: 'next', sc: 1, tip: 'Back to the swamp trail' });
 }
 
 // ------------------------------------------------------------ overlays ----
@@ -2136,7 +2452,7 @@ function drawRoundEnd() {
   y += 4;
   drawText('TOTAL', px + 24, y, C.white, 1);
   drawText('$' + G.cash.total, px + pw - 24 - textW('$' + G.cash.total, 1), y, C.gold, 1);
-  button(px + pw / 2 - 55, py + ph - 32, 110, 24, 'CASH OUT', '#e8a020', '#98650e', cashOut, { id: 'cashout' });
+  button(px + pw / 2 - 55, py + ph - 32, 110, 24, 'CASH OUT', '#e8a020', '#98650e', () => startTransition(cashOut), { id: 'cashout' });
 }
 
 function drawBossIntro() {
@@ -2146,9 +2462,16 @@ function drawBossIntro() {
   drawSceneFront(th);
   drawSidebar();
   overlayDim(0.6);
+  // name slams in from huge to normal
+  const el = tNow - G.biStart;
+  const slam = easeOut(clamp(el / 0.35, 0, 1));
+  if (el > 0.35 && el < 0.42 && shake < 2) { shake = 6; }
   const pulse = 1 + Math.sin(tNow * 4) * 0.06;
   drawTextCSh('BOSS GATOR', W / 2, 62, C.red, 2);
-  drawTextCSh(G.boss.name, W / 2, 84, C.white, Math.round(3 * pulse));
+  const nameSc = Math.max(3, Math.round(lerp(9, 3 * pulse, slam)));
+  ctx.globalAlpha = 0.4 + slam * 0.6;
+  drawTextCSh(G.boss.name, W / 2, 84 - (nameSc - 3) * 2, C.white, nameSc);
+  ctx.globalAlpha = 1;
   const dw = Math.max(textW(G.boss.desc, 1), textW('TARGET: ' + fmt(G.target), 1)) + 20;
   panel(W / 2 - dw / 2, 116, dw, 34, { face: '#2a0e12ee', edge: C.redD });
   drawTextCSh(G.boss.desc, W / 2, 122, '#ffb0a8', 1);
@@ -2271,10 +2594,10 @@ function drawHow() {
     ['gator to use them. DRAG charms to the barrel', C.white],
     ['to sell. EXTRACTION drags onto a single tooth.', C.white],
     ['', C.dim],
-    ['Beat 8 antes of SMALL, BIG and BOSS gators.', C.green],
-    ['Bosses bend the rules. Earn ACHIEVEMENTS to', C.dim],
-    ['unlock GLOVES for your pressing hand.', C.dim],
-    ['Good luck, dentist.', C.green],
+    ['Pick your path on the SWAMP TRAIL each ante:', C.green],
+    ['easy, risky or golden gators, and ? EVENTS.', C.dim],
+    ['Bosses bend the rules. Earn ACHIEVEMENTS for', C.dim],
+    ['GLOVES. Beat 8 antes. Good luck, dentist.', C.green],
   ];
   let y = py + 26;
   L.forEach(([t, c]) => { drawTextC(t, px + pw / 2, y, c, 1); y += 11; });
@@ -2282,30 +2605,172 @@ function drawHow() {
 }
 
 // ------------------------------------------------------- ranger select ----
+let rangerFocus = null;
 function drawRangerSelect() {
   const th = THEMES.night;
   drawSceneBack(th);
   drawSceneFront(th);
   overlayDim(0.45);
-  drawTextCSh('CHOOSE YOUR RANGER', W / 2, 16, C.gold, 3);
+  drawTextCSh('CHOOSE YOUR RANGER', W / 2, 12, C.gold, 3);
+  if (!rangerFocus) rangerFocus = meta.ranger || 'scout';
+  // left: tile column of the 5 animals
   RANGER_ORDER.forEach((key, i) => {
     const r = RANGERS[key];
-    const x = 34 + i * 142, y = 48, w2 = 128, h2 = 168;
-    const sel = meta.ranger === key;
-    const hov = mx >= x && mx < x + w2 && my >= y && my < y + h2;
-    panel(x, y + (hov ? -3 : 0), w2, h2, { face: '#1a2530ee', edge: sel ? C.gold : r.col });
-    const yy = y + (hov ? -3 : 0);
-    // portrait
-    rr(x + w2 / 2 - 18, yy + 8, 36, 36, 3, '#10181e');
-    drawRangerFace(x + w2 / 2 - 14, yy + 12, key);
-    drawTextC(r.name, x + w2 / 2, yy + 50, r.col, 1);
-    rect(x + 10, yy + 60, w2 - 20, 1, '#ffffff18');
-    r.lines.forEach((l, k) => drawTextC(l, x + w2 / 2, yy + 68 + k * 10, C.white, 1));
-    drawTextC("'" + r.flav + "'", x + w2 / 2, yy + 104, '#6f8a90', 1);
-    if (sel) drawTextC('LAST USED', x + w2 / 2, yy + 118, C.gold, 1);
-    button(x + w2 / 2 - 42, yy + h2 - 34, 84, 22, 'SELECT', '#d94f30', '#8a2a16', () => { newRun(key); }, { id: 'pick' + key });
+    const x = 42, y = 40 + i * 42;
+    const sel = rangerFocus === key;
+    panel(x, y, 44, 38, { face: sel ? '#26321e' : '#1a2530ee', edge: sel ? C.gold : r.col });
+    drawRangerFace(x + 8, y + 5, key);
+    hit(x, y, 44, 38, {
+      id: 'rtile' + key, cursor: true, tip: r.name + '|' + r.animal,
+      cb: () => { rangerFocus = key; sfx.hover(); },
+    });
   });
-  button(W / 2 - 40, 236, 80, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'rangerback' });
+  // right: detail pane for the focused ranger
+  const r = RANGERS[rangerFocus];
+  const px = 110, py = 40, pw = 330, ph = 200;
+  panel(px, py, pw, ph, { face: '#1a2530ee', edge: r.col });
+  rr(px + 18, py + 14, 64, 64, 4, '#10181e');
+  ctx.save(); ctx.translate(px + 22, py + 18); ctx.scale(2, 2); drawRangerFace(0, 0, rangerFocus); ctx.restore();
+  drawText(r.name, px + 96, py + 16, r.col, 2);
+  drawText(r.animal, px + 96, py + 32, C.dim, 1);
+  rect(px + 96, py + 42, pw - 120, 1, '#ffffff18');
+  r.lines.forEach((l, k) => drawText(l, px + 96, py + 50 + k * 11, C.white, 1));
+  drawText("'" + r.flav + "'", px + 96, py + 90, '#6f8a90', 1);
+  if (meta.ranger === rangerFocus) drawText('LAST USED', px + 18, py + 84, C.gold, 1);
+  button(px + pw / 2 - 65, py + ph - 44, 130, 28, 'HEAD OUT >', '#d94f30', '#8a2a16',
+    () => { const k = rangerFocus; startTransition(() => newRun(k)); }, { id: 'rangergo', sc: 1 });
+  button(W / 2 - 40, 248, 80, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'rangerback' });
+}
+
+// ------------------------------------------------------------ swamp map ---
+function nodePos(stage, k, count) {
+  const xs = [190, 292, 394];
+  const ys = count === 1 ? [150] : [104, 190];
+  return { x: xs[stage], y: ys[k] };
+}
+function drawMiniGator(x, y, type) {
+  const cols = { small: ['#5aa843', '#3c7c2e'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
+  const [a, b] = cols[type] || cols.small;
+  rr(x, y + 4, 22, 9, 3, a);
+  rr(x + 1, y + 10, 20, 4, 2, b);
+  [[x + 3], [x + 13]].forEach(([ex]) => {
+    rr(ex, y, 7, 7, 2, a);
+    rect(ex + 2, y + 2, 3, 3, '#f8f4dc');
+    rect(ex + 3, y + 3, 1, 2, '#1b1408');
+  });
+  if (type === 'gold') { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 16, y + 2, 1, 1, '#fff6c8'); }
+  if (type === 'boss') { rect(x + 2, y - 2, 3, 3, C.red); rect(x + 9, y - 3, 3, 4, C.red); rect(x + 16, y - 2, 3, 3, C.red); }
+}
+function drawMap() {
+  const th = themeNow();
+  drawSceneBack(th);
+  drawSceneFront(th);
+  overlayDim(0.35);
+  drawTextCSh('THE SWAMP TRAIL', W / 2, 10, C.gold, 3);
+  drawTextCSh('ANTE ' + G.ante + (G.ante <= 8 ? ' OF 8' : ' - ENDLESS'), W / 2, 34, C.white, 1);
+  panel(64, 48, 382, 178, { face: '#101c1eee', edge: '#3a5a50' });
+  // money + ranger chip
+  panel(66, 26, 74, 18, { face: '#26321e', edge: '#5a7a3a' });
+  drawText('$' + G.money, 74, 31, C.gold, 1);
+  drawRangerFace(112, 22, G.ranger);
+  // winding channel
+  for (let x = 76; x < 434; x += 4) {
+    const yc = 148 + Math.sin(x * 0.03) * 26;
+    rect(x, yc - 13, 4, 30, '#0d2830');
+    if ((x / 4 | 0) % 5 === 0) rect(x, yc + Math.sin(tNow * 1.2 + x * 0.1) * 3, 3, 1, '#1e4a52');
+  }
+  // start dock
+  rr(84, 138, 26, 22, 3, '#4a3320');
+  drawTextC('DOCK', 97, 164, C.dim, 1);
+  // fog of the next ante on the right
+  for (let k = 0; k < 5; k++) {
+    ctx.globalAlpha = 0.15 + k * 0.14;
+    rect(422 + k * 5, 50, 5, 174, '#060d10');
+    ctx.globalAlpha = 1;
+  }
+  drawTextC('NEXT', 436, 122, '#41565e', 1);
+  drawTextC('ANTE', 436, 132, '#41565e', 1);
+  // path lines: dock -> stage0 -> stage1 -> boss
+  const dotLine = (x1, y1, x2, y2, lit) => {
+    const n = 7;
+    for (let k = 1; k < n; k++) {
+      const px2 = x1 + (x2 - x1) * k / n, py2 = y1 + (y2 - y1) * k / n;
+      rect(px2, py2, 2, 2, lit ? '#ffc84366' : '#3a5a5066');
+    }
+  };
+  // faint web of all routes; the reachable legs glow
+  G.map.stages.forEach((opts, s) => {
+    opts.forEach((node, k) => {
+      const p = nodePos(s, k, opts.length);
+      const froms = s === 0
+        ? [{ x: 110, y: 148, picked: true }]
+        : G.map.stages[s - 1].map((_, j) => Object.assign(nodePos(s - 1, j, G.map.stages[s - 1].length),
+          { picked: G.map.picked[s - 1] === j || G.map.picked[s - 1] === undefined }));
+      froms.forEach(from => {
+        dotLine(from.x + 14, from.y, p.x - 20, p.y, from.picked && s === G.map.stage);
+      });
+    });
+  });
+  G.map.stages.forEach((opts, s) => {
+    opts.forEach((node, k) => {
+      const p = nodePos(s, k, opts.length);
+      const d = NODE_DEFS[node.type];
+      const reachable = s === G.map.stage;
+      const visited = G.map.picked[s] === k;
+      const passed = s < G.map.stage;
+      const pulse = reachable ? Math.round(Math.sin(tNow * 4) * 1.5) : 0;
+      // island pad
+      rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, passed && !visited ? '#101c1e' : '#16302a');
+      rr(p.x - 20, p.y - 12 - pulse, 40, 28, 4, visited ? '#26321e' : reachable ? '#1e3c34' : '#14262a');
+      if (reachable) rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, '#ffc84300');
+      // node art
+      if (node.type === 'event') {
+        drawTextC('?', p.x, p.y - 8 - pulse, C.purple, 2);
+      } else {
+        drawMiniGator(p.x - 11, p.y - 10 - pulse, node.type);
+      }
+      drawTextC(node.type === 'boss' ? 'BOSS' : node.type.toUpperCase(), p.x, p.y + 8 - pulse, visited ? C.green : reachable ? d.col : '#41565e', 1);
+      if (visited) drawTextC('*', p.x + 24, p.y - 10, C.gold, 1);
+      if (reachable && !G.boat) {
+        hit(p.x - 22, p.y - 14, 44, 32, {
+          id: 'node' + s + '_' + k, cursor: true,
+          tip: nodeTip(node),
+          cb: () => {
+            const from2 = s === 0 ? { x: 97, y: 148 } : nodePos(s - 1, G.map.picked[s - 1], G.map.stages[s - 1].length);
+            G.boat = { x: from2.x, y: from2.y, tx: p.x, ty: p.y + 20, t: 0, k };
+            sfx.splash(); addRipple(p.x, p.y + 22, false);
+          },
+        });
+      }
+    });
+  });
+  // boat token (ranger aboard)
+  const bpos = G.boat ? G.boat
+    : G.map.stage === 0 ? { x: 97, y: 158 }
+      : (() => { const q = nodePos(G.map.stage - 1, G.map.picked[G.map.stage - 1] || 0, G.map.stages[G.map.stage - 1].length); return { x: q.x, y: q.y + 20 }; })();
+  const bob = Math.round(Math.sin(tNow * 2.2) * 1.5);
+  rr(bpos.x - 12, bpos.y + bob, 24, 7, 3, '#5a3a1e');
+  rr(bpos.x - 9, bpos.y - 2 + bob, 18, 4, 2, '#7a5230');
+  ctx.save(); ctx.translate(bpos.x - 7, bpos.y - 16 + bob); ctx.scale(0.5, 0.5); ctx.restore();
+  drawRangerFace(bpos.x - 14, bpos.y - 26 + bob, G.ranger);
+  drawTextC('PICK YOUR NEXT STOP', W / 2, 234, C.dim, 1);
+}
+function nodeTip(node) {
+  const d = NODE_DEFS[node.type];
+  if (node.type === 'event') return 'SWAMP EVENT|Something is waiting in the reeds...|No fight. No shop. A choice.';
+  const base = G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.6, G.ante - 8);
+  let t = d.name + '|TARGET: ' + fmt(Math.round(base * d.mult)) + '|REWARD: $' + (d.reward + Math.floor(G.ante / 3));
+  if (node.type === 'gold') t += '|Tough bite, fat payout';
+  if (node.type === 'boss') t += '|A rule-bending boss awaits';
+  return t;
+}
+function updateBoat(dt) {
+  if (!G.boat) return;
+  G.boat.t += dt;
+  const k2 = easeOut(clamp(G.boat.t / 0.7, 0, 1));
+  G.boat.x = lerp(G.boat.x, G.boat.tx, k2 * 0.2);
+  G.boat.y = lerp(G.boat.y, G.boat.ty, k2 * 0.2);
+  if (G.boat.t > 0.75) { const k = G.boat.k; G.boat = null; pickNode(k); }
 }
 
 // ------------------------------------------------------- swamp pass -------
@@ -2357,6 +2822,150 @@ function drawPassScreen() {
 
   drawTextC('EARN RP: ACHIEVEMENTS +25, DAILY QUESTS +15, +2 PER ANTE BEATEN', W / 2, 216, '#54707a', 1);
   button(W / 2 - 40, 232, 80, 18, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'passback' });
+}
+
+// ------------------------------------------------------- swamp events -----
+// animated vignette scenes, drawn into a w x h box
+const EVENT_SCENES = {
+  chest(x, y, w, h) {
+    // murky water gradient + sunken chest with glint
+    ['#0a2028', '#0c2830', '#0e3038'].forEach((c, i) => rect(x, y + i * (h / 3), w, h / 3 + 1, c));
+    for (let k = 0; k < 8; k++) {
+      const bx = x + ((k * 53) % w), by = y + h - ((tNow * 12 + k * 17) % h);
+      ctx.globalAlpha = 0.4; rect(bx, by, 2, 2, '#7fb8c8'); ctx.globalAlpha = 1;
+    }
+    const cx2 = x + w / 2 - 20, cy2 = y + h - 26;
+    rr(cx2, cy2, 40, 18, 3, '#5a3a1e');
+    rr(cx2 + 2, cy2 + 2, 36, 6, 2, '#7a5230');
+    rect(cx2 + 17, cy2 + 6, 6, 6, C.gold);
+    if ((tNow % 1.6) < 0.25) { rect(cx2 + 18, cy2 + 4, 2, 2, '#fff6c8'); rect(cx2 + 26, cy2 + 2, 1, 1, '#fff6c8'); }
+    rect(x + 8, y + h - 8, 10, 2, '#1a4a30'); rect(x + w - 22, y + h - 6, 14, 2, '#1a4a30');
+  },
+  hermit(x, y, w, h) {
+    rect(x, y, w, h, '#0d1420');
+    for (let i = 0; i < 12; i++) { const sx = (i * 41) % w; rect(x + sx, y + 4 + (i * 13) % 20, 1, 1, '#cfe8f055'); }
+    rr(x + w / 2 - 30, y + h - 14, 60, 10, 3, '#2c2418'); // stump island
+    // hermit silhouette
+    rr(x + w / 2 + 8, y + h - 40, 16, 26, 4, '#1a2228');
+    fillCircle(x + w / 2 + 16, y + h - 44, 6, '#1a2228');
+    rect(x + w / 2 + 12, y + h - 44, 8, 2, '#0e1418'); // hat brim
+    if ((tNow % 0.8) < 0.4) rect(x + w / 2 + 13, y + h - 41, 6, 2, '#f4f0dc'); // grin flash
+    // campfire flicker
+    const fy = y + h - 22, fl = (tNow * 9 | 0) % 3;
+    rect(x + w / 2 - 16, fy + 6, 12, 4, '#4a3320');
+    rect(x + w / 2 - 13, fy - fl, 6, 6 + fl, '#ff9838');
+    rect(x + w / 2 - 11, fy + 2 - fl, 2, 3, '#ffe089');
+    ctx.globalAlpha = 0.2 + fl * 0.08; fillCircle(x + w / 2 - 10, fy, 16, '#ff983833'); ctx.globalAlpha = 1;
+  },
+  swarm(x, y, w, h) {
+    rect(x, y, w, h, '#0a1418');
+    for (let k = 0; k < 5; k++) rect(x + 10 + k * ((w - 20) / 5), y + h - 14, 2, 14, '#132d1e');
+    for (let i = 0; i < 26; i++) {
+      const fx = x + w / 2 + Math.sin(tNow * 1.1 + i * 1.7) * (w / 2 - 12) * Math.sin(i);
+      const fy = y + h / 2 + Math.cos(tNow * 0.9 + i * 2.3) * (h / 2 - 10);
+      const br = (Math.sin(tNow * 3 + i * 2) + 1) / 2;
+      ctx.globalAlpha = 0.3 + br * 0.7;
+      rect(fx, fy, br > 0.6 ? 2 : 1, br > 0.6 ? 2 : 1, '#eaffa0');
+      ctx.globalAlpha = 1;
+    }
+  },
+  sleeper(x, y, w, h) {
+    rect(x, y, w, h, '#101c14');
+    rect(x, y + h - 10, w, 10, '#1a2c1c');
+    // side-view sleeping gator, belly rising
+    const br = Math.sin(tNow * 1.4) * 2;
+    rr(x + 20, y + h - 34 - br, w - 60, 22 + br, 6, '#3c7c2e');
+    rr(x + w - 62, y + h - 28, 44, 16, 5, '#3c7c2e'); // snout
+    rect(x + w - 26, y + h - 24, 6, 3, '#295722');
+    rect(x + w - 48, y + h - 30, 8, 3, '#295722'); // closed eye
+    rect(x + w - 40, y + h - 20, 5, 4, C.gold); // the golden tooth
+    // zzz
+    const zt = (tNow % 2);
+    ctx.globalAlpha = clamp(1 - zt / 2, 0, 1);
+    drawText('Z', x + w - 44, y + h - 46 - zt * 10, C.white, 1);
+    drawText('Z', x + w - 34, y + h - 54 - zt * 14, C.dim, 1);
+    ctx.globalAlpha = 1;
+  },
+  witch(x, y, w, h) {
+    rect(x, y, w, h, '#140e1e');
+    // crooked cypress
+    rect(x + 14, y + 6, 6, h - 6, '#0c0814'); rect(x + 20, y + 10, 12, 4, '#0c0814');
+    // cauldron
+    const cx2 = x + w / 2, cy2 = y + h - 18;
+    rr(cx2 - 18, cy2 - 8, 36, 16, 5, '#22262c');
+    rect(cx2 - 20, cy2 - 10, 40, 4, '#2c323a');
+    // bubbling brew
+    for (let k = 0; k < 5; k++) {
+      const bx = cx2 - 12 + k * 6, bb = ((tNow * 4 + k * 2) % 3) | 0;
+      rect(bx, cy2 - 12 - bb, 2, 2, '#a860e8');
+    }
+    rect(cx2 - 16, cy2 - 9, 32, 3, '#8a4fd0');
+    // steam
+    ctx.globalAlpha = 0.3;
+    rect(cx2 - 4 + Math.sin(tNow * 2) * 4, cy2 - 26, 3, 10, '#c8a8f8');
+    rect(cx2 + 6 + Math.sin(tNow * 2.4) * 4, cy2 - 34, 2, 12, '#c8a8f8');
+    ctx.globalAlpha = 1;
+    // the witch
+    rr(cx2 + 26, cy2 - 26, 14, 20, 3, '#1e1428');
+    rect(cx2 + 24, cy2 - 28, 18, 3, '#1e1428');
+    rect(cx2 + 28, cy2 - 40, 10, 13, '#2a1c38'); // hat
+    rect(cx2 + 31, cy2 - 44, 4, 6, '#2a1c38');
+    rect(cx2 + 29, cy2 - 22, 2, 2, '#a860e8'); // glowing eye
+  },
+};
+
+function drawEvent(dt) {
+  const th = themeNow();
+  drawSceneBack(th);
+  drawSceneFront(th);
+  overlayDim(0.55);
+  const ev = G.event; if (!ev) return;
+  ev.textT += dt * 44; // typewriter speed (chars)
+
+  // letterbox bars slide in
+  const lb = clamp(ev.barT = (ev.barT || 0) + dt * 3, 0, 1);
+  rect(0, 0, W, 26 * lb, '#04080a');
+  rect(0, H - 26 * lb, W, 26 * lb, '#04080a');
+
+  drawTextCSh(ev.def.name, W / 2, 8, C.gold, 2);
+
+  // animated vignette
+  const vx = W / 2 - 105, vy = 30, vw = 210, vh = 92;
+  panel(vx - 3, vy - 3, vw + 6, vh + 6, { face: '#0a1215', edge: '#5d7a86' });
+  ctx.save();
+  ctx.beginPath(); ctx.rect(vx, vy, vw, vh); ctx.clip();
+  (EVENT_SCENES[ev.def.scene] || EVENT_SCENES.chest)(vx, vy, vw, vh);
+  ctx.restore();
+
+  // typewriter text
+  const txt = ev.phase === 'intro' ? ev.def.text : ev.outcome;
+  const shown = txt.slice(0, Math.floor(ev.textT));
+  const done = shown.length >= txt.length;
+  drawWrappedC(shown, W / 2, 134, 340, C.white);
+  hit(0, 0, W, H, { cb: () => { if (!done) ev.textT = txt.length; }, id: 'evskip' });
+
+  if (ev.phase === 'intro' && done) {
+    ev.def.choices.forEach((ch, k) => {
+      const bw = 128, bx = W / 2 - (ev.def.choices.length * (bw + 8) - 8) / 2 + k * (bw + 8);
+      const broke = ch.money && G.money < ch.money;
+      button(bx, 196, bw, 26, ch.label, '#d94f30', '#8a2a16', () => chooseEvent(k),
+        { id: 'evc' + k, disabled: broke, sub: ch.sub, subCol: '#e8c8b0', tip: broke ? 'Not enough money' : null });
+    });
+  } else if (ev.phase === 'outcome' && done) {
+    button(W / 2 - 60, 202, 120, 24, 'CONTINUE >', '#e8a020', '#98650e', closeEvent, { id: 'evgo' });
+  }
+}
+function drawWrappedC(txt, cx, y, w, col) {
+  const words = ('' + txt).split(' ');
+  const lines = []; let line = '';
+  const maxChars = Math.floor(w / 5);
+  words.forEach(word => {
+    if ((line + ' ' + word).trim().length > maxChars) { lines.push(line.trim()); line = word; }
+    else line = line + ' ' + word;
+  });
+  if (line.trim()) lines.push(line.trim());
+  lines.forEach((l, i) => drawTextC(l, cx, y + i * 10, col, 1));
+  return y + lines.length * 10;
 }
 
 // ------------------------------------------------------------ deck view ---
@@ -2547,12 +3156,25 @@ function updateFx(dt) {
   shake = Math.max(0, shake - dt * 22);
   flashRed = Math.max(0, flashRed - dt);
   handPressT = Math.max(0, handPressT - dt);
+  G.scorePulse = Math.max(0, (G.scorePulse || 0) - dt);
+  flyers = flyers.filter(f => (f.t += dt * 2) < 1);
   if (G.pool) G.dispScore = lerp(G.dispScore, G.score, 1 - Math.pow(0.002, dt));
   else G.dispScore = G.score;
   G.mouth.forEach(s => { if (s.pop > 0) s.pop -= dt; });
   if (G.xanim) { G.xanim.t += dt; if (G.xanim.t > 0.55) G.xanim = null; }
 }
 function drawFx() {
+  // bought cards flying to their slots
+  flyers.forEach(f => {
+    const k = easeOut(f.t);
+    const x = lerp(f.x, f.tx, k), y = lerp(f.y, f.ty, k);
+    if (f.tooth) { drawTooth(x - 5, y - 7, 11, 14, true, f.tooth, {}); }
+    else {
+      rr(x - 8, y - 11, 16, 22, 2, f.col);
+      rr(x - 7, y - 10, 14, 20, 2, '#232f3a');
+      (ICONS[f.ico] || ICONS.star)(x - 6, y - 7);
+    }
+  });
   parts.forEach(p => {
     ctx.globalAlpha = clamp(1 - p.t / p.life, 0, 1);
     rect(p.x, p.y, p.sz, p.sz, p.col);
@@ -2587,11 +3209,14 @@ function frame(ms) {
   ctx.save();
   if (shake > 0) ctx.translate(ri(-shake, shake) / 2, ri(-shake, shake) / 2);
 
+  if (G.state === 'map') updateBoat(dt);
   switch (G.state) {
     case 'menu': drawMenu(); break;
     case 'how': drawHow(); break;
     case 'ranger': drawRangerSelect(); break;
     case 'pass': drawPassScreen(); break;
+    case 'map': drawMap(); break;
+    case 'event': drawEvent(dt); break;
     case 'play': drawPlay(); break;
     case 'swap': drawSwap(); break;
     case 'snap': drawSnap(); break;
@@ -2621,8 +3246,28 @@ function frame(ms) {
   drawTooltip();
   drawDraggedCard();
   drawHand();
+  drawTransition(dt);
 }
 requestAnimationFrame(frame);
+
+// pixel iris wipe between screens
+function drawTransition(dt) {
+  if (!trans) return;
+  trans.t += dt;
+  const T = trans.t;
+  if (!trans.fired && T >= 0.3) { trans.fired = true; if (trans.cb) trans.cb(); }
+  if (T >= 0.6) { trans = null; return; }
+  const k = T < 0.3 ? 1 - T / 0.3 : (T - 0.3) / 0.3;
+  const R = Math.ceil(Math.hypot(W / 2, H / 2) * easeOut(k));
+  ctx.fillStyle = '#04080a';
+  for (let y = 0; y < H; y += 2) {
+    const dy = y - H / 2;
+    const q = R * R - dy * dy;
+    const hw = q > 0 ? Math.floor(Math.sqrt(q)) : 0;
+    ctx.fillRect(0, y, W / 2 - hw, 2);
+    ctx.fillRect(W / 2 + hw, y, W / 2 - hw + 1, 2);
+  }
+}
 
 // menu needs a mouth for the gator preview
 (function menuMouth() {
@@ -2648,4 +3293,7 @@ window.BD = {
   unlock,
   addRP,
   quest,
+  pick: pickNode,
+  choose: chooseEvent,
+  continueEvent: closeEvent,
 };
