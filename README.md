@@ -44,6 +44,22 @@ the Swamp King wears a crown over a bigger, meaner mouth… and the ante-8
 - Special teeth (Gold, Ruby, Sapphire, Steel, Lucky, Rotten, Vampire) join your
   tooth deck and show up in future mouths
 
+### Rangers
+
+Pick your ranger before every run:
+
+- **BAYOU SCOUT** — +1 tooth in every mouth, and one tooth per mouth starts X-rayed
+- **SWAMP MEDIC** — +1 bite every round, starts each run holding a Novocaine
+- **BOG TRADER** — starts with $12 and an interest cap of $8
+
+### The Swamp Pass
+
+Earn **Ranger Points** — achievements pay +25, the three **daily quests** pay
++15 each (they reset at midnight and persist between sessions), and every ante
+you beat pays +2. RP climbs an 8-tier pass that drops **new cards into the shop
+pool**: the Ranger Compass, Firefly Lantern, Swamp Canteen, Firecracker,
+Skeeter Charm, Gator Totem, Hound's Tooth, and the Moonshine Jug.
+
 ### Your hand, your gloves
 
 You press with an on-screen pixel hand — and it's customizable. Earn
