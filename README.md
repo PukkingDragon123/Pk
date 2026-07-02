@@ -51,14 +51,19 @@ Two-Timer's four eyes demand two banks per round, The Albino's X-rays *lie*…
 and the ante-8 **Apex Predator** is waiting at the end with two snappers and
 red eyes.
 
-### Cards, charms and the barrel
+### Cards, charms, tools and the barrel
 
-- **27 CHARMS** (passive powers, 5 slots) and **15 one-shot CARDS**
+- **40+ CHARMS** across four rarities — Common, Uncommon, Rare and **LEGENDARY**
+  (Jackpot Jaw pays ×5 on exactly-7-press banks; Tail Eater carries your whole
+  MULT chain into the next mouth after a Clean Sweep; Dragon Hoard uncaps interest)
+- **15 one-shot CARDS** plus **10 DENTIST TOOLS** — the tarot deck of Bite Down.
+  Tools open **the Dentist Bench**: a workbench with a model mouth showing your
+  deck's teeth. Pick targets and get to work — polish, gold fillings, ruby
+  inlays, infections (+8 MULT, value 0), veneers, cloning wire, fluoride baths,
+  diamond caps, or yank teeth for cash
+- **PACKS** in the shop: Tooth Packs (pick 1 of 3) and Tool Packs (pick 1 of 2)
 - **Click any card** for a full-detail view with flavor text
-- **Drag cards onto the gator** to use them — EXTRACTION drags onto a single tooth
-- **Drag charms into the sell barrel** at the shop to cash them out
-- Special teeth (Gold, Ruby, Sapphire, Steel, Lucky, Rotten, Vampire) join your
-  tooth deck and show up in future mouths
+- **Drag cards onto the gator** to use them; drag charms into the **sell barrel**
 
 ### Rangers
 
@@ -71,13 +76,13 @@ cursor-tracking eyes:
 - **BULLFROG BRAWLER** (the bullfrog) — Clean Sweeps pay ×1.75 instead of ×1.25
 - **SNAIL SAGE** (the snail) — every bite starts at +3 MULT, but −1 bite per round
 
-### The Swamp Pass
+### The Swamp Pass and the Quest Board
 
-Earn **Ranger Points** — achievements pay +25, the three **daily quests** pay
-+15 each (they reset at midnight and persist between sessions), and every ante
-you beat pays +2. RP climbs an 8-tier pass that drops **new cards into the shop
-pool**: the Ranger Compass, Firefly Lantern, Swamp Canteen, Firecracker,
-Skeeter Charm, Gator Totem, Hound's Tooth, and the Moonshine Jug.
+Earn **Ranger Points**: achievements +25, daily quests +15, events +3, antes +2.
+RP climbs a **15-tier pass** that drops new cards, tools and legendary charms
+into your pools. Daily quests come from **three NPC quest-givers** — Granny
+Snapper the turtle, Ferryman Crow, and Doc Mudbug the crawfish dentist — and
+each day you can **pledge** to one of them to double their quest's reward.
 
 ### Your hand, your gloves
 

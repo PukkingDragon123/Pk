@@ -461,6 +461,17 @@ const ICONS = {
   totem(x, y) { rect(x + 3, y + 1, 6, 10, '#6a4a2a'); rect(x + 4, y + 2, 4, 2, '#8a6238'); rect(x + 4, y + 5, 1, 1, '#ffe089'); rect(x + 7, y + 5, 1, 1, '#ffe089'); rect(x + 4, y + 7, 4, 1, '#3a2a18'); rect(x + 2, y + 9, 8, 2, '#8a6238'); },
   hound(x, y) { rect(x + 3, y + 2, 6, 5, '#c8a878'); rect(x + 2, y + 1, 2, 3, '#c8a878'); rect(x + 8, y + 1, 2, 3, '#c8a878'); rect(x + 4, y + 4, 1, 1, C.ink); rect(x + 7, y + 4, 1, 1, C.ink); rect(x + 5, y + 7, 2, 3, '#f4f0dc'); },
   moonshine(x, y) { rect(x + 4, y + 1, 4, 2, '#8a6a3a'); rr(x + 2, y + 3, 8, 8, 2, '#d8ccb8'); rect(x + 3, y + 6, 6, 4, '#c0b4a0'); drawText('X', x + 4, y + 5, '#6a4a2a', 1); },
+  // ---- dentist tool sprites ----
+  tdrill(x, y) { rect(x + 1, y + 2, 5, 5, '#c8d2d8'); rect(x + 2, y + 3, 3, 3, '#8a98a0'); rect(x + 6, y + 3, 4, 3, '#5a646c'); rect(x + 10, y + 4, 2, 1, '#f4f0dc'); rect(x + 2, y + 7, 3, 4, '#d94f30'); rect(x + 5, y + 1, 1, 2, '#ffe089'); },
+  tgold(x, y) { ICONS.tooth(x, y, '#f4f2e4'); rect(x + 4, y + 4, 4, 4, C.gold); rect(x + 5, y + 5, 1, 1, '#fff6c8'); },
+  truby(x, y) { ICONS.tooth(x, y, '#f4f2e4'); rect(x + 4, y + 4, 4, 4, '#ff4d6a'); rect(x + 5, y + 5, 1, 1, '#ffb0c0'); },
+  tpliers(x, y) { rect(x + 2, y + 1, 2, 5, '#c8d2d8'); rect(x + 8, y + 1, 2, 5, '#c8d2d8'); rect(x + 3, y + 5, 6, 2, '#8a98a0'); rect(x + 2, y + 7, 3, 4, '#3a6a4a'); rect(x + 7, y + 7, 3, 4, '#3a6a4a'); rect(x + 4, y + 0, 4, 2, '#f4f0dc'); },
+  twire(x, y) { for (let k = 0; k < 4; k++) { rect(x + 1 + k * 3, y + 4 + (k % 2) * 2, 3, 1, '#c8d2d8'); } rect(x + 1, y + 2, 2, 6, '#8a98a0'); rect(x + 9, y + 2, 2, 6, '#8a98a0'); rect(x + 3, y + 8, 6, 3, '#f4f0dc'); },
+  tvial(x, y) { rect(x + 4, y + 1, 4, 2, '#8a98a0'); rect(x + 4, y + 3, 4, 3, '#cfe8f0'); rr(x + 3, y + 5, 6, 6, 2, '#7a3aa8'); rect(x + 4, y + 7, 2, 2, '#b070e8'); rect(x + 8, y + 2, 2, 1, '#b070e8'); },
+  tveneer(x, y) { rr(x + 1, y + 2, 10, 8, 2, '#e8e4d8'); rect(x + 2, y + 3, 8, 3, '#fef9e6'); rect(x + 3, y + 7, 6, 2, '#c8c2b2'); rect(x + 9, y + 1, 2, 2, '#ffe089'); },
+  tbath(x, y) { rr(x + 1, y + 5, 10, 6, 2, '#4fb3d9'); rect(x + 2, y + 4, 8, 2, '#9fe8ff'); ICONS.tooth(x, y - 3, '#f4f2e4'); rect(x + 3, y + 6, 1, 1, '#e8f8ff'); rect(x + 8, y + 7, 1, 1, '#e8f8ff'); },
+  troot(x, y) { rect(x + 5, y + 1, 2, 7, '#c8d2d8'); rect(x + 4, y + 0, 4, 2, '#3a6a4a'); rect(x + 3, y + 8, 2, 3, '#f4f0dc'); rect(x + 7, y + 8, 2, 3, '#f4f0dc'); rect(x + 9, y + 3, 2, 2, C.gold); },
+  tdiamond(x, y) { ICONS.gem(x, y, '#eafcff'); rect(x + 5, y + 4, 2, 2, '#fff'); rect(x + 3, y + 10, 6, 1, '#9fe8ff'); },
 };
 
 // -------- animal ranger portraits, gator-style tracking eyes --------------
@@ -475,6 +486,41 @@ function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
   const pw = Math.max(2, (ew / 3) | 0), ph2 = Math.max(3, (eh / 2) | 0);
   rect(ex + ew / 2 - pw / 2 + dx, ey + eh / 2 - ph2 / 2 + dy, pw, ph2, pupilCol || '#1b1408');
   rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
+}
+
+// quest-giver NPC faces (28x28, same style as the rangers)
+function drawNpcFace(x, y, key) {
+  if (key === 'granny') { // old turtle with spectacles
+    fillCircle(x + 20, y + 10, 8, '#4a5a2e'); fillCircle(x + 20, y + 10, 6, '#5c7038'); // shell behind
+    rr(x + 2, y + 8, 20, 16, 5, '#8fae68');
+    rect(x + 3, y + 8, 18, 2, '#00000018');
+    // spectacles
+    rect(x + 4, y + 12, 7, 1, '#c8b060'); rect(x + 13, y + 12, 7, 1, '#c8b060'); rect(x + 11, y + 13, 2, 1, '#c8b060');
+    critterEye(x + 5, y + 12, 6, 6, '#8fae68', '#f8f4dc', '#1b1408', 4.0);
+    critterEye(x + 14, y + 12, 6, 6, '#8fae68', '#f8f4dc', '#1b1408', 4.4);
+    rect(x + 8, y + 20, 8, 1, '#5c7038'); // wrinkly smile
+    rect(x + 6, y + 22, 3, 1, '#5c7038'); rect(x + 15, y + 22, 3, 1, '#5c7038');
+    rr(x + 4, y + 3, 16, 6, 3, '#d8c8e8'); // granny bonnet
+  } else if (key === 'crow') { // ferryman crow with hood
+    rr(x + 4, y + 4, 20, 20, 6, '#2a3038'); // hood
+    rr(x + 7, y + 9, 14, 12, 4, '#3a424c'); // face opening
+    critterEye(x + 8, y + 11, 5, 6, '#3a424c', '#f8f4dc', '#1b1408', 4.8);
+    critterEye(x + 15, y + 11, 5, 6, '#3a424c', '#f8f4dc', '#1b1408', 5.2);
+    rect(x + 11, y + 17, 10, 3, '#e8c04a'); // beak
+    rect(x + 18, y + 18, 4, 2, '#c89a2a');
+    rect(x + 2, y + 22, 24, 3, '#22282e'); // cloak collar
+    rect(x + 12, y + 2, 4, 3, '#c8b060'); // lantern glint atop hood
+  } else { // doc mudbug: crawfish with head mirror
+    rect(x + 3, y + 2, 3, 6, '#c86a5a'); rect(x + 22, y + 2, 3, 6, '#c86a5a'); // antennae
+    rr(x + 4, y + 7, 20, 16, 5, '#e08878');
+    rect(x + 5, y + 7, 18, 2, '#00000018');
+    critterEye(x + 6, y + 10, 6, 7, '#e08878', '#f8f4dc', '#1b1408', 5.6);
+    critterEye(x + 16, y + 10, 6, 7, '#e08878', '#f8f4dc', '#1b1408', 6.0);
+    fillCircle(x + 14, y + 4, 4, '#c8d2d8'); fillCircle(x + 14, y + 4, 2, '#f4feff'); // head mirror
+    rect(x + 10, y + 19, 8, 1, '#a85848'); // smile
+    rect(x + 1, y + 14, 4, 6, '#c86a5a'); rect(x + 23, y + 14, 4, 6, '#c86a5a'); // little claws
+    rr(x + 4, y + 23, 20, 4, 2, '#f4f0dc'); // doctor collar
+  }
 }
 
 // 28x28 animal faces (animal-crossing-ish: big head, big eyes, tiny features)
@@ -544,6 +590,8 @@ function drawRangerFace(x, y, key) {
 // ------------------------------------------------------------ tooth art ---
 const TOOTH_STYLE = {
   plain: { a: '#fef9e6', b: '#e3d5ab', c: '#b1a078' },
+  infected: { a: '#b8c87a', b: '#8a9a4e', c: '#5a6a2e', gem: '#7a3aa8', gemD: '#4a2068' },
+  diamond: { a: '#eafcff', b: '#bfeef5', c: '#7fc6d9', gem: '#ffffff', gemD: '#9fe8ff' },
   gold: { a: '#ffe066', b: '#f0b429', c: '#a8781a', gem: '#fff6c8' },
   ruby: { a: '#fef9e6', b: '#e3d5ab', c: '#b1a078', gem: '#ff4d6a', gemD: '#a3162e' },
   sapph: { a: '#eaf6ff', b: '#bcdcf5', c: '#7ba6c9', gem: '#3f8cff', gemD: '#1e4fa3' },
@@ -633,6 +681,8 @@ function crocStyle() {
 // ------------------------------------------------------------ game data ---
 const TOOTH_DEFS = {
   plain: { name: 'TOOTH', base: 3, desc: 'A plain tooth. Adds its value to Teeth.', flav: 'Brushed twice a day, allegedly.' },
+  infected: { name: 'INFECTED TOOTH', base: 0, cost: 3, desc: '+8 MULT when pressed', flav: 'Do not look at it too long.' },
+  diamond: { name: 'DIAMOND TOOTH', base: 15, cost: 6, desc: 'A dazzling +15 TEETH', flav: 'The swamp jeweler wept.' },
   gold: { name: 'GOLD TOOTH', base: 3, cost: 3, desc: 'Earn $2 when pressed', flav: 'The swamp dentist retirement plan.' },
   ruby: { name: 'RUBY TOOTH', base: 2, cost: 3, desc: '+4 MULT when pressed', flav: 'Bites back with style.' },
   sapph: { name: 'SAPPHIRE TOOTH', base: 12, cost: 4, desc: 'A hefty +12 TEETH', flav: 'Dense. Very dense.' },
@@ -672,6 +722,14 @@ const CHARMS = [
   { id: 'bloodpact', name: 'BLOOD PACT', cost: 8, rar: 2, ico: 'snake', desc: 'X3 MULT when banking, but each bank costs $2', flav: 'Sign on the dotted fang.' },
   { id: 'venom', name: 'VENOM GLAND', cost: 8, rar: 2, ico: 'bottle', desc: '+1 starting MULT per 2 teeth pressed this round', flav: 'It builds up in your system.' },
   // ---- Swamp Pass unlockables (join the shop pool once their tier is reached)
+  // ---- unique-mechanic charms (rar 3 = LEGENDARY) ----
+  { id: 'feast', name: 'FEEDING FRENZY', cost: 7, rar: 1, ico: 'bolt', desc: 'Press 3 teeth within 1.5 seconds: +6 MULT', flav: 'Chew fast, think later.' },
+  { id: 'dentures', name: 'SPARE DENTURES', cost: 7, rar: 1, ico: 'tooth', desc: 'Once per round, a snapped bite banks HALF its pool instead of losing it', flav: 'Grandpa left you these.' },
+  { id: 'gambit', name: 'GATOR GAMBIT', cost: 9, rar: 2, ico: 'trap', tier: 10, desc: 'Bank with exactly 2 snappers still hidden: X2.5 MULT', flav: 'Dance where the traps are.' },
+  { id: 'compound', name: 'COMPOUND JAW', cost: 9, rar: 2, ico: 'drill', desc: '+1 permanent starting MULT every time you bank (while held)', flav: 'It remembers every bite.' },
+  { id: 'jackpot', name: 'JACKPOT JAW', cost: 13, rar: 3, ico: 'star', tier: 12, desc: 'Bank with EXACTLY 7 presses: X5 MULT', flav: 'Seven teeth. Says so on the machine.' },
+  { id: 'ouroboros', name: 'TAIL EATER', cost: 14, rar: 3, ico: 'snake', tier: 14, desc: 'After a CLEAN SWEEP, your next mouth KEEPS the whole MULT chain', flav: 'The bite that never ends.' },
+  { id: 'hoard', name: 'DRAGON HOARD', cost: 12, rar: 3, ico: 'coin', tier: 15, desc: 'Interest cap removed, and interest pays $1 per $4 held', flav: 'Sleep on gold, bite like it too.' },
   { id: 'lantern', name: 'FIREFLY LANTERN', cost: 5, rar: 0, ico: 'lantern', tier: 2, desc: 'Pressing an X-rayed SAFE tooth gives +2 MULT', flav: 'Little lights, big ideas.' },
   { id: 'canteen', name: 'SWAMP CANTEEN', cost: 4, rar: 0, ico: 'canteen', tier: 3, desc: 'Bank with 3 or fewer presses: +$3', flav: 'Sips of pure restraint.' },
   { id: 'skeeter', name: 'SKEETER CHARM', cost: 5, rar: 0, ico: 'skeeter', tier: 5, desc: 'Gold Teeth also give +4 MULT', flav: 'It bites the rich.' },
@@ -880,7 +938,7 @@ const EVENTS = [
           G.money -= 5;
           const pool = CONS.filter(cardUnlocked);
           const def = choice(pool);
-          if (G.cons.length >= 2) { gainMoney(5); return 'Your card slots are full. She shrugs and refunds you. Surprisingly professional.'; }
+          if (G.cons.length >= 3) { gainMoney(5); return 'Your card slots are full. She shrugs and refunds you. Surprisingly professional.'; }
           G.cons.push(def);
           return 'She ladles out... a ' + def.name + '. \'No refunds,\' she says, refunding nothing.';
         },
@@ -890,13 +948,43 @@ const EVENTS = [
   },
 ];
 
+// ---------------------------------------------- tools (the tarot analog) --
+// Used at the DENTIST BENCH on your deck's teeth. picks = max targets.
+const TOOLS = [
+  { id: 'polishdrill', name: 'POLISH DRILL', cost: 5, ico: 'tdrill', picks: 2, desc: 'Upgrade up to 2 chosen teeth by +3 value', flav: 'WHIRRRR.' },
+  { id: 'goldfill', name: 'GOLD FILLING', cost: 6, ico: 'tgold', picks: 1, tier: 9, desc: 'Convert a chosen tooth into a GOLD TOOTH', flav: 'Smile like a jackpot.' },
+  { id: 'rubyinlay', name: 'RUBY INLAY', cost: 6, ico: 'truby', picks: 1, desc: 'Convert a chosen tooth into a RUBY TOOTH', flav: 'Set with tweezers and spite.' },
+  { id: 'forceps', name: 'FORCEPS', cost: 4, ico: 'tpliers', picks: 2, desc: 'Remove up to 2 chosen teeth from your deck', flav: 'One clean pull. Two, tops.' },
+  { id: 'bracewire', name: 'BRACE WIRE', cost: 7, ico: 'twire', picks: 1, tier: 11, desc: 'Clone a chosen tooth (exact copy joins your deck)', flav: 'Twins run in the bayou.' },
+  { id: 'infectvial', name: 'INFECTION VIAL', cost: 5, ico: 'tvial', picks: 1, desc: 'Infect a chosen tooth: value 0, but +8 MULT when pressed', flav: 'For medicinal purposes.' },
+  { id: 'veneer', name: 'VENEER KIT', cost: 5, ico: 'tveneer', picks: 1, desc: 'Set a chosen tooth\'s value to 8', flav: 'Hollywood, bayou branch.' },
+  { id: 'fluorbath', name: 'FLUORIDE BATH', cost: 6, ico: 'tbath', picks: 1, desc: 'Choose a tooth: ALL teeth of that value gain +2', flav: 'Everyone in the tub.' },
+  { id: 'extractor', name: 'ROOT EXTRACTOR', cost: 4, ico: 'troot', picks: 1, desc: 'Sacrifice a chosen tooth: gain $2 per point of its value', flav: 'Teeth are just money that bites.' },
+  { id: 'diamondcap', name: 'DIAMOND CAP', cost: 8, ico: 'tdiamond', picks: 1, tier: 13, desc: 'Convert a chosen tooth into a DIAMOND TOOTH (+15)', flav: 'Overkill, beautifully.' },
+];
+
+// ------------------------------------------------------------ packs -------
+const PACKS = {
+  tooth: { name: 'TOOTH PACK', cost: 5, desc: 'Pick 1 of 3 special teeth for your deck', flav: 'Rattles promisingly.' },
+  tool: { name: 'TOOL PACK', cost: 6, desc: 'Pick 1 of 2 dentist tools', flav: 'Sterilized-ish.' },
+};
+const PACK_TEETH = ['gold', 'ruby', 'sapph', 'steel', 'lucky', 'rotten', 'vamp'];
+
 // -------------------------------------- swamp pass: RP, tiers, dailies ----
-const PASS_REQ = [25, 50, 80, 110, 145, 180, 220, 260];
+const PASS_REQ = [25, 50, 80, 110, 145, 180, 220, 260, 305, 355, 410, 470, 535, 605, 680];
 function passTierUnlocked(tier) { return (meta.rp || 0) >= PASS_REQ[tier - 1]; }
 function cardUnlocked(def) { return !def.tier || passTierUnlocked(def.tier); }
 function passCardForTier(tier) {
-  return CHARMS.find(c => c.tier === tier) || CONS.find(c => c.tier === tier);
+  return CHARMS.find(c => c.tier === tier) || CONS.find(c => c.tier === tier) || TOOLS.find(c => c.tier === tier);
 }
+
+// three quest-giver NPCs; pledge to one for double reward on their quest
+const NPCS = {
+  granny: { name: 'GRANNY SNAPPER', who: 'the old turtle', col: '#8fae68', line: 'Back in my day we pressed teeth uphill both ways.', pool: ['press30', 'bank8', 'sweep1', 'special5'] },
+  crow: { name: 'FERRYMAN CROW', who: 'the river crow', col: '#9fb2c8', line: 'The trail provides, ranger. For a fee.', pool: ['ante3q', 'boss1q', 'money25', 'event1', 'gold1'] },
+  doc: { name: 'DOC MUDBUG', who: 'the crawfish dentist', col: '#e08898', line: 'Open wide! Not you, ranger. The gator.', pool: ['xray8', 'defuse2', 'buy4', 'tool1', 'pack1'] },
+};
+const NPC_ORDER = ['granny', 'crow', 'doc'];
 
 const QUESTS = [
   { id: 'press30', name: 'PRESS 30 TEETH', goal: 30 },
@@ -910,6 +998,10 @@ const QUESTS = [
   { id: 'ante3q', name: 'REACH ANTE 3', goal: 1 },
   { id: 'special5', name: 'PRESS 5 SPECIAL TEETH', goal: 5 },
   { id: 'run1', name: 'FINISH A RUN', goal: 1 },
+  { id: 'event1', name: 'RESOLVE A SWAMP EVENT', goal: 1 },
+  { id: 'gold1', name: 'BEAT A GOLDEN GATOR', goal: 1 },
+  { id: 'tool1', name: 'USE A DENTIST TOOL', goal: 1 },
+  { id: 'pack1', name: 'OPEN A PACK', goal: 1 },
 ];
 
 let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', rp: 0, ranger: 'scout', daily: null };
@@ -923,20 +1015,25 @@ function todayStr() {
 }
 function ensureDaily() {
   const today = todayStr();
-  if (meta.daily && meta.daily.date === today && Array.isArray(meta.daily.q)) return;
-  // date-seeded pick of 3 quests
+  if (meta.daily && meta.daily.date === today && Array.isArray(meta.daily.q) && meta.daily.q[0] && meta.daily.q[0].npc) return;
+  // date-seeded: each NPC offers one quest from their themed pool
   const d = new Date();
   let seed = (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) >>> 0;
   const lcg = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
-  const pool = QUESTS.slice();
-  const picked = [];
-  for (let k = 0; k < 3 && pool.length; k++) {
-    const i = Math.floor(lcg() * pool.length);
-    picked.push({ id: pool[i].id, prog: 0, done: false });
-    pool.splice(i, 1);
-  }
-  meta.daily = { date: today, q: picked };
+  const picked = NPC_ORDER.map(nk => {
+    const pool = NPCS[nk].pool;
+    return { npc: nk, id: pool[Math.floor(lcg() * pool.length)], prog: 0, done: false };
+  });
+  meta.daily = { date: today, pledge: null, q: picked };
   saveMeta();
+}
+function pledgeTo(nk) {
+  ensureDaily();
+  if (meta.daily.pledge) return; // one pledge per day
+  meta.daily.pledge = nk;
+  toasts.push({ name: 'PLEDGED TO ' + NPCS[nk].name, sub: 'THEIR QUEST PAYS DOUBLE RP TODAY', t: 0 });
+  saveMeta();
+  sfx.buy();
 }
 function addRP(n, label) {
   const before = meta.rp || 0;
@@ -961,7 +1058,8 @@ function quest(id, n) {
   if (q.prog >= def.goal) {
     q.done = true;
     sfx.ach();
-    addRP(15, 'QUEST: ' + def.name);
+    const pay = meta.daily.pledge === q.npc ? 30 : 15;
+    addRP(pay, NPCS[q.npc].name + ' THANKS YOU');
   }
 }
 function unlock(id) {
@@ -1001,6 +1099,10 @@ const G = {
   event: null,     // {def, phase:'intro'|'outcome', textT, outcome}
   boat: null,      // {x,y,tx,ty,t,node,k} travel animation on the map
   biStart: 0,      // boss intro slam timer
+  bench: null,     // {consIdx, def, sel:[], page, ret} dentist bench targeting
+  pack: null,      // {kind, options, t} pack opening
+  shopPacks: [],
+  compoundMult: 0, sweepCarry: 0, denturesUsed: false, feastTimes: [],
 };
 let trans = null;  // iris wipe: {t, cb, fired}
 function startTransition(cb) { if (trans) return; trans = { t: 0, cb, fired: false }; }
@@ -1051,6 +1153,7 @@ function newRun(rangerKey) {
   G.wonOnce = false; G.deckOpen = false; G.inspect = null; G.drag = null;
   G.runSweeps = 0;
   G.eventBuffs = { bites: 0, xrays: 0, mult: 0, snapNext: 0 };
+  G.compoundMult = 0; G.sweepCarry = 0; G.bench = null; G.pack = null;
   floats = []; parts = []; shake = 0; flyers = [];
   genMap();
   G.state = 'map';
@@ -1061,18 +1164,17 @@ function genMap() {
   const mk = t => ({ type: t });
   const opt = base => {
     const r = rnd();
-    if (r < 0.32) return mk('event');
-    if (r < 0.55) return mk('gold');
+    if (r < 0.34) return mk('event');
+    if (r < 0.58) return mk('gold');
     return mk(base);
   };
-  G.map = {
-    stages: [
-      [mk('small'), opt('small')],
-      [mk('big'), opt('big')],
-      [mk('boss')],
-    ],
-    stage: 0, picked: [],
-  };
+  const s0 = [mk('small'), opt('small')];
+  const s1 = [mk('big'), opt('big'), opt('big')]; // three-way fork mid-trail
+  // guarantee at least one event per ante so choices always matter
+  if (![...s0, ...s1].some(n => n.type === 'event')) {
+    (rnd() < 0.5 ? s0 : s1)[1] = mk('event');
+  }
+  G.map = { stages: [s0, s1, [mk('boss')]], stage: 0, picked: [] };
   G.boat = null;
 }
 
@@ -1106,6 +1208,7 @@ function startFight(node) {
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
   G.numbUsed = false; G.greedyCount = 0;
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
+  G.denturesUsed = false; G.feastTimes = [];
   G.roundBuffMult = G.eventBuffs.mult || 0;
   G.drawPile = shuffle(G.deck.slice());
   G.deckOpen = false; G.inspect = null; G.drag = null; G.xanim = null;
@@ -1138,6 +1241,8 @@ function chooseEvent(k) {
   if (ch.money && G.money < ch.money) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH $', C.red, 1); return; }
   ev.outcome = ch.resolve();
   ev.phase = 'outcome'; ev.textT = 0;
+  addRP(3, 'FIELD EXPERIENCE');
+  quest('event1', 1);
   sfx.buy();
 }
 
@@ -1173,6 +1278,12 @@ function newMouth() {
   if (has('venom')) G.pool.mult += Math.floor(G.roundPressed / 2);
   if (G.ranger === 'snail') G.pool.mult += 3;
   if (G.roundBuffMult) G.pool.mult += G.roundBuffMult;
+  if (has('compound') && G.compoundMult > 0) G.pool.mult += G.compoundMult;
+  if (G.sweepCarry > 0) {
+    if (has('ouroboros')) { G.pool.mult += G.sweepCarry; float(W / 2 + 50, 104, 'TAIL EATER: +' + G.sweepCarry + ' MULT', C.purple, 1, 1.5); }
+    G.sweepCarry = 0;
+  }
+  G.feastTimes = [];
   G.novocaine = false; G.mode = 'idle'; G.extractCons = -1; G.xanim = null;
   G.jawClose = 0;
   if (G.ranger === 'scout') {
@@ -1242,6 +1353,16 @@ function pressTooth(i) {
   G.roundPressed++;
   quest('press30', 1);
   if (s.t.type !== 'plain') quest('special5', 1);
+  if (has('feast')) {
+    G.feastTimes.push(tNow);
+    G.feastTimes = G.feastTimes.filter(t2 => tNow - t2 < 1.5);
+    if (G.feastTimes.length >= 3) {
+      G.pool.mult += 6;
+      G.feastTimes = [];
+      float(p.x, p.y - 34, 'FRENZY! +6 MULT', C.orange, 1, 1.2);
+      sfx.sweep();
+    }
+  }
   const diet = bossIs('diet');
   const applyPress = (echoed) => {
     let add = s.t.base;
@@ -1314,6 +1435,8 @@ function bankMath(sweep) {
   if (has('rootcanal') && G.pool.clicks >= 7) m *= 2;
   if (has('apex') && G.pool.clicks >= 8) m *= 3;
   if (has('totem') && G.round === 2) m *= 1.5;
+  if (has('jackpot') && G.pool.clicks === 7) m *= 5;
+  if (has('gambit') && G.mouth.filter(s => s.snap && !s.pressed && !s.gone).length === 2) m *= 2.5;
   if (sweep) m *= has('collector') ? 2 : (G.ranger === 'frog' ? 1.75 : 1.25);
   return Math.floor(t * m);
 }
@@ -1332,6 +1455,8 @@ function bank(sweep) {
   quest('bank8', 1);
   if (val > G.stats.bestBank) G.stats.bestBank = val;
   if (has('canteen') && G.pool.clicks <= 3) { gainMoney(3); float(60, 182, 'CANTEEN +$3', C.gold, 1); }
+  if (has('compound')) { G.compoundMult++; float(60, 174, 'COMPOUND +1', C.purple, 1); }
+  if (sweep && has('ouroboros')) { G.sweepCarry = G.pool.mult; float(W / 2 + 50, 128, 'THE CHAIN SURVIVES!', C.purple, 1, 1.6); }
   if (bossIs('loanshark')) { G.money = Math.max(0, G.money - 2); float(60, 190, '-$2', C.red, 1); }
   if (has('bloodpact')) { G.money = Math.max(0, G.money - 2); float(60, 198, 'PACT -$2', C.red, 1); }
   float(60, 96, '+' + fmt(val), C.gold, 2, 1.4);
@@ -1364,12 +1489,13 @@ function roundWon() {
   const base = (NODE_DEFS[G.nodeType].reward || 4) + Math.floor(G.ante / 3);
   const perBite = G.bites; // unused bites, $1 each
   const cap = G.ranger === 'trader' ? 8 : 5;
-  const interest = Math.min(cap, Math.floor(G.money / 5));
+  const interest = has('hoard') ? Math.floor(G.money / 4) : Math.min(cap, Math.floor(G.money / 5));
   const fairy = has('fairy') ? 2 : 0;
   G.cash = { base, perBite, interest, fairy, cap, total: base + perBite + interest + fairy };
   G.state = 'roundend';
   G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
   if (G.round === 2) { unlock('boss'); quest('boss1q', 1); }
+  if (G.nodeType === 'gold') quest('gold1', 1);
   sfx.win();
   if (G.ante > best) { best = G.ante; saveBest(); }
   saveMeta(); // persist daily quest progress at round boundaries
@@ -1391,12 +1517,13 @@ function cashOut() {
 function enterShop() {
   G.rerollCost = 4;
   rollShop();
+  stockPacks();
   G.state = 'shop';
   G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
 }
 
 function weightedCharm(pool) {
-  const w = pool.map(c => c.rar === 0 ? 6 : c.rar === 1 ? 3 : 1);
+  const w = pool.map(c => c.rar === 0 ? 6 : c.rar === 1 ? 3 : c.rar === 2 ? 1 : 0.4);
   let tot = w.reduce((a, b) => a + b, 0);
   let r = rnd() * tot;
   for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
@@ -1413,13 +1540,24 @@ function rollShop() {
   }
   const cdef = choice(CONS.filter(cardUnlocked));
   items.push({ kind: 'cons', def: cdef, price: cdef.cost, sold: false });
-  let tpool = SHOP_TEETH.slice();
-  for (let k = 0; k < 2; k++) {
-    const tt = choice(tpool);
-    tpool = tpool.filter(t => t !== tt);
-    items.push({ kind: 'tooth', def: TOOTH_DEFS[tt], type: tt, price: TOOTH_DEFS[tt].cost, sold: false });
-  }
+  const tdef = choice(TOOLS.filter(cardUnlocked));
+  items.push({ kind: 'tool', def: tdef, price: tdef.cost, sold: false });
   G.shopItems = items;
+}
+function stockPacks() {
+  G.shopPacks = [
+    { kind: 'tooth', def: PACKS.tooth, price: PACKS.tooth.cost, sold: false },
+    { kind: 'tool', def: PACKS.tool, price: PACKS.tool.cost, sold: false },
+  ];
+}
+function buyPack(p) {
+  if (p.sold) return;
+  if (G.money < p.price) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH $', C.red, 1); return; }
+  if (p.kind === 'tool' && G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
+  G.money -= p.price;
+  p.sold = true;
+  quest('buy4', 1);
+  openPack(p.kind);
 }
 
 function buyItem(it) {
@@ -1429,10 +1567,10 @@ function buyItem(it) {
     if (G.charms.length >= 5) { sfx.error(); float(mx, my - 10, 'CHARM SLOTS FULL', C.red, 1); return; }
     G.charms.push(it.def);
     flyers.push({ x: mx, y: my, tx: 120 + (G.charms.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#3e8cd0' });
-  } else if (it.kind === 'cons') {
-    if (G.cons.length >= 2) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
+  } else if (it.kind === 'cons' || it.kind === 'tool') {
+    if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
     G.cons.push(it.def);
-    flyers.push({ x: mx, y: my, tx: 416 + (G.cons.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#8a5fd0' });
+    flyers.push({ x: mx, y: my, tx: 385 + (G.cons.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: it.kind === 'tool' ? '#3a9a8a' : '#8a5fd0' });
   } else if (it.kind === 'tooth') {
     G.deck.push(mkTooth(it.type));
     flyers.push({ x: mx, y: my, tx: 57, ty: 218, t: 0, tooth: it.type });
@@ -1506,9 +1644,106 @@ function doExtract(i) {
   checkSweep();
 }
 
+// ----------------------------------------------- dentist bench (tools) ----
+function openBench(consIdx) {
+  const def = G.cons[consIdx];
+  if (!def || !def.picks) return;
+  if (G.state !== 'shop' && G.state !== 'map') {
+    sfx.error(); float(mx, my - 10, 'USE BETWEEN FIGHTS (SHOP OR TRAIL)', C.red, 1);
+    return;
+  }
+  G.bench = { consIdx, def, sel: [], page: 0, ret: G.state };
+  G.state = 'bench';
+  sfx.xray();
+}
+function benchToggle(toothId) {
+  const b = G.bench; if (!b) return;
+  const i = b.sel.indexOf(toothId);
+  if (i >= 0) { b.sel.splice(i, 1); sfx.hover(); return; }
+  if (b.sel.length >= b.def.picks) { sfx.error(); return; }
+  b.sel.push(toothId); sfx.click(2);
+}
+function benchApply() {
+  const b = G.bench; if (!b || !b.sel.length) { sfx.error(); return; }
+  const teeth = b.sel.map(id => G.deck.find(t => t.id === id)).filter(Boolean);
+  const removing = b.def.id === 'forceps' || b.def.id === 'extractor';
+  if (removing && G.deck.length - teeth.length < 9) {
+    sfx.error(); float(mx, my - 10, 'DECK TOO SMALL (MIN 9)', C.red, 1); return;
+  }
+  switch (b.def.id) {
+    case 'polishdrill': teeth.forEach(t => t.base += 3); break;
+    case 'goldfill': teeth.forEach(t => { t.type = 'gold'; t.base = Math.max(t.base, 3); }); break;
+    case 'rubyinlay': teeth.forEach(t => { t.type = 'ruby'; t.base = Math.max(t.base, 2); }); break;
+    case 'forceps': teeth.forEach(t => { const i = G.deck.indexOf(t); if (i >= 0) G.deck.splice(i, 1); }); break;
+    case 'bracewire': teeth.forEach(t => G.deck.push({ id: uid(), type: t.type, base: t.base })); break;
+    case 'infectvial': teeth.forEach(t => { t.type = 'infected'; t.base = 0; }); break;
+    case 'veneer': teeth.forEach(t => t.base = 8); break;
+    case 'fluorbath': {
+      const v = teeth[0].base;
+      G.deck.filter(t => t.base === v).forEach(t => t.base += 2);
+      break;
+    }
+    case 'extractor': {
+      let pay = 0;
+      teeth.forEach(t => { pay += t.base * 2; const i = G.deck.indexOf(t); if (i >= 0) G.deck.splice(i, 1); });
+      gainMoney(pay);
+      float(W / 2, 130, '+$' + pay, C.gold, 2, 1.4);
+      break;
+    }
+    case 'diamondcap': teeth.forEach(t => { t.type = 'diamond'; t.base = 15; }); break;
+  }
+  G.drawPile = G.drawPile.filter(t => G.deck.includes(t));
+  G.cons.splice(b.consIdx, 1);
+  quest('tool1', 1);
+  toasts.push({ name: b.def.name, sub: 'WORK COMPLETE', t: 0 });
+  const ret = b.ret;
+  G.bench = null;
+  G.state = ret;
+  sfx.buy();
+  burst(W / 2, 140, '#9fe8ff', 14, 80);
+}
+function benchCancel() {
+  const b = G.bench; if (!b) return;
+  const ret = b.ret;
+  G.bench = null;
+  G.state = ret;
+  sfx.thunk();
+}
+
+// ------------------------------------------------------------ packs -------
+function openPack(kind) {
+  let options;
+  if (kind === 'tooth') {
+    let pool = shuffle(PACK_TEETH.slice());
+    options = pool.slice(0, 3).map(t => ({ tooth: t }));
+    if (rnd() < 0.12) options[ri(0, 2)] = { tooth: 'diamond' }; // rare shimmer
+  } else {
+    const pool = shuffle(TOOLS.filter(cardUnlocked));
+    options = pool.slice(0, 2).map(t => ({ tool: t }));
+  }
+  G.pack = { kind, options, t: 0 };
+  quest('pack1', 1);
+  sfx.sweep();
+}
+function pickPack(i) {
+  const p = G.pack; if (!p || p.t < 0.35) return;
+  const o = p.options[i]; if (!o) return;
+  if (o.tooth) {
+    G.deck.push(mkTooth(o.tooth));
+    toasts.push({ name: TOOTH_DEFS[o.tooth].name, sub: 'ADDED TO YOUR DECK', t: 0 });
+  } else {
+    if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
+    G.cons.push(o.tool);
+    toasts.push({ name: o.tool.name, sub: 'ADDED TO YOUR CARDS', t: 0 });
+  }
+  G.pack = null;
+  sfx.buy();
+}
+
 // useCons(i, targetTooth): drag UI passes a tooth index for targeted cards.
 function useCons(i, targetTooth) {
   const def = G.cons[i]; if (!def) return;
+  if (def.picks) { openBench(i); return; } // dentist tools go to the bench
   if (G.mode === 'extract' && def.id !== 'extract') { G.mode = 'idle'; G.extractCons = -1; }
   const inPlay = G.state === 'play';
   if (def.need === 'bite' && !inPlay) { sfx.error(); float(mx, my - 10, 'USE DURING A BITE', C.red, 1); return; }
@@ -1736,6 +1971,7 @@ function resolveDrop() {
   }
   if (d.kind === 'cons') {
     const def = G.cons[d.idx]; if (!def) return;
+    if (def.picks) { openBench(d.idx); return; } // tools open the dentist bench
     const L = mouthLayout();
     const overMouth = mx > L.maw.x - 30 && mx < L.maw.x + L.maw.w + 30 && my > L.maw.y - 70 && my < L.maw.y + L.maw.h + 50;
     if (def.target === 'tooth') {
@@ -2033,15 +2269,16 @@ function chip(x, y, w, h, val, colA, colB, sc) {
 }
 
 // ---- unified card face (30x42) -------------------------------------------
-const RAR_COL = ['#5d7a86', '#3e8cd0', '#d0563e'];
-const RAR_NAME = ['COMMON', 'UNCOMMON', 'RARE'];
+const RAR_COL = ['#5d7a86', '#3e8cd0', '#d0563e', '#e8a020'];
+const RAR_NAME = ['COMMON', 'UNCOMMON', 'RARE', 'LEGENDARY'];
 function drawCardFace(x, y, def, kind, o) {
   o = o || {};
   x |= 0; y |= 0; // integer position keeps the pixel art crisp
   const isCons = kind === 'cons';
-  const frame = isCons ? '#8a5fd0' : RAR_COL[def.rar || 0];
-  const face = isCons ? '#2c2238' : '#232f3a';
-  const plate = isCons ? '#3c2f4c' : '#31414c';
+  const isTool = kind === 'tool' || !!def.picks;
+  const frame = isTool ? '#3a9a8a' : isCons ? '#8a5fd0' : RAR_COL[def.rar || 0];
+  const face = isTool ? '#1c3230' : isCons ? '#2c2238' : '#232f3a';
+  const plate = isTool ? '#264440' : isCons ? '#3c2f4c' : '#31414c';
   // shadow + frame + face + inner trim line
   rr(x + 1, y + 3, 30, 42, 2, '#00000077');
   rr(x, y, 30, 42, 2, frame);
@@ -2063,9 +2300,10 @@ function drawCardFace(x, y, def, kind, o) {
   rect(x + 4, y + 33, 22, 1, '#ffffff0c');
   const short = def.name.split(' ')[0].slice(0, 4);
   drawTextC(short, x + 15, y + 26, C.white, 1);
-  // rarity gem / use arrow
-  if (isCons) { drawText('>', x + 22, y + 35, '#c8a8f8', 1); drawText('USE', x + 5, y + 35, '#8a70a8', 1); }
-  else { rect(x + 24, y + 35, 3, 3, frame); rect(x + 25, y + 36, 1, 1, '#ffffffaa'); }
+  // rarity gem / use arrow / tool tag
+  if (isTool) { drawText('TOOL', x + 5, y + 35, '#7fd0c0', 1); rect(x + 24, y + 36, 2, 2, '#7fd0c0'); }
+  else if (isCons) { drawText('>', x + 22, y + 35, '#c8a8f8', 1); drawText('USE', x + 5, y + 35, '#8a70a8', 1); }
+  else { rect(x + 24, y + 35, 3, 3, frame); rect(x + 25, y + 36, 1, 1, '#ffffffaa'); if ((def.rar || 0) === 3) { rect(x + 3, y + 21, 24, 1, '#ffd54a66'); } }
   if (o.price !== undefined) {
     rr(x - 3, y - 5, 20, 9, 2, '#00000088');
     drawText('$' + o.price, x - 1, y - 3, o.afford ? C.gold : C.red, 1);
@@ -2110,7 +2348,11 @@ function drawDraggedCard() {
   ctx.restore();
   d.x = mx; d.y = my;
   // drop hints
-  if (d.kind === 'cons' && G.state === 'play') {
+  if (d.kind === 'cons' && G.cons[d.idx] && G.cons[d.idx].picks) {
+    ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.2;
+    drawTextCSh(G.state === 'play' ? 'TOOLS WORK AT THE SHOP OR ON THE TRAIL' : 'RELEASE TO OPEN THE BENCH', W / 2, 66, '#7fd0c0', 1);
+    ctx.globalAlpha = 1;
+  } else if (d.kind === 'cons' && G.state === 'play') {
     const L = mouthLayout();
     const t2 = G.cons[d.idx];
     ctx.globalAlpha = 0.35 + Math.sin(tNow * 6) * 0.15;
@@ -2244,16 +2486,17 @@ function drawTopBar(inShop) {
       rr(x + 1, y + 1, 24, 34, 2, '#00000030');
     }
   }
-  const kx0 = 416;
+  const kx0 = 385;
   drawText('CARDS', kx0, 2, C.dim, 1);
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 3; i++) {
     const x = kx0 + i * 31, y = 12;
     if (i < G.cons.length) {
       const def = G.cons[i];
-      drawCardAnim(x, y, def, 'cons', i, {
+      const isTool = !!def.picks;
+      drawCardAnim(x, y, def, isTool ? 'tool' : 'cons', i, {
         id: 'cons' + i + def.id,
-        tip: def.name + '|CLICK FOR DETAILS|DRAG ONTO THE GATOR TO USE',
-        click: () => { G.inspect = { kind: 'cons', def, idx: i }; },
+        tip: def.name + '|CLICK FOR DETAILS|' + (isTool ? 'DRAG OUT TO OPEN THE BENCH (SHOP/TRAIL)' : 'DRAG ONTO THE GATOR TO USE'),
+        click: () => { G.inspect = { kind: isTool ? 'tool' : 'cons', def, idx: i }; },
         dragKind: 'cons', dragIdx: i,
       });
     } else {
@@ -2315,7 +2558,14 @@ function updateSnap(dt) {
     meta.lifeSnaps++;
     if (meta.lifeSnaps >= 25) unlock('snap25');
     saveMeta();
-    if (lost > 0) float(60, 96, 'LOST ' + fmt(lost) + '!', C.red, 1, 1.4);
+    if (has('dentures') && !G.denturesUsed && lost > 0) {
+      G.denturesUsed = true;
+      const save2 = Math.floor(lost / 2);
+      G.score += save2;
+      G.roundBanks++;
+      G.scorePulse = 0.4;
+      float(60, 88, 'DENTURES SAVED ' + fmt(save2) + '!', C.green, 1, 1.6);
+    } else if (lost > 0) float(60, 96, 'LOST ' + fmt(lost) + '!', C.red, 1, 1.4);
     if (has('swampheart') && !G.heartUsed) {
       G.heartUsed = true;
       G.bites++; // endBite will take it right back: net zero
@@ -2376,54 +2626,173 @@ function drawShop() {
   drawSidebar();
   drawTopBar(true);
 
-  drawTextCSh('GATOR SHOP', 296, 58, C.gold, 3, '#00000088');
-  drawTextCSh('CLICK CARDS FOR DETAILS. DRAG CHARMS TO THE BARREL TO SELL', 296, 82, C.dim, 1);
+  drawTextCSh('GATOR SHOP', 296, 56, C.gold, 3, '#00000088');
+  drawTextCSh('CLICK FOR DETAILS. DRAG CHARMS TO THE BARREL TO SELL', 296, 78, C.dim, 1);
 
   const bx0 = 180;
   G.shopItems.forEach((it, i) => {
-    const x = bx0 + i * 60, y = 104;
-    panel(x - 4, y - 6, 54, 92, { face: '#1a2530dd' });
+    const x = bx0 + i * 58, y = 96;
+    panel(x - 4, y - 6, 52, 82, { face: '#1a2530dd' });
     if (it.sold) {
-      drawTextC('SOLD', x + 23, y + 34, C.dim, 1);
+      drawTextC('SOLD', x + 22, y + 30, C.dim, 1);
       return;
     }
     const afford = G.money >= it.price;
-    if (it.kind === 'tooth') {
-      const hov = mx >= x + 8 && mx < x + 38 && my >= y && my < y + 40;
-      drawTooth(x + 12, y + 4 + (hov ? -3 : Math.sin(tNow * 2 + i) * 1.2), 22, 30, true, it.type, {});
-      rr(x + 6, y - 4, 20, 9, 2, '#00000088');
-      drawText('$' + it.price, x + 8, y - 2, afford ? C.gold : C.red, 1);
-      hit(x + 6, y - 2, 34, 44, {
-        click: () => { G.inspect = { kind: 'shop', item: it }; },
-        tip: it.def.name + '|CLICK FOR DETAILS', id: 'shoptooth' + i, cursor: true,
-      });
-    } else {
-      drawCardAnim(x + 8, y + 2, it.def, it.kind, i + 10, {
-        id: 'shopitem' + i,
-        price: it.price, afford,
-        tip: it.def.name + '|CLICK FOR DETAILS',
-        click: () => { G.inspect = { kind: 'shop', item: it }; },
-      });
-    }
-    const label = it.kind === 'charm' ? 'CHARM' : it.kind === 'cons' ? 'CARD' : 'TOOTH';
-    drawTextC(label, x + 23, y + 52, C.dim, 1);
+    drawCardAnim(x + 7, y + 2, it.def, it.kind, i + 10, {
+      id: 'shopitem' + i,
+      price: it.price, afford,
+      tip: it.def.name + '|CLICK FOR DETAILS',
+      click: () => { G.inspect = { kind: 'shop', item: it }; },
+    });
+    const label = it.kind === 'charm' ? 'CHARM' : it.kind === 'tool' ? 'TOOL' : 'CARD';
+    drawTextC(label, x + 22, y + 50, it.kind === 'tool' ? '#7fd0c0' : C.dim, 1);
     const nm = it.def.name;
     if (nm.length > 9 && nm.includes(' ')) {
       const cut = nm.lastIndexOf(' ');
-      drawTextC(nm.slice(0, cut), x + 23, y + 62, C.white, 1);
-      drawTextC(nm.slice(cut + 1), x + 23, y + 70, C.white, 1);
+      drawTextC(nm.slice(0, cut), x + 22, y + 59, C.white, 1);
+      drawTextC(nm.slice(cut + 1), x + 22, y + 67, C.white, 1);
     } else {
-      drawTextC(nm, x + 23, y + 64, C.white, 1);
+      drawTextC(nm, x + 22, y + 62, C.white, 1);
     }
-    if (it.kind !== 'tooth') drawTextC('$' + it.price, x + 23, y + 78, afford ? C.gold : C.red, 1);
-    else drawTextC('DECK', x + 23, y + 78, '#7fb8e8', 1);
+  });
+
+  // packs shelf
+  G.shopPacks.forEach((p, i) => {
+    const x = 186 + i * 78, y = 186;
+    const hov = mx >= x && mx < x + 64 && my >= y - 4 && my < y + 44;
+    const yy = y + (hov ? -3 : Math.round(Math.sin(tNow * 1.6 + i * 2) * 1.5));
+    if (p.sold) { panel(x, y, 64, 40, { face: '#141c22' }); drawTextC('OPENED', x + 32, y + 17, C.dim, 1); return; }
+    const col = p.kind === 'tooth' ? '#c9941a' : '#3a9a8a';
+    rr(x + 1, yy + 3, 64, 40, 3, '#00000077');
+    rr(x, yy, 64, 40, 3, col);
+    rr(x + 2, yy + 2, 60, 36, 3, p.kind === 'tooth' ? '#8a6510' : '#1c3230');
+    rect(x + 29, yy, 6, 40, col); // ribbon
+    rect(x + 29, yy + 2, 6, 2, '#ffffff44');
+    if (p.kind === 'tooth') ICONS.tooth(x + 8, yy + 12); else ICONS.tdrill(x + 8, yy + 14);
+    drawTextC(p.kind === 'tooth' ? 'TOOTH' : 'TOOL', x + 46, yy + 10, C.white, 1);
+    drawTextC('PACK', x + 46, yy + 19, C.white, 1);
+    const afford = G.money >= p.price;
+    drawTextC('$' + p.price, x + 32, yy + 44, afford ? C.gold : C.red, 1);
+    hit(x, y - 2, 64, 48, {
+      cb: () => buyPack(p), id: 'pack' + p.kind, cursor: true,
+      tip: p.def.name + '|' + p.def.desc + '|$' + p.price,
+    });
   });
 
   drawBarrel();
-  button(184, 220, 86, 20, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
-    { id: 'reroll', disabled: G.money < G.rerollCost, tip: 'REROLL|Refresh all shop items' });
+  button(348, 186, 86, 20, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
+    { id: 'reroll', disabled: G.money < G.rerollCost, tip: 'REROLL|Refresh the 4 shop items|(packs stay)' });
   const nextName = G.map && G.map.stage >= 3 ? 'NEXT ANTE' : 'BACK TO TRAIL';
-  button(290, 214, 120, 30, nextName + ' >', '#d94f30', '#8a2a16', () => startTransition(afterShop), { id: 'next', sc: 1, tip: 'Back to the swamp trail' });
+  button(300, 222, 130, 26, nextName + ' >', '#d94f30', '#8a2a16', () => startTransition(afterShop), { id: 'next', sc: 1, tip: 'Back to the swamp trail' });
+}
+
+// ------------------------------------------------------ pack opening ------
+function drawPackOpen(dt) {
+  const p = G.pack; if (!p) return;
+  p.t += dt;
+  overlayDim(0.78);
+  hit(0, 0, W, H, { cb: () => { }, id: 'packblock' });
+  drawTextCSh(p.kind === 'tooth' ? 'TOOTH PACK' : 'TOOL PACK', W / 2, 30, C.gold, 3);
+  drawTextCSh('PICK ONE', W / 2, 56, C.white, 1);
+  const n = p.options.length;
+  p.options.forEach((o, i) => {
+    const x = W / 2 - (n * 70 - 14) / 2 + i * 70;
+    const appear = clamp(p.t * 2 - i * 0.25, 0, 1);
+    if (appear <= 0) return;
+    const y = 78 + (1 - easeOut(appear)) * 60;
+    const hov = appear >= 1 && mx >= x - 4 && mx < x + 60 && my >= y - 6 && my < y + 108;
+    const yy = y + (hov ? -4 : 0);
+    // flip-in: show pack back until half-open
+    if (appear < 0.5) {
+      rr(x, yy + 10, 56, 76, 3, '#2a3a44');
+      rr(x + 4, yy + 14, 48, 68, 3, '#1c2830');
+      drawTextC('?', x + 28, yy + 40, '#41565e', 3);
+      return;
+    }
+    panel(x - 2, yy - 2, 60, 112, { face: '#1a2530f0', edge: hov ? C.gold : '#3a5a50' });
+    if (o.tooth) {
+      drawTooth(x + 16, yy + 8, 24, 32, true, o.tooth, {});
+      const d = TOOTH_DEFS[o.tooth];
+      drawTextC(d.name.replace(' TOOTH', '').replace(' FANG', ''), x + 28, yy + 48, C.white, 1);
+      drawSmallWrapped(d.desc, x + 3, yy + 58, 54, C.dim);
+    } else {
+      drawCardFace(x + 13, yy + 6, o.tool, 'tool', {});
+      drawTextC(o.tool.name.split(' ')[0], x + 28, yy + 54, C.white, 1);
+      drawSmallWrapped(o.tool.desc, x + 3, yy + 64, 54, C.dim);
+    }
+    hit(x - 2, y - 4, 60, 116, {
+      cb: () => pickPack(i), id: 'packopt' + i, cursor: true,
+      tip: o.tooth ? TOOTH_DEFS[o.tooth].name + '|' + TOOTH_DEFS[o.tooth].desc : o.tool.name + '|' + o.tool.desc,
+    });
+  });
+  drawTextC('CHOOSE WISELY, RANGER', W / 2, 224, '#54707a', 1);
+}
+
+// -------------------------------------------------- the dentist bench -----
+function drawBench() {
+  const b = G.bench; if (!b) return;
+  // dentist office backdrop
+  ['#1e3634', '#22403c', '#264a44'].forEach((c, i) => rect(0, i * 60, W, 60, c));
+  rect(0, 180, W, H - 180, '#16282a');
+  rect(0, 178, W, 3, '#0e1c1e');
+  // framed molar poster
+  panel(28, 26, 54, 66, { face: '#e8e4d4', edge: '#8a7a58' });
+  ICONS.tooth(48, 40, '#b1a078');
+  drawTextC('MOLARS', 55, 62, '#8a7a58', 1);
+  // lamp arm + light cone
+  rect(380, 0, 6, 34, '#3a4a4c');
+  rr(368, 32, 30, 12, 3, '#4c5e60');
+  rect(372, 42, 22, 3, '#ffe089');
+  ctx.globalAlpha = 0.08;
+  for (let k = 0; k < 5; k++) rect(340 - k * 8, 46 + k * 24, 110 + k * 18, 24, '#ffe8a0');
+  ctx.globalAlpha = 1;
+  // instrument tray
+  panel(20, 206, 84, 40, { face: '#4c5e60', edge: '#6a8082' });
+  ICONS.tpliers(28, 216); ICONS.tdrill(52, 216); ICONS.tvial(76, 216);
+
+  drawTextCSh('THE DENTIST BENCH', W / 2, 8, C.gold, 2);
+  drawTextCSh(b.def.name + ':  ' + b.def.desc, W / 2, 26, C.white, 1);
+  drawTextCSh('SELECTED ' + b.sel.length + ' / ' + b.def.picks, W / 2, 38, b.sel.length ? C.green : C.dim, 1);
+
+  // the fake mouth: two pink gum bands on a stand
+  const mxx = 150, mwx = 220;
+  rr(mxx - 14, 62, mwx + 28, 148, 6, '#2a1a20');
+  rr(mxx - 10, 66, mwx + 20, 140, 6, '#3a2028');
+  rr(mxx, 74, mwx, 16, 5, '#c9556a'); // upper gum
+  rr(mxx, 182, mwx, 16, 5, '#c9556a'); // lower gum
+  rect(mxx + 4, 76, mwx - 8, 4, '#e0778a');
+  rect(mxx + 4, 194, mwx - 8, 4, '#a03a4a');
+
+  // deck teeth, paged: 7 top hang down, 7 bottom stand up
+  const perPage = 14;
+  const pages = Math.max(1, Math.ceil(G.deck.length / perPage));
+  b.page = clamp(b.page, 0, pages - 1);
+  const slice = G.deck.slice(b.page * perPage, b.page * perPage + perPage);
+  slice.forEach((t, i) => {
+    const top = i < 7;
+    const k = top ? i : i - 7;
+    const tx = mxx + 10 + k * 29, tw = 24, th2 = 30;
+    const sel = b.sel.includes(t.id);
+    const hov = mx >= tx && mx < tx + tw && my >= (top ? 90 : 150) && my < (top ? 132 : 194);
+    let ty = top ? 90 : 152;
+    if (sel) ty += top ? 6 : -6;
+    else if (hov) ty += top ? 3 : -3;
+    drawTooth(tx, ty, tw, th2, !top, t.type, { outline: sel ? C.gold : hov ? '#ffe8a0' : '#00000055' });
+    drawTextC(t.base, tx + tw / 2, top ? ty + th2 - 8 : ty + 2, sel ? C.goldD : '#6d5c3a', 1);
+    hit(tx - 1, top ? 88 : 148, tw + 2, 46, {
+      cb: () => benchToggle(t.id), id: 'bt' + t.id, cursor: true,
+      tip: TOOTH_DEFS[t.type].name + '|VALUE: ' + t.base + (sel ? '|SELECTED' : '|CLICK TO SELECT'),
+    });
+  });
+  if (pages > 1) {
+    button(mxx - 34, 128, 22, 20, '<', '#3a5560', '#243a44', () => { b.page = (b.page - 1 + pages) % pages; }, { id: 'bpl' });
+    button(mxx + mwx + 12, 128, 22, 20, '>', '#3a5560', '#243a44', () => { b.page = (b.page + 1) % pages; }, { id: 'bpr' });
+    drawTextC('PAGE ' + (b.page + 1) + '/' + pages, W / 2, 214, C.dim, 1);
+  }
+
+  button(W / 2 - 96, 232, 92, 24, 'APPLY', '#e8a020', '#98650e', benchApply,
+    { id: 'bapply', disabled: !b.sel.length, tip: b.sel.length ? 'Do the dental work!' : 'Select teeth first' });
+  button(W / 2 + 8, 232, 92, 24, 'CANCEL', '#3a5560', '#243a44', benchCancel, { id: 'bcancel', tip: 'Keep the tool for later' });
 }
 
 // ------------------------------------------------------------ overlays ----
@@ -2645,7 +3014,7 @@ function drawRangerSelect() {
 // ------------------------------------------------------------ swamp map ---
 function nodePos(stage, k, count) {
   const xs = [190, 292, 394];
-  const ys = count === 1 ? [150] : [104, 190];
+  const ys = count === 1 ? [150] : count === 2 ? [104, 190] : [84, 148, 206];
   return { x: xs[stage], y: ys[k] };
 }
 function drawMiniGator(x, y, type) {
@@ -2693,11 +3062,23 @@ function drawMap() {
   // path lines: dock -> stage0 -> stage1 -> boss
   const dotLine = (x1, y1, x2, y2, lit) => {
     const n = 7;
-    for (let k = 1; k < n; k++) {
-      const px2 = x1 + (x2 - x1) * k / n, py2 = y1 + (y2 - y1) * k / n;
-      rect(px2, py2, 2, 2, lit ? '#ffc84366' : '#3a5a5066');
+    const march = lit ? (tNow * 1.4) % 1 : 0; // dots flow along active routes
+    for (let k = 0; k < n; k++) {
+      const f = (k + march) / n;
+      if (f <= 0.05 || f >= 0.95) continue;
+      const px2 = x1 + (x2 - x1) * f, py2 = y1 + (y2 - y1) * f;
+      rect(px2, py2, 2, 2, lit ? '#ffc843aa' : '#3a5a5066');
     }
   };
+  // a pair of eyes surfaces in the channel now and then
+  if (Math.sin(tNow * 0.35 + 2.1) > 0.55) {
+    const ex2 = 240 + Math.sin(tNow * 0.1) * 60;
+    const ey2 = 148 + Math.sin(ex2 * 0.03) * 26 - 6;
+    [0, 9].forEach(o => {
+      rr(ex2 + o, ey2, 7, 5, 2, '#1a3a30');
+      rect(ex2 + o + 2, ey2 + 1, 2, 3, '#ffe089');
+    });
+  }
   // faint web of all routes; the reachable legs glow
   G.map.stages.forEach((opts, s) => {
     opts.forEach((node, k) => {
@@ -2719,6 +3100,10 @@ function drawMap() {
       const visited = G.map.picked[s] === k;
       const passed = s < G.map.stage;
       const pulse = reachable ? Math.round(Math.sin(tNow * 4) * 1.5) : 0;
+      // watery reflection under the island
+      ctx.globalAlpha = 0.22;
+      rr(p.x - 16, p.y + 20, 32, 5, 2, '#0d2830');
+      ctx.globalAlpha = 1;
       // island pad
       rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, passed && !visited ? '#101c1e' : '#16302a');
       rr(p.x - 20, p.y - 12 - pulse, 40, 28, 4, visited ? '#26321e' : reachable ? '#1e3c34' : '#14262a');
@@ -2778,50 +3163,68 @@ function drawPassScreen() {
   const th = THEMES.shop;
   drawSceneBack(th);
   drawSceneFront(th);
-  overlayDim(0.5);
+  overlayDim(0.55);
   ensureDaily();
-  drawTextCSh('SWAMP PASS', W / 2, 10, C.gold, 3);
-  drawTextCSh(fmt(meta.rp || 0) + ' RANGER POINTS', W / 2, 34, C.green, 1);
+  drawTextCSh('SWAMP PASS', W / 2, 6, C.gold, 2);
+  drawTextCSh(fmt(meta.rp || 0) + ' RANGER POINTS', W / 2, 24, C.green, 1);
 
-  // tier track
-  const tx0 = 26, ty = 52, tw = 54;
-  rect(tx0 + 8, ty + 24, (PASS_REQ.length - 1) * tw + 16, 2, '#3a4a55');
-  PASS_REQ.forEach((req, i) => {
-    const x = tx0 + i * tw, open = passTierUnlocked(i + 1);
-    const card = passCardForTier(i + 1);
-    const isCons = card && CONS.includes(card);
-    panel(x, ty, 44, 50, { face: open ? '#26321e' : '#141c22', edge: open ? C.gold : '#2c3a44' });
-    if (card) {
-      if (open) (ICONS[card.ico] || ICONS.star)(x + 16, ty + 6);
-      else { drawTextC('?', x + 22, ty + 10, '#41565e', 2); }
-      drawTextC(card.name.split(' ')[0].slice(0, 7), x + 22, ty + 26, open ? C.white : '#41565e', 1);
+  // 15-tier track in two rows
+  const tw = 56, rows = [[0, 8], [8, 15]];
+  rows.forEach(([a, b2], r) => {
+    const count = b2 - a;
+    const tx0 = Math.floor(W / 2 - (count * tw - 12) / 2);
+    const ty = 36 + r * 52;
+    rect(tx0 + 8, ty + 20, (count - 1) * tw + 28, 2, '#3a4a55');
+    for (let i = a; i < b2; i++) {
+      const x = tx0 + (i - a) * tw, req = PASS_REQ[i], open = passTierUnlocked(i + 1);
+      const card = passCardForTier(i + 1);
+      panel(x, ty, 46, 44, { face: open ? '#26321e' : '#141c22', edge: open ? C.gold : '#2c3a44' });
+      if (card) {
+        if (open) (ICONS[card.ico] || ICONS.star)(x + 17, ty + 4);
+        else drawTextC('?', x + 23, ty + 7, '#41565e', 2);
+        drawTextC(card.name.split(' ')[0].slice(0, 8), x + 23, ty + 22, open ? C.white : '#41565e', 1);
+      }
+      drawTextC('' + req, x + 23, ty + 32, open ? C.green : C.dim, 1);
+      hit(x, ty, 46, 44, {
+        id: 'tier' + i, cursor: true,
+        tip: card ? ((open ? '' : 'LOCKED: ') + card.name + '|' + card.desc + '|' + (open ? 'IN YOUR POOL!' : 'UNLOCKS AT ' + req + ' RP')) : '',
+      });
     }
-    drawTextC(req + '', x + 22, ty + 38, open ? C.green : C.dim, 1);
-    hit(x, ty, 44, 50, {
-      id: 'tier' + i, cursor: true,
-      tip: card ? ((open ? '' : 'LOCKED: ') + card.name + '|' + card.desc + '|' + (open ? 'IN YOUR SHOP POOL!' : 'UNLOCKS AT ' + req + ' RP')) : '',
-    });
-  });
-  drawTextC('NEW CARDS JOIN THE SHOP POOL AS YOU EARN RANGER POINTS', W / 2, ty + 56, C.dim, 1);
-
-  // daily quests
-  const qy = 128;
-  panel(60, qy, 360, 78, { face: '#1a2530ee' });
-  drawText('DAILY QUESTS', 72, qy + 6, C.purple, 1);
-  drawText('+15 RP EACH. RESET DAILY.', 72 + 90, qy + 6, C.dim, 1);
-  meta.daily.q.forEach((q, i) => {
-    const def = QUESTS.find(d => d.id === q.id);
-    const y = qy + 20 + i * 18;
-    drawText(def.name, 72, y, q.done ? C.green : C.white, 1);
-    // progress bar
-    rect(260, y + 1, 100, 4, '#0a1215');
-    const p = clamp(q.prog / def.goal, 0, 1);
-    if (p > 0) rect(260, y + 1, Math.floor(100 * p), 4, q.done ? C.green : C.gold);
-    drawText(q.done ? 'DONE' : (q.prog + '/' + def.goal), 368, y, q.done ? C.green : C.dim, 1);
   });
 
-  drawTextC('EARN RP: ACHIEVEMENTS +25, DAILY QUESTS +15, +2 PER ANTE BEATEN', W / 2, 216, '#54707a', 1);
-  button(W / 2 - 40, 232, 80, 18, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'passback' });
+  // NPC quest board: three quest-givers, pledge one for double RP
+  drawTextC('THE QUEST BOARD  -  PLEDGE TO ONE RANGER FRIEND FOR DOUBLE RP', W / 2, 142, C.purple, 1);
+  NPC_ORDER.forEach((nk, i) => {
+    const npc = NPCS[nk];
+    const q = meta.daily.q.find(qq => qq.npc === nk);
+    const def = q && QUESTS.find(d => d.id === q.id);
+    const x = 34 + i * 142, y = 152, w2 = 130, h2 = 76;
+    const pledged = meta.daily.pledge === nk;
+    panel(x, y, w2, h2, { face: '#1a2530ee', edge: pledged ? C.gold : npc.col });
+    rr(x + 4, y + 4, 34, 34, 3, '#10181e');
+    drawNpcFace(x + 7, y + 7, nk);
+    drawText(npc.name, x + 42, y + 6, npc.col, 1);
+    if (def) {
+      drawSmallWrapped(def.name, x + 42, y + 16, w2 - 48, q.done ? C.green : C.white);
+      rect(x + 42, y + 36, 70, 4, '#0a1215');
+      const p = clamp(q.prog / def.goal, 0, 1);
+      if (p > 0) rect(x + 42, y + 36, Math.floor(70 * p), 4, q.done ? C.green : C.gold);
+      drawText(q.done ? 'DONE' : q.prog + '/' + def.goal, x + 42, y + 43, q.done ? C.green : C.dim, 1);
+    }
+    const pay = pledged ? 30 : 15;
+    drawText('+' + pay + ' RP', x + 96, y + 43, pledged ? C.gold : C.dim, 1);
+    if (pledged) {
+      drawTextC('YOUR PARTNER TODAY', x + w2 / 2, y + h2 - 12, C.gold, 1);
+    } else if (!meta.daily.pledge) {
+      button(x + w2 / 2 - 34, y + h2 - 20, 68, 15, 'PLEDGE', '#7a4fd0', '#4a2a8a', () => pledgeTo(nk), { id: 'pledge' + nk });
+    } else {
+      drawTextC("'" + npc.line.slice(0, 24) + "...'", x + w2 / 2, y + h2 - 12, '#54707a', 1);
+    }
+    hit(x, y, w2, 26, { id: 'npc' + nk, tip: npc.name + '|' + npc.who + "|'" + npc.line + "'" });
+  });
+
+  drawTextC('RP: ACHIEVEMENTS +25, QUESTS +15 (+30 PLEDGED), EVENTS +3, ANTES +2', W / 2, 234, '#54707a', 1);
+  button(W / 2 - 40, 246, 80, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'passback' });
 }
 
 // ------------------------------------------------------- swamp events -----
@@ -2935,6 +3338,24 @@ function drawEvent(dt) {
   ctx.save();
   ctx.beginPath(); ctx.rect(vx, vy, vw, vh); ctx.clip();
   (EVENT_SCENES[ev.def.scene] || EVENT_SCENES.chest)(vx, vy, vw, vh);
+  // shared dressing: corner reeds, drifting fireflies, soft inner vignette
+  for (let k = 0; k < 3; k++) {
+    const rx2 = k < 2 ? vx + 4 + k * 6 : vx + vw - 8;
+    const sway = Math.sin(tNow * 1.3 + k * 2) * 1.5;
+    for (let seg = 0; seg < 14; seg += 2) rect(rx2 + sway * seg / 14, vy + vh - seg - 2, 1, 2, '#132d1e');
+  }
+  for (let k = 0; k < 4; k++) {
+    const br = (Math.sin(tNow * 2.4 + k * 2.7) + 1) / 2;
+    if (br > 0.5) {
+      ctx.globalAlpha = (br - 0.5) * 1.4;
+      rect(vx + 20 + ((k * 67 + tNow * 6) % (vw - 40)), vy + 12 + (k * 23) % (vh - 30), 1, 1, '#eaffa0');
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.globalAlpha = 0.35;
+  rect(vx, vy, vw, 3, '#000'); rect(vx, vy + vh - 3, vw, 3, '#000');
+  rect(vx, vy, 3, vh, '#000'); rect(vx + vw - 3, vy, 3, vh, '#000');
+  ctx.globalAlpha = 1;
   ctx.restore();
 
   // typewriter text
@@ -3034,9 +3455,10 @@ function drawInspect() {
   drawText(def.name, tx, py + 12, C.gold, 2);
   let sub;
   if (kind === 'charm') sub = 'CHARM  -  ' + RAR_NAME[def.rar || 0];
+  else if (kind === 'tool' || def.picks) sub = 'DENTIST TOOL  -  WORKS ON YOUR DECK';
   else if (kind === 'cons') sub = 'CARD  -  ONE-TIME USE';
   else sub = 'SPECIAL TOOTH  -  JOINS YOUR DECK';
-  drawText(sub, tx, py + 26, kind === 'cons' ? C.purple : RAR_COL[def.rar || 0], 1);
+  drawText(sub, tx, py + 26, def.picks ? '#7fd0c0' : kind === 'cons' ? C.purple : RAR_COL[def.rar || 0], 1);
   let y = py + 40;
   y = drawSmallWrapped(def.desc, tx, y, pw - 110, C.white) + 4;
   if (def.flav) y = drawSmallWrapped("'" + def.flav + "'", tx, y, pw - 110, '#6f8a90') + 6;
@@ -3053,6 +3475,9 @@ function drawInspect() {
     } else {
       drawText('SELL IN THE SHOP FOR $' + Math.ceil(def.cost / 2), tx, py + ph - 24, C.dim, 1);
     }
+  } else if (def.picks) {
+    drawText('DRAG OUT OF THE SLOT AT THE SHOP', tx, py + ph - 32, C.green, 1);
+    drawText('OR ON THE TRAIL TO OPEN THE BENCH', tx, py + ph - 23, C.green, 1);
   } else if (kind === 'cons') {
     drawText(def.target === 'tooth' ? 'DRAG ONTO A TOOTH TO USE' : 'DRAG ONTO THE GATOR TO USE', tx, py + ph - 24, C.green, 1);
   }
@@ -3217,6 +3642,7 @@ function frame(ms) {
     case 'pass': drawPassScreen(); break;
     case 'map': drawMap(); break;
     case 'event': drawEvent(dt); break;
+    case 'bench': drawBench(); break;
     case 'play': drawPlay(); break;
     case 'swap': drawSwap(); break;
     case 'snap': drawSnap(); break;
@@ -3229,6 +3655,7 @@ function frame(ms) {
 
   if (G.deckOpen && (G.state === 'play' || G.state === 'shop' || G.state === 'swap')) drawDeckOverlay();
   if (G.inspect) drawInspect();
+  if (G.pack) drawPackOpen(dt);
 
   drawFx();
   ctx.restore();
@@ -3296,4 +3723,7 @@ window.BD = {
   pick: pickNode,
   choose: chooseEvent,
   continueEvent: closeEvent,
+  openBench, benchToggle, benchApply, benchCancel,
+  buyPack: i => buyPack(G.shopPacks[i]),
+  pickPack,
 };
