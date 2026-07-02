@@ -13,7 +13,8 @@ const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H);
+  const raw = Math.min(innerWidth / W, innerHeight / H);
+  const s = raw >= 1 ? Math.floor(raw) : raw; // integer scale keeps the pixel grid even
   canvas.style.width = Math.floor(W * s) + 'px';
   canvas.style.height = Math.floor(H * s) + 'px';
 }
@@ -41,7 +42,7 @@ const FONT = {
   '0':'69BD6','1':'4C44E','2':'E168F','3':'E161E','4':'99F11','5':'F8E1E',
   '6':'68E96','7':'F1244','8':'69696','9':'69716',
   '.':'00004', ',':'00048', ':':'04040', '!':'44404', '?':'E1604', '+':'04E40',
-  '-':'00E00', '$':'7C63E', '*':'0A4A0', '/':'12480', '(':'24442', ')':'42224',
+  '-':'00E00', '$':'476E4', '*':'0A4A0', '/':'12480', '(':'24442', ')':'42224',
   "'":'44000', '%':'92490', '>':'84248', '<':'12421', '=':'0E0E0', '#':'AFAFA',
   ' ':'00000'
 };
@@ -304,16 +305,16 @@ const CHARMS = [
   { id: 'crown', name: 'GOLD CROWN', cost: 5, rar: 0, ico: 'crown', desc: 'Gold Teeth earn double money and +5 TEETH' },
   { id: 'license', name: 'DENTIST LICENSE', cost: 5, rar: 0, ico: 'eye', desc: '+1 X-RAY every round' },
   { id: 'fairy', name: 'TOOTH FAIRY', cost: 5, rar: 0, ico: 'fairy', desc: 'Earn $2 at the end of every round' },
-  { id: 'numb', name: 'NUMBING GEL', cost: 6, rar: 1, ico: 'syringe', desc: 'The first SNAP each round is defused' },
-  { id: 'glass', name: 'GLASS JAW', cost: 6, rar: 1, ico: 'skull', desc: 'X2 MULT when banking, but +1 snap tooth in every mouth' },
+  { id: 'numb', name: 'NUMBING GEL', cost: 7, rar: 1, ico: 'syringe', desc: 'The first SNAP each round is defused' },
+  { id: 'glass', name: 'GLASS JAW', cost: 6, rar: 1, ico: 'skull', desc: 'X2 MULT when banking, but -1 BITE every round' },
   { id: 'rootcanal', name: 'ROOT CANAL', cost: 7, rar: 1, ico: 'drill', desc: 'Bank with 7+ teeth pressed: X2 MULT' },
   { id: 'chewtoy', name: 'CHEW TOY', cost: 6, rar: 1, ico: 'shield', desc: '+1 BITE every round' },
   { id: 'coldblood', name: 'COLD BLOOD', cost: 6, rar: 1, ico: 'snow', desc: '+3 starting MULT for each snap tooth hidden in the mouth' },
   { id: 'collector', name: 'FANG COLLECTOR', cost: 7, rar: 1, ico: 'star', desc: 'CLEAN SWEEP bonus becomes X2 MULT (instead of X1.25)' },
-  { id: 'loose', name: 'LOOSE TOOTH', cost: 7, rar: 1, ico: 'pliers', desc: '1 in 5 chance a pressed snap tooth pops out harmlessly' },
+  { id: 'loose', name: 'LOOSE TOOTH', cost: 6, rar: 1, ico: 'pliers', desc: '1 in 3 chance a pressed snap tooth pops out harmlessly' },
   { id: 'braces', name: 'BRACES', cost: 6, rar: 1, ico: 'gem', desc: '+2 teeth in every mouth' },
-  { id: 'wisdom', name: 'WISDOM TOOTH', cost: 8, rar: 2, ico: 'gem', desc: 'Every bite starts at +4 MULT' },
-  { id: 'apex', name: 'APEX INSTINCT', cost: 9, rar: 2, ico: 'fang', desc: 'X3 MULT when banking with 10+ teeth pressed' },
+  { id: 'wisdom', name: 'WISDOM TOOTH', cost: 8, rar: 2, ico: 'gem', desc: 'Every bite starts with +MULT equal to your ANTE' },
+  { id: 'apex', name: 'APEX INSTINCT', cost: 9, rar: 2, ico: 'fang', desc: 'X3 MULT when banking with 8+ teeth pressed' },
 ];
 
 const CONS = [
@@ -333,21 +334,24 @@ const BOSSES = [
   { id: 'murky', name: 'MURKY WATER', desc: 'X-Rays do not work this round' },
   { id: 'cotton', name: 'COTTON MOUTH', desc: 'Tooth values are hidden' },
   { id: 'lockjaw', name: 'LOCKJAW', desc: 'You cannot bank until 4+ teeth are pressed' },
-  { id: 'loanshark', name: 'LOAN SHARK', desc: 'Banking costs $1' },
+  { id: 'loanshark', name: 'LOAN SHARK', desc: 'Banking costs $2' },
   { id: 'ironjaw', name: 'IRON JAW', desc: 'Chain MULT only grows every 2nd tooth' },
-  { id: 'tender', name: 'TENDER GUMS', desc: '3 fewer teeth in every mouth' },
+  { id: 'tender', name: 'TENDER GUMS', desc: '2 fewer teeth in every mouth' },
   { id: 'diet', name: 'PLAIN DIET', desc: 'Special teeth lose their powers' },
 ];
-const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth AND X-Rays do not work' };
+const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth, and only 1 X-Ray' };
 
-const ANTE_BASE = [65, 150, 360, 850, 2000, 4500, 10000, 22000];
-const ROUND_MULT = [1, 1.5, 2.2];
+const ANTE_BASE = [60, 150, 340, 750, 1600, 3000, 5200, 6000];
+const ROUND_MULT = [1, 1.5, 2];
 const ROUND_REWARD = [4, 5, 8];
 const ROUND_NAMES = ['SMALL CROC', 'BIG CROC', 'BOSS'];
 
 function targetFor(ante, round) {
-  let base = ante <= 8 ? ANTE_BASE[ante - 1] : ANTE_BASE[7] * Math.pow(2.2, ante - 8);
+  let base = ante <= 8 ? ANTE_BASE[ante - 1] : ANTE_BASE[7] * Math.pow(1.6, ante - 8);
   return Math.round(base * ROUND_MULT[round]);
+}
+function rewardFor(ante, round) {
+  return ROUND_REWARD[round] + Math.floor(ante / 3); // gentle income scaling for late antes
 }
 
 // ------------------------------------------------------------ state -------
@@ -370,10 +374,9 @@ function saveBest() { try { localStorage.setItem('bitedown_best', '' + best); } 
 
 const has = id => G.charms.some(c => c.id === id);
 const bossIs = id => !!(G.boss && G.round === 2 && G.boss.id === id);
-const xraysBlocked = () => bossIs('murky') || bossIs('apexpred');
+const xraysBlocked = () => bossIs('murky');
 const snapCountFor = () => {
-  let n = 1 + ((bossIs('twofang') || bossIs('apexpred')) ? 1 : 0) + (has('glass') ? 1 : 0);
-  return n;
+  return 1 + ((bossIs('twofang') || bossIs('apexpred')) ? 1 : 0);
 };
 
 function mkTooth(type, base) {
@@ -382,6 +385,7 @@ function mkTooth(type, base) {
 
 // --------------------------------------------------------- fx: floats etc -
 let floats = [], parts = [], shake = 0, flashRed = 0;
+function clearFx() { floats = []; parts = []; }
 function float(x, y, txt, col, sc, life) {
   floats.push({ x, y, txt, col: col || C.white, sc: sc || 1, t: 0, life: life || 1.1 });
 }
@@ -408,8 +412,9 @@ function startRound() {
   G.boss = (G.round === 2) ? (G.ante === 8 ? FINAL_BOSS : G.bossOrder[(G.ante - 1) % G.bossOrder.length]) : null;
   G.target = targetFor(G.ante, G.round);
   G.score = 0; G.dispScore = 0;
-  G.bites = 3 + (has('chewtoy') ? 1 : 0);
-  G.xrays = 2 + (has('license') ? 1 : 0);
+  G.bites = Math.max(1, 3 + (has('chewtoy') ? 1 : 0) - (has('glass') ? 1 : 0));
+  G.xrays = 3 + (has('license') ? 1 : 0);
+  if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
   G.numbUsed = false; G.greedyCount = 0;
   G.drawPile = shuffle(G.deck.slice());
   G.deckOpen = false;
@@ -419,7 +424,7 @@ function startRound() {
 }
 
 function mouthSizeFor() {
-  let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -3 : 0);
+  let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0);
   return Math.max(6, Math.min(size, G.deck.length));
 }
 
@@ -432,7 +437,7 @@ function newMouth() {
   const snapSet = new Set(order.slice(0, snaps));
   G.mouth = drawn.map((t, i) => ({ t, snap: snapSet.has(i), pressed: false, revealed: null, gone: false, pop: 0 }));
   G.pool = { teeth: 0, mult: 1, clicks: 0 };
-  if (has('wisdom')) G.pool.mult += 4;
+  if (has('wisdom')) G.pool.mult += G.ante;
   if (has('coldblood')) G.pool.mult += 3 * snaps;
   G.novocaine = false; G.mode = 'idle'; G.extractCons = -1;
   G.jawClose = 0;
@@ -459,7 +464,7 @@ function pressTooth(i) {
     let defused = null;
     if (G.novocaine) { defused = 'NOVOCAINE!'; G.novocaine = false; }
     else if (has('numb') && !G.numbUsed) { defused = 'NUMBED!'; G.numbUsed = true; }
-    else if (has('loose') && rnd() < 0.2) { defused = 'POPPED OUT!'; }
+    else if (has('loose') && rnd() < 1 / 3) { defused = 'POPPED OUT!'; }
     if (defused) {
       s.gone = true; s.revealed = 'snap';
       float(p.x, p.y - 10, defused, C.green, 1);
@@ -525,7 +530,7 @@ function bankMath(sweep) {
   if (has('magnet')) t += 15;
   if (has('glass')) m *= 2;
   if (has('rootcanal') && G.pool.clicks >= 7) m *= 2;
-  if (has('apex') && G.pool.clicks >= 10) m *= 3;
+  if (has('apex') && G.pool.clicks >= 8) m *= 3;
   if (sweep) m *= has('collector') ? 2 : 1.25;
   return Math.floor(t * m);
 }
@@ -539,7 +544,7 @@ function bank(sweep) {
   G.score += val;
   G.stats.banks++;
   if (val > G.stats.bestBank) G.stats.bestBank = val;
-  if (bossIs('loanshark')) { G.money = Math.max(0, G.money - 1); float(60, 190, '-$1', C.red, 1); }
+  if (bossIs('loanshark')) { G.money = Math.max(0, G.money - 2); float(60, 190, '-$2', C.red, 1); }
   float(60, 96, '+' + fmt(val), C.gold, 2, 1.4);
   burst(60, 100, C.gold, 14, 80);
   if (!sweep) sfx.bank();
@@ -550,24 +555,27 @@ function startSnap(i) {
   const s = G.mouth[i];
   s.pressed = true; s.revealed = 'snap';
   G.state = 'snap'; G.snapT = 0; G.snapIdx = i;
+  G.deckOpen = false;
   sfx.snap();
 }
 
 function endBite() {
   G.bites--;
-  G.mode = 'idle'; G.extractCons = -1;
+  G.mode = 'idle'; G.extractCons = -1; G.deckOpen = false;
   if (G.score >= G.target) { roundWon(); return; }
   if (G.bites <= 0) { gameOver(); return; }
-  newMouth();
+  // short beat before the fresh mouth slides in
+  G.state = 'swap'; G.swapT = 0;
 }
 
 function roundWon() {
-  const base = ROUND_REWARD[G.round];
+  const base = rewardFor(G.ante, G.round);
   const perBite = G.bites; // unused bites, $1 each
   const interest = Math.min(5, Math.floor(G.money / 5));
   const fairy = has('fairy') ? 2 : 0;
   G.cash = { base, perBite, interest, fairy, total: base + perBite + interest + fairy };
   G.state = 'roundend';
+  G.deckOpen = false; clearFx();
   sfx.win();
   if (G.ante > best) { best = G.ante; saveBest(); }
 }
@@ -586,6 +594,7 @@ function enterShop() {
   G.rerollCost = 4;
   rollShop();
   G.state = 'shop';
+  G.deckOpen = false; clearFx();
 }
 
 function weightedCharm(pool) {
@@ -605,14 +614,14 @@ function rollShop() {
     cpool = cpool.filter(c => c !== def);
     items.push({ kind: 'charm', def, price: def.cost, sold: false });
   }
-  let copool = CONS.slice();
+  const cdef = choice(CONS);
+  items.push({ kind: 'cons', def: cdef, price: cdef.cost, sold: false });
+  let tpool = SHOP_TEETH.slice();
   for (let k = 0; k < 2; k++) {
-    const def = choice(copool);
-    copool = copool.filter(c => c !== def);
-    items.push({ kind: 'cons', def, price: def.cost, sold: false });
+    const tt = choice(tpool);
+    tpool = tpool.filter(t => t !== tt);
+    items.push({ kind: 'tooth', def: TOOTH_DEFS[tt], type: tt, price: TOOTH_DEFS[tt].cost, sold: false });
   }
-  const tt = choice(SHOP_TEETH);
-  items.push({ kind: 'tooth', def: TOOTH_DEFS[tt], type: tt, price: TOOTH_DEFS[tt].cost, sold: false });
   G.shopItems = items;
 }
 
@@ -659,6 +668,7 @@ function nextRound() {
 
 function gameOver() {
   G.state = 'gameover';
+  G.deckOpen = false; clearFx();
   if (G.ante > best) { best = G.ante; saveBest(); }
   sfx.boss();
 }
@@ -778,18 +788,22 @@ function pointFromEvent(e) {
 }
 canvas.addEventListener('mousemove', e => { const p = pointFromEvent(e); mx = p.x; my = p.y; });
 canvas.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
   audio();
   const p = pointFromEvent(e); mx = p.x; my = p.y;
   const h = topHitAt(mx, my);
   if (h && h.cb && !h.disabled) h.cb();
+  hits.length = 0; // one action per rendered frame: stale rects must not double-fire
 });
 canvas.addEventListener('touchstart', e => {
   audio();
   const p = pointFromEvent(e); mx = p.x; my = p.y;
   const h = topHitAt(mx, my);
   if (h && h.cb && !h.disabled) h.cb();
+  hits.length = 0;
   e.preventDefault();
 }, { passive: false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('keydown', e => {
   if (e.key === 'm' || e.key === 'M') muted = !muted;
 });
@@ -901,7 +915,8 @@ function drawCroc(closeT, opts) {
       const hideVal = bossIs('cotton');
       const vs = hideVal ? '?' : '' + s.t.base;
       const vy = sl.up ? ty + th - 7 : ty + 2;
-      drawTextC(vs, sl.x + sl.w / 2, vy, hideVal ? C.purple : '#6d5c3a', 1);
+      if (hideVal) drawTextCSh(vs, sl.x + sl.w / 2 + 1, vy, C.white, 1, '#4a1060');
+      else drawTextC(vs, sl.x + sl.w / 2, vy, '#6d5c3a', 1);
     }
     // revealed badges
     if (s.revealed === 'safe' && !s.pressed) {
@@ -950,9 +965,9 @@ function drawCroc(closeT, opts) {
   rect(bodyX - 1, jy + 55, bodyW + 2, 3, C.crocD);
   rr(bodyX - 1, jy + 52, bodyW + 2, 6, 2, C.crocB);
 
-  // --- eyes on top ---
+  // --- eyes on top --- (kept left of the charm row, which ends at x~270)
   const squeeze = closeT > 0.5 || opts.angry;
-  const exL = maw.x + 34, exR = maw.x + maw.w - 58, ey = jy - 12;
+  const exL = maw.x + 18, exR = maw.x + maw.w - 48, ey = jy - 10;
   [exL, exR].forEach((ex) => {
     rr(ex - 4, ey, 30, 20, 4, C.crocB);
     rr(ex - 3, ey + 1, 28, 17, 4, C.crocA);
@@ -1060,9 +1075,10 @@ function drawSidebar() {
   drawTextC('MONEY', x + w - 22, y + 7, '#9ab87a', 1);
   y += 23;
 
-  // deck button
+  // deck button (only interactive where the overlay can render)
+  const deckOk = G.state === 'play' || G.state === 'shop' || G.state === 'swap';
   button(x, y, w, 14, 'TEETH ' + G.drawPile.length + '/' + G.deck.length, '#3a5560', '#243a44',
-    () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
+    () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', disabled: !deckOk, tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
   y += 19;
 
   // best
@@ -1129,7 +1145,7 @@ function drawPlay() {
   }
 
   // buttons
-  const canBank = G.pool && G.pool.clicks > 0 && !(bossIs('lockjaw') && G.pool.clicks < 4);
+  const canBank = G.state === 'play' && G.pool && G.pool.clicks > 0 && !(bossIs('lockjaw') && G.pool.clicks < 4);
   button(150, 240, 130, 24, 'BANK BITE', '#e8a020', '#98650e',
     () => bank(false), {
       sc: 1, id: 'bank', disabled: !canBank,
@@ -1146,7 +1162,7 @@ function drawPlay() {
   if (unpressed.length > 0 && G.pool) {
     const risk = Math.round(100 * snapsLeft / unpressed.length);
     drawTextCSh('SNAP RISK ' + risk + '%', 428, 240, risk >= 34 ? C.red : risk >= 15 ? C.orange : C.green, 1);
-    drawTextCSh(unpressed.length + ' TEETH LEFT', 428, 252, C.dim, 1);
+    drawTextCSh(unpressed.length + (unpressed.length === 1 ? ' TOOTH LEFT' : ' TEETH LEFT'), 428, 252, C.dim, 1);
   }
 }
 
@@ -1177,12 +1193,21 @@ function burstTeethShards() {
   burst(L.maw.x + L.maw.w / 2, L.maw.y + L.maw.h / 2, C.red, 10, 90);
 }
 
+function drawSwap() {
+  drawPlay();
+  const k = clamp(G.swapT / 0.45, 0, 1);
+  ctx.globalAlpha = k < 0.5 ? k * 2 : (1 - k) * 2;
+  drawTextCSh('FRESH MOUTH...', W / 2 + 50, 92, C.green, 2);
+  ctx.globalAlpha = 1;
+}
+
 function drawSnap() {
   drawPlay();
   if (G.snapT > 0.22 && G.snapT < 1.4) {
-    drawTextCSh('SNAP!', W / 2 + 50, 80, C.red, 4, '#40000088');
     const lost = G.pool ? bankValue() : 0;
-    if (lost > 0) drawTextCSh('BITE LOST: ' + fmt(lost), W / 2 + 50, 116, '#ffb0a8', 1);
+    panel(W / 2 + 50 - 78, 70, 156, lost > 0 ? 56 : 40, { face: '#2a0e12ee', edge: C.redD });
+    drawTextCSh('SNAP!', W / 2 + 50, 78, C.red, 4, '#40000088');
+    if (lost > 0) drawTextCSh('BITE LOST: ' + fmt(lost), W / 2 + 50, 112, '#ffb0a8', 1);
   }
 }
 
@@ -1193,7 +1218,7 @@ function drawShop() {
   drawTopBar(true);
 
   drawTextCSh('GATOR SHOP', 296, 58, C.gold, 3, '#00000088');
-  drawTextCSh('HOVER CHARMS ABOVE TO SELL THEM', 296, 82, C.dim, 1);
+  drawTextCSh('CLICK YOUR CHARMS ABOVE TO SELL THEM', 296, 82, C.dim, 1);
 
   // items
   const bx0 = 140;
@@ -1216,9 +1241,15 @@ function drawShop() {
     const afford = G.money >= it.price;
     drawTextC('$' + it.price, x + 25, y + 48, afford ? C.gold : C.red, 2);
     const label = it.kind === 'charm' ? 'CHARM' : it.kind === 'cons' ? 'CARD' : 'TOOTH';
-    drawTextC(label, x + 25, y + 66, C.dim, 1);
+    drawTextC(label, x + 25, y + 64, C.dim, 1);
     const nm = it.def.name;
-    drawTextC(nm.length > 11 ? nm.slice(0, 11) : nm, x + 25, y + 76, C.white, 1);
+    if (nm.length > 10 && nm.includes(' ')) {
+      const cut = nm.lastIndexOf(' ');
+      drawTextC(nm.slice(0, cut), x + 25, y + 72, C.white, 1);
+      drawTextC(nm.slice(cut + 1), x + 25, y + 80, C.white, 1);
+    } else {
+      drawTextC(nm, x + 25, y + 74, C.white, 1);
+    }
   });
 
   button(160, 216, 100, 22, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
@@ -1262,8 +1293,10 @@ function drawBossIntro() {
   const pulse = 1 + Math.sin(tNow * 4) * 0.06;
   drawTextCSh('BOSS CROC', W / 2, 62, C.red, 2);
   drawTextCSh(G.boss.name, W / 2, 84, C.white, Math.round(3 * pulse));
+  const dw = Math.max(textW(G.boss.desc, 1), textW('TARGET: ' + fmt(G.target), 1)) + 20;
+  panel(W / 2 - dw / 2, 116, dw, 34, { face: '#2a0e12ee', edge: C.redD });
   drawTextCSh(G.boss.desc, W / 2, 122, '#ffb0a8', 1);
-  drawTextCSh('TARGET: ' + fmt(G.target), W / 2, 140, C.orange, 1);
+  drawTextCSh('TARGET: ' + fmt(G.target), W / 2, 136, C.orange, 1);
   button(W / 2 - 55, 168, 110, 26, 'BITE DOWN!', '#d94f30', '#8a2a16', () => { G.state = 'play'; }, { id: 'bossgo' });
 }
 
@@ -1360,28 +1393,36 @@ function drawDeckOverlay() {
   overlayDim(0.6);
   // blocker registered first so overlay buttons stay on top of it
   hit(0, 0, W, H, { cb: () => { G.deckOpen = false; }, id: 'deckblock' });
-  const px = 120, py = 30, pw = 240, ph = 210;
+  const px = 100, py = 30, pw = 280, ph = 210;
   panel(px, py, pw, ph, { face: '#16222af5' });
   drawTextCSh('YOUR TOOTH DECK (' + G.deck.length + ')', px + pw / 2, py + 8, C.gold, 2);
-  // group plain by value; specials by type
+  // group plain by value; specials by type; lay out in two columns
   const plain = {};
   const spec = {};
   G.deck.forEach(t => {
     if (t.type === 'plain') plain[t.base] = (plain[t.base] || 0) + 1;
     else spec[t.type] = (spec[t.type] || 0) + 1;
   });
+  const x1 = px + 14, x2 = px + pw / 2 + 8;
   let y = py + 30;
-  drawText('PLAIN TEETH:', px + 14, y, C.dim, 1); y += 12;
-  Object.keys(plain).map(Number).sort((a, b) => a - b).forEach(v => {
-    drawText('VALUE ' + v + '  X' + plain[v], px + 22, y, C.white, 1); y += 10;
+  drawText('PLAIN TEETH:', x1, y, C.dim, 1);
+  const vals = Object.keys(plain).map(Number).sort((a, b) => a - b);
+  let yy = y + 12, col = 0;
+  const colMax = py + ph - 42;
+  vals.forEach(v => {
+    if (yy > colMax) { col = 1; yy = y + 12; }
+    drawText('VALUE ' + v + '  X' + plain[v], (col ? x1 + 62 : x1) + 8, yy, C.white, 1);
+    yy += 10;
   });
-  y += 4;
   const specKeys = Object.keys(spec);
   if (specKeys.length) {
-    drawText('SPECIAL TEETH:', px + 14, y, C.dim, 1); y += 12;
+    drawText('SPECIAL TEETH:', x2, y, C.dim, 1);
+    let sy = y + 12;
     specKeys.forEach(k => {
-      drawTooth(px + 20, y - 3, 9, 11, true, k, {});
-      drawText(TOOTH_DEFS[k].name + '  X' + spec[k], px + 34, y, C.white, 1); y += 12;
+      if (sy > colMax) return;
+      drawTooth(x2 + 4, sy - 3, 9, 11, true, k, {});
+      drawText(TOOTH_DEFS[k].name.replace(' TOOTH', '').replace(' FANG', '') + ' X' + spec[k], x2 + 18, sy, C.white, 1);
+      sy += 12;
     });
   }
   drawTextC(G.drawPile.length + ' STILL IN THE BAG THIS ROUND', px + pw / 2, py + ph - 30, C.dim, 1);
@@ -1446,6 +1487,10 @@ function frame(ms) {
   hits = [];
   updateFx(dt);
   if (G.state === 'snap') updateSnap(dt); else shardsDone = false;
+  if (G.state === 'swap') {
+    G.swapT += dt;
+    if (G.swapT > 0.45) { newMouth(); G.state = 'play'; }
+  }
   musicTick();
 
   ctx.save();
@@ -1455,6 +1500,7 @@ function frame(ms) {
     case 'menu': drawMenu(); break;
     case 'how': drawHow(); break;
     case 'play': drawPlay(); break;
+    case 'swap': drawSwap(); break;
     case 'snap': drawSnap(); break;
     case 'roundend': drawRoundEnd(); break;
     case 'shop': drawShop(); break;
@@ -1463,7 +1509,7 @@ function frame(ms) {
     case 'win': drawWin(); break;
   }
 
-  if (G.deckOpen && (G.state === 'play' || G.state === 'shop')) drawDeckOverlay();
+  if (G.deckOpen && (G.state === 'play' || G.state === 'shop' || G.state === 'swap')) drawDeckOverlay();
 
   drawFx();
   ctx.restore();
