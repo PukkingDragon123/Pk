@@ -528,30 +528,44 @@ function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
   rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
 }
 
-// Merle the manatee shopkeep (36x40, behind the counter)
+// Merle the manatee shopkeep: big, round, beloved
 function drawVendor(x, y) {
-  const bob = Math.round(Math.sin(tNow * 1.5) * 1.5);
-  // body
-  rr(x + 2, y + 16 + bob, 34, 26, 8, '#8a98a8');
-  rr(x + 4, y + 18 + bob, 30, 22, 8, '#9aaab8');
-  // park vest
-  rect(x + 8, y + 24 + bob, 22, 16, '#5a7a3a');
-  rect(x + 17, y + 24 + bob, 4, 16, '#9aaab8');
-  rect(x + 9, y + 26 + bob, 4, 3, C.gold); // badge on vest
-  // head
-  rr(x + 6, y + bob, 26, 22, 8, '#9aaab8');
-  rect(x + 8, y + 2 + bob, 22, 3, '#aabac8');
-  // snout
-  rr(x + 12, y + 12 + bob, 16, 10, 4, '#aabac8');
-  rect(x + 15, y + 16 + bob, 2, 2, '#6a7a88'); rect(x + 21, y + 16 + bob, 2, 2, '#6a7a88');
-  // whisker dots
-  rect(x + 13, y + 19 + bob, 1, 1, '#6a7a88'); rect(x + 24, y + 19 + bob, 1, 1, '#6a7a88');
-  // gentle tracking eyes
-  critterEye(x + 9, y + 5 + bob, 6, 7, '#9aaab8', '#f8f4dc', '#2a2018', 7.0);
-  critterEye(x + 22, y + 5 + bob, 6, 7, '#9aaab8', '#f8f4dc', '#2a2018', 7.4);
-  // waving flipper
-  const wave = Math.sin(tNow * 3) > 0.3 ? -3 : 0;
-  rr(x - 4, y + 22 + wave + bob, 10, 6, 3, '#8a98a8');
+  const bob = Math.round(Math.sin(tNow * 1.3) * 1.5);
+  const b = y + bob;
+  // great big egg of a body
+  fillCircle(x + 23, b + 31, 22, '#6f7e8e');
+  fillCircle(x + 23, b + 30, 21, '#9aaab8');
+  fillCircle(x + 20, b + 27, 17, '#a8b8c4');
+  // pale belly
+  fillCircle(x + 23, b + 36, 13, '#c4d0d8');
+  fillCircle(x + 23, b + 34, 11, '#d0dce2');
+  // park vest, straining at the sides
+  rect(x + 4, b + 18, 11, 26, '#4c6a30');
+  rect(x + 31, b + 18, 11, 26, '#4c6a30');
+  rect(x + 5, b + 19, 4, 24, '#5f8440');
+  rect(x + 37, b + 19, 4, 24, '#5f8440');
+  rect(x + 6, b + 23, 5, 4, C.gold); // ranger badge
+  rect(x + 7, b + 24, 2, 2, '#fff6c8');
+  // head sits right on the body, no neck to speak of
+  fillCircle(x + 23, b + 8, 14, '#6f7e8e');
+  fillCircle(x + 23, b + 7, 13, '#9aaab8');
+  fillCircle(x + 21, b + 5, 10, '#a8b8c4');
+  // droopy whiskered snout
+  rr(x + 13, b + 8, 20, 12, 5, '#aabac8');
+  rr(x + 15, b + 14, 16, 6, 3, '#b8c8d4');
+  rect(x + 18, b + 11, 2, 3, '#6a7a88'); rect(x + 26, b + 11, 2, 3, '#6a7a88'); // nostrils
+  rect(x + 12, b + 16, 3, 1, '#7a8a98'); rect(x + 31, b + 16, 3, 1, '#7a8a98'); // whiskers
+  rect(x + 13, b + 18, 2, 1, '#7a8a98'); rect(x + 31, b + 18, 2, 1, '#7a8a98');
+  rect(x + 20, b + 19, 6, 1, '#8a98a8'); // gentle smile
+  // small kind tracking eyes
+  critterEye(x + 12, b + 1, 6, 6, '#9aaab8', '#f8f4dc', '#2a2018', 7.0);
+  critterEye(x + 28, b + 1, 6, 6, '#9aaab8', '#f8f4dc', '#2a2018', 7.4);
+  // chunky waving flipper
+  const wave = Math.sin(tNow * 3) > 0.3 ? -5 : 0;
+  rr(x - 8, b + 22 + wave, 15, 9, 4, '#6f7e8e');
+  rr(x - 7, b + 23 + wave, 13, 7, 4, '#9aaab8');
+  // other flipper resting on the counter
+  rr(x + 38, b + 38, 13, 8, 4, '#8a98a8');
 }
 
 // a dentist tool as a REAL tool: hanging on a leather shop tag
@@ -3505,6 +3519,28 @@ function drawRangerSelect() {
   button(W / 2 - 40, 248, 80, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'rangerback' });
 }
 
+// tiny pictogram chips for node modifiers (icon, not an ugly bar)
+const MOD_ICONS = {
+  foggy(x, y) { rr(x, y + 3, 7, 3, 1, '#dfe8ec'); rr(x + 2, y + 1, 4, 3, 1, '#dfe8ec'); },
+  swarming(x, y) { rect(x, y + 4, 7, 2, '#fff'); rect(x + 1, y + 1, 1, 3, '#fff'); rect(x + 3, y, 1, 4, '#fff'); rect(x + 5, y + 1, 1, 3, '#fff'); },
+  brittle(x, y) { rr(x + 1, y, 5, 6, 1, '#fff'); rect(x + 3, y + 1, 1, 2, '#95251f'); rect(x + 2, y + 3, 1, 1, '#95251f'); rect(x + 4, y + 4, 1, 2, '#95251f'); },
+  tired(x, y) { rect(x + 1, y, 5, 1, '#fff'); rect(x + 4, y + 1, 1, 1, '#fff'); rect(x + 3, y + 2, 1, 1, '#fff'); rect(x + 2, y + 3, 1, 1, '#fff'); rect(x + 1, y + 4, 5, 1, '#fff'); },
+  toll(x, y) { fillCircle(x + 3, y + 3, 3, '#ffe089'); rect(x + 3, y + 1, 1, 5, '#a4741a'); },
+  blessed(x, y) { rr(x, y + 2, 7, 3, 1, '#fff'); rect(x + 3, y + 3, 1, 1, '#1c5c9e'); rect(x + 3, y, 1, 1, '#fff'); rect(x + 3, y + 6, 1, 1, '#fff'); },
+  richwater(x, y) { rect(x + 1, y + 4, 5, 2, '#ffe089'); rect(x + 1, y + 1, 5, 2, '#ffe089'); rect(x + 2, y + 2, 1, 1, '#a4741a'); rect(x + 2, y + 5, 1, 1, '#a4741a'); },
+  gilded(x, y) { rr(x + 1, y, 5, 4, 1, '#ffe089'); rect(x + 1, y + 4, 2, 2, '#ffe089'); rect(x + 4, y + 4, 2, 2, '#ffe089'); },
+  tailwind(x, y) { rect(x, y + 2, 5, 2, '#fff'); rect(x + 4, y + 1, 1, 4, '#fff'); rect(x + 5, y + 2, 1, 2, '#fff'); rect(x + 3, y, 1, 1, '#fff'); rect(x + 3, y + 5, 1, 1, '#fff'); },
+  charmed(x, y) { rect(x + 3, y, 1, 6, '#fff'); rect(x + 1, y + 2, 5, 1, '#fff'); rect(x + 2, y + 1, 1, 1, '#fff'); rect(x + 4, y + 1, 1, 1, '#fff'); rect(x + 2, y + 4, 1, 1, '#fff'); rect(x + 4, y + 4, 1, 1, '#fff'); },
+};
+function drawModChip(x, y, m) {
+  const md = NODE_MODS[m];
+  x |= 0; y |= 0;
+  rr(x, y + 1, 11, 11, 2, '#00000088');
+  rr(x, y, 11, 11, 2, md.bad ? '#95251f' : '#2c7d3a');
+  rr(x + 1, y + 1, 9, 9, 2, md.bad ? '#33161a' : '#1e3220');
+  (MOD_ICONS[m] || MOD_ICONS.charmed)(x + 2, y + 2);
+}
+
 // ------------------------------------------------------------ swamp map ---
 function nodePos(stage, k, count) {
   const xs = [190, 292, 394];
@@ -3619,8 +3655,8 @@ function drawMap() {
       drawTextC(node.type === 'boss' ? 'BOSS' : node.type.toUpperCase(), p.x, p.y + 8 - pulse, visited ? C.green : reachable ? d.col : '#41565e', 1);
       (node.mods || []).forEach((m, mi) => {
         const md = NODE_MODS[m];
-        rect(p.x - 6 + mi * 8, p.y + 15 - pulse, 5, 3, md.bad ? '#ff5348' : '#63d66a');
-        rect(p.x - 5 + mi * 8, p.y + 16 - pulse, 3, 1, md.col);
+        const n2 = node.mods.length;
+        drawModChip(p.x - (n2 * 13) / 2 + mi * 13 + 1, p.y + 16 - pulse, m);
       });
       if (visited) drawTextC('*', p.x + 24, p.y - 10, C.gold, 1);
       // island dressing: palm on boss, flowers on events, sparkle on gold
