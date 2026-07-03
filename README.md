@@ -32,7 +32,10 @@ Every ante is a journey across a map. Pick your path at each fork:
   with the hermit dentist, chase the firefly swarm, rob a sleeping gator, or
   trade teeth with the swamp witch. Five events, all with consequences.
 
-…and the **BOSS GATOR** always waits at the end of the trail.
+Fight nodes carry **modifiers** so every fork is a different gamble: FOGGY,
+SWARMING, BRITTLE, TOLL GATE and TIRED ARM make routes nastier; BLESSED,
+RICH WATERS, GILDED, TAILWIND and CHARMED sweeten them. The deeper the ante,
+the heavier the mods… and the **BOSS GATOR** always waits at the end.
 
 ### The swamp is alive
 
@@ -53,28 +56,32 @@ red eyes.
 
 ### Cards, charms, tools and the barrel
 
-- **40+ CHARMS** across four rarities — Common, Uncommon, Rare and **LEGENDARY**
-  (Jackpot Jaw pays ×5 on exactly-7-press banks; Tail Eater carries your whole
-  MULT chain into the next mouth after a Clean Sweep; Dragon Hoard uncaps interest)
+- **45+ BADGES** (charms wear circular park-badge art now) across six rarities —
+  Common, Uncommon, Rare, **EPIC**, **LEGENDARY** and **MYTHICAL** ($20+:
+  Leviathan doubles every bank; Foreverglades pays bites, x-rays and cash
+  every round; Million Fang counts your whole deck)
 - **15 one-shot CARDS** plus **10 DENTIST TOOLS** — the tarot deck of Bite Down.
   Tools open **the Dentist Bench**: a workbench with a model mouth showing your
   deck's teeth. Pick targets and get to work — polish, gold fillings, ruby
   inlays, infections (+8 MULT, value 0), veneers, cloning wire, fluoride baths,
   diamond caps, or yank teeth for cash
-- **PACKS** in the shop: Tooth Packs (pick 1 of 3) and Tool Packs (pick 1 of 2)
+- **SNACK-STAND PACKS** at the Everglades Trading Post: Gator Gummies,
+  Chomp-Pops, Swamp Sundae (five teeth, pick TWO), Tackle Box and the Ranger
+  Toolbelt — bigger packs pull rarer teeth, up to Obsidian, Pearl, Crystal,
+  Honey, Fossil, Wraith and the mythical **TITAN TOOTH** (+20)
 - **Click any card** for a full-detail view with flavor text
 - **Drag cards onto the gator** to use them; drag charms into the **sell barrel**
 
 ### Rangers
 
-Pick your ranger before every run — five animal rangers with big, blinking,
-cursor-tracking eyes:
+Five animal rangers with big, blinking, cursor-tracking eyes. Only the Scout
+starts unlocked — earn the rest:
 
-- **BAYOU SCOUT** (the heron) — +1 tooth in every mouth, one free reveal per mouth
-- **SWAMP MEDIC** (the opossum) — +1 bite every round, starts holding a Novocaine
-- **BOG TRADER** (the raccoon) — starts with $12 and an interest cap of $8
-- **BULLFROG BRAWLER** (the bullfrog) — Clean Sweeps pay ×1.75 instead of ×1.25
-- **SNAIL SAGE** (the snail) — every bite starts at +3 MULT, but −1 bite per round
+- **BAYOU SCOUT** (the heron, free) — +1 tooth per mouth, one free reveal per mouth
+- **SWAMP MEDIC** (the opossum, beat a boss) — +1 bite, starts holding a Novocaine
+- **BOG TRADER** (the raccoon, hold $50) — starts with $12, interest cap $8
+- **BULLFROG BRAWLER** (the bullfrog, 3 sweeps in a run) — Clean Sweeps pay ×1.75
+- **SNAIL SAGE** (the snail, WIN a run) — every bite starts at +3 MULT, −1 bite
 
 ### The Swamp Pass and the Quest Board
 
