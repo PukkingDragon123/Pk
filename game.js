@@ -1171,7 +1171,7 @@ const PACK_DEFS = [
 ];
 
 // ------------------------- ranger exchange: SPEND RP to unlock content ----
-const EXCHANGE_COST = { 1: 25, 2: 40, 3: 60, 4: 80, 5: 100, 6: 120, 7: 150, 8: 180, 9: 210, 10: 240, 11: 280, 12: 320, 13: 360, 14: 420, 15: 480 };
+const EXCHANGE_COST = { 1: 15, 2: 25, 3: 35, 4: 50, 5: 60, 6: 75, 7: 90, 8: 110, 9: 130, 10: 150, 11: 170, 12: 195, 13: 220, 14: 250, 15: 290 };
 function exchangeItems() {
   return [...CHARMS, ...CONS, ...TOOLS].filter(d => d.tier).sort((a, b) => a.tier - b.tier);
 }
@@ -1197,16 +1197,16 @@ const NPC_ORDER = ['granny', 'crow', 'doc'];
 // chains: [questId, goal override, rp reward]
 const QUEST_CHAINS = {
   granny: [
-    ['press30', 30, 15], ['bank8', 8, 15], ['sweep1', 1, 20], ['special5', 8, 20],
-    ['press30', 120, 30], ['bank8', 30, 30], ['sweep1', 5, 40], ['press30', 400, 60],
+    ['press30', 45, 15], ['bank8', 12, 15], ['sweep1', 2, 20], ['special5', 12, 20],
+    ['press30', 180, 30], ['bank8', 45, 30], ['sweep1', 8, 40], ['press30', 600, 60],
   ],
   crow: [
-    ['ante3q', 1, 15], ['event1', 2, 15], ['boss1q', 1, 20], ['gold1', 1, 20],
-    ['money25', 1, 25], ['event1', 8, 30], ['boss1q', 5, 40], ['run1', 6, 60],
+    ['ante3q', 1, 15], ['event1', 3, 15], ['boss1q', 2, 20], ['gold1', 2, 20],
+    ['money25', 1, 25], ['event1', 12, 30], ['boss1q', 8, 40], ['run1', 9, 60],
   ],
   doc: [
-    ['xray8', 8, 15], ['buy4', 4, 15], ['defuse2', 2, 20], ['tool1', 1, 20],
-    ['pack1', 3, 25], ['xray8', 40, 30], ['defuse2', 10, 40], ['tool1', 8, 60],
+    ['xray8', 12, 15], ['buy4', 6, 15], ['defuse2', 3, 20], ['tool1', 2, 20],
+    ['pack1', 5, 25], ['xray8', 60, 30], ['defuse2', 15, 40], ['tool1', 12, 60],
   ],
 };
 // the shopkeeper
@@ -3375,21 +3375,7 @@ function drawMenu() {
   drawCroc(chomp);
   drawSceneFront(th);
 
-  // park entrance arch
-  rect(126, 6, 8, 70, '#4a3320'); rect(346, 6, 8, 70, '#4a3320');
-  rect(128, 6, 3, 70, '#5f4228'); rect(348, 6, 3, 70, '#5f4228');
-  rr(118, 2, 244, 14, 3, '#5f4228');
-  rect(120, 4, 240, 2, '#7a5230');
-  drawTextC('EVERGLADES DENTAL DISTRICT', W / 2, 6, '#ffe6b0', 1);
-  // pennant string
-  for (let k = 0; k < 12; k++) {
-    const px2 = 132 + k * 18, sag = Math.sin(k / 11 * Math.PI) * 5;
-    const cols = ['#d94f30', '#ffc843', '#63d66a', '#7fd4e8', '#c07dff'];
-    rect(px2, 16 + sag, 8, 2, '#c8b060');
-    rect(px2 + 1, 18 + sag, 6, 4, cols[k % 5]);
-    rect(px2 + 2, 22 + sag, 4, 2, cols[k % 5]);
-  }
-  const ty = 30 + Math.sin(tNow * 1.8) * 2;
+  const ty = 20 + Math.sin(tNow * 1.8) * 2;
   drawTextCSh('BITE', W / 2 - 62, ty, C.gold, 5, '#00000088');
   drawTextCSh('DOWN', W / 2 + 66, ty, '#63d66a', 5, '#00000088');
   drawTextCSh('A PUSH-YOUR-LUCK DENTAL ROGUELIKE', W / 2, ty + 32, C.white, 1);
@@ -4285,11 +4271,11 @@ function drawCreditsOverlay() {
   const L = [
     ['A PUSH-YOUR-LUCK DENTAL ROGUELIKE', C.white],
     ['', 0],
+    ['MADE WITH LOVE BY', C.dim],
+    ['PUKKING DRAGON', C.gold],
+    ['', 0],
     ['DESIGN, CODE, ART + SOUND', C.dim],
     ['CLAUDE', C.white],
-    ['', 0],
-    ['CREATIVE DIRECTION', C.dim],
-    ['PUKKINGDRAGON123', C.white],
     ['', 0],
     ['MADE WITH CLAUDE CODE', C.purple],
     ['', 0],
