@@ -1,0 +1,150 @@
+/* =====================================================================
+   BITE DOWN — Everglades itch.io page theme
+   Paste into: Edit game  ->  Theme  ->  click the  </>  (CSS) toggle.
+   Tweak the colors in :root to taste. Font @import is optional; if itch
+   strips it, the monospace fallback still looks chunky.
+   ===================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap');
+
+:root {
+  --gold:   #ffc843;
+  --gold-d: #a4741a;
+  --green:  #63d66a;
+  --green-d:#2c7d3a;
+  --swamp:  #12220f;
+  --ink:    #0b1416;
+  --panel:  rgba(14, 22, 20, 0.82);
+  --edge:   rgba(255, 200, 67, 0.35);
+  --pixel:  'Silkscreen', 'VT323', ui-monospace, 'Courier New', monospace;
+}
+
+/* ---- page background: golden-hour Everglades ---- */
+html, body { background: #14082a !important; }
+body {
+  background:
+    radial-gradient(1100px 520px at 80% 6%,  rgba(255,190,90,.30), transparent 58%),
+    radial-gradient(900px 680px  at 18% 104%, rgba(70,150,95,.22), transparent 55%),
+    linear-gradient(180deg,#1a1140 0%,#3a1f57 30%,#7a3a63 54%,#c76a4c 76%,#241a34 100%)
+    fixed !important;
+  color: #f0ead6;
+}
+
+/* drifting fireflies + soft vignette over the whole page */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(2px 2px at 15% 30%, #eaffa0aa, transparent 60%),
+    radial-gradient(2px 2px at 72% 22%, #ffe08aaa, transparent 60%),
+    radial-gradient(2px 2px at 44% 68%, #d8ff90aa, transparent 60%),
+    radial-gradient(2px 2px at 88% 74%, #ffd47aaa, transparent 60%),
+    radial-gradient(2px 2px at 30% 88%, #eaffa0aa, transparent 60%),
+    radial-gradient(1200px 800px at 50% 40%, transparent 55%, rgba(6,10,14,.55) 100%);
+  background-repeat: no-repeat;
+  animation: fireflies 9s ease-in-out infinite alternate;
+}
+@keyframes fireflies {
+  from { opacity: .55; transform: translateY(0); }
+  to   { opacity: 1;  transform: translateY(-8px); }
+}
+
+/* keep real content above the firefly layer */
+#wrapper, .page_widget, .columns { position: relative; z-index: 1; }
+
+/* ---- content columns as dark swamp cards ---- */
+.page_widget, .inner_column, .column_layout {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.left_col, .right_col, .formatted_description, .game_info_panel_widget {
+  background: var(--panel) !important;
+  border: 2px solid var(--edge) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 8px 26px rgba(0,0,0,.45), inset 0 0 0 1px rgba(0,0,0,.35) !important;
+  backdrop-filter: blur(2px);
+}
+.formatted_description, .user_formatted { padding: 18px 22px !important; color: #e7ecdd !important; }
+
+/* ---- titles + headings: chunky pixel gold ---- */
+.game_title, .object_title, h1, h2, h3,
+.formatted_description h1, .formatted_description h2, .formatted_description h3 {
+  font-family: var(--pixel) !important;
+  color: var(--gold) !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 0 #000, 0 0 14px rgba(255,200,67,.35);
+}
+.game_title a, .object_title a { color: var(--gold) !important; }
+
+/* ---- links ---- */
+.formatted_description a, a { color: var(--green) !important; }
+.formatted_description a:hover, a:hover { color: var(--gold) !important; text-shadow: 0 0 8px rgba(255,200,67,.5); }
+
+/* ---- the game embed: glowing framed swamp window ---- */
+.game_frame, .iframe_placeholder, .html_embed_widget {
+  border: 3px solid var(--gold) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 0 0 2px #0b1416, 0 0 34px rgba(255,200,67,.35), 0 14px 40px rgba(0,0,0,.5) !important;
+  animation: embedGlow 3.2s ease-in-out infinite alternate;
+}
+@keyframes embedGlow {
+  from { box-shadow: 0 0 0 2px #0b1416, 0 0 20px rgba(255,200,67,.25), 0 14px 40px rgba(0,0,0,.5); }
+  to   { box-shadow: 0 0 0 2px #0b1416, 0 0 40px rgba(99,214,106,.45), 0 14px 40px rgba(0,0,0,.5); }
+}
+.game_frame iframe, canvas { image-rendering: pixelated; }
+
+/* ---- buttons: gooey gold/green ---- */
+.buy_btn, .download_btn, .buy_row .button, a.button, .button {
+  font-family: var(--pixel) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  color: #10240f !important;
+  background: linear-gradient(180deg, var(--green) 0%, var(--green-d) 100%) !important;
+  border: 2px solid #123a1a !important;
+  border-radius: 9px !important;
+  box-shadow: 0 4px 0 #123a1a, 0 6px 16px rgba(0,0,0,.4) !important;
+  text-shadow: 0 1px 0 rgba(255,255,255,.3) !important;
+  transition: transform .08s ease, box-shadow .12s ease, filter .12s ease !important;
+}
+.buy_btn:hover, .download_btn:hover, .buy_row .button:hover, a.button:hover, .button:hover {
+  filter: brightness(1.12) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 0 #123a1a, 0 0 22px rgba(99,214,106,.55) !important;
+}
+.buy_btn:active, .download_btn:active, .button:active {
+  transform: translateY(2px) !important;
+  box-shadow: 0 2px 0 #123a1a !important;
+}
+/* primary purchase / price button in gold */
+.buy_row .buy_btn, .price_value {
+  background: linear-gradient(180deg, var(--gold) 0%, var(--gold-d) 100%) !important;
+  border-color: #6a4a10 !important; box-shadow: 0 4px 0 #6a4a10, 0 6px 16px rgba(0,0,0,.4) !important;
+}
+
+/* ---- screenshots ---- */
+.screenshot_list a, .screenshot_list img {
+  border-radius: 8px !important;
+  border: 2px solid var(--edge) !important;
+  image-rendering: pixelated;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.screenshot_list a:hover img, .screenshot_list img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 22px rgba(255,200,67,.5);
+}
+
+/* ---- info panel / stats table ---- */
+.game_info_panel_widget td { color: #dfe6d4 !important; }
+.game_info_panel_widget td:first-child { color: var(--gold) !important; }
+.game_info_panel_widget a { color: var(--green) !important; }
+
+/* ---- misc polish ---- */
+.tag_list a, .game_genre { color: var(--green) !important; }
+::selection { background: var(--gold); color: #10240f; }
+
+@media (max-width: 700px) {
+  .formatted_description, .user_formatted { padding: 12px 14px !important; }
+  .game_frame { border-width: 2px !important; }
+}
