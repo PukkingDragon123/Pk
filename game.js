@@ -3032,7 +3032,6 @@ function drawShop() {
   rr(424, 148, 52, 34, 3, '#4a3320');
   rr(426, 150, 48, 8, 3, '#5f4228');
   drawVendor(432, 108);
-  drawTextC('MERLE', 450, 184, '#9aaab8', 1);
   const vline = VENDOR.lines[Math.floor(tNow / 6) % VENDOR.lines.length];
   if ((tNow % 6) < 4.2) {
     const bw = Math.min(150, textW(vline, 1) + 12);
