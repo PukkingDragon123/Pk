@@ -1240,7 +1240,7 @@ const QUESTS = [
   { id: 'pack1', name: 'OPEN A PACK', goal: 1 },
 ];
 
-let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null };
+let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false };
 try { const m = JSON.parse(localStorage.getItem('bd_meta') || 'null'); if (m) meta = Object.assign(meta, m); } catch (e) { }
 if (!meta.unlocked) meta.unlocked = {};
 if (!meta.set) meta.set = { mus: 2, sfx: 2, shake: 1, crt: 1 };
@@ -4265,26 +4265,34 @@ function drawSettingsOverlay() {
 }
 function drawCreditsOverlay() {
   overlayDim(0.75);
-  panel(W / 2 - 110, 40, 220, 186, { face: '#16222af5', edge: C.gold });
+  panel(W / 2 - 110, 40, 220, 200, { face: '#16222af5', edge: C.gold });
   drawTextCSh('BITE DOWN', W / 2, 50, C.gold, 2);
   const L = [
     ['A PUSH-YOUR-LUCK DENTAL ROGUELIKE', C.white],
     ['', 0],
-    ['MADE WITH LOVE BY', C.dim],
+    ['MADE BY', C.dim],
     ['PUKKING DRAGON', C.gold],
     ['', 0],
     ['DESIGN, CODE, ART + SOUND', C.dim],
     ['CLAUDE', C.white],
     ['', 0],
-    ['MADE WITH CLAUDE CODE', C.purple],
-    ['', 0],
     ['SPECIAL THANKS:', C.dim],
-    ['THE EVERGLADES, MERLE,', C.white],
-    ['AND EVERY PRESSED TOOTH', C.white],
+    ['THE EVERGLADES', C.white],
   ];
   let y = 70;
   L.forEach(([t, c]) => { if (t) drawTextC(t, W / 2, y, c, 1); y += 10; });
-  button(W / 2 - 40, 202, 80, 18, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'credback' });
+  const itchBtn = () => {
+    if (!meta.itchFollow) {
+      meta.itchFollow = true;
+      meta.rp = (meta.rp || 0) + 200;
+      saveMeta();
+      sfx.coin();
+      addToast('+200 RP', '#63d66a', 60);
+    }
+    window.open('https://pukking-dragon.itch.io/bite-down', '_blank');
+  };
+  button(W / 2 - 60, 184, 120, 14, 'FOLLOW ON ITCH +200RP', '#8a4fd0', '#5a2a8a', itchBtn, { id: 'itchbtn' });
+  button(W / 2 - 40, 204, 80, 18, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'credback' });
 }
 
 // pixel iris wipe between screens
