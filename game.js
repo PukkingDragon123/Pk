@@ -4265,22 +4265,17 @@ function drawSettingsOverlay() {
 }
 function drawCreditsOverlay() {
   overlayDim(0.75);
-  panel(W / 2 - 110, 40, 220, 200, { face: '#16222af5', edge: C.gold });
-  drawTextCSh('BITE DOWN', W / 2, 50, C.gold, 2);
+  panel(W / 2 - 110, 52, 220, 128, { face: '#16222af5', edge: C.gold });
+  drawTextCSh('BITE DOWN', W / 2, 64, C.gold, 2);
   const L = [
     ['A PUSH-YOUR-LUCK DENTAL ROGUELIKE', C.white],
+    ['VERSION 1.0', C.dim],
     ['', 0],
     ['MADE BY', C.dim],
     ['PUKKING DRAGON', C.gold],
-    ['', 0],
-    ['DESIGN, CODE, ART + SOUND', C.dim],
-    ['CLAUDE', C.white],
-    ['', 0],
-    ['SPECIAL THANKS:', C.dim],
-    ['THE EVERGLADES', C.white],
   ];
-  let y = 70;
-  L.forEach(([t, c]) => { if (t) drawTextC(t, W / 2, y, c, 1); y += 10; });
+  let y = 86;
+  L.forEach(([t, c]) => { if (t) drawTextC(t, W / 2, y, c, 1); y += 11; });
   const itchBtn = () => {
     if (!meta.itchFollow) {
       meta.itchFollow = true;
@@ -4291,8 +4286,8 @@ function drawCreditsOverlay() {
     }
     window.open('https://pukking-dragon.itch.io/bite-down', '_blank');
   };
-  button(W / 2 - 60, 184, 120, 14, 'FOLLOW ON ITCH +200RP', '#8a4fd0', '#5a2a8a', itchBtn, { id: 'itchbtn' });
-  button(W / 2 - 40, 204, 80, 18, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'credback' });
+  button(W / 2 - 60, 146, 120, 14, 'FOLLOW ON ITCH +200RP', '#8a4fd0', '#5a2a8a', itchBtn, { id: 'itchbtn' });
+  button(W / 2 - 40, 164, 80, 14, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'credback' });
 }
 
 // pixel iris wipe between screens
