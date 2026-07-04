@@ -14,13 +14,29 @@ const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 canvas.style.cursor = 'none'; // we draw our own pixel hand
 
+let LAYOUT = { s: 1, rot: false };
 function fit() {
-  const raw = Math.min(innerWidth / W, innerHeight / H);
-  const s = raw >= 1 ? Math.floor(raw) : raw; // integer scale keeps the pixel grid even
-  canvas.style.width = Math.floor(W * s) + 'px';
-  canvas.style.height = Math.floor(H * s) + 'px';
+  // visualViewport gives the true visible area on mobile (excludes the browser
+  // toolbar), so the canvas never spills under the chrome and looks "zoomed".
+  const vv = window.visualViewport;
+  const vw = Math.max(1, Math.round(vv ? vv.width : innerWidth));
+  const vh = Math.max(1, Math.round(vv ? vv.height : innerHeight));
+  // portrait: rotate the landscape game 90deg so it fills the whole screen
+  const rot = vh > vw;
+  const availW = rot ? vh : vw, availH = rot ? vw : vh;
+  const s = Math.min(availW / W, availH / H); // fractional fill — no wasted bars
+  LAYOUT = { s, rot };
+  canvas.style.width = Math.round(W * s) + 'px';
+  canvas.style.height = Math.round(H * s) + 'px';
+  canvas.style.transform = 'translate(-50%,-50%)' + (rot ? ' rotate(90deg)' : '');
 }
-addEventListener('resize', fit); fit();
+function scheduleFit() { fit(); setTimeout(fit, 250); } // iOS lays out late after rotate
+addEventListener('resize', fit);
+addEventListener('orientationchange', scheduleFit);
+if (window.visualViewport) { visualViewport.addEventListener('resize', fit); visualViewport.addEventListener('scroll', fit); }
+// stop iOS pinch / double-tap zoom from fighting the fullscreen canvas
+['gesturestart', 'gesturechange', 'gestureend'].forEach(g => addEventListener(g, e => e.preventDefault(), { passive: false }));
+fit();
 
 // ------------------------------------------------------------ helpers -----
 const rnd = Math.random;
@@ -2233,6 +2249,12 @@ function pointFromEvent(e) {
   const r = canvas.getBoundingClientRect();
   const cx = (e.touches ? e.touches[0].clientX : e.clientX);
   const cy = (e.touches ? e.touches[0].clientY : e.clientY);
+  if (LAYOUT.rot) {
+    // canvas is rotated 90deg (clockwise) about its centre — undo the rotation
+    // so screen touches map back to game pixels. Centre is rotation-invariant.
+    const mxc = r.left + r.width / 2, myc = r.top + r.height / 2;
+    return { x: W / 2 + (cy - myc) / LAYOUT.s, y: H / 2 - (cx - mxc) / LAYOUT.s };
+  }
   return { x: (cx - r.left) / r.width * W, y: (cy - r.top) / r.height * H };
 }
 function onDown() {
