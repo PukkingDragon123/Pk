@@ -3535,9 +3535,8 @@ function drawIntro(dt) {
     rr(cx2 - 23, 218 + bob, 8, 8, 2, '#2a2018');
     rect(cx2 - 21, 220 + bob, 4, 4, '#ffd54a');
     ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 5) * 0.03; fillCircle(cx2 - 19, 222 + bob, 22, '#ffb848'); ctx.restore();
-    letterboxCaption(
-      typed('DEEP IN THE EVERGLADES...', t - 0.3) +
-      (t > 2.0 ? '\n' + typed('A GATOR HOARDS A FORTUNE IN GOLDEN TEETH.', t - 2.0) : ''));
+    cut.cap = typed('DEEP IN THE EVERGLADES...', t - 0.3) +
+      (t > 2.0 ? '\n' + typed('A GATOR HOARDS A FORTUNE IN GOLDEN TEETH.', t - 2.0) : '');
   } else if (cut.shot === 1) {
     // --- shot 2: the monster surfaces, lantern vs eyes ---
     for (let i = 0; i < 5; i++) rect(0, i * 42, W, 42, ['#040810', '#050b12', '#071016', '#08141a', '#0a181e'][i]);
@@ -3579,7 +3578,7 @@ function drawIntro(dt) {
     rr(81, 192 + rb, 8, 8, 2, '#2a2018');
     rect(83, 194 + rb, 4, 4, '#ffd54a');
     ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(tNow * 6) * 0.04; fillCircle(85, 196 + rb, 30, '#ffb848'); ctx.restore();
-    letterboxCaption(typed('TONIGHT, RANGER... YOU BITE BACK.', t - 0.5, 20));
+    cut.cap = typed('TONIGHT, RANGER... YOU BITE BACK.', t - 0.5, 20);
   } else {
     // --- shot 3: the floor card ---
     rect(0, 0, W, H, '#04070a');
@@ -3601,9 +3600,10 @@ function drawIntro(dt) {
     ctx.restore();
   }
 
-  // letterbox bars + skip controls on every shot
+  // letterbox bars + subtitle + skip controls on every shot
   rect(0, 0, W, 26, '#000'); rect(0, H - 26, W, 26, '#000');
-  hit(0, 26, W, H - 52, { id: 'cutadv', cb: () => { if (cut.shot >= 2) endIntro(); else { cut.shot++; cut.t = 0; sfx.whoosh(); } }, cursor: true });
+  if (cut.shot < 2 && cut.cap) letterboxCaption(cut.cap);
+  hit(0, 26, W, H - 52, { id: 'cutadv', cb: () => { if (cut.shot >= 2) endIntro(); else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); } }, cursor: true });
   button(W - 62, 6, 56, 14, 'SKIP >', '#3a5560', '#243a44', endIntro, { id: 'cutskip' });
   if ((tNow % 1.4) < 0.9) drawText('TAP TO CONTINUE', 8, 10, '#54707a', 1);
 }
