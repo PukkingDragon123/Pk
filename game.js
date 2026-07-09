@@ -30,6 +30,7 @@ function fit() {
   canvas.style.height = Math.round(H * s) + 'px';
   canvas.style.transform = 'translate(-50%,-50%)' + (rot ? ' rotate(90deg)' : '');
 }
+const IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 function scheduleFit() { fit(); setTimeout(fit, 250); } // iOS lays out late after rotate
 addEventListener('resize', fit);
 addEventListener('orientationchange', scheduleFit);
@@ -177,6 +178,7 @@ function trackNow() {
   if (G.paused) return null;
   switch (G.state) {
     case 'menu': case 'ranger': case 'how': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
+    case 'intro': return TRACKS.boss;
     case 'map': case 'event': return TRACKS.map;
     case 'shop': case 'bench': return TRACKS.shop;
     default: return (G.round === 2 ? TRACKS.boss : TRACKS.fight);
@@ -348,6 +350,17 @@ function drawSceneBack(th) {
   ctx.globalAlpha = 0.22;
   fillCircle(mx0 - 6, my0 - 4, 4, '#000'); fillCircle(mx0 + 5, my0 + 6, 3, '#000'); fillCircle(mx0 + 8, my0 - 7, 2, '#000');
   ctx.globalAlpha = 1;
+  // soft moonbeam shafts falling toward the water
+  ctx.save();
+  [[-30, 16, 0.05], [-6, 20, 0.06], [16, 14, 0.04]].forEach(([ox, w2, a]) => {
+    ctx.globalAlpha = a;
+    for (let d = 0; d < 11; d++) {
+      const yy = my0 + 24 + d * 12;
+      if (yy > WATERY - 12) break;
+      rect(mx0 + ox - d * 4, yy, w2, 12, th.moon);
+    }
+  });
+  ctx.restore();
   // drifting clouds
   for (let k = 0; k < 3; k++) {
     const cw = 70 + k * 28;
@@ -423,6 +436,16 @@ function drawRipples(alphaMul) {
 }
 
 function drawSceneFront(th) {
+  // low swamp mist drifting just above the waterline
+  ctx.save();
+  for (let m = 0; m < 2; m++) {
+    ctx.globalAlpha = 0.05 + m * 0.025;
+    for (let k = 0; k < 5; k++) {
+      const xx = ((tNow * (6 + m * 4) + k * 110 + m * 55) % (W + 140)) - 70;
+      rr(xx, WATERY - 9 + m * 5 + Math.sin(tNow + k) * 1.5, 92, 6, 3, '#cfe8f0');
+    }
+  }
+  ctx.restore();
   // water strip in front of the gator (he sits IN the swamp)
   ctx.globalAlpha = 0.62;
   rect(0, 250, W, H - 250, th.waterFront);
@@ -509,6 +532,7 @@ const ICONS = {
   hourglass(x, y) { rect(x + 3, y + 1, 6, 2, '#c8b060'); rect(x + 3, y + 9, 6, 2, '#c8b060'); rect(x + 4, y + 3, 4, 2, '#bfe8ff'); rect(x + 5, y + 5, 2, 2, '#e8d090'); rect(x + 4, y + 7, 4, 2, '#e8d090'); },
   trap(x, y) { rr(x + 1, y + 4, 10, 5, 2, '#9fb2b8'); rect(x + 2, y + 2, 2, 3, '#e8e8e0'); rect(x + 5, y + 2, 2, 3, '#e8e8e0'); rect(x + 8, y + 2, 2, 3, '#e8e8e0'); rect(x + 5, y + 9, 2, 2, '#748a91'); },
   glove(x, y, a) { a = a || '#e8b088'; rr(x + 2, y + 3, 8, 6, 2, a); rect(x + 1, y + 5, 2, 3, a); rect(x + 3, y + 1, 2, 3, a); rect(x + 6, y + 1, 2, 3, a); rect(x + 2, y + 9, 8, 2, '#3a5560'); },
+  cookie(x, y) { fillCircle(x + 6, y + 6, 5, '#c9941a'); fillCircle(x + 6, y + 6, 4, '#e8b45a'); rect(x + 4, y + 4, 2, 2, '#5a3a1e'); rect(x + 8, y + 6, 2, 2, '#5a3a1e'); rect(x + 5, y + 8, 2, 2, '#5a3a1e'); rect(x + 4, y + 3, 3, 1, '#f8d88a'); },
   lantern(x, y) { rect(x + 4, y + 1, 4, 2, '#8a6a3a'); rr(x + 3, y + 3, 6, 7, 2, '#5a4a2a'); rect(x + 4, y + 4, 4, 5, '#ffe08988'); rect(x + 5, y + 5, 2, 3, '#fff6c8'); rect(x + 3, y + 10, 6, 1, '#8a6a3a'); },
   compass(x, y) { fillCircle(x + 6, y + 6, 5, '#c8b060'); fillCircle(x + 6, y + 6, 4, '#e8e8e0'); rect(x + 5, y + 3, 2, 4, C.red); rect(x + 5, y + 6, 2, 3, '#3a5a8a'); },
   canteen(x, y) { rect(x + 5, y + 1, 2, 2, '#8a949c'); rr(x + 2, y + 3, 8, 8, 3, '#3a6a4a'); rr(x + 3, y + 4, 6, 6, 2, '#4a8a5c'); rect(x + 4, y + 5, 2, 2, '#8fd0a0'); },
@@ -987,8 +1011,11 @@ const GLOVES = {
   bone: { name: 'BONE SAW', skin: '#e8e8e0', shade: '#a8a89a', cuff: '#1a1a22', ach: 'snap25', pat: 'bones', flav: 'A skeleton of your former grip.' },
   pearl: { name: 'PEARL WHITE', skin: '#f4f0f8', shade: '#c8c0d8', cuff: '#8878a8', ach: 'sweep3', pat: 'dot', flav: 'Immaculate technique.' },
   royal: { name: 'ROYAL GRIP', skin: '#8a4fd0', shade: '#5a2a90', cuff: '#ffd54a', ach: 'win', pat: 'gem', flav: 'The hand that rules the swamp.' },
+  neon: { name: 'NEON BOG', skin: '#4ef0c8', shade: '#1fa888', cuff: '#0a5a48', gacha: true, pat: 'shine', flav: 'Glows in the murk.' },
+  candy: { name: 'CANDY WRAP', skin: '#ff8ab0', shade: '#d05580', cuff: '#fff0f8', gacha: true, pat: 'dot', flav: 'Do not lick.' },
+  starry: { name: 'NIGHT SKY', skin: '#3a4a9a', shade: '#252f6a', cuff: '#ffd54a', gacha: true, pat: 'gem', flav: 'Wears the stars.' },
 };
-const GLOVE_ORDER = ['bare', 'rubber', 'leather', 'croc', 'gold', 'bone', 'pearl', 'royal'];
+const GLOVE_ORDER = ['bare', 'rubber', 'leather', 'croc', 'gold', 'bone', 'pearl', 'royal', 'neon', 'candy', 'starry'];
 const ACHS = [
   { id: 'firstpress', name: 'FIRST BITE', desc: 'Press your first tooth', glove: 'rubber' },
   { id: 'ante3', name: 'GETTING TOOTHY', desc: 'Reach Ante 3', glove: 'leather' },
@@ -1186,22 +1213,60 @@ const PACK_DEFS = [
   { id: 'toolbelt', name: 'RANGER TOOLBELT', cost: 11, kind: 'tool', show: 4, picks: 1, col: '#8a6510', flav: 'Every loop holds a promise.' },
 ];
 
-// ------------------------- ranger exchange: SPEND RP to unlock content ----
-const EXCHANGE_COST = { 1: 15, 2: 25, 3: 35, 4: 50, 5: 60, 6: 75, 7: 90, 8: 110, 9: 130, 10: 150, 11: 170, 12: 195, 13: 220, 14: 250, 15: 290 };
+// ---------------- scout gacha-pon: SPEND COOKIES on capsule prizes --------
+// meta.rp is the SCOUT COOKIE balance (kept under the old key so saves migrate)
+const GACHA_SPIN = 25;
+const PERKS = {
+  pocket: { name: 'DEEP POCKETS', desc: 'Start every run with +$3', ico: 'coin' },
+  coupon: { name: 'MERLE COUPON', desc: 'First shop reroll each visit is FREE', ico: 'star' },
+  bigpack: { name: 'FAT PACKS', desc: 'Snack packs show +1 option', ico: 'gem' },
+};
 function exchangeItems() {
   return [...CHARMS, ...CONS, ...TOOLS].filter(d => d.tier).sort((a, b) => a.tier - b.tier);
 }
 function cardUnlocked(def) { return !def.tier || !!(meta.unlocked && meta.unlocked[def.id]); }
-function buyUnlock(def) {
-  const cost = EXCHANGE_COST[def.tier] || 100;
-  if (meta.unlocked[def.id]) return;
-  if ((meta.rp || 0) < cost) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH RP', C.red, 1); return; }
-  meta.rp -= cost;
-  meta.unlocked[def.id] = true;
-  toasts.push({ name: def.name + ' UNLOCKED!', sub: 'NOW IN YOUR SHOP POOL', t: 0 });
+// every prize still locked, tagged with capsule rarity 0..3
+function gachaPool() {
+  const p = [];
+  exchangeItems().forEach(d => {
+    if (meta.unlocked[d.id]) return;
+    p.push({ kind: 'card', def: d, rar: d.tier <= 5 ? 0 : d.tier <= 10 ? 1 : 2 });
+  });
+  GLOVE_ORDER.forEach(k => { if (GLOVES[k].gacha && !meta.gachaOwn[k]) p.push({ kind: 'glove', k, rar: 2 }); });
+  Object.keys(PERKS).forEach(k => { if (!meta.perks[k]) p.push({ kind: 'perk', k, rar: 3 }); });
+  return p;
+}
+function gachaSpin() {
+  if (G.gacha && G.gacha.phase !== 'reveal') return;
+  if ((meta.rp || 0) < GACHA_SPIN) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH COOKIES', C.red, 1); return; }
+  meta.rp -= GACHA_SPIN;
+  const pool = gachaPool();
+  let prize;
+  if (!pool.length) {
+    prize = { kind: 'jar' }; // collection complete: cookie jar refund capsule
+  } else {
+    const wts = pool.map(z => [100, 45, 16, 6][z.rar]);
+    let r = rnd() * wts.reduce((a, b) => a + b, 0);
+    prize = pool[0];
+    for (let i = 0; i < pool.length; i++) { r -= wts[i]; if (r <= 0) { prize = pool[i]; break; } }
+  }
+  G.gacha = { phase: 'crank', t: 0, prize, capCol: choice(['#ff8ab0', '#7fd4e8', '#ffe089', '#a8e86a', '#c8a8f8']) };
+  saveMeta();
+  sfx.buy();
+}
+function gachaAward(prize) {
+  if (prize.kind === 'card') { meta.unlocked[prize.def.id] = true; toasts.push({ name: prize.def.name + ' UNLOCKED!', sub: 'NOW IN YOUR SHOP POOL', t: 0 }); }
+  else if (prize.kind === 'glove') { meta.gachaOwn[prize.k] = true; toasts.push({ name: GLOVES[prize.k].name + '!', sub: 'NEW GLOVE ON THE MENU RACK', t: 0 }); }
+  else if (prize.kind === 'perk') { meta.perks[prize.k] = true; toasts.push({ name: PERKS[prize.k].name + '!', sub: 'PERMANENT UPGRADE ACTIVE', t: 0 }); }
+  else { meta.rp = (meta.rp || 0) + 15; toasts.push({ name: 'COOKIE JAR!', sub: '+15 COOKIES BACK', t: 0 }); }
   saveMeta();
   sfx.ach();
 }
+const gachaPrizeInfo = z =>
+  z.kind === 'card' ? { name: z.def.name, desc: z.def.desc, rar: z.rar }
+    : z.kind === 'glove' ? { name: GLOVES[z.k].name, desc: 'GLOVE SKIN - ' + GLOVES[z.k].flav, rar: 2 }
+      : z.kind === 'perk' ? { name: PERKS[z.k].name, desc: PERKS[z.k].desc, rar: 3 }
+        : { name: 'COOKIE JAR', desc: 'You own everything! +15 cookies back.', rar: 1 };
 
 // three quest-giver NPCs, each with a PERMANENT quest chain (not daily)
 const NPCS = {
@@ -1233,7 +1298,7 @@ const VENDOR = {
     'Them badges are hand-stitched. By me. With flippers.',
     'A sundae a day keeps the snappers away. Probably.',
     'Careful with the forceps, sugar.',
-    'RP? Ranger Exchange is out back. Tell em Merle sent ya.',
+    'Cookies? Gacha-Pon machine is out back. Tell em Merle sent ya.',
     'That gator out there? Owes me money.',
   ],
 };
@@ -1256,9 +1321,11 @@ const QUESTS = [
   { id: 'pack1', name: 'OPEN A PACK', goal: 1 },
 ];
 
-let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false };
+let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false, gachaOwn: {}, perks: {} };
 try { const m = JSON.parse(localStorage.getItem('bd_meta') || 'null'); if (m) meta = Object.assign(meta, m); } catch (e) { }
 if (!meta.unlocked) meta.unlocked = {};
+if (!meta.gachaOwn) meta.gachaOwn = {};
+if (!meta.perks) meta.perks = {};
 if (!meta.set) meta.set = { mus: 2, sfx: 2, shake: 1, crt: 1 };
 if (!meta.chains) meta.chains = { granny: { step: 0, prog: 0 }, crow: { step: 0, prog: 0 }, doc: { step: 0, prog: 0 } };
 function saveMeta() { try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
@@ -1278,9 +1345,10 @@ function chainQuest(nk) {
 }
 function addRP(n, label) {
   meta.rp = (meta.rp || 0) + n;
-  if (label) toasts.push({ name: label, sub: '+' + n + ' RANGER POINTS', t: 0 });
+  if (label) toasts.push({ name: label, sub: '+' + n + ' SCOUT COOKIES', t: 0 });
   saveMeta();
 }
+let questToastT = -9; // throttle live progress pings
 function quest(id, n) {
   ensureDaily();
   NPC_ORDER.forEach(nk => {
@@ -1292,7 +1360,10 @@ function quest(id, n) {
       ch.step++; ch.prog = 0;
       sfx.ach();
       addRP(cq.rp, NPCS[nk].name + ': QUEST ' + (cq.step + 1) + ' DONE');
-    }
+    } else if (tNow - questToastT > 8 && ch.prog / cq.goal >= 0.5) {
+      questToastT = tNow;
+      toasts.push({ name: cq.name, sub: 'QUEST ' + ch.prog + '/' + cq.goal + ' - ' + NPCS[nk].name, t: 0 });
+    } else saveMeta();
   });
 }
 function unlock(id) {
@@ -1304,7 +1375,7 @@ function unlock(id) {
   addRP(25);
   sfx.ach();
 }
-const gloveUnlocked = k => !GLOVES[k].ach || !!meta.ach[GLOVES[k].ach];
+const gloveUnlocked = k => GLOVES[k].gacha ? !!meta.gachaOwn[k] : (!GLOVES[k].ach || !!meta.ach[GLOVES[k].ach]);
 ensureDaily();
 
 // ------------------------------------------------------------ state -------
@@ -1337,6 +1408,9 @@ const G = {
   pack: null,      // {kind, options, t} pack opening
   paused: false, overlay: null, // overlay: 'settings' | 'credits' (from pause or menu)
   shopPacks: [],
+  cut: null,       // run-intro cutscene {t, shot}
+  gacha: null,     // gacha-pon machine anim {phase, t, prize, capCol}
+  shopEnter: -9,   // walk-in door animation timer
   compoundMult: 0, sweepCarry: 0, denturesUsed: false, feastTimes: [],
 };
 let trans = null;  // iris wipe: {t, cb, fired}
@@ -1379,7 +1453,7 @@ function newRun(rangerKey) {
   if (!rangerUnlocked(G.ranger)) G.ranger = 'scout';
   meta.ranger = G.ranger; saveMeta();
   G.ante = 1; G.round = 0;
-  G.money = G.ranger === 'trader' ? 12 : 4;
+  G.money = (G.ranger === 'trader' ? 12 : 4) + (meta.perks.pocket ? 3 : 0);
   G.charms = []; G.cons = []; G.deck = [];
   for (let v = 1; v <= 5; v++) for (let k = 0; k < 4; k++) G.deck.push(mkTooth('plain', v));
   if (G.ranger === 'medic') {
@@ -1812,10 +1886,11 @@ function cashOut() {
 }
 
 function enterShop() {
-  G.rerollCost = 4;
+  G.rerollCost = meta.perks.coupon ? 0 : 4;
   rollShop();
   stockPacks();
   G.state = 'shop';
+  G.shopEnter = tNow; // door swings open, Merle looks up
   G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
 }
 
@@ -1890,7 +1965,7 @@ function sellCharm(i) {
 function reroll() {
   if (G.money < G.rerollCost) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH $', C.red, 1); return; }
   G.money -= G.rerollCost;
-  G.rerollCost++;
+  G.rerollCost = G.rerollCost === 0 ? 4 : G.rerollCost + 1; // coupon perk: first one free
   rollShop();
   sfx.buy();
 }
@@ -2052,10 +2127,11 @@ function pullTooth(boost) {
 }
 function openPack(product) {
   let options;
+  const show = product.show + (meta.perks.bigpack ? 1 : 0);
   if (product.kind === 'tooth') {
     options = [];
     const seen = new Set();
-    while (options.length < product.show) {
+    while (options.length < show) {
       const t = pullTooth(product.boost);
       if (seen.has(t) && rnd() < 0.6) continue; // discourage dupes, allow some
       seen.add(t);
@@ -2063,7 +2139,7 @@ function openPack(product) {
     }
   } else {
     const pool = shuffle(TOOLS.filter(cardUnlocked));
-    options = pool.slice(0, product.show).map(t => ({ tool: t }));
+    options = pool.slice(0, show).map(t => ({ tool: t }));
   }
   G.pack = { product, options, picksLeft: product.picks, taken: [], t: 0 };
   quest('pack1', 1);
@@ -2239,9 +2315,12 @@ let down = null;        // {x, y, hit} potential click/drag origin
 let handPressT = 0;
 function hit(x, y, w, h, o) { o.x = x; o.y = y; o.w = w; o.h = h; hits.push(o); }
 function topHitAt(px, py) {
+  // fat-finger forgiveness: on touch devices small targets grow a soft border
+  const pad = IS_TOUCH ? 3 : 0;
   for (let i = hits.length - 1; i >= 0; i--) {
     const h = hits[i];
-    if (px >= h.x && px < h.x + h.w && py >= h.y && py < h.y + h.h) return h;
+    const p = pad && (h.w < 40 || h.h < 20) ? pad : 0;
+    if (px >= h.x - p && px < h.x + h.w + p && py >= h.y - p && py < h.y + h.h + p) return h;
   }
   return null;
 }
@@ -2374,6 +2453,12 @@ function drawCroc(closeT, opts) {
     rr(fx + 2, 242, 20, 8, 3, st.a);
     rect(fx + 3, 250, 4, 3, '#f4f0dc'); rect(fx + 10, 250, 4, 3, '#f4f0dc'); rect(fx + 17, 250, 4, 3, '#f4f0dc');
   });
+  // water laps against the hide
+  ctx.save(); ctx.globalAlpha = 0.45;
+  for (let x = bodyX - 18; x < bodyX + bodyW + 18; x += 9) {
+    rect(x, 245 + Math.sin(tNow * 2.1 + x * 0.31) * 1.5, 5, 1, '#7fb8c8');
+  }
+  ctx.restore();
 
   // --- lower jaw base (behind maw) ---
   rr(bodyX, maw.y + maw.h - 6, bodyW, 40, 4, st.d);
@@ -2459,6 +2544,21 @@ function drawCroc(closeT, opts) {
   for (let k = 0; k < 7; k++) {
     rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, st.b);
   }
+  // osteoderm scute ridges along the snout
+  for (let k = 0; k < 6; k++) {
+    const sx2 = bodyX + 20 + k * Math.floor((bodyW - 44) / 5);
+    rect(sx2, jy + 17, 6, 3, st.b); rect(sx2 + 1, jy + 15, 4, 2, st.c);
+    rect(sx2 + 15, jy + 36, 5, 3, st.b);
+  }
+  // hide speckles
+  ctx.save(); ctx.globalAlpha = 0.35;
+  for (let k = 0; k < 9; k++) rect(bodyX + 12 + (k * 47) % (bodyW - 24), jy + 26 + (k * 31) % 22, 2, 2, st.d);
+  ctx.restore();
+  // wet sheen sweeping the hide
+  const shx = bodyX + ((tNow * 22) % (bodyW + 60)) - 30;
+  ctx.save(); ctx.globalAlpha = 0.08;
+  rect(shx, jy + 4, 4, 50, '#eafcff'); rect(shx + 8, jy + 4, 2, 50, '#eafcff');
+  ctx.restore();
   if (st.ridge) { rect(bodyX + 10, jy + 3, bodyW - 20, 2, st.b); rect(bodyX + 30, jy + 6, bodyW - 60, 1, st.b); }
   if (st.scars) {
     [[bodyX + 30, jy + 18], [bodyX + bodyW - 60, jy + 26]].forEach(([sx, sy]) => {
@@ -2519,6 +2619,15 @@ function drawCroc(closeT, opts) {
   rect(bodyX - 1, jy + 55, bodyW + 2, 3, st.d);
   rr(bodyX - 1, jy + 52, bodyW + 2, 6, 2, st.b);
   rect(maw.x + 2, jy + 58, maw.w - 4, 3, st.paleMaw ? '#d8a8b8' : C.gum);
+  // drool drips off the lip when the maw hangs open
+  if (jawDrop > 8) {
+    ctx.save(); ctx.globalAlpha = 0.6;
+    [maw.x + 10, maw.x + maw.w - 14].forEach((dxp, i) => {
+      const ph = (tNow * 0.8 + i * 0.45) % 1;
+      if (ph < 0.72) rect(dxp, jy + 60 + ph * 30, 2, 3, '#9fd8e0');
+    });
+    ctx.restore();
+  }
   // big corner fangs (two-fang / apex)
   if (st.fangs) {
     const fy = jy + 56;
@@ -3023,19 +3132,46 @@ function drawBarrel() {
 }
 
 function drawShop() {
-  const th = themeNow();
-  drawSceneBack(th);
-  drawSceneFront(th);
-  drawSidebar();
-  drawTopBar(true);
-
-  // ---- Everglades trading post dressing ----
+  // ================= the trading post INTERIOR =================
+  // wall: horizontal planks with seams and nails
+  for (let y = 0; y < 212; y += 14) {
+    rect(0, y, W, 14, ((y / 14) | 0) % 2 ? '#4e3722' : '#463019');
+    rect(0, y + 13, W, 1, '#2e1f12');
+  }
+  [[36, 20], [318, 48], [452, 20], [104, 160], [396, 174]].forEach(([nx, ny]) => rect(nx, ny, 2, 2, '#2e1f12'));
+  // gloom at the ceiling
+  for (let i = 0; i < 10; i++) { ctx.save(); ctx.globalAlpha = (10 - i) / 10 * 0.5; rect(0, i * 3, W, 3, '#160e08'); ctx.restore(); }
+  // floorboards
+  rect(0, 212, W, H - 212, '#3a2818');
+  rect(0, 212, W, 3, '#241708');
+  for (let x = 0; x < W; x += 48) rect(x + ((x / 48) | 0) % 2 * 24, 215, 1, H - 215, '#2e1f12');
+  for (let y = 226; y < H; y += 16) rect(0, y, W, 1, '#31210f');
+  // woven rug under the goods
+  rr(170, 232, 180, 26, 4, '#6a3a2a');
+  rr(174, 235, 172, 20, 3, '#8a5038');
+  for (let k = 0; k < 4; k++) rect(178 + k * 42, 237, 22, 16, k % 2 ? '#a86a48' : '#6a3a2a');
+  rect(174, 244, 172, 2, '#5a3020');
+  // window on the left wall, night swamp outside
+  panel(20, 60, 88, 74, { face: '#0c1c26', edge: '#2e1f12', r: 2 });
+  ['#0a1626', '#0f2434', '#17343f'].forEach((c, i) => rect(22, 62 + i * 24, 84, 24, c));
+  fillCircle(84, 78, 9, '#e8e8d0'); ctx.save(); ctx.globalAlpha = 0.25; fillCircle(84, 78, 12, '#e8e8d0'); ctx.restore();
+  for (let x = 26; x < 102; x += 6) { const h1 = 10 + ((Math.sin(x * 0.3) * 5) | 0); rect(x, 132 - h1, 6, h1, '#0d2028'); }
+  if ((tNow % 3) < 1.6) { const fx2 = 40 + (tNow * 7 % 50); rect(fx2, 90 + Math.sin(tNow * 3) * 8, 1, 1, '#eaffa0'); }
+  rect(20, 94, 88, 3, '#2e1f12'); rect(62, 60, 3, 74, '#2e1f12'); // cross frame
+  rect(16, 134, 96, 5, '#241708'); // sill
+  // hanging lantern between window and sign
+  rect(146, 0, 2, 22, '#241708');
+  rr(141, 22, 12, 14, 3, '#2a2018');
+  rect(144, 25, 6, 8, '#ffd54a');
+  rect(145, 26, 2, 3, '#fff6c8');
+  ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 4) * 0.025; fillCircle(147, 30, 34, '#ffb848'); ctx.globalAlpha = 0.06; fillCircle(147, 32, 52, '#ffb848'); ctx.restore();
   // wooden shelves behind the goods
   const shelf = (sy, sh2) => {
     rr(164, sy, 300, sh2, 3, '#4a3320');
     rr(166, sy + 2, 296, sh2 - 4, 3, '#5f4228');
     for (let k = 0; k < 5; k++) rect(170 + k * 60, sy + 2, 1, sh2 - 4, '#4a332044');
     rect(166, sy + sh2 - 3, 296, 3, '#3a2818');
+    rect(170, sy + sh2, 4, 6, '#241708'); rect(456, sy + sh2, 4, 6, '#241708'); // brackets
   };
   shelf(88, 88); shelf(182, 52);
   // hanging wooden sign on ropes
@@ -3049,18 +3185,32 @@ function drawShop() {
   rect(172, 42, 8, 12, '#2c5a24'); rect(176, 38, 3, 6, '#2c5a24'); // tree
   rect(182, 52, 8, 4, '#5aa843'); rect(184, 50, 4, 2, '#5aa843'); // gator
   rect(170, 60, 22, 3, '#3f6aa8'); // water stripe
-  drawTextCSh('BADGES, SNACKS AND SUPPLIES', 296, 78, C.dim, 1);
+  // mounted "big catch" fish + antler hooks on the free wall
+  rr(28, 152, 56, 16, 5, '#5c8a9a'); rect(20, 156, 10, 8, '#5c8a9a'); rect(80, 154, 8, 4, '#48707e'); rect(38, 156, 3, 3, '#10181e');
+  rect(24, 172, 60, 4, '#4a3320');
   // Merle the manatee at his counter (right side)
-  rr(424, 148, 52, 34, 3, '#4a3320');
-  rr(426, 150, 48, 8, 3, '#5f4228');
+  rr(420, 146, 58, 40, 3, '#4a3320');
+  rr(422, 148, 54, 8, 3, '#5f4228');
+  rect(424, 186, 4, 26, '#241708'); rect(468, 186, 4, 26, '#241708'); // counter legs
+  rr(428, 160, 14, 12, 2, '#c8b060'); rect(430, 158, 10, 3, '#a89040'); // tip jar
+  rect(431, 164, 3, 2, C.gold); rect(436, 166, 3, 2, C.gold);
   drawVendor(432, 108);
   const vline = VENDOR.lines[Math.floor(tNow / 6) % VENDOR.lines.length];
   if ((tNow % 6) < 4.2) {
     const bw = Math.min(150, textW(vline, 1) + 12);
-    panel(470 - bw, 92, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
-    drawText(vline.slice(0, 30), 470 - bw + 5, 96, '#3a2818', 1);
+    panel(470 - bw, 74, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
+    drawText(vline.slice(0, 30), 470 - bw + 5, 78, '#3a2818', 1);
+    rect(452, 88, 3, 4, '#f4f2e4'); // bubble tail toward Merle
   }
   hit(424, 104, 52, 78, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
+
+  // ---- money-only HUD: in the shop you only care about your wallet ----
+  panel(8, 8, 100, 30, { face: '#26321e', edge: '#5a7a3a' });
+  drawText('$' + G.money, 18, 16, C.gold, 3);
+  drawTextC('YOUR MONEY', 58, 42, '#9ab87a', 1);
+  button(8, 52, 100, 16, 'TEETH ' + G.drawPile.length + '/' + G.deck.length, '#3a5560', '#243a44',
+    () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
+  drawTopBar(true);
 
   const bx0 = 180;
   G.shopItems.forEach((it, i) => {
@@ -3105,10 +3255,29 @@ function drawShop() {
   });
 
   drawBarrel();
-  button(348, 186, 86, 20, 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
+  button(8, 72, 100, 14, 'II PAUSE', '#243a44', '#16262c', () => { togglePause(); }, { id: 'pausebtn' });
+  button(348, 186, 86, 20, G.rerollCost === 0 ? 'REROLL FREE' : 'REROLL $' + G.rerollCost, '#7a4fd0', '#4a2a8a', reroll,
     { id: 'reroll', disabled: G.money < G.rerollCost, tip: 'REROLL|Refresh the 4 shop items|(packs stay)' });
   const nextName = G.map && G.map.stage >= 3 ? 'NEXT ANTE' : 'BACK TO TRAIL';
-  button(300, 222, 130, 26, nextName + ' >', '#d94f30', '#8a2a16', () => startTransition(afterShop), { id: 'next', sc: 1, tip: 'Back to the swamp trail' });
+  button(316, 226, 130, 26, nextName + ' >', '#d94f30', '#8a2a16', () => startTransition(afterShop), { id: 'next', sc: 1, tip: 'Back to the swamp trail' });
+
+  // ---- walk-in: saloon doors swing apart as you step inside ----
+  const doorT = clamp((tNow - G.shopEnter) / 0.6, 0, 1);
+  if (doorT < 1) {
+    const k = easeOut(doorT);
+    const drawDoor = (x0, flip) => {
+      ctx.save(); ctx.translate(x0, 0);
+      rr(0, 0, 242, H, 0, '#3a2818');
+      for (let y = 0; y < H; y += 14) rect(0, y + 13, 242, 1, '#241708');
+      for (let x = 24; x < 242; x += 48) rect(x, 0, 2, H, '#2e1f12');
+      rr(flip ? 14 : 210, 118, 18, 34, 4, '#c8b060'); // handle
+      rect(flip ? 20 : 216, 126, 6, 18, '#8a7048');
+      ctx.restore();
+    };
+    drawDoor(-2 - k * 244, false);
+    drawDoor(240 + k * 244, true);
+    ctx.save(); ctx.globalAlpha = (1 - doorT) * 0.5; rect(0, 0, W, H, '#160e08'); ctx.restore();
+  }
 }
 
 // foil snack/TCG pack art: crimped edges, mascot, shine
@@ -3320,28 +3489,248 @@ function drawRoundEnd() {
   button(px + pw / 2 - 55, py + ph - 32, 110, 24, 'CASH OUT', '#e8a020', '#98650e', () => startTransition(cashOut), { id: 'cashout' });
 }
 
+// ------------------------------------------- run-intro cinematic ----------
+// paper-cutout night scenes + a floor title card, Binding-of-Isaac style
+const ANTE_NAMES = ['THE SHALLOWS', 'MUDBANK BEND', 'CYPRESS HOLLOW', 'MANGROVE MAZE', 'BLACKWATER', 'THE DEEP SLOUGH', 'GATOR ALLEY', "THE KING'S LAIR"];
+const anteName = a => a <= 8 ? ANTE_NAMES[a - 1] : 'ENDLESS SWAMP ' + (a - 8);
+function startIntro() {
+  G.cut = { t: 0, shot: 0, growled: false, ending: false };
+  G.state = 'intro';
+}
+function endIntro() {
+  if (!G.cut || G.cut.ending) return;
+  G.cut.ending = true;
+  startTransition(() => { G.cut = null; G.state = 'map'; });
+}
+const typed = (txt, t, cps) => txt.slice(0, Math.floor(Math.max(0, t) * (cps || 22)));
+function drawIntro(dt) {
+  const cut = G.cut; if (!cut) { G.state = 'map'; return; }
+  cut.t += dt;
+  const DUR = [3.6, 3.4, 2.2];
+  if (cut.t >= DUR[cut.shot] && !cut.ending) {
+    if (cut.shot >= 2) endIntro();
+    else { cut.shot++; cut.t = 0; sfx.whoosh(); }
+  }
+  const t = cut.t;
+
+  if (cut.shot === 0) {
+    // --- shot 1: poling through the glades at night ---
+    const th = THEMES.night;
+    drawSceneBack(th);
+    drawSceneFront(th);
+    const cx2 = lerp(-50, 226, easeOut(clamp(t / 2.9, 0, 1)));
+    const bob = Math.sin(tNow * 2.4) * 1.5;
+    // wake ripples trail the canoe
+    if ((t % 0.4) < dt && cx2 > 0) addRipple(cx2 - 14, 244, false);
+    ctx.save(); ctx.globalAlpha = 0.25; rr(cx2 - 26, 246, 60, 5, 2, '#04080a'); ctx.restore();
+    rr(cx2 - 24, 234 + bob, 56, 10, 4, '#5a3a1e');       // canoe hull
+    rr(cx2 - 20, 232 + bob, 48, 5, 2, '#7a5230');
+    rect(cx2 - 26, 236 + bob, 6, 4, '#4a2f16'); rect(cx2 + 28, 236 + bob, 6, 4, '#4a2f16');
+    drawRangerFace(cx2 - 8, 206 + bob, G.ranger);        // the ranger aboard
+    const sw = Math.sin(tNow * 2.2);                      // pole strokes
+    rect(cx2 + 16 + sw * 4, 210 + bob, 2, 32, '#c8a878');
+    rect(cx2 + 15 + sw * 6, 238 + bob, 4, 4, '#8a6a48');
+    // lantern on the prow
+    rect(cx2 - 20, 224 + bob, 2, 8, '#4a3320');
+    rr(cx2 - 23, 218 + bob, 8, 8, 2, '#2a2018');
+    rect(cx2 - 21, 220 + bob, 4, 4, '#ffd54a');
+    ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 5) * 0.03; fillCircle(cx2 - 19, 222 + bob, 22, '#ffb848'); ctx.restore();
+    letterboxCaption(
+      typed('DEEP IN THE EVERGLADES...', t - 0.3) +
+      (t > 2.0 ? '\n' + typed('A GATOR HOARDS A FORTUNE IN GOLDEN TEETH.', t - 2.0) : ''));
+  } else if (cut.shot === 1) {
+    // --- shot 2: the monster surfaces, lantern vs eyes ---
+    for (let i = 0; i < 5; i++) rect(0, i * 42, W, 42, ['#040810', '#050b12', '#071016', '#08141a', '#0a181e'][i]);
+    for (let i = 0; i < 20; i++) { const sx2 = (i * 97 + 31) % W, sy2 = (i * 53 + 11) % 90; ctx.save(); ctx.globalAlpha = 0.3; rect(sx2, sy2, 1, 1, '#cfe8f0'); ctx.restore(); }
+    rect(0, 208, W, H - 208, '#050d10'); // black water
+    // the head rises
+    const rise = easeOut(clamp(t / 1.3, 0, 1));
+    const hy = lerp(275, 148, rise) + Math.sin(tNow * 1.1) * 1.5;
+    rr(180, hy, 280, 130, 12, '#0a1410');
+    rr(186, hy - 12, 240, 30, 8, '#0c1712'); // brow mass
+    [[210, -18], [250, -22], [292, -19], [334, -23], [376, -18]].forEach(([sx2, oy]) => { rect(sx2, hy + oy + 8, 8, 8, '#0c1712'); rect(sx2 + 2, hy + oy + 4, 4, 4, '#0c1712'); });
+    // waterline cut + laps
+    rect(0, 208, W, 4, '#071014');
+    for (let x = 184; x < 456; x += 12) rect(x + ((tNow * 8 | 0) % 12), 206, 6, 2, '#12262066');
+    // gleaming teeth row just above the water
+    for (let x = 200; x < 440; x += 16) { rect(x, 196, 9, 10, '#e8e4d0'); rect(x + 2, 206, 5, 3, '#c8c4b0'); }
+    const gl = (tNow * 90) % 300;
+    if (gl < 240) { rect(202 + gl, 197, 2, 3, '#ffffff'); rect(203 + gl, 196, 1, 1, '#ffffff'); }
+    // eyes ignite
+    if (t > 1.15) {
+      if (!cut.growled) { cut.growled = true; sfx.boss(); shake = 5; }
+      const ec = t > 1.3 ? 1 : (t - 1.15) / 0.15;
+      [[248, 0], [352, 0]].forEach(([ex2]) => {
+        ctx.save(); ctx.globalAlpha = 0.14 * ec; fillCircle(ex2 + 11, hy - 26, 20, '#ffc843'); ctx.restore();
+        rr(ex2, hy - 34, 26, 16, 4, '#0e1a14');
+        rr(ex2 + 2, hy - 32, 22, 12, 3, '#ffc843');
+        ctx.globalAlpha = ec; rect(ex2 + 10, hy - 31, 5, 10, '#1b1408'); ctx.globalAlpha = 1;
+        rect(ex2 + 4, hy - 31, 3, 3, '#fff6c8');
+      });
+    }
+    // the ranger, small on a skiff, lantern held high
+    const rb = Math.sin(tNow * 2.1) * 1;
+    rr(44, 236 + rb, 44, 8, 3, '#0c1216');
+    rr(56, 204 + rb, 16, 32, 4, '#0e161c'); // body silhouette
+    fillCircle(64, 199 + rb, 7, '#0e161c');
+    rect(50, 196 + rb, 14, 3, '#0c1216'); // hat brim
+    rect(72, 206 + rb, 12, 2, '#0c1216'); // arm out
+    rect(84, 198 + rb, 2, 8, '#4a3320');
+    rr(81, 192 + rb, 8, 8, 2, '#2a2018');
+    rect(83, 194 + rb, 4, 4, '#ffd54a');
+    ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(tNow * 6) * 0.04; fillCircle(85, 196 + rb, 30, '#ffb848'); ctx.restore();
+    letterboxCaption(typed('TONIGHT, RANGER... YOU BITE BACK.', t - 0.5, 20));
+  } else {
+    // --- shot 3: the floor card ---
+    rect(0, 0, W, H, '#04070a');
+    const jx = (tNow * 5 | 0) % 2, jy2 = ((tNow * 5 + 1) | 0) % 2; // paper wobble
+    const fade = clamp(t / 0.4, 0, 1);
+    ctx.save(); ctx.globalAlpha = fade;
+    rr(74 + jx, 44 + jy2, 332, 182, 4, '#c8b898');
+    rr(78 + jx, 48 + jy2, 324, 174, 4, '#04070a');
+    rr(88 + jy2, 58 + jx, 304, 154, 2, '#00000000');
+    ctx.strokeStyle = '#c8b898'; // inner scratchy frame
+    rect(88 + jy2, 58 + jx, 304, 1, '#8a7a58'); rect(88 + jy2, 211 + jx, 304, 1, '#8a7a58');
+    rect(88 + jy2, 58 + jx, 1, 154, '#8a7a58'); rect(391 + jy2, 58 + jx, 1, 154, '#8a7a58');
+    [[84, 54], [392, 54], [84, 214], [392, 214]].forEach(([nx, ny]) => rect(nx + jx, ny + jy2, 4, 4, '#c8b898'));
+    drawTextCSh('ANTE ' + G.ante, W / 2 + jx, 92 + jy2, '#e8e0c8', 5, '#00000000');
+    drawTextCSh(anteName(G.ante), W / 2 + jx, 142 + jy2, '#8a7a58', 2);
+    drawMiniGator(W / 2 - 11, 168 + jy2, 'small');
+    // ink specks
+    [[120, 200], [352, 74], [340, 196], [130, 70]].forEach(([ix, iy], k) => { rect(ix, iy, 2, 2, '#c8b89844'); rect(ix + 3, iy + 2, 1, 1, '#c8b89833'); });
+    ctx.restore();
+  }
+
+  // letterbox bars + skip controls on every shot
+  rect(0, 0, W, 26, '#000'); rect(0, H - 26, W, 26, '#000');
+  hit(0, 26, W, H - 52, { id: 'cutadv', cb: () => { if (cut.shot >= 2) endIntro(); else { cut.shot++; cut.t = 0; sfx.whoosh(); } }, cursor: true });
+  button(W - 62, 6, 56, 14, 'SKIP >', '#3a5560', '#243a44', endIntro, { id: 'cutskip' });
+  if ((tNow % 1.4) < 0.9) drawText('TAP TO CONTINUE', 8, 10, '#54707a', 1);
+}
+// captions live inside the lower letterbox bar, like subtitles
+function letterboxCaption(txt) {
+  const lines = txt.split('\n').filter(Boolean);
+  if (lines.length >= 2) { drawTextC(lines[0], W / 2, H - 23, C.white, 1); drawTextC(lines[1], W / 2, H - 13, '#ffe6a0', 1); }
+  else if (lines[0]) drawTextC(lines[0], W / 2, H - 18, C.white, 1);
+}
+
 function drawBossIntro() {
-  const th = THEMES.boss;
-  drawSceneBack(th);
-  drawCroc(Math.abs(Math.sin(tNow * 2.2)) * 0.25, { angry: true });
-  drawSceneFront(th);
-  drawSidebar();
-  overlayDim(0.6);
-  // name slams in from huge to normal
+  // ---------- Binding-of-Isaac style VS splash ----------
   const el = tNow - G.biStart;
-  const slam = easeOut(clamp(el / 0.35, 0, 1));
-  if (el > 0.35 && el < 0.42 && shake < 2) { shake = 6; }
-  const pulse = 1 + Math.sin(tNow * 4) * 0.06;
-  drawTextCSh('BOSS GATOR', W / 2, 62, C.red, 2);
-  const nameSc = Math.max(3, Math.round(lerp(9, 3 * pulse, slam)));
-  ctx.globalAlpha = 0.4 + slam * 0.6;
-  drawTextCSh(G.boss.name, W / 2, 84 - (nameSc - 3) * 2, C.white, nameSc);
-  ctx.globalAlpha = 1;
-  const dw = Math.max(textW(G.boss.desc, 1), textW('TARGET: ' + fmt(G.target), 1)) + 20;
-  panel(W / 2 - dw / 2, 116, dw, 34, { face: '#2a0e12ee', edge: C.redD });
-  drawTextCSh(G.boss.desc, W / 2, 122, '#ffb0a8', 1);
-  drawTextCSh('TARGET: ' + fmt(G.target), W / 2, 136, C.orange, 1);
-  button(W / 2 - 55, 168, 110, 26, 'BITE DOWN!', '#d94f30', '#8a2a16', () => { G.state = 'play'; }, { id: 'bossgo' });
+  const slide = easeOut(clamp(el / 0.4, 0, 1));
+  const st = crocStyle(); // resolves to the boss's own style during a boss round
+  // split background: dentist teal (top-left) vs boss blood (bottom-right)
+  rect(0, 0, W, H, '#12060a');
+  for (let y = 0; y < H; y += 2) {
+    const cutX = W - (y / H) * W * 0.9 - 40; // diagonal divide
+    rect(0, y, Math.max(0, cutX), 2, '#0d2026');
+    rect(Math.max(0, cutX), y, W - cutX, 2, '#20080e');
+  }
+  // rising embers on the boss side, sparks on ours
+  for (let i = 0; i < 10; i++) {
+    const ph = (tNow * 0.5 + i * 0.37) % 1;
+    ctx.save(); ctx.globalAlpha = (1 - ph) * 0.5;
+    rect(300 + (i * 43) % 160, 250 - ph * 190, 2, 2, '#ff7a48');
+    rect(20 + (i * 37) % 150, 240 - ph * 160, 1, 1, '#7fd4e8');
+    ctx.restore();
+  }
+  // diagonal lightning slash along the divide
+  for (let y = 0; y < H; y += 6) {
+    const cutX = W - (y / H) * W * 0.9 - 40 + (((y / 6) | 0) % 2) * 3;
+    rect(cutX - 2, y, 5, 6, '#f4f0dc');
+    rect(cutX + 3, y, 2, 6, '#ffc84366');
+  }
+
+  // ---- dentist side (slides in from the left) ----
+  const dx = lerp(-180, 0, slide);
+  ctx.save(); ctx.translate(dx, 0);
+  const R = RANGERS[G.ranger] || RANGERS.scout;
+  // portrait: ranger at 3x on a plate
+  panel(22, 48, 118, 118, { face: '#10262cee', edge: '#5cb0ac', r: 4 });
+  ctx.save(); ctx.translate(40, 62); ctx.scale(3, 3); drawRangerFace(0, 0, G.ranger); ctx.restore();
+  // gloved fist + forceps under the portrait
+  const g = GLOVES[meta.glove] || GLOVES.bare;
+  rr(96, 128, 30, 22, 6, g.skin); rr(98, 144, 26, 8, 3, g.shade);
+  rect(100, 124, 6, 8, g.skin); rect(108, 122, 6, 10, g.skin); rect(116, 124, 6, 8, g.skin);
+  rect(96, 150, 30, 5, g.cuff);
+  for (let i = 0; i <= 8; i++) { rect(124 + i, 118 - i, 2, 2, '#5cb0ac'); rect(132 - i, 118 - i, 2, 2, '#5cb0ac'); }
+  drawTextCSh('RANGER ' + R.name, 81, 172, '#7fd4e8', 1);
+  drawTextCSh('THE DENTIST', 81, 184, C.white, 2);
+  ctx.restore();
+
+  // ---- boss side (slides in from the right) ----
+  const bx2 = lerp(180, 0, slide);
+  ctx.save(); ctx.translate(bx2, 0);
+  panel(330, 44, 130, 126, { face: '#2a0e12ee', edge: C.redD, r: 4 });
+  drawBossBust(338, 56, st);
+  drawTextCSh('BOSS GATOR', 395, 176, '#ffb0a8', 1);
+  ctx.restore();
+
+  // ---- VS slam ----
+  const vt = clamp((el - 0.45) / 0.25, 0, 1);
+  if (el > 0.45) {
+    if (el < 0.75 && shake < 2) shake = 7;
+    const vsc = Math.round(lerp(11, 5, easeOut(vt)));
+    const wob = vt >= 1 ? Math.sin(tNow * 3) * 2 : 0;
+    ctx.save(); ctx.globalAlpha = 0.35 + vt * 0.65;
+    drawTextCSh('VS', W / 2 + 2, 96 - vsc * 2.5 + wob + 3, '#000', vsc + 1);
+    drawTextCSh('VS', W / 2, 96 - vsc * 2.5 + wob, C.gold, vsc);
+    ctx.restore();
+    if (vt >= 1) { // impact star
+      ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.2;
+      [[-30, -8], [26, -12], [-24, 16], [30, 14]].forEach(([ox, oy]) => rect(W / 2 + ox, 86 + oy, 3, 3, '#fff6c8'));
+      ctx.restore();
+    }
+  }
+
+  // ---- boss name banner ----
+  const bt = clamp((el - 0.7) / 0.3, 0, 1);
+  if (el > 0.7) {
+    const by2 = lerp(H + 20, 196, easeOut(bt));
+    panel(60, by2, 360, 56, { face: '#2a0e12f4', edge: C.red, r: 4 });
+    drawTextCSh(G.boss.name, W / 2, by2 + 7, C.white, 3);
+    drawTextCSh(G.boss.desc, W / 2, by2 + 32, '#ffb0a8', 1);
+    drawTextCSh('TARGET: ' + fmt(G.target), W / 2, by2 + 44, C.orange, 1);
+  }
+  if (el > 1.1) {
+    button(W / 2 - 55, 168, 110, 24, 'BITE DOWN!', '#d94f30', '#8a2a16', () => { G.state = 'play'; }, { id: 'bossgo' });
+    hit(0, 0, W, 160, { id: 'bossgotap', cb: () => { G.state = 'play'; }, cursor: true });
+    if ((tNow % 1) < 0.6) drawTextC('TAP TO FIGHT', W / 2, 246, '#ffb0a877', 1);
+  }
+}
+
+// compact head-on gator bust for the VS card, tinted by boss style
+function drawBossBust(x, y, st) {
+  const bw = 114, jaw = Math.abs(Math.sin(tNow * 2)) * 8;
+  // upper head
+  rr(x + 6, y + 8, bw - 12, 44, 8, st.d);
+  rr(x + 8, y + 10, bw - 16, 40, 8, st.b);
+  rr(x + 12, y + 14, bw - 24, 14, 4, st.a);
+  // scutes on the crown
+  [[16, 2], [38, -2], [60, 1], [82, -2]].forEach(([ox, oy]) => { rect(x + ox, y + oy + 4, 7, 7, st.b); rect(x + ox + 2, y + oy, 3, 4, st.b); });
+  // eyes (angry squint, tracking slightly)
+  [[18, 0], [66, 0]].forEach(([ox]) => {
+    rr(x + ox, y + 16, 30, 17, 4, st.a);
+    rect(x + ox + 2, y + 14, 26, 4, st.d); // heavy brow
+    rr(x + ox + 4, y + 20, 22, 10, 3, st.redEye ? '#e8b0a0' : st.sclera);
+    rect(x + ox + 12, y + 21, 5, 8, st.redEye ? '#8a1010' : '#1b1408');
+    rect(x + ox + 13, y + 22, 2, 2, '#fff');
+  });
+  // nostril bump
+  rr(x + 44, y + 4, 26, 10, 4, st.b);
+  rect(x + 49, y + 7, 4, 3, st.d); rect(x + 61, y + 7, 4, 3, st.d);
+  // open maw with fangs
+  rr(x + 8, y + 52, bw - 16, 34 + jaw, 6, st.mawD);
+  rr(x + 11, y + 55, bw - 22, 28 + jaw, 5, st.maw);
+  for (let k = 0; k < 6; k++) { const tx2 = x + 14 + k * 16; rect(tx2, y + 52, 9, 12 + (k % 2) * 3, '#f4f0dc'); }
+  rr(x + 26, y + 72 + jaw, bw - 52, 10, 4, st.tongue);
+  for (let k = 0; k < 5; k++) { const tx2 = x + 22 + k * 16; rect(tx2, y + 76 + jaw, 9, 10 + (k % 2) * 2, '#e8e4d0'); }
+  // style garnish
+  if (st.crown) { rect(x + 43, y - 8, 28, 6, C.gold); [0, 8, 16, 24].forEach(o => rect(x + 43 + o, y - 12, 4, 5, C.gold)); rect(x + 53, y - 10, 3, 3, C.red); }
+  if (st.metal) { rr(x + 34, y + 2, 46, 12, 3, '#8a949c'); rect(x + 38, y + 5, 30, 2, '#d8e2e8'); }
+  if (st.goldTooth) rect(x + 30, y + 52, 9, 12, '#ffd54a');
+  if (st.fangs) { rect(x + 4, y + 50, 8, 16, '#f4f0dc'); rect(x + bw - 12, y + 50, 8, 16, '#f4f0dc'); }
+  if (st.scars) { rect(x + 20, y + 6, 12, 2, st.c); rect(x + 24, y + 3, 2, 8, st.c); }
 }
 
 function drawGameOver() {
@@ -3362,7 +3751,7 @@ function drawGameOver() {
   st('BEST BANK', fmt(G.stats.bestBank));
   st('MONEY EARNED', '$' + G.stats.moneyEarned);
   st('BEST ANTE EVER', best);
-  if (G.runRP > 0) drawTextCSh('+' + G.runRP + ' RANGER POINTS EARNED', W / 2, 186, C.green, 1);
+  if (G.runRP > 0) drawTextCSh('+' + G.runRP + ' SCOUT COOKIES EARNED', W / 2, 186, C.green, 1);
   button(W / 2 - 55, 196, 110, 26, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'newrun' });
   button(W / 2 - 45, 230, 90, 18, 'MENU', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'tomenu' });
 }
@@ -3383,7 +3772,7 @@ function drawWin() {
   st('TIMES SNAPPED', G.stats.snaps);
   st('BEST BANK', fmt(G.stats.bestBank));
   st('MONEY EARNED', '$' + G.stats.moneyEarned);
-  drawTextCSh('+30 RANGER POINTS', W / 2, 168, C.green, 1);
+  drawTextCSh('+30 SCOUT COOKIES', W / 2, 168, C.green, 1);
   button(W / 2 - 75, 178, 150, 26, 'ENDLESS MODE >', '#7a4fd0', '#4a2a8a', () => { enterShop(); }, { id: 'endless', tip: 'Keep going!|Targets keep growing forever' });
   button(W / 2 - 55, 212, 110, 22, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'newrun2' });
 }
@@ -3403,36 +3792,36 @@ function drawMenu() {
 
   button(W / 2 - 65, 214, 130, 30, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'start', sc: 2 });
   button(W / 2 - 130, 248, 62, 14, 'HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, { id: 'how' });
-  button(W / 2 - 64, 248, 62, 14, 'EXCHANGE', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', tip: 'RANGER EXCHANGE|Spend RP on new cards + quest board|' + (meta.rp || 0) + ' RANGER POINTS' });
+  button(W / 2 - 64, 248, 62, 14, 'GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', tip: 'SCOUT GACHA-PON|Trade cookies for capsule prizes:|cards, glove skins, permanent upgrades|' + (meta.rp || 0) + ' SCOUT COOKIES' });
   button(W / 2 + 2, 248, 62, 14, 'SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, { id: 'setbtn' });
   button(W / 2 + 68, 248, 62, 14, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'credbtn' });
   if (best > 0) drawTextCSh('BEST ANTE: ' + best, W / 2, 200, C.gold, 1);
   ensureDaily();
   const steps = NPC_ORDER.reduce((a, nk) => a + meta.chains[nk].step, 0);
-  drawTextCSh('QUESTS DONE: ' + steps + '/24  -  ' + (meta.rp || 0) + ' RP TO SPEND', W / 2, 190, C.dim, 1);
+  drawTextCSh('QUESTS DONE: ' + steps + '/24  -  ' + (meta.rp || 0) + ' COOKIES TO SPEND', W / 2, 190, C.dim, 1);
 
-  // glove rack (bottom left)
-  panel(6, 196, 104, 66, { face: '#16222acc' });
-  drawTextC('GLOVES', 58, 201, C.dim, 1);
+  // glove rack (bottom left) - 6 wide to fit the gacha skins
+  panel(6, 194, 110, 68, { face: '#16222acc' });
+  drawTextC('GLOVES', 61, 199, C.dim, 1);
   GLOVE_ORDER.forEach((k, i) => {
-    const gx = 12 + (i % 4) * 25, gy = 212 + Math.floor(i / 4) * 24;
+    const gx = 12 + (i % 6) * 17, gy = 208 + Math.floor(i / 6) * 19;
     const g = GLOVES[k];
     const open = gloveUnlocked(k);
     const sel = meta.glove === k;
-    rr(gx, gy, 21, 20, 2, sel ? C.gold : '#0d161b');
-    rr(gx + 1, gy + 1, 19, 18, 2, open ? '#243642' : '#141c22');
-    if (open) ICONS.glove(gx + 4, gy + 4, g.skin);
-    else { drawTextC('?', gx + 10, gy + 7, '#41565e', 1); }
+    rr(gx, gy, 16, 16, 2, sel ? C.gold : '#0d161b');
+    rr(gx + 1, gy + 1, 14, 14, 2, open ? '#243642' : '#141c22');
+    if (open) ICONS.glove(gx + 2, gy + 2, g.skin);
+    else { drawTextC('?', gx + 8, gy + 5, '#41565e', 1); }
     const a = ACHS.find(a => a.id === g.ach);
-    hit(gx, gy, 21, 20, {
+    hit(gx, gy, 16, 16, {
       id: 'glove' + k, cursor: open,
       tip: open ? (g.name + '|' + g.flav + (sel ? '|EQUIPPED' : '|CLICK TO EQUIP'))
-        : ('LOCKED: ' + g.name + '|' + (a ? 'ACHIEVEMENT: ' + a.name + '|' + a.desc : '')),
+        : ('LOCKED: ' + g.name + '|' + (g.gacha ? 'WIN IT IN THE GACHA-PON' : a ? 'ACHIEVEMENT: ' + a.name + '|' + a.desc : '')),
       cb: () => { if (open) { meta.glove = k; saveMeta(); sfx.buy(); } else sfx.error(); },
     });
   });
   const done = ACHS.filter(a => meta.ach[a.id]).length;
-  drawTextC(done + '/' + ACHS.length + ' UNLOCKED', 58, 254, '#54707a', 1);
+  drawTextC(done + '/' + ACHS.length + ' UNLOCKED', 61, 250, '#54707a', 1);
 }
 
 function drawHow() {
@@ -3522,7 +3911,7 @@ function drawRangerSelect() {
     drawTextC('LOCKED', px + 50, py + 84, '#41565e', 1);
   }
   button(px + pw / 2 - 65, py + ph - 44, 130, 28, focusOpen ? 'HEAD OUT >' : 'LOCKED', '#d94f30', '#8a2a16',
-    () => { const k = rangerFocus; startTransition(() => newRun(k)); }, { id: 'rangergo', sc: 1, disabled: !focusOpen });
+    () => { const k = rangerFocus; startTransition(() => { newRun(k); startIntro(); }); }, { id: 'rangergo', sc: 1, disabled: !focusOpen });
   button(W / 2 - 40, 248, 80, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'rangerback' });
 }
 
@@ -3588,6 +3977,21 @@ function drawMap() {
   // start dock
   rr(84, 138, 26, 22, 3, '#4a3320');
   drawTextC('DOCK', 97, 164, C.dim, 1);
+  // live quest tracker (top-left corner of the chart)
+  panel(68, 52, 100, 60, { face: '#10181ecc', edge: '#3a5a50', r: 2 });
+  drawText('QUESTS', 74, 56, C.purple, 1);
+  NPC_ORDER.forEach((nk, i) => {
+    const cq = chainQuest(nk);
+    const qy = 65 + i * 15;
+    rect(72, qy, 5, 5, NPCS[nk].col);
+    if (!cq) { drawText('DONE!', 81, qy, C.green, 1); return; }
+    drawText(cq.name.slice(0, 12), 81, qy - 1, '#b8c8c8', 1);
+    rect(81, qy + 6, 60, 3, '#0a1215');
+    const pr = clamp(cq.prog / cq.goal, 0, 1);
+    if (pr > 0) rect(81, qy + 6, Math.floor(60 * pr), 3, C.gold);
+    drawText(cq.prog + '/' + cq.goal, 144, qy + 3, C.dim, 1);
+    hit(70, qy - 2, 96, 14, { id: 'qtrack' + nk, tip: NPCS[nk].name + '|' + cq.name + '|' + cq.prog + '/' + cq.goal + '  (+' + cq.rp + ' COOKIES)' });
+  });
   // fog of the next ante on the right
   for (let k = 0; k < 5; k++) {
     ctx.globalAlpha = 0.15 + k * 0.14;
@@ -3679,9 +4083,10 @@ function drawMap() {
           id: 'node' + s + '_' + k, cursor: true,
           tip: nodeTip(node),
           cb: () => {
-            const from2 = s === 0 ? { x: 97, y: 148 } : nodePos(s - 1, G.map.picked[s - 1], G.map.stages[s - 1].length);
-            G.boat = { x: from2.x, y: from2.y, tx: p.x, ty: p.y + 20, t: 0, k };
-            sfx.splash(); addRipple(p.x, p.y + 22, false);
+            const from2 = s === 0 ? { x: 97, y: 158 } : (() => { const q = nodePos(s - 1, G.map.picked[s - 1], G.map.stages[s - 1].length); return { x: q.x, y: q.y + 20 }; })();
+            const dist = Math.hypot(p.x - from2.x, p.y + 20 - from2.y);
+            G.boat = { x: from2.x, y: from2.y, sx: from2.x, sy: from2.y, tx: p.x, ty: p.y + 20, t: 0, k, dur: clamp(dist / 130, 0.7, 1.5), lean: 0 };
+            sfx.splash(); addRipple(from2.x, from2.y + 4, false);
           },
         });
       }
@@ -3692,11 +4097,21 @@ function drawMap() {
     : G.map.stage === 0 ? { x: 97, y: 158 }
       : (() => { const q = nodePos(G.map.stage - 1, G.map.picked[G.map.stage - 1] || 0, G.map.stages[G.map.stage - 1].length); return { x: q.x, y: q.y + 20 }; })();
   const bob = Math.round(Math.sin(tNow * 2.2) * 1.5);
+  const lean = G.boat ? Math.round(G.boat.lean || 0) : 0;
+  // wake vee while cruising
+  if (G.boat) {
+    ctx.save(); ctx.globalAlpha = 0.4;
+    const dir = G.boat.tx > G.boat.sx ? -1 : 1;
+    for (let k = 1; k <= 4; k++) {
+      rect(bpos.x + dir * (12 + k * 6), bpos.y + 4 - k, 5 - k + 2, 1, '#1e4a52');
+      rect(bpos.x + dir * (12 + k * 6), bpos.y + 4 + k, 5 - k + 2, 1, '#1e4a52');
+    }
+    ctx.restore();
+  }
   rr(bpos.x - 12, bpos.y + bob, 24, 7, 3, '#5a3a1e');
   rr(bpos.x - 9, bpos.y - 2 + bob, 18, 4, 2, '#7a5230');
-  ctx.save(); ctx.translate(bpos.x - 7, bpos.y - 16 + bob); ctx.scale(0.5, 0.5); ctx.restore();
-  drawRangerFace(bpos.x - 14, bpos.y - 26 + bob, G.ranger);
-  drawTextC('PICK YOUR NEXT STOP', W / 2, 234, C.dim, 1);
+  drawRangerFace(bpos.x - 14 + lean, bpos.y - 26 + bob, G.ranger);
+  drawTextC(G.boat ? '. . .' : 'PICK YOUR NEXT STOP', W / 2, 234, C.dim, 1);
 }
 function nodeTip(node) {
   const d = NODE_DEFS[node.type];
@@ -3712,77 +4127,202 @@ function nodeTip(node) {
   return t;
 }
 function updateBoat(dt) {
-  if (!G.boat) return;
-  G.boat.t += dt;
-  const k2 = easeOut(clamp(G.boat.t / 0.7, 0, 1));
-  G.boat.x = lerp(G.boat.x, G.boat.tx, k2 * 0.2);
-  G.boat.y = lerp(G.boat.y, G.boat.ty, k2 * 0.2);
-  if (G.boat.t > 0.75) { const k = G.boat.k; G.boat = null; pickNode(k); }
+  const b = G.boat; if (!b) return;
+  b.t += dt;
+  const f = clamp(b.t / b.dur, 0, 1);
+  const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2; // easeInOut
+  // quadratic bezier: the midpoint dips onto the winding channel line
+  const mx2 = (b.sx + b.tx) / 2;
+  const my2 = 148 + Math.sin(mx2 * 0.03) * 26 + 8;
+  const u = 1 - e;
+  b.x = u * u * b.sx + 2 * u * e * mx2 + e * e * b.tx;
+  b.y = u * u * b.sy + 2 * u * e * my2 + e * e * b.ty;
+  b.lean = (b.tx - b.sx > 0 ? 1 : -1) * Math.sin(e * Math.PI) * 2; // heels into the ride
+  // churning wake while underway
+  b.wake = b.wake || 0; b.wake -= dt;
+  if (b.wake <= 0 && f > 0.02 && f < 0.96) {
+    b.wake = 0.09;
+    addRipple(b.x - (b.tx > b.sx ? 10 : -10), b.y + 6, false);
+    parts.push({ x: b.x - (b.tx > b.sx ? 12 : -12), y: b.y + 5, vx: (b.sx - b.tx) * 0.25 + (rnd() - 0.5) * 20, vy: -20 - rnd() * 25, g: 190, t: 0, life: 0.35 + rnd() * 0.2, col: '#7fb8c8', sz: 1 });
+  }
+  if (f >= 1) {
+    const k = b.k;
+    addRipple(b.tx, b.ty + 2, true); sfx.splash();
+    G.boat = null;
+    pickNode(k);
+  }
 }
 
-// ------------------------------------- ranger exchange + quest board ------
-function drawPassScreen() {
-  const th = THEMES.shop;
-  drawSceneBack(th);
-  drawSceneFront(th);
-  overlayDim(0.55);
-  ensureDaily();
-  drawTextCSh('RANGER EXCHANGE', W / 2, 6, C.gold, 2);
-  drawTextCSh('SPEND ' + fmt(meta.rp || 0) + ' RANGER POINTS ON PERMANENT UNLOCKS', W / 2, 24, C.green, 1);
-
-  // unlockables in two rows
-  const items = exchangeItems();
-  const tw = 56, rows = [[0, 8], [8, items.length]];
-  rows.forEach(([a, b2], r) => {
-    const count = b2 - a;
-    const tx0 = Math.floor(W / 2 - (count * tw - 12) / 2);
-    const ty = 36 + r * 52;
-    for (let i = a; i < b2; i++) {
-      const def = items[i]; if (!def) continue;
-      const x = tx0 + (i - a) * tw;
-      const cost = EXCHANGE_COST[def.tier] || 100;
-      const owned = !!meta.unlocked[def.id];
-      const afford = (meta.rp || 0) >= cost;
-      panel(x, ty, 46, 44, { face: owned ? '#26321e' : '#141c22', edge: owned ? C.gold : afford ? '#4a7a50' : '#2c3a44' });
-      (ICONS[def.ico] || ICONS.star)(x + 17, ty + 4);
-      drawTextC(def.name.split(' ')[0].slice(0, 8), x + 23, ty + 22, owned ? C.white : '#8fa6a8', 1);
-      drawTextC(owned ? 'OWNED' : cost + ' RP', x + 23, ty + 32, owned ? C.green : afford ? C.gold : C.dim, 1);
-      hit(x, ty, 46, 44, {
-        id: 'exch' + def.id, cursor: !owned,
-        cb: () => { if (!owned) buyUnlock(def); },
-        tip: def.name + '|' + def.desc + '|' + (owned ? 'UNLOCKED - IN YOUR POOLS' : 'CLICK TO UNLOCK: ' + cost + ' RP'),
-      });
-    }
+// --------------------------- scout gacha-pon + quest board ----------------
+const RAR_NAMES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'];
+const RAR_COLS = ['#9fb2c8', '#3e8cd0', '#a860e8', '#ffc843'];
+const CAP_COLS = ['#ff8ab0', '#7fd4e8', '#ffe089', '#a8e86a', '#c8a8f8', '#ff9838', '#63d66a'];
+function drawGachaMachine(x, y, jolt, crankA, hideCap) {
+  // x,y = top-left; 104 wide, 132 tall
+  const jx = jolt ? ri(-1, 1) : 0, jy2 = jolt ? ri(-1, 1) : 0;
+  ctx.save(); ctx.translate(x + jx, y + jy2);
+  // glass dome
+  rr(6, 0, 92, 62, 10, '#3a4a55');
+  rr(9, 3, 86, 56, 9, '#0e1a22');
+  // capsules jostling inside
+  CAP_COLS.forEach((c, i) => {
+    if (hideCap === i) return; // this one already dropped
+    const cx2 = 16 + (i % 4) * 20 + (((i / 4) | 0) % 2) * 9;
+    const cy2 = 34 - ((i / 4) | 0) * 16 + (jolt ? ri(-2, 1) : Math.round(Math.sin(tNow * 1.4 + i * 2) * 1));
+    fillCircle(cx2 + 6, cy2 + 6, 7, c);
+    ctx.save(); ctx.globalAlpha = 0.55; fillCircle(cx2 + 6, cy2 + 8, 6, '#f4f2e4'); ctx.restore();
+    rect(cx2 + 3, cy2 + 2, 3, 2, '#ffffffaa');
   });
+  // glass shine
+  ctx.save(); ctx.globalAlpha = 0.18; rect(14, 6, 5, 48, '#eafcff'); rect(22, 6, 2, 48, '#eafcff'); ctx.restore();
+  // body
+  rr(0, 60, 104, 56, 6, '#8a2430');
+  rr(3, 63, 98, 50, 5, '#c23a4a');
+  rect(3, 63, 98, 8, '#d85a66');
+  // marquee
+  rr(24, 66, 56, 12, 3, '#2a1216');
+  drawTextC('GACHA', 52, 69, '#ffe089', 1);
+  // coin slot + crank
+  rr(10, 84, 18, 22, 3, '#7a1c28');
+  rect(16, 88, 6, 2, '#2a1216'); drawTextC('25', 19, 96, '#ffe089', 1);
+  const ca = crankA || 0;
+  fillCircle(78, 94, 11, '#7a1c28'); fillCircle(78, 94, 9, '#e8e4d0');
+  rect(77 + Math.round(Math.cos(ca) * 6), 93 + Math.round(Math.sin(ca) * 6), 4, 4, '#8a2430');
+  fillCircle(78, 94, 2, '#8a2430');
+  // dispense tray
+  rr(34, 92, 34, 20, 3, '#5a1420');
+  rr(37, 95, 28, 14, 3, '#1a0a0e');
+  // legs
+  rect(8, 116, 12, 8, '#5a1420'); rect(84, 116, 12, 8, '#5a1420');
+  rect(2, 124, 100, 4, '#2a1216');
+  ctx.restore();
+}
+function drawPassScreen(dt) {
+  ensureDaily();
+  // cozy back room: dark planks + string lights
+  for (let y = 0; y < H; y += 14) {
+    rect(0, y, W, 14, ((y / 14) | 0) % 2 ? '#33241a' : '#2c1f14');
+    rect(0, y + 13, W, 1, '#1c1208');
+  }
+  rect(0, 218, W, H - 218, '#241708');
+  for (let x = 0; x < W; x += 48) rect(x, 221, 1, H - 221, '#1c1208');
+  // string lights
+  for (let k = 0; k < 12; k++) {
+    const lx = 12 + k * 42, ly = 8 + Math.round(Math.sin(k * 1.2) * 4);
+    rect(lx, ly, 42, 1, '#1c1208');
+    const on = ((tNow * 2 + k) | 0) % 3 !== 0;
+    fillCircle(lx + 20, ly + 4, 2, on ? ['#ffe089', '#ff8ab0', '#7fd4e8'][k % 3] : '#3a2c20');
+    if (on) { ctx.save(); ctx.globalAlpha = 0.12; fillCircle(lx + 20, ly + 5, 6, '#ffe089'); ctx.restore(); }
+  }
+  drawTextCSh('SCOUT GACHA-PON', 130, 20, C.gold, 2);
+  drawTextC('TRADE SCOUT COOKIES FOR CAPSULE PRIZES', 130, 38, '#c8a878', 1);
+  // cookie balance
+  panel(352, 14, 112, 22, { face: '#26321e', edge: '#5a7a3a' });
+  ICONS.cookie(358, 19);
+  drawText(fmt(meta.rp || 0) + ' COOKIES', 374, 22, C.gold, 1);
 
-  // quest chains
-  drawTextC('THE QUEST BOARD  -  EVERY QUEST FINISHED OPENS THE NEXT', W / 2, 142, C.purple, 1);
+  // ---- the machine ----
+  const g = G.gacha;
+  const mxp = 78, myp = 62;
+  const crankA = g && g.phase === 'crank' ? g.t * 14 : 0;
+  drawGachaMachine(mxp, myp, g && g.phase === 'crank', crankA, -1);
+  const pool = gachaPool();
+  const canSpin = (meta.rp || 0) >= GACHA_SPIN && (!g || g.phase === 'reveal');
+  button(mxp + 2, 196, 100, 22, 'SPIN', '#d94f30', '#8a2a16', gachaSpin,
+    { id: 'gspin', disabled: !canSpin, sub: GACHA_SPIN + ' COOKIES', subCol: '#ffe089', tip: 'GACHA-PON|One capsule per spin: cards, glove skins,|permanent upgrades. Dupes impossible.' });
+  drawTextC(pool.length ? pool.length + ' PRIZES LEFT IN THE DOME' : 'EVERY PRIZE COLLECTED!', mxp + 52, 226, pool.length ? '#8fa6a8' : C.gold, 1);
+
+  // ---- quest board (cookies come from these) ----
+  panel(236, 50, 232, 172, { face: '#1a121066', edge: '#5a4028', r: 4 });
+  drawTextCSh('QUEST BOARD', 352, 56, C.purple, 1);
+  drawTextC('FINISH QUESTS TO EARN COOKIES', 352, 66, '#8a7a58', 1);
   NPC_ORDER.forEach((nk, i) => {
     const npc = NPCS[nk];
     const cq = chainQuest(nk);
-    const x = 34 + i * 142, y = 152, w2 = 130, h2 = 76;
+    const x = 242, y = 74 + i * 48, w2 = 220, h2 = 44;
     panel(x, y, w2, h2, { face: '#1a2530ee', edge: npc.col });
-    rr(x + 4, y + 4, 34, 34, 3, '#10181e');
-    drawNpcFace(x + 7, y + 7, nk);
-    drawText(npc.name, x + 42, y + 6, npc.col, 1);
+    rr(x + 3, y + 3, 30, 30, 3, '#10181e');
+    ctx.save(); ctx.translate(x + 4, y + 4); ctx.scale(0.9, 0.9); drawNpcFace(0, 0, nk); ctx.restore();
+    drawText(npc.name, x + 38, y + 4, npc.col, 1);
+    // chain pips
+    QUEST_CHAINS[nk].forEach((_, s) => {
+      const done = meta.chains[nk].step > s;
+      rect(x + 150 + s * 8, y + 5, 5, 5, done ? C.gold : '#0a1215');
+      if (done) rect(x + 151 + s * 8, y + 6, 3, 3, '#fff6c8');
+    });
     if (cq) {
-      drawText('QUEST ' + (cq.step + 1) + '/' + QUEST_CHAINS[nk].length, x + 42, y + 16, C.dim, 1);
-      drawSmallWrapped(cq.name, x + 42, y + 26, w2 - 48, C.white);
-      rect(x + 42, y + 46, 70, 4, '#0a1215');
+      drawText(cq.name, x + 38, y + 14, C.white, 1);
+      rect(x + 38, y + 24, 130, 6, '#0a1215');
       const pr = clamp(cq.prog / cq.goal, 0, 1);
-      if (pr > 0) rect(x + 42, y + 46, Math.floor(70 * pr), 4, C.gold);
-      drawText(cq.prog + '/' + cq.goal, x + 42, y + 53, C.dim, 1);
-      drawText('+' + cq.rp + ' RP', x + 92, y + 53, C.gold, 1);
+      if (pr > 0) {
+        rect(x + 38, y + 24, Math.floor(130 * pr), 6, C.gold);
+        rect(x + 38, y + 24, Math.floor(130 * pr), 2, '#ffe089');
+      }
+      drawText(cq.prog + '/' + cq.goal, x + 38, y + 33, C.dim, 1);
+      ICONS.cookie(x + 176, y + 20);
+      drawText('+' + cq.rp, x + 190, y + 24, C.gold, 1);
     } else {
-      drawText('ALL QUESTS DONE!', x + 42, y + 26, C.green, 1);
-      drawText('LEGEND OF THE PARK', x + 42, y + 38, C.gold, 1);
+      drawText('ALL QUESTS DONE - LEGEND!', x + 38, y + 20, C.green, 1);
     }
-    drawTextC("'" + npc.line.slice(0, 26) + "'", x + w2 / 2, y + h2 - 10, '#54707a', 1);
-    hit(x, y, w2, 26, { id: 'npc' + nk, tip: npc.name + '|' + npc.who + "|'" + npc.line + "'" });
+    hit(x, y, w2, h2, { id: 'npc' + nk, tip: npc.name + '|' + npc.who + "|'" + npc.line + "'" });
   });
 
-  drawTextC('EARN RP: ACHIEVEMENTS +25, QUESTS, EVENTS +3, ANTES +2', W / 2, 234, '#54707a', 1);
-  button(W / 2 - 40, 246, 80, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'passback' });
+  drawTextC('EARN COOKIES: QUESTS, ACHIEVEMENTS +25, EVENTS +3, ANTES +2', W / 2, 236, '#54707a', 1);
+  button(W / 2 - 40, 248, 80, 16, '< BACK', '#3a5560', '#243a44', () => { if (!G.gacha || G.gacha.phase === 'reveal') { G.gacha = null; G.state = 'menu'; } }, { id: 'passback' });
+
+  // ---- spin animation ----
+  if (!g) return;
+  g.t += dt;
+  if (g.phase === 'crank') {
+    if (g.t >= 0.75) { g.phase = 'drop'; g.t = 0; sfx.thunk(); }
+  } else if (g.phase === 'drop') {
+    // capsule falls from the dome into the tray, two bounces
+    const f = clamp(g.t / 0.6, 0, 1);
+    const cx2 = mxp + 51, y0 = myp + 40, y1 = myp + 100;
+    let yy = y0 + (y1 - y0) * easeIn(Math.min(1, f * 1.4));
+    if (f > 0.71) yy = y1 - Math.abs(Math.sin((f - 0.71) * 11)) * 8 * (1 - f);
+    fillCircle(cx2, yy, 8, g.capCol);
+    ctx.save(); ctx.globalAlpha = 0.5; fillCircle(cx2, yy + 2, 7, '#f4f2e4'); ctx.restore();
+    rect(cx2 - 4, yy - 6, 3, 2, '#ffffffaa');
+    if (g.t >= 0.72 && !g.bounced) { g.bounced = true; sfx.drop(); }
+    if (g.t >= 0.85) { g.phase = 'open'; g.t = 0; sfx.pin(); }
+  } else if (g.phase === 'open') {
+    // halves fly apart center-screen
+    overlayDim(0.5);
+    const f = easeOut(clamp(g.t / 0.4, 0, 1));
+    const cx2 = W / 2, cy2 = 128;
+    ctx.save(); ctx.globalAlpha = 1;
+    fillCircle(cx2, cy2 - 14 - f * 46, 13, g.capCol);
+    rect(cx2 - 13, cy2 - 14 - f * 46, 26, 7, g.capCol);
+    fillCircle(cx2, cy2 + 14 + f * 46, 13, '#f4f2e4');
+    rect(cx2 - 13, cy2 + 7 + f * 46, 26, 7, '#f4f2e4');
+    ctx.restore();
+    if (!g.burst) { g.burst = true; burst(cx2, cy2, g.capCol, 14, 90); }
+    if (g.t >= 0.42) { g.phase = 'reveal'; g.t = 0; gachaAward(g.prize); g.info = gachaPrizeInfo(g.prize); if (g.info.rar >= 2) { burst(cx2, cy2, C.gold, 20, 120); sfx.win(); } }
+  } else if (g.phase === 'reveal') {
+    overlayDim(0.62);
+    const info = g.info || gachaPrizeInfo(g.prize);
+    const pop = easeOut(clamp(g.t / 0.25, 0, 1));
+    const pw2 = 190, ph2 = 96, px2 = W / 2 - pw2 / 2, py2 = 128 - ph2 / 2 * pop;
+    ctx.save(); ctx.globalAlpha = pop;
+    // rarity halo
+    ctx.save(); ctx.globalAlpha = 0.16 * pop + Math.sin(tNow * 4) * 0.03; fillCircle(W / 2, 128, 86, RAR_COLS[info.rar]); ctx.restore();
+    panel(px2, py2, pw2, ph2 * pop, { face: '#16222af8', edge: RAR_COLS[info.rar] });
+    if (pop >= 1) {
+      drawTextC(RAR_NAMES[info.rar], W / 2, py2 + 8, RAR_COLS[info.rar], 1);
+      drawTextCSh(info.name, W / 2, py2 + 20, C.white, 2);
+      // prize icon
+      const iy = py2 + 40;
+      if (g.prize.kind === 'glove') ICONS.glove(W / 2 - 6, iy, GLOVES[g.prize.k].skin);
+      else if (g.prize.kind === 'perk') (ICONS[PERKS[g.prize.k].ico] || ICONS.star)(W / 2 - 6, iy);
+      else if (g.prize.kind === 'card') (ICONS[g.prize.def.ico] || ICONS.star)(W / 2 - 6, iy);
+      else ICONS.cookie(W / 2 - 6, iy);
+      drawSmallWrapped(info.desc, px2 + 14, iy + 16, pw2 - 28, '#b8c8c8');
+      if ((tNow % 1) < 0.6) drawTextC('TAP ANYWHERE', W / 2, py2 + ph2 - 10, C.dim, 1);
+    }
+    ctx.restore();
+    if (g.t > 0.3) hit(0, 0, W, H, { id: 'greveal', cb: () => { G.gacha = null; }, cursor: true });
+  }
 }
 
 // ------------------------------------------------------- swamp events -----
@@ -4200,7 +4740,8 @@ function frame(ms) {
     case 'menu': drawMenu(); break;
     case 'how': drawHow(); break;
     case 'ranger': drawRangerSelect(); break;
-    case 'pass': drawPassScreen(); break;
+    case 'intro': drawIntro(dt); break;
+    case 'pass': drawPassScreen(dt); break;
     case 'map': drawMap(); break;
     case 'event': drawEvent(dt); break;
     case 'bench': drawBench(); break;
@@ -4304,11 +4845,11 @@ function drawCreditsOverlay() {
       meta.rp = (meta.rp || 0) + 200;
       saveMeta();
       sfx.coin();
-      addToast('+200 RP', '#63d66a', 60);
+      addToast('+200 COOKIES', '#63d66a', 60);
     }
     window.open('https://pukking-dragon.itch.io/bite-down', '_blank');
   };
-  button(W / 2 - 60, 146, 120, 14, 'FOLLOW ON ITCH +200RP', '#8a4fd0', '#5a2a8a', itchBtn, { id: 'itchbtn' });
+  button(W / 2 - 60, 146, 120, 14, 'FOLLOW ON ITCH +200', '#8a4fd0', '#5a2a8a', itchBtn, { id: 'itchbtn', tip: 'Follow BITE DOWN on itch.io|+200 scout cookies, one time' });
   button(W / 2 - 40, 164, 80, 14, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'credback' });
 }
 
