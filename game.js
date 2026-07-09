@@ -1360,10 +1360,13 @@ function quest(id, n) {
       ch.step++; ch.prog = 0;
       sfx.ach();
       addRP(cq.rp, NPCS[nk].name + ': QUEST ' + (cq.step + 1) + ' DONE');
-    } else if (tNow - questToastT > 8 && ch.prog / cq.goal >= 0.5) {
-      questToastT = tNow;
-      toasts.push({ name: cq.name, sub: 'QUEST ' + ch.prog + '/' + cq.goal + ' - ' + NPCS[nk].name, t: 0 });
-    } else saveMeta();
+    } else {
+      if (tNow - questToastT > 8 && ch.prog / cq.goal >= 0.5) {
+        questToastT = tNow;
+        toasts.push({ name: cq.name, sub: 'QUEST ' + ch.prog + '/' + cq.goal + ' - ' + NPCS[nk].name, t: 0 });
+      }
+      saveMeta();
+    }
   });
 }
 function unlock(id) {
@@ -3277,6 +3280,7 @@ function drawShop() {
     drawDoor(-2 - k * 244, false);
     drawDoor(240 + k * 244, true);
     ctx.save(); ctx.globalAlpha = (1 - doorT) * 0.5; rect(0, 0, W, H, '#160e08'); ctx.restore();
+    hit(0, 0, W, H, { id: 'doorblock', cb: () => { } }); // no shopping through the doors
   }
 }
 
@@ -3499,6 +3503,8 @@ function startIntro() {
 }
 function endIntro() {
   if (!G.cut || G.cut.ending) return;
+  // a wipe may still be running (skip pressed instantly): cut straight over
+  if (trans) { G.cut = null; G.state = 'map'; return; }
   G.cut.ending = true;
   startTransition(() => { G.cut = null; G.state = 'map'; });
 }

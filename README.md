@@ -83,21 +83,23 @@ starts unlocked — earn the rest:
 - **BULLFROG BRAWLER** (the bullfrog, 3 sweeps in a run) — Clean Sweeps pay ×1.75
 - **SNAIL SAGE** (the snail, WIN a run) — every bite starts at +3 MULT, −1 bite
 
-### The Swamp Pass and the Quest Board
+### The Scout Gacha-Pon and the Quest Board
 
-Earn **Ranger Points**: achievements +25, daily quests +15, events +3, antes +2.
-RP climbs a **15-tier pass** that drops new cards, tools and legendary charms
-into your pools. Daily quests come from **three NPC quest-givers** — Granny
-Snapper the turtle, Ferryman Crow, and Doc Mudbug the crawfish dentist — and
-each day you can **pledge** to one of them to double their quest's reward.
+Earn **Scout Cookies**: achievements +25, quests +15 and up, events +3, antes
++2. Trade 25 cookies for a spin of the **Gacha-Pon machine** — every capsule
+is a prize you don't own yet: new cards and tools for your shop pools, three
+gacha-only glove skins, and three **permanent perks** (start richer, a free
+shop reroll, fatter snack packs). No duplicates, ever. Cookies come from
+**three NPC quest chains** — Granny Snapper the turtle, Ferryman Crow, and Doc
+Mudbug the crawfish dentist — tracked live on the trail map.
 
 ### Your hand, your gloves
 
 You press with an on-screen pixel hand — and it's customizable. Earn
 **achievements** (first press, beating bosses, holding $50, surviving 25 snaps,
-clean sweeps, winning a run…) to unlock **8 gloves**, from the humble Rubber
-Glove to the Midas Touch and the Royal Grip. Pick yours from the rack on the
-title screen.
+clean sweeps, winning a run…) or lucky gacha spins to unlock **11 gloves**,
+from the humble Rubber Glove to the Midas Touch and the Night Sky. Pick yours
+from the rack on the title screen.
 
 ### Controls
 
