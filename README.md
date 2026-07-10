@@ -28,9 +28,10 @@ Every ante is a journey across a map. Pick your path at each fork:
 - **EASY GATOR** — a gentle target, modest pay
 - **RISKY GATOR** — 1.5× the target, better pay
 - **GOLDEN GATOR** — a gilded monster with 1.9× the target and a fat purse
-- **? EVENTS** — no fight, no shop: a choice. Dive for the sunken chest, haggle
-  with the hermit dentist, chase the firefly swarm, rob a sleeping gator, or
-  trade teeth with the swamp witch. Five events, all with consequences.
+- **? EVENTS** — no fight, no shop: a **skill mini-game**. Hook fish off the
+  night dock, lob drumsticks to a cruising gator, hold the campfire gumbo at a
+  simmer, pull marshmallows at peak gold, or shoot up the carnival duck
+  gallery. Five games — the better you play, the more they pay.
 
 Fight nodes carry **modifiers** so every fork is a different gamble: FOGGY,
 SWARMING, BRITTLE, TOLL GATE and TIRED ARM make routes nastier; BLESSED,
@@ -56,11 +57,11 @@ red eyes.
 
 ### Cards, charms, tools and the barrel
 
-- **45+ BADGES** (charms wear circular park-badge art now) across six rarities —
+- **55+ BADGES** (charms wear circular park-badge art now) across six rarities —
   Common, Uncommon, Rare, **EPIC**, **LEGENDARY** and **MYTHICAL** ($20+:
   Leviathan doubles every bank; Foreverglades pays bites, x-rays and cash
   every round; Million Fang counts your whole deck)
-- **15 one-shot CARDS** plus **10 DENTIST TOOLS** — the tarot deck of Bite Down.
+- **15 one-shot CARDS** plus **15 DENTIST TOOLS** — the tarot deck of Bite Down.
   Tools open **the Dentist Bench**: a workbench with a model mouth showing your
   deck's teeth. Pick targets and get to work — polish, gold fillings, ruby
   inlays, infections (+8 MULT, value 0), veneers, cloning wire, fluoride baths,

@@ -3774,8 +3774,10 @@ function drawMenu() {
   button(W / 2 + 68, 248, 62, 14, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'credbtn' });
   ensureDaily();
   const steps = NPC_ORDER.reduce((a, nk) => a + meta.chains[nk].step, 0);
-  drawTextCSh('QUESTS DONE: ' + steps + '/24  -  ' + (meta.rp || 0) + ' COOKIES TO SPEND', W / 2, 80, C.dim, 1);
-  if (best > 0) drawTextCSh('BEST ANTE: ' + best, W / 2, 92, C.gold, 1);
+  drawTextSh('QUESTS: ' + steps + '/24', 10, 152, C.dim, 1);
+  ICONS.cookie(8, 162);
+  drawTextSh(fmt(meta.rp || 0) + ' COOKIES', 24, 165, C.gold, 1);
+  if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 180, '#8fa6a8', 1);
 
   // glove rack (bottom left) - 6 wide to fit the gacha skins
   panel(6, 194, 110, 68, { face: '#16222acc' });
