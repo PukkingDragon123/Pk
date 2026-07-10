@@ -806,6 +806,7 @@ function drawTooth(x, y, w, h, up, type, o) {
 // body tones a(base) b(dark) c(light) d(outline), maw colors, feature flags
 const CROC_STYLES = {
   small: { a: '#5aa843', b: '#3c7c2e', c: '#8cd34f', d: '#295722', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f8f4dc' },
+  turtle: { a: '#8a9a4e', b: '#5c6a2e', c: '#b0bc6a', d: '#3a4420', maw: '#5a2a1a', mawD: '#3a1a0e', tongue: '#d0766a', tongueHi: '#e89a8a', sclera: '#f8f4dc', shell: true, sleepy: true },
   big: { a: '#4e8f3d', b: '#2f6626', c: '#79b944', d: '#1f4519', maw: '#40101c', mawD: '#2a0a12', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e8c8', scars: true, ridge: true },
   twofang: { a: '#57755a', b: '#3a523e', c: '#7d9a80', d: '#263a2a', maw: '#3a0e18', mawD: '#260810', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e0c0', fangs: true, scars: true },
   murky: { a: '#7a6a40', b: '#584a28', c: '#9c8c58', d: '#3a3018', maw: '#3a2010', mawD: '#281408', tongue: '#a86040', tongueHi: '#c08058', sclera: '#d8d0a8', algae: true, sleepy: true },
@@ -831,6 +832,7 @@ function crocStyle() {
   if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
   if (G.state !== 'menu' && G.nodeType === 'gold') return CROC_STYLES.gold;
   if (G.state !== 'menu' && G.round === 1) return CROC_STYLES.big;
+  if (G.state !== 'menu' && G.round === 0 && G.nodeType === 'small') return CROC_STYLES.turtle;
   return CROC_STYLES.small;
 }
 
@@ -921,6 +923,13 @@ const CHARMS = [
   { id: 'tacklecharm', name: 'TACKLE CHARM', cost: 5, rar: 1, ico: 'trap', tier: 13, desc: 'Shop rerolls start $1 cheaper', flav: 'Hooks, lines and sinkers.' },
   { id: 'airhorn', name: 'AIR HORN', cost: 7, rar: 2, ico: 'skull', tier: 14, desc: '+1 BITE during BOSS rounds', flav: 'HONK. The boss blinked.' },
   { id: 'goldgrill', name: 'GOLD GRILL', cost: 8, rar: 2, ico: 'tooth', tier: 15, desc: 'GOLDEN gators pay +$5 extra', flav: 'Match their smile.' },
+  // ---- nature & wildlife badges (gacha) ----
+  { id: 'heronfeather', name: 'HERON FEATHER', cost: 4, rar: 0, ico: 'eye', tier: 1, desc: '+1 X-RAY against SNAPPY TURTLES', flav: 'Sharp eyes molt off.' },
+  { id: 'otterpaw', name: 'OTTER PAW', cost: 6, rar: 1, ico: 'coin', tier: 4, desc: 'CLEAN SWEEPS pay +$3', flav: 'Slippery little bonus.' },
+  { id: 'cypressroot', name: 'CYPRESS ROOT', cost: 7, rar: 2, ico: 'tooth', tier: 6, desc: '+1 tooth in every mouth', flav: 'Everything grows in the glades.' },
+  { id: 'dragonfly', name: 'DRAGONFLY WING', cost: 5, rar: 1, ico: 'bolt', tier: 9, desc: 'Mini-games pay +2 SCOUT COOKIES', flav: 'Four wings, no waiting.' },
+  { id: 'owlfeather', name: 'OWL FEATHER', cost: 8, rar: 2, ico: 'eye', tier: 11, desc: 'One extra tooth comes pre-revealed each mouth', flav: 'It sees you press.' },
+  { id: 'snailshell', name: 'SNAIL SHELL', cost: 6, rar: 1, ico: 'shield', tier: 13, desc: 'Round interest pays +$2 flat', flav: 'Compound patience.' },
   { id: 'leviathan', name: 'LEVIATHAN', cost: 22, rar: 5, ico: 'fang', desc: 'X2 MULT on every bank', flav: 'The swamp has a basement. It lives there.' },
   { id: 'foreverglades', name: 'FOREVERGLADES', cost: 24, rar: 5, ico: 'fairy', desc: '+1 BITE, +1 X-RAY and +$2 every round', flav: 'The park provides, forever.' },
   { id: 'millionfang', name: 'MILLION FANG', cost: 20, rar: 5, ico: 'shield', desc: '+1 TEETH per tooth in your deck when banking', flav: 'Strength in numbers. Specifically teeth.' },
@@ -976,11 +985,11 @@ const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth,
 
 // ------------------------------------------------------------ map nodes ---
 const NODE_DEFS = {
-  small: { name: 'EASY GATOR', mult: 1, reward: 4, col: '#63d66a' },
-  big: { name: 'RISKY GATOR', mult: 1.5, reward: 6, col: '#ff9838' },
-  gold: { name: 'GOLDEN GATOR', mult: 1.9, reward: 11, col: '#ffc843' },
+  small: { name: 'SNAPPY TURTLE', mult: 1, reward: 3, col: '#63d66a' },
+  big: { name: 'RISKY GATOR', mult: 1.5, reward: 5, col: '#ff9838' },
+  gold: { name: 'GOLDEN GATOR', mult: 1.9, reward: 8, col: '#ffc843' },
   event: { name: 'SWAMP EVENT', col: '#c07dff' },
-  boss: { name: 'BOSS GATOR', mult: 2, reward: 8, col: '#ff5348' },
+  boss: { name: 'BOSS GATOR', mult: 2, reward: 6, col: '#ff5348' },
 };
 
 // node modifiers: every fork is a different gamble, not just a bigger blind
@@ -999,10 +1008,10 @@ const NODE_MODS = {
 const BAD_MODS = Object.keys(NODE_MODS).filter(k => NODE_MODS[k].bad);
 const GOOD_MODS = Object.keys(NODE_MODS).filter(k => !NODE_MODS[k].bad);
 
-const ANTE_BASE = [60, 160, 380, 850, 1900, 3600, 6200, 7500];
+const ANTE_BASE = [120, 320, 760, 1700, 3800, 7200, 12400, 15000]; // doubled: the swamp shows no mercy
 const ROUND_MULT = [1, 1.5, 2];
 const ROUND_REWARD = [4, 5, 8];
-const ROUND_NAMES = ['SMALL GATOR', 'BIG GATOR', 'BOSS'];
+const ROUND_NAMES = ['SNAPPY TURTLE', 'BIG GATOR', 'BOSS'];
 
 function targetFor(ante, round) {
   let base = ante <= 8 ? ANTE_BASE[ante - 1] : ANTE_BASE[7] * Math.pow(1.6, ante - 8);
@@ -1074,6 +1083,9 @@ const MINIGAMES = {
   cook: { name: 'CAMP GUMBO', how: ['TAP to stoke the fire.', 'Hold the needle in the green for 10 seconds.'] },
   mallow: { name: 'MALLOW ROAST', how: ['Marshmallows toast fast and burn faster.', 'TAP to pull each one at peak GOLD. 3 mallows.'] },
   ducks: { name: 'DUCK GALLERY', how: ['Wooden ducks cross the stalls - TAP to shoot!', 'Gold ducks pay triple. 14 seconds.'] },
+  froggy: { name: 'FROG ROUNDUP', how: ['Frogs only rest a moment between hops.', 'TAP one while it sits to bag it! 14 seconds.'] },
+  birdy: { name: 'BIRD SNAPS', how: ['Line the photo frame up on a flying bird', 'and TAP to snap it. 6 shots of film!'] },
+  boat: { name: 'AIRBOAT RUN', how: ['MOVE your finger or mouse to steer the airboat.', 'Grab coins, dodge the logs! 15 seconds.'] },
 };
 const MINIGAME_KEYS = Object.keys(MINIGAMES);
 
@@ -1097,6 +1109,9 @@ const TOOLS = [
   { id: 'emeraldcap', name: 'EMERALD CAP', cost: 6, ico: 'truby', picks: 1, tier: 7, desc: 'Convert a chosen tooth into an EMERALD TOOTH', flav: 'Green means grow.' },
   { id: 'moonmold', name: 'MOONSTONE MOLD', cost: 7, ico: 'tdiamond', picks: 1, tier: 12, desc: 'Convert a chosen tooth into a MOONSTONE TOOTH', flav: 'Cast under a full moon.' },
   { id: 'luckybrush', name: 'LUCKY BRUSH', cost: 6, ico: 'tbath', picks: 1, tier: 14, desc: 'Convert a chosen tooth into a LUCKY TOOTH', flav: 'Brushes in clover circles.' },
+  { id: 'amberresin', name: 'AMBER RESIN', cost: 6, ico: 'truby', picks: 1, tier: 4, desc: 'Convert a chosen tooth into an AMBER TOOTH', flav: 'Sap of the old cypress.' },
+  { id: 'pearldive', name: 'PEARL DIVE', cost: 6, ico: 'tbath', picks: 1, tier: 8, desc: 'Convert a chosen tooth into a PEARL TOOTH', flav: 'Fished from the oyster flats.' },
+  { id: 'crystalspring', name: 'CRYSTAL SPRING', cost: 7, ico: 'tdiamond', picks: 1, tier: 10, desc: 'Convert a chosen tooth into a CRYSTAL TOOTH', flav: 'Bottled at the source.' },
 ];
 
 // --------------------------------------------- snack-stand pack products --
@@ -1422,7 +1437,7 @@ function startFight(node) {
   G.nodeName = NODE_DEFS[node.type].name;
   G.round = node.type === 'boss' ? 2 : node.type === 'small' ? 0 : 1;
   G.boss = node.type === 'boss' ? (G.ante === 8 ? FINAL_BOSS : G.bossOrder[(G.ante - 1) % G.bossOrder.length]) : null;
-  G.target = Math.round((G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.6, G.ante - 8)) * NODE_DEFS[node.type].mult
+  G.target = Math.round((G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.7, G.ante - 8)) * NODE_DEFS[node.type].mult
     * (has('gumbo') ? 0.92 : 1));
   G.score = 0; G.dispScore = 0;
   if (nodeModOn('toll')) { G.money = Math.max(0, G.money - 3); float(60, 190, 'TOLL -$3', C.red, 1, 1.4); }
@@ -1434,6 +1449,7 @@ function startFight(node) {
     + G.eventBuffs.bites);
   G.xrays = 3 + (has('license') ? 1 : 0) + (has('moonshine') ? 1 : 0) + (has('foreverglades') ? 1 : 0)
     + (has('mosquitonet') ? 1 : 0) + (has('fireflyjar') && node.type === 'boss' ? 2 : 0)
+    + (has('heronfeather') && node.type === 'small' ? 1 : 0)
     - (nodeModOn('foggy') ? 1 : 0) + G.eventBuffs.xrays;
   G.xrays = Math.max(0, G.xrays);
   if (has('foreverglades')) gainMoney(2);
@@ -1478,7 +1494,7 @@ function collectEvent() {
   const ev = G.event; if (!ev || ev.phase !== 'done') return;
   gainMoney(ev.pay);
   if (has('duckcall')) { gainMoney(3); toasts.push({ name: 'DUCK CALL', sub: '+$3 BONUS', t: 0 }); }
-  addRP(3 + ev.cookies, 'FIELD EXPERIENCE');
+  addRP(3 + ev.cookies + (has('dragonfly') ? 2 : 0), 'FIELD EXPERIENCE');
   quest('event1', 1);
   sfx.buy();
   closeEvent();
@@ -1496,7 +1512,7 @@ function closeEvent() {
 
 function mouthSizeFor() {
   let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0) + (bossIs('king') ? 2 : 0)
-    + (G.ranger === 'scout' ? 1 : 0);
+    + (G.ranger === 'scout' ? 1 : 0) + (has('cypressroot') ? 1 : 0);
   return Math.max(6, Math.min(size, G.deck.length));
 }
 
@@ -1545,6 +1561,10 @@ function newMouth() {
   if (G.ranger === 'scout') {
     // the scout spots one tooth for free
     const s = choice(G.mouth);
+    if (s) s.revealed = s.snap ? 'snap' : 'safe';
+  }
+  if (has('owlfeather')) {
+    const s = choice(G.mouth.filter(m => !m.revealed));
     if (s) s.revealed = s.snap ? 'snap' : 'safe';
   }
 }
@@ -1736,6 +1756,7 @@ function bank(sweep) {
   if (has('compound')) { G.compoundMult++; float(60, 174, 'COMPOUND +1', C.purple, 1); }
   if (has('undertow')) G.undertowNext = true;
   if (sweep && has('ouroboros')) { G.sweepCarry = G.pool.mult; float(W / 2 + 50, 128, 'THE CHAIN SURVIVES!', C.purple, 1, 1.6); }
+  if (sweep && has('otterpaw')) { gainMoney(3); float(60, 158, 'OTTER +$3', C.gold, 1); }
   if (bossIs('loanshark')) { G.money = Math.max(0, G.money - 2); float(60, 190, '-$2', C.red, 1); }
   if (has('bloodpact')) { G.money = Math.max(0, G.money - 2); float(60, 198, 'PACT -$2', C.red, 1); }
   float(60, 96, '+' + fmt(val), C.gold, 2, 1.4);
@@ -1770,7 +1791,8 @@ function roundWon() {
   if (has('rangerpin') && G.round === 2) addRP(3, 'RANGER PIN');
   const perBite = G.bites; // unused bites, $1 each
   const cap = G.ranger === 'trader' ? 8 : 5;
-  const interest = has('hoard') ? Math.floor(G.money / 4) : Math.min(cap, Math.floor(G.money / 5));
+  const interest = (has('hoard') ? Math.floor(G.money / 4) : Math.min(cap, Math.floor(G.money / 5)))
+    + (has('snailshell') ? 2 : 0);
   const fairy = has('fairy') ? 2 : 0;
   G.cash = { base, perBite, interest, fairy, cap, total: base + perBite + interest + fairy };
   G.state = 'roundend';
@@ -2010,6 +2032,9 @@ function benchCommit() {
     case 'emeraldcap': teeth.forEach(t => { t.type = 'emerald'; t.base = Math.max(t.base, 3); }); break;
     case 'moonmold': teeth.forEach(t => { t.type = 'moonstone'; t.base = Math.max(t.base, 3); }); break;
     case 'luckybrush': teeth.forEach(t => { t.type = 'lucky'; t.base = Math.max(t.base, 2); }); break;
+    case 'amberresin': teeth.forEach(t => { t.type = 'amber'; t.base = Math.max(t.base, 3); }); break;
+    case 'pearldive': teeth.forEach(t => { t.type = 'pearl'; t.base = Math.max(t.base, 3); }); break;
+    case 'crystalspring': teeth.forEach(t => { t.type = 'crystal'; t.base = Math.max(t.base, 3); }); break;
   }
   G.drawPile = G.drawPile.filter(t => G.deck.includes(t));
   G.cons.splice(b.consIdx, 1);
@@ -2789,6 +2814,21 @@ function drawDraggedCard() {
 }
 
 // ------------------------------------------------------------ sidebar -----
+// pixel flame licks rising off a hot chip; inten 0..1 drives the blaze
+function drawFlames(x, y, w2, inten, cols) {
+  if (inten <= 0.02) return;
+  const n = Math.max(4, Math.floor(w2 / 8));
+  for (let k = 0; k < n; k++) {
+    const fx = x + 2 + k * (w2 - 5) / (n - 1);
+    const hgt = Math.round((2 + inten * 8) * (0.45 + 0.55 * Math.abs(Math.sin(tNow * 8 + k * 2.3))));
+    if (hgt < 1) continue;
+    ctx.save(); ctx.globalAlpha = 0.7;
+    rect(fx, y - hgt, 2, hgt, cols[0]);
+    if (hgt > 2) rect(fx, y - Math.floor(hgt * 0.55), 2, Math.floor(hgt * 0.55), cols[1]);
+    if (inten > 0.4 && ((tNow * 9 + k * 1.3) | 0) % 4 === 0) rect(fx + 1, y - hgt - 2 - ((tNow * 13 + k) | 0) % 3, 1, 2, cols[2]);
+    ctx.restore();
+  }
+}
 function drawSidebar() {
   panel(SIDEBAR.x, SIDEBAR.y, SIDEBAR.w, SIDEBAR.h, { face: '#18242bee' });
   const x = SIDEBAR.x + 5, w = SIDEBAR.w - 10;
@@ -2835,6 +2875,12 @@ function drawSidebar() {
 
   const half = Math.floor((w - 12) / 2);
   const hidePool = bossIs('phantom') && G.pool && G.pool.clicks > 0;
+  // the hotter the pool burns, the taller the flames
+  const tInt = G.pool ? clamp(G.pool.teeth / 60, 0, 1) : 0;
+  const mInt = G.pool ? clamp((G.pool.mult - 1) / 8, 0, 1) : 0;
+  if (!hidePool) drawFlames(x, y, half, tInt, ['#1565b5', '#5cc8ff', '#cfeaff']);
+  drawFlames(x + half + 12, y, half, mInt, ['#c22a20', '#ff9838', '#ffe089']);
+  if (mInt > 0.35) { ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(tNow * 6) * 0.05; rr(x + half + 9, y - 3, half + 6, 22, 3, '#ff5348'); ctx.restore(); }
   if (hidePool) {
     rr(x, y + 2, half, 16, 2, '#00000066'); rr(x, y, half, 16, 2, '#0c3f75'); drawTextC('??', x + half / 2, y + 6, '#7fb8e8', 1);
   } else chip(x, y, half, 16, G.pool ? G.pool.teeth : 0, '#1565b5', '#0c3f75', 1);
@@ -3492,33 +3538,50 @@ function drawIntro(dt) {
     cut.cap = typed('DEEP IN THE EVERGLADES...', t - 0.3) +
       (t > 2.0 ? '\n' + typed('A GATOR HOARDS A FORTUNE IN GOLDEN TEETH.', t - 2.0) : '');
   } else if (cut.shot === 1) {
-    // --- shot 2: the monster surfaces, lantern vs eyes ---
+    // --- shot 2: the REAL monster surfaces as a silhouette, lantern vs eyes ---
+    if (!cut.crocShot) {
+      // capture the actual in-game croc (big style), then tint it to a shadow
+      const _r = G.round; G.round = 1; // round 1 resolves to the BIG gator style
+      ctx.clearRect(0, 0, W, H);
+      const _mx = mx, _my = my; mx = 294; my = 120;
+      drawCroc(0.5, { angry: true });
+      mx = _mx; my = _my; G.round = _r;
+      const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+      const o = oc.getContext('2d'); o.imageSmoothingEnabled = false;
+      o.drawImage(canvas, 0, 0);
+      o.globalCompositeOperation = 'source-atop';
+      o.globalAlpha = 0.86; o.fillStyle = '#081018'; o.fillRect(0, 0, W, H);
+      cut.crocShot = oc;
+      // remember where its eyes sit so we can ignite them
+      const L = mouthLayout(), maw = L.maw;
+      const jy = maw.y - 58 + 0.5 * (maw.h - 26);
+      cut.eyes = [[maw.x + 18, jy - 10], [maw.x + maw.w - 48, jy - 10]];
+    }
     for (let i = 0; i < 5; i++) rect(0, i * 42, W, 42, ['#040810', '#050b12', '#071016', '#08141a', '#0a181e'][i]);
     for (let i = 0; i < 20; i++) { const sx2 = (i * 97 + 31) % W, sy2 = (i * 53 + 11) % 90; ctx.save(); ctx.globalAlpha = 0.3; rect(sx2, sy2, 1, 1, '#cfe8f0'); ctx.restore(); }
     rect(0, 208, W, H - 208, '#050d10'); // black water
-    // the head rises
+    // the head rises out of the water
     const rise = easeOut(clamp(t / 1.3, 0, 1));
-    const hy = lerp(275, 148, rise) + Math.sin(tNow * 1.1) * 1.5;
-    rr(180, hy, 280, 130, 12, '#0a1410');
-    rr(186, hy - 12, 240, 30, 8, '#0c1712'); // brow mass
-    [[210, -18], [250, -22], [292, -19], [334, -23], [376, -18]].forEach(([sx2, oy]) => { rect(sx2, hy + oy + 8, 8, 8, '#0c1712'); rect(sx2 + 2, hy + oy + 4, 4, 4, '#0c1712'); });
+    const riseY = Math.round(lerp(150, 26, rise) + Math.sin(tNow * 1.1) * 1.5);
+    ctx.imageSmoothingEnabled = false;
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, 208); ctx.clip();
+    ctx.drawImage(cut.crocShot, 130, 20, 330, 240, 130, riseY, 330, 240);
+    ctx.restore();
     // waterline cut + laps
     rect(0, 208, W, 4, '#071014');
-    for (let x = 184; x < 456; x += 12) rect(x + ((tNow * 8 | 0) % 12), 206, 6, 2, '#12262066');
-    // gleaming teeth row just above the water
-    for (let x = 200; x < 440; x += 16) { rect(x, 196, 9, 10, '#e8e4d0'); rect(x + 2, 206, 5, 3, '#c8c4b0'); }
-    const gl = (tNow * 90) % 300;
-    if (gl < 240) { rect(202 + gl, 197, 2, 3, '#ffffff'); rect(203 + gl, 196, 1, 1, '#ffffff'); }
-    // eyes ignite
+    for (let x = 150, k = 0; x < 470; x += 12, k++) rect(x + ((tNow * 8 | 0) % 12), 206, 6, 2, '#12262066');
+    // eyes ignite in the sprite's own sockets
     if (t > 1.15) {
       if (!cut.growled) { cut.growled = true; sfx.boss(); shake = 5; }
       const ec = t > 1.3 ? 1 : (t - 1.15) / 0.15;
-      [[248, 0], [352, 0]].forEach(([ex2]) => {
-        ctx.save(); ctx.globalAlpha = 0.14 * ec; fillCircle(ex2 + 11, hy - 26, 20, '#ffc843'); ctx.restore();
-        rr(ex2, hy - 34, 26, 16, 4, '#0e1a14');
-        rr(ex2 + 2, hy - 32, 22, 12, 3, '#ffc843');
-        ctx.globalAlpha = ec; rect(ex2 + 10, hy - 31, 5, 10, '#1b1408'); ctx.globalAlpha = 1;
-        rect(ex2 + 4, hy - 31, 3, 3, '#fff6c8');
+      (cut.eyes || []).forEach(([ex0, ey0]) => {
+        const ex2 = ex0, ey2 = ey0 + (riseY - 20); // follow the rise offset
+        ctx.save(); ctx.globalAlpha = 0.16 * ec; fillCircle(ex2 + 11, ey2 + 9, 22, '#ffc843'); ctx.restore();
+        ctx.save(); ctx.globalAlpha = 0.5 + ec * 0.5;
+        rr(ex2 + 3, ey2 + 4, 16, 12, 3, '#ffc843');
+        rect(ex2 + 9, ey2 + 6, 4, 8, '#1b1408');
+        rect(ex2 + 5, ey2 + 5, 3, 3, '#fff6c8');
+        ctx.restore();
       });
     }
     // the ranger stands on their moored airboat, lantern held high
@@ -3570,18 +3633,58 @@ function letterboxCaption(txt) {
   else if (lines[0]) drawTextC(lines[0], W / 2, H - 18, C.white, 1);
 }
 
+// one line of menace per boss, shown on the VS banner
+const BOSS_QUIPS = {
+  twofang: 'IT KEEPS A SPARE SNAPPER. JUST FOR YOU.',
+  murky: 'THE WATER HIDES WHAT THE X-RAYS CANNOT FIND.',
+  cotton: 'EVERY TOOTH LOOKS THE SAME IN THE DARK.',
+  lockjaw: 'IT WILL NOT LET GO. NEITHER SHOULD YOU.',
+  loanshark: 'YOUR BANKS COME WITH A SERVICE FEE.',
+  ironjaw: 'THEY RIVETED ITS SNOUT SHUT. IT CHEWED THROUGH.',
+  tender: 'GENTLE GUMS. TERRIBLE TEMPER.',
+  diet: 'IT ONLY EATS PLAIN TEETH. AND DENTISTS.',
+  restless: 'THE SNAPPERS MOVE WHILE YOU BLINK.',
+  king: 'BOW BEFORE THE CROWN. THEN PULL ITS TEETH.',
+  mudcake: 'HALF THE TEETH. ALL OF THE BITE.',
+  shellback: 'SIX PRESSES OR NOTHING, SAYS THE SHELL.',
+  albino: 'ITS X-RAYS LIE. ITS APPETITE DOES NOT.',
+  twin: 'ONE BANK IS NEVER ENOUGH FOR TWO FACES.',
+  phantom: 'YOUR POOL SWIMS UNSEEN UNTIL YOU BANK.',
+  junkjaw: 'EVERY SCAN COSTS. EVERY MISTAKE COSTS MORE.',
+  bogqueen: 'HER SNAPPERS SLEEP IN THE RICHEST TEETH.',
+  apexpred: 'THE END OF THE SWAMP. THE END OF YOU?',
+};
+// render the REAL styled croc once per boss and keep the sprite
+let bossShot = null;
+function ensureBossShot() {
+  const key = G.boss ? G.boss.id : 'x';
+  if (bossShot && bossShot.key === key) return bossShot.c;
+  ctx.clearRect(0, 0, W, H);
+  const _mx = mx, _my = my; mx = 294; my = 150;
+  drawCroc(0.42, { angry: true });
+  mx = _mx; my = _my;
+  const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+  const o = oc.getContext('2d'); o.imageSmoothingEnabled = false; o.drawImage(canvas, 0, 0);
+  bossShot = { key, c: oc };
+  return oc;
+}
 function drawBossIntro() {
   // ---------- Binding-of-Isaac style VS splash ----------
+  const shot = ensureBossShot(); // capture the real croc before painting the splash
   const el = tNow - G.biStart;
   const slide = easeOut(clamp(el / 0.4, 0, 1));
-  const st = crocStyle(); // resolves to the boss's own style during a boss round
-  // split background: dentist teal (top-left) vs boss blood (bottom-right)
-  rect(0, 0, W, H, '#12060a');
+  // moody Everglades night behind the whole card
+  drawSceneBack(THEMES.boss);
+  drawSceneFront(THEMES.boss);
+  // diagonal color wash: dentist teal (top-left) vs boss blood (bottom-right)
+  ctx.save();
   for (let y = 0; y < H; y += 2) {
     const cutX = W - (y / H) * W * 0.9 - 40; // diagonal divide
+    ctx.globalAlpha = 0.62;
     rect(0, y, Math.max(0, cutX), 2, '#0d2026');
     rect(Math.max(0, cutX), y, W - cutX, 2, '#20080e');
   }
+  ctx.restore();
   // rising embers on the boss side, sparks on ours
   for (let i = 0; i < 10; i++) {
     const ph = (tNow * 0.5 + i * 0.37) % 1;
@@ -3618,7 +3721,10 @@ function drawBossIntro() {
   const bx2 = lerp(180, 0, slide);
   ctx.save(); ctx.translate(bx2, 0);
   panel(330, 44, 130, 126, { face: '#2a0e12ee', edge: C.redD, r: 4 });
-  drawBossBust(338, 56, st);
+  ctx.imageSmoothingEnabled = false;
+  ctx.save(); ctx.beginPath(); ctx.rect(334, 48, 122, 112) ; ctx.clip();
+  ctx.drawImage(shot, 148, 8, 290, 236, 331, 51, 128, 104); // the actual in-game croc
+  ctx.restore();
   drawTextCSh('BOSS GATOR', 395, 176, '#ffb0a8', 1);
   ctx.restore();
 
@@ -3642,11 +3748,12 @@ function drawBossIntro() {
   // ---- boss name banner ----
   const bt = clamp((el - 0.7) / 0.3, 0, 1);
   if (el > 0.7) {
-    const by2 = lerp(H + 20, 196, easeOut(bt));
-    panel(60, by2, 360, 56, { face: '#2a0e12f4', edge: C.red, r: 4 });
+    const by2 = lerp(H + 20, 192, easeOut(bt));
+    panel(60, by2, 360, 66, { face: '#2a0e12f4', edge: C.red, r: 4 });
     drawTextCSh(G.boss.name, W / 2, by2 + 7, C.white, 3);
-    drawTextCSh(G.boss.desc, W / 2, by2 + 32, '#ffb0a8', 1);
-    drawTextCSh('TARGET: ' + fmt(G.target), W / 2, by2 + 44, C.orange, 1);
+    drawTextC("'" + (BOSS_QUIPS[G.boss.id] || 'IT IS VERY HUNGRY.') + "'", W / 2, by2 + 30, '#c88a94', 1);
+    drawTextCSh(G.boss.desc, W / 2, by2 + 42, '#ffb0a8', 1);
+    drawTextCSh('TARGET: ' + fmt(G.target), W / 2, by2 + 54, C.orange, 1);
   }
   if (el > 1.1) {
     button(W / 2 - 55, 168, 110, 24, 'BITE DOWN!', '#d94f30', '#8a2a16', () => { G.state = 'play'; }, { id: 'bossgo' });
@@ -3655,39 +3762,6 @@ function drawBossIntro() {
   }
 }
 
-// compact head-on gator bust for the VS card, tinted by boss style
-function drawBossBust(x, y, st) {
-  const bw = 114, jaw = Math.abs(Math.sin(tNow * 2)) * 8;
-  // upper head
-  rr(x + 6, y + 8, bw - 12, 44, 8, st.d);
-  rr(x + 8, y + 10, bw - 16, 40, 8, st.b);
-  rr(x + 12, y + 14, bw - 24, 14, 4, st.a);
-  // scutes on the crown
-  [[16, 2], [38, -2], [60, 1], [82, -2]].forEach(([ox, oy]) => { rect(x + ox, y + oy + 4, 7, 7, st.b); rect(x + ox + 2, y + oy, 3, 4, st.b); });
-  // eyes (angry squint, tracking slightly)
-  [[18, 0], [66, 0]].forEach(([ox]) => {
-    rr(x + ox, y + 16, 30, 17, 4, st.a);
-    rect(x + ox + 2, y + 14, 26, 4, st.d); // heavy brow
-    rr(x + ox + 4, y + 20, 22, 10, 3, st.redEye ? '#e8b0a0' : st.sclera);
-    rect(x + ox + 12, y + 21, 5, 8, st.redEye ? '#8a1010' : '#1b1408');
-    rect(x + ox + 13, y + 22, 2, 2, '#fff');
-  });
-  // nostril bump
-  rr(x + 44, y + 4, 26, 10, 4, st.b);
-  rect(x + 49, y + 7, 4, 3, st.d); rect(x + 61, y + 7, 4, 3, st.d);
-  // open maw with fangs
-  rr(x + 8, y + 52, bw - 16, 34 + jaw, 6, st.mawD);
-  rr(x + 11, y + 55, bw - 22, 28 + jaw, 5, st.maw);
-  for (let k = 0; k < 6; k++) { const tx2 = x + 14 + k * 16; rect(tx2, y + 52, 9, 12 + (k % 2) * 3, '#f4f0dc'); }
-  rr(x + 26, y + 72 + jaw, bw - 52, 10, 4, st.tongue);
-  for (let k = 0; k < 5; k++) { const tx2 = x + 22 + k * 16; rect(tx2, y + 76 + jaw, 9, 10 + (k % 2) * 2, '#e8e4d0'); }
-  // style garnish
-  if (st.crown) { rect(x + 43, y - 8, 28, 6, C.gold); [0, 8, 16, 24].forEach(o => rect(x + 43 + o, y - 12, 4, 5, C.gold)); rect(x + 53, y - 10, 3, 3, C.red); }
-  if (st.metal) { rr(x + 34, y + 2, 46, 12, 3, '#8a949c'); rect(x + 38, y + 5, 30, 2, '#d8e2e8'); }
-  if (st.goldTooth) rect(x + 30, y + 52, 9, 12, '#ffd54a');
-  if (st.fangs) { rect(x + 4, y + 50, 8, 16, '#f4f0dc'); rect(x + bw - 12, y + 50, 8, 16, '#f4f0dc'); }
-  if (st.scars) { rect(x + 20, y + 6, 12, 2, st.c); rect(x + 24, y + 3, 2, 8, st.c); }
-}
 
 function drawGameOver() {
   const th = THEMES.boss;
@@ -3767,11 +3841,11 @@ function drawMenu() {
   for (let x = 132; x < 480; x += 46) rect(x, 247, 1, 23, '#2e1f12');
   [150, 300, 448].forEach(x => { rect(x, 240, 5, 6, '#241708'); });
 
-  button(W / 2 - 65, 214, 130, 30, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'start', sc: 2 });
-  button(W / 2 - 130, 248, 62, 14, 'HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, { id: 'how' });
-  button(W / 2 - 64, 248, 62, 14, 'GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', tip: 'SCOUT GACHA-PON|Trade cookies for capsule prizes:|cards, glove skins, permanent upgrades|' + (meta.rp || 0) + ' SCOUT COOKIES' });
-  button(W / 2 + 2, 248, 62, 14, 'SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, { id: 'setbtn' });
-  button(W / 2 + 68, 248, 62, 14, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'credbtn' });
+  button(W / 2 - 78, 206, 156, 34, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'start', sc: 2 });
+  button(122, 246, 82, 19, 'HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, { id: 'how' });
+  button(210, 246, 82, 19, 'GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', tip: 'SCOUT GACHA-PON|Trade cookies for capsule prizes:|cards, glove skins, permanent upgrades|' + (meta.rp || 0) + ' SCOUT COOKIES' });
+  button(298, 246, 82, 19, 'SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, { id: 'setbtn' });
+  button(386, 246, 82, 19, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'credbtn' });
   ensureDaily();
   const steps = NPC_ORDER.reduce((a, nk) => a + meta.chains[nk].step, 0);
   drawTextSh('QUESTS: ' + steps + '/24', 10, 152, C.dim, 1);
@@ -3942,7 +4016,7 @@ function nodePos(stage, k, count) {
   return { x: xs[stage], y: ys[k] };
 }
 function drawMiniGator(x, y, type) {
-  const cols = { small: ['#5aa843', '#3c7c2e'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
+  const cols = { small: ['#8a9a4e', '#5c6a2e'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
   const [a, b] = cols[type] || cols.small;
   rr(x, y + 4, 22, 9, 3, a);
   rr(x + 1, y + 10, 20, 4, 2, b);
@@ -3951,6 +4025,7 @@ function drawMiniGator(x, y, type) {
     rect(ex + 2, y + 2, 3, 3, '#f8f4dc');
     rect(ex + 3, y + 3, 1, 2, '#1b1408');
   });
+  if (type === 'small') { rr(x + 4, y - 4, 14, 6, 3, '#5c6a2e'); rect(x + 7, y - 3, 3, 2, '#3a4420'); rect(x + 12, y - 3, 3, 2, '#3a4420'); } // turtle shell
   if (type === 'gold') { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 16, y + 2, 1, 1, '#fff6c8'); }
   if (type === 'boss') { rect(x + 2, y - 2, 3, 3, C.red); rect(x + 9, y - 3, 3, 4, C.red); rect(x + 16, y - 2, 3, 3, C.red); }
 }
@@ -4114,7 +4189,7 @@ function drawMap() {
 function nodeTip(node) {
   const d = NODE_DEFS[node.type];
   if (node.type === 'event') return 'SWAMP EVENT|Something is waiting in the reeds...|No fight. No shop. A choice.';
-  const base = G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.6, G.ante - 8);
+  const base = G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.7, G.ante - 8);
   let t = d.name + '|TARGET: ' + fmt(Math.round(base * d.mult)) + '|REWARD: $' + (d.reward + Math.floor(G.ante / 3) + ((node.mods || []).includes('richwater') ? 4 : 0));
   (node.mods || []).forEach(m => {
     const md = NODE_MODS[m];
@@ -4352,7 +4427,7 @@ function drawGachaShowcase() {
     rect(lx, py + 36, 6, 6, RAR_COLS[i]);
     drawText(rn, lx + 10, py + 36, RAR_COLS[i], 1);
   });
-  const cols = 9, cw = 44, ch = 36;
+  const cols = 9, cw = 44, ch = 34;
   const gx0 = px + Math.floor((pw - cols * cw) / 2), gy0 = py + 50;
   all.forEach((a, i) => {
     const x = gx0 + (i % cols) * cw, y = gy0 + Math.floor(i / cols) * ch;
@@ -4731,6 +4806,190 @@ const GAMES = {
       }
     },
     hud: s => 'TIME: ' + Math.max(0, s.timer).toFixed(1) + 's   BAG: $' + s.pay + '   HIT: ' + s.hitsN + '/14',
+  },
+  // ------------------------------------------------ 6. frog roundup --------
+  froggy: {
+    init(s) {
+      Object.assign(s, { timer: 14, caught: 0, total: 7, frogs: [], msg: '', msgT: 0 });
+      for (let i = 0; i < 7; i++) s.frogs.push({ x: STAGE.x + 40 + i * 46, y: 0, st: 'sit', t: rnd() * 0.8, sitT: 0.8 + rnd() * 0.8, hx: 0, size: 0.9 + rnd() * 0.3 });
+    },
+    update(s, dt) {
+      s.timer -= dt; s.msgT -= dt;
+      const wy = this.wy || (STAGE.y + Math.round(STAGE.h * 0.62));
+      s.frogs.forEach(f => {
+        f.t += dt;
+        if (f.st === 'sit' && f.t >= f.sitT) { f.st = 'hop'; f.t = 0; f.hx = f.x + (rnd() < 0.5 ? -1 : 1) * (40 + rnd() * 70); f.hx = clamp(f.hx, STAGE.x + 20, STAGE.x + STAGE.w - 20); }
+        if (f.st === 'hop' && f.t >= 0.5) { f.st = 'sit'; f.t = 0; f.sitT = 0.7 + rnd() * 0.9; f.x = f.hx; }
+      });
+      if (s.timer <= 0) this.done(s);
+    },
+    tap(s) {
+      const wy = STAGE.y + Math.round(STAGE.h * 0.62);
+      let got = null;
+      s.frogs.forEach(f => { if (f.st === 'sit' && Math.abs(mx - f.x) < 15 && Math.abs(my - (wy + 2)) < 20) got = f; });
+      if (got) {
+        s.frogs.splice(s.frogs.indexOf(got), 1);
+        s.caught++; s.msg = 'GOTCHA!'; s.msgT = 0.9;
+        sfx.coin(); burst(got.x, wy, '#7ec850', 10, 70);
+        if (!s.frogs.length) this.done(s);
+      } else { s.msg = 'HOPPED AWAY!'; s.msgT = 0.7; sfx.error(); }
+    },
+    done(s) {
+      const ck = s.caught >= 7 ? 4 : s.caught >= 5 ? 2 : 0;
+      finishGame(s.caught + '/7 FROGS', s.caught * 2, ck, ['SOLD TO THE CHOIR: +$' + (s.caught * 2)]);
+    },
+    draw(s) {
+      const wy = this.wy = stageNight('#0e2a20');
+      // a row of lilypads marks the hunting ground
+      for (let x = STAGE.x + 20; x < STAGE.x + STAGE.w - 10; x += 34) {
+        rr(x, wy + 8, 24, 5, 2, '#3a6a44'); rect(x + 3, wy + 8, 16, 1, '#5aa85a'); rect(x + 19, wy + 9, 4, 2, '#0a2830');
+      }
+      if (s) s.frogs.forEach(f => {
+        let fx2 = f.x, fy2 = wy + 2;
+        if (f.st === 'hop') { const h = f.t / 0.5; fx2 = lerp(f.x, f.hx, h); fy2 = wy + 2 - Math.sin(h * Math.PI) * 26; }
+        const sz = f.size;
+        rr(fx2 - 8 * sz, fy2 - 6 * sz, 16 * sz, 10 * sz, 4, '#7ec850');
+        rr(fx2 - 6 * sz, fy2 + 1, 12 * sz, 4, 2, '#e8e0b0');
+        fillCircle(fx2 - 4 * sz, fy2 - 7 * sz, 3, '#7ec850'); fillCircle(fx2 + 4 * sz, fy2 - 7 * sz, 3, '#7ec850');
+        rect(fx2 - 5 * sz, fy2 - 8 * sz, 2, 2, '#1b1408'); rect(fx2 + 3 * sz, fy2 - 8 * sz, 2, 2, '#1b1408');
+        if (f.st === 'hop') { rect(fx2 - 9 * sz, fy2 + 4, 4, 2, '#5a9a3c'); rect(fx2 + 6 * sz, fy2 + 4, 4, 2, '#5a9a3c'); }
+        if (f.st === 'sit' && ((tNow * 2 + f.x) | 0) % 3 === 0) rect(fx2 - 2, fy2 - 2, 4, 2, '#f0d8a0'); // throat puff
+      });
+      if (s && s.msgT > 0) drawTextCSh(s.msg, W / 2, STAGE.y + 16, s.msg === 'GOTCHA!' ? C.gold : '#ffb0a8', 1);
+    },
+    hud: s => 'TIME: ' + Math.max(0, s.timer).toFixed(1) + 's   BAGGED: ' + s.caught + '/7',
+  },
+  // ------------------------------------------------ 7. bird photography ----
+  birdy: {
+    init(s) { Object.assign(s, { timer: 16, shots: 6, snapped: 0, pay: 0, birds: [], spawnT: 0.2, flash: 0, msg: '', msgT: 0 }); },
+    update(s, dt) {
+      s.timer -= dt; s.flash -= dt; s.msgT -= dt; s.spawnT -= dt;
+      if (s.spawnT <= 0 && s.birds.filter(b => !b.done).length < 3) {
+        s.spawnT = 1.1;
+        const heron = rnd() < 0.18;
+        const dir = rnd() < 0.5 ? 1 : -1;
+        s.birds.push({ x: dir > 0 ? STAGE.x - 20 : STAGE.x + STAGE.w + 20, y: STAGE.y + 26 + rnd() * 50, dir, sp: heron ? 34 : 52 + rnd() * 26, heron, done: false, ph: rnd() * 9 });
+      }
+      s.birds.forEach(b => { b.x += b.dir * b.sp * dt; b.y += Math.sin(tNow * 2 + b.ph) * 6 * dt; });
+      s.birds = s.birds.filter(b => b.x > STAGE.x - 30 && b.x < STAGE.x + STAGE.w + 30);
+      if (s.timer <= 0 || s.shots <= 0 && s.flash <= -0.5) this.done(s);
+    },
+    tap(s) {
+      if (s.shots <= 0) return;
+      s.shots--; s.flash = 0.12; sfx.pin();
+      let best = null;
+      s.birds.forEach(b => { if (!b.done && Math.abs(b.x - mx) < 24 && Math.abs(b.y - my) < 17) best = b; });
+      if (best) {
+        best.done = true; best.sp *= 2.2; // startled, flies off
+        const val = best.heron ? 5 : 2;
+        s.pay += val; s.snapped++;
+        s.msg = best.heron ? 'THE GOLDEN HERON! +$5' : 'GREAT SHOT! +$2'; s.msgT = 1;
+        sfx.coin(); float(best.x, best.y - 12, 'CLICK!', C.white, 1);
+      } else { s.msg = 'JUST REEDS...'; s.msgT = 0.8; }
+    },
+    done(s) {
+      const ck = s.snapped >= 6 ? 4 : s.snapped >= 4 ? 2 : 0;
+      finishGame(s.snapped + '/6 PHOTOS', s.pay, ck, ['SOLD TO THE GAZETTE: +$' + s.pay]);
+    },
+    draw(s) {
+      stageNight('#0a2432');
+      if (s) {
+        s.birds.forEach(b => {
+          const fl = Math.floor(tNow * 8 + b.ph) % 2;
+          const c = b.heron ? '#ffd54a' : '#c8d4dc';
+          ctx.save(); if (b.dir < 0) { ctx.translate(b.x * 2, 0); ctx.scale(-1, 1); }
+          rr(b.x - 7, b.y - 2, 14, 5, 2, c);
+          rect(b.x + 6, b.y - 4, 5, 3, c); rect(b.x + 10, b.y - 3, 3, 2, '#e8842a');
+          rect(b.x - 3, b.y - (fl ? 6 : 2), 7, 4, b.heron ? '#e8b45a' : '#a8b4bc'); // wing
+          if (b.heron) { rect(b.x - 10, b.y, 4, 1, '#e8b45a'); rect(b.x + 2, b.y + 3, 1, 5, c); }
+          ctx.restore();
+        });
+        // the camera viewfinder follows your finger
+        ctx.save(); ctx.globalAlpha = 0.9;
+        const vx = mx - 24, vy = my - 17, vw = 48, vh = 34;
+        [[0, 0], [vw - 8, 0], [0, vh - 8], [vw - 8, vh - 8]].forEach(([ox, oy]) => {
+          rect(vx + ox, vy + oy, 8, 2, '#f4f2e4'); rect(vx + ox + (ox ? 6 : 0), vy + oy, 2, 8, '#f4f2e4');
+        });
+        rect(mx - 2, my, 5, 1, '#f4f2e455'); rect(mx, my - 2, 1, 5, '#f4f2e455');
+        ctx.restore();
+        if (s.flash > 0) { ctx.save(); ctx.globalAlpha = s.flash * 6; rect(STAGE.x, STAGE.y, STAGE.w, STAGE.h, '#fff'); ctx.restore(); }
+        // film counter
+        for (let i = 0; i < 6; i++) rr(STAGE.x + 8 + i * 11, STAGE.y + 8, 8, 12, 2, i < s.shots ? '#ffe089' : '#2a343c');
+        if (s.msgT > 0) drawTextCSh(s.msg, W / 2, STAGE.y + 26, s.msg.includes('$') ? C.gold : '#8fa6a8', 1);
+      }
+    },
+    hud: s => 'FILM: ' + s.shots + '/6   PHOTOS: ' + s.snapped + '   EARNED: $' + s.pay,
+  },
+  // ------------------------------------------------ 8. airboat run ---------
+  boat: {
+    init(s) { Object.assign(s, { timer: 15, py: STAGE.y + 100, coins: 0, stun: 0, things: [], spawnT: 0.4, scroll: 0 }); },
+    update(s, dt) {
+      s.timer -= dt; s.stun -= dt; s.spawnT -= dt; s.scroll += 92 * dt;
+      const y0 = STAGE.y + 52, y1 = STAGE.y + 148;
+      const target = clamp(my, y0, y1);
+      s.py += (target - s.py) * Math.min(1, 7 * dt);
+      if (s.spawnT <= 0) {
+        s.spawnT = 0.62;
+        const coin = rnd() < 0.62;
+        s.things.push({ x: STAGE.x + STAGE.w + 20, y: y0 + rnd() * (y1 - y0), coin, hit: false });
+      }
+      s.things.forEach(o => {
+        o.x -= 92 * dt;
+        if (!o.hit && Math.abs(o.x - 120) < (o.coin ? 20 : 24) && Math.abs(o.y - s.py) < (o.coin ? 16 : 13)) {
+          o.hit = true;
+          if (o.coin) { s.coins++; sfx.coin(); float(o.x, o.y - 10, '+$1', C.gold, 1); }
+          else if (s.stun <= 0) { s.stun = 0.7; shake = 4; sfx.splash(); addRipple(120, s.py + 8, true); }
+        }
+      });
+      s.things = s.things.filter(o => o.x > STAGE.x - 40 && !(o.coin && o.hit));
+      if (s.timer <= 0) this.done(s);
+    },
+    tap() { }, // steering only
+    done(s) {
+      const ck = s.coins >= 12 ? 4 : s.coins >= 8 ? 2 : 0;
+      finishGame(s.coins + ' COINS', s.coins, ck, ['SWAMP SALVAGE: +$' + s.coins]);
+    },
+    draw(s) {
+      const { x, y, w, h } = STAGE;
+      // scrolling night channel: banks top and bottom, open water between
+      ['#0a1626', '#0d1c2e'].forEach((c, i) => rect(x, y + i * 20, w, 20, c));
+      rect(x, y + 40, w, h - 80, '#0c2430');
+      rect(x, y + h - 40, w, 40, '#12261a');
+      const sc = s ? s.scroll : tNow * 60;
+      // drifting bank reeds (parallax rows)
+      for (let k = 0; k < 10; k++) {
+        const rx2 = x + ((k * 97 - sc) % (w + 40) + w + 40) % (w + 40) - 20;
+        rect(rx2, y + 30 - (k % 3) * 4, 2, 12 + (k % 3) * 4, '#132d1e');
+        rr(rx2 - 1, y + 24 - (k % 3) * 4, 4, 7, 1, '#4a3320');
+        const bx2 = x + ((k * 83 + 40 - sc * 1.25) % (w + 40) + w + 40) % (w + 40) - 20;
+        rect(bx2, y + h - 38, 2, 14, '#1a3a24');
+      }
+      // water speed streaks
+      for (let k = 0; k < 8; k++) {
+        const lx = x + ((k * 71 - sc * 1.6) % (w + 30) + w + 30) % (w + 30) - 15;
+        ctx.save(); ctx.globalAlpha = 0.25; rect(lx, y + 52 + (k * 37) % 90, 14, 1, '#1e4a52'); ctx.restore();
+      }
+      if (s) {
+        // floaters: coins glint, logs roll
+        s.things.forEach(o => {
+          if (o.coin && !o.hit) {
+            fillCircle(o.x, o.y, 6, '#a4741a'); fillCircle(o.x, o.y, 5, '#ffc843');
+            rect(o.x - 1, o.y - 3, 2, 6, '#a4741a');
+            if (((tNow * 6 + o.x) | 0) % 4 === 0) rect(o.x - 2, o.y - 5, 2, 2, '#fff6c8');
+          } else if (!o.coin) {
+            rr(o.x - 17, o.y - 6, 34, 12, 5, '#4a3320');
+            rr(o.x - 15, o.y - 4, 30, 5, 3, '#5f4228');
+            fillCircle(o.x + 13, o.y, 4, '#3a2818'); fillCircle(o.x + 13, o.y, 2, '#5f4228');
+            rect(o.x - 10, o.y - 2, 8, 1, '#3a2818');
+          }
+        });
+        // the airboat itself (flicker while stunned)
+        if (!(s.stun > 0 && ((tNow * 12) | 0) % 2)) {
+          ctx.save(); ctx.translate(120, s.py); ctx.scale(0.62, 0.62); drawAirboat(0, 0, true, undefined); ctx.restore();
+        }
+      }
+    },
+    hud: s => 'TIME: ' + Math.max(0, s.timer).toFixed(1) + 's   COINS: $' + s.coins + (s.stun > 0 ? '   *CRUNCH*' : ''),
   },
 };
 function addRippleThrottle(s, x, y) { s._rp = (s._rp || 0) - 0.016; if (s._rp <= 0) { s._rp = 0.3; addRipple(x, y, false); } }
