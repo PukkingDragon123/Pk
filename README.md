@@ -115,3 +115,10 @@ Mouse only. Click teeth and buttons; click cards to inspect; drag cards to act.
   gator variant, teeth, cards and the hand are drawn from rectangles at runtime
 - WebAudio-synthesized sound effects and a little swamp bass groove
 - Zero dependencies, zero network, one HTML file + one JS file
+
+## Godot Edition
+
+A native **Godot 4** port of the core game lives in [`godot/`](godot/) — same
+pixel font, palette, swamp and gator, rebuilt in GDScript with a WAV sound
+pack baked from the WebAudio recipes. Open the folder in Godot 4.3+ and press
+F5. See [`godot/README.md`](godot/README.md) for what's included.
