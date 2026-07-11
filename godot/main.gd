@@ -1397,7 +1397,7 @@ func draw_sidebar() -> void:
 	panel(2, 2, 110, 266, Color(0.09, 0.14, 0.17, 0.93))
 	var y := 7.0
 	var plate_face := Color("2c6b38")
-	var plate_edge := gd.GREEN
+	var plate_edge: Color = gd.GREEN
 	var sub_col := Color("b8d8b8")
 	var rname: String = gd.ROUND_NAMES[round_i]
 	if round_i == 2:
@@ -1516,7 +1516,7 @@ func draw_play() -> void:
 				snaps_left += 1
 	if unpressed > 0:
 		var risk := roundi(100.0 * snaps_left / unpressed)
-		var rc := gd.GREEN
+		var rc: Color = gd.GREEN
 		if risk >= 34:
 			rc = gd.RED
 		elif risk >= 15:
@@ -1528,7 +1528,7 @@ func draw_play() -> void:
 
 # --------------------------------------------------------- draw screens ----
 func draw_title() -> void:
-	var th := THEMES["night"]
+	var th: Dictionary = THEMES["night"]
 	draw_scene_back(th)
 	draw_croc(jaw_close, false)
 	draw_scene_front(th)
@@ -1582,7 +1582,7 @@ func draw_swap_screen() -> void:
 	draw_play()
 	var k := clampf(swap_t / 0.45, 0, 1)
 	var a := k * 2 if k < 0.5 else (1 - k) * 2
-	var col := gd.GREEN
+	var col: Color = gd.GREEN
 	col.a = a
 	text_c("FRESH MOUTH...", W / 2.0 + 50, 92, col, 2)
 
@@ -1609,7 +1609,7 @@ func draw_roundend() -> void:
 
 
 func draw_shop() -> void:
-	var th := THEMES["night"]
+	var th: Dictionary = THEMES["night"]
 	draw_scene_back(th)
 	pxa(0, 0, W, H, Color("0a0810"), 0.72)
 	panel(70, 30, 340, 200, Color(0.1, 0.12, 0.16, 0.97), Color("6b5a2a"), 4)
@@ -1618,7 +1618,7 @@ func draw_shop() -> void:
 	for k in range(shop_items.size()):
 		var it: Dictionary = shop_items[k]
 		var r := _shop_slot_rect(k)
-		var hov := r.has_point(mp) and not it["sold"]
+		var hov: bool = r.has_point(mp) and not it["sold"]
 		panel(r.position.x, r.position.y, r.size.x, r.size.y,
 			Color("2a3a30") if hov else Color("1c2b33"),
 			gd.GOLD if hov else gd.EDGE)
@@ -1645,7 +1645,7 @@ func draw_shop() -> void:
 			panel(100, 232, 280, 18, Color(0.06, 0.1, 0.12, 0.97))
 			text_c(def["desc"].substr(0, 44), 240, 237, Color("cfe0d0"), 1)
 	var tr := _shop_slot_rect(3)
-	var thov := tr.has_point(mp) and not shop_tooth["sold"]
+	var thov: bool = tr.has_point(mp) and not shop_tooth["sold"]
 	panel(tr.position.x, tr.position.y, tr.size.x, tr.size.y,
 		Color("2a3a30") if thov else Color("1c2b33"),
 		gd.GOLD if thov else gd.EDGE)
@@ -1684,7 +1684,7 @@ func draw_gameover() -> void:
 
 
 func draw_win() -> void:
-	var th := THEMES["night"]
+	var th: Dictionary = THEMES["night"]
 	draw_scene_back(th)
 	draw_croc(0.15, false)
 	draw_scene_front(th)
