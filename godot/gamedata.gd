@@ -105,11 +105,11 @@ const CHARMS := [
 # bosses: ante 8 is always the Apex Predator (game.js boss flavor)
 const BOSSES := [
 	{"id": "king", "name": "THE SWAMP KING", "quip": "KNEEL BEFORE THE CROWN.",
-		"rule": "A BIGGER, MEANER MOUTH (+2 TEETH, HIGHER TARGET)"},
+		"rule": "+2 TEETH AND A SECOND SNAPPER"},
 	{"id": "twofang", "name": "TWO-FANG", "quip": "TWICE THE TEETH TO FEAR.",
 		"rule": "TWO SNAP TEETH HIDE IN THIS MOUTH"},
 	{"id": "restless", "name": "THE RESTLESS", "quip": "IT NEVER SLEEPS. IT MOVES.",
-		"rule": "THE SNAP TOOTH RELOCATES AFTER EVERY BANK"},
+		"rule": "SNAP TEETH RELOCATE EVERY 3RD PRESS"},
 	{"id": "apexpred", "name": "APEX PREDATOR", "quip": "THE SWAMP ENDS HERE.",
 		"rule": "TWO SNAPS. NO MERCY. THE FINAL JAW"},
 ]

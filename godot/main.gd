@@ -751,7 +751,7 @@ func _update_snap(dt: float) -> void:
 				scare_fireflies(W / 2.0, 150, 140)
 		jaw_close = 1.0
 	if snap_t > 1.5:
-		var lost := bank_value()
+		var lost := bank_value() if pool["clicks"] > 0 else 0
 		if has_charm("insurance") and not insurance_used and lost > 0:
 			insurance_used = true
 			var save2 := int(lost / 2.0)
@@ -767,7 +767,7 @@ func _update_snap(dt: float) -> void:
 
 # ------------------------------------------------------------- input -------
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed:
+	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_M:
 			muted = not muted
 			music_player.stream_paused = muted
@@ -889,7 +889,7 @@ func rr(x: float, y: float, w: float, h: float, r: int, col: Color) -> void:
 	if r <= 0:
 		px(x, y, w, h, col)
 		return
-	var cuts := [[1], [2, 1], [3, 1, 1], [4, 2, 1, 1]][mini(r, 4) - 1]
+	var cuts: Array = [[1], [2, 1], [3, 1, 1], [4, 2, 1, 1]][mini(r, 4) - 1]
 	for i in range(r):
 		var c: int = cuts[i]
 		px(x + c, y + i, w - 2 * c, 1, col)
@@ -1417,8 +1417,12 @@ func draw_sidebar() -> void:
 	y += 30
 	if round_i == 2 and not boss.is_empty():
 		panel(7, y, 100, 20, Color("33161a"), gd.RED_D)
-		text_c(boss["rule"].substr(0, 24), 57, y + 4, Color("ffb0a8"), 1)
-		text_c(boss["rule"].substr(24, 24), 57, y + 11, Color("ffb0a8"), 1)
+		var rule: String = boss["rule"]
+		var sp := rule.rfind(" ", 19)
+		if sp < 1 or rule.length() <= 19:
+			sp = mini(19, rule.length())
+		text_c(rule.substr(0, sp), 57, y + 4, Color("ffb0a8"), 1)
+		text_c(rule.substr(sp).strip_edges().substr(0, 19), 57, y + 11, Color("ffb0a8"), 1)
 		y += 24
 	panel(7, y, 100, 40, Color("131f24"))
 	text("TARGET", 11, y + 4, gd.DIM, 1)
@@ -1567,7 +1571,7 @@ func draw_boss_intro() -> void:
 func draw_snap_screen() -> void:
 	draw_play()
 	if snap_t > 0.22 and snap_t < 1.4:
-		var lost := bank_value()
+		var lost := bank_value() if pool["clicks"] > 0 else 0
 		panel(W / 2.0 + 50 - 78, 70, 156, 56 if lost > 0 else 40, Color(0.16, 0.05, 0.07, 0.93), gd.RED_D)
 		text_csh("SNAP!", W / 2.0 + 50, 78, gd.RED, 4)
 		if lost > 0:
