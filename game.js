@@ -1078,27 +1078,32 @@ function drawHatArt(cx, by, key, sc) {
   sc = sc || 1;
   const h = HATS[key]; if (!h || h.ico === 'none') return;
   const col = h.col || '#8a6a3a', c2 = h.col2 || '#5a3a1e', dk = '#00000055';
+  const SH = '#00000038', LT = '#ffffff2b', HLW = '#ffffffcc', HLG = '#fff6c8';
   const R = (dx, dy, w, hh, c) => rect((cx + dx * sc) | 0, (by + dy * sc) | 0, Math.max(1, w * sc) | 0, Math.max(1, hh * sc) | 0, c);
   switch (h.ico) {
     case 'straw':
       R(-9, -2, 18, 3, dk); R(-8, -2, 16, 2, col);       // wide brim
       R(-5, -7, 10, 5, col); R(-4, -8, 8, 1, col);        // dome
       R(-5, -4, 10, 1, c2); R(-3, -7, 2, 3, '#f8e6a0');   // band + shine
+      R(-4, -7, 1, 1, HLG); R(-8, -1, 16, 1, SH); R(-3, -6, 1, 1, LT); R(3, -4, 1, 3, SH);
       break;
     case 'cap':
       R(-5, -6, 10, 5, col); R(-4, -7, 8, 1, col);        // crown
       R(-9, -2, 8, 2, c2); R(-9, -1, 6, 1, dk);           // bill (left)
       R(-4, -4, 8, 1, '#ffffff44');
+      R(-5, -6, 1, 1, HLW); R(-5, -2, 10, 1, SH); R(-1, -6, 1, 4, LT);
       break;
     case 'bandana':
       R(-6, -6, 12, 5, col); R(-5, -7, 10, 1, col);       // wrap
       R(-2, -4, 2, 2, c2); R(2, -3, 2, 2, c2);            // white dots
       R(4, -6, 4, 3, col); R(6, -5, 3, 4, col);           // side knot
+      R(-6, -6, 1, 1, HLW); R(-6, -1, 12, 1, SH); R(5, -5, 1, 3, SH);
       break;
     case 'ranger':
       R(-9, -2, 18, 2, c2); R(-8, -3, 16, 1, col);        // flat brim
       R(-5, -8, 10, 6, col); R(-4, -9, 8, 1, col);        // peaked crown
       R(-1, -9, 2, 7, c2); R(-5, -5, 10, 1, c2);          // pinch + band
+      R(-5, -8, 1, 1, HLW); R(-5, -2, 10, 1, SH); R(4, -8, 1, 6, SH); R(-4, -8, 1, 6, LT);
       break;
     case 'cowboy':
       R(-10, -2, 20, 2, col); R(-10, -1, 20, 1, dk);      // curled brim
@@ -1106,25 +1111,30 @@ function drawHatArt(cx, by, key, sc) {
       R(-5, -8, 10, 6, col); R(-4, -9, 8, 1, col);
       R(-2, -9, 1, 7, c2); R(1, -9, 1, 7, c2);            // crease
       R(-5, -4, 10, 1, c2);                               // band
+      R(-5, -8, 1, 1, HLW); R(-10, -2, 20, 1, SH); R(-9, -8, 1, 6, LT);
       break;
     case 'top':
       R(-8, -2, 16, 2, col); R(-8, -1, 16, 1, dk);        // brim
       R(-5, -11, 10, 9, col); R(-5, -5, 10, 2, c2);       // tall crown + band
       R(-4, -10, 2, 6, '#ffffff33');
+      R(-5, -11, 1, 1, HLW); R(-5, -2, 10, 1, SH); R(4, -11, 1, 9, SH); R(-4, -5, 1, 1, HLG);
       break;
     case 'wizard':
       R(-8, -2, 16, 2, col); R(-7, -3, 14, 1, col);       // brim
       R(-4, -6, 8, 4, col); R(-3, -9, 6, 3, col); R(-1, -12, 3, 3, col); R(0, -14, 2, 2, col); // cone
       R(-3, -5, 2, 2, c2); R(1, -8, 1, 1, c2); R(0, -13, 1, 1, '#fff'); // stars
+      R(-4, -6, 1, 1, HLW); R(-4, -2, 8, 1, SH); R(2, -9, 1, 3, SH); R(-1, -11, 1, 2, LT);
       break;
     case 'crownhat':
       R(-6, -3, 12, 3, col); R(-6, -7, 2, 4, col); R(-1, -8, 2, 5, col); R(4, -7, 2, 4, col); // points
       R(-6, -4, 12, 1, c2); R(-5, -2, 2, 1, '#ff5348'); R(3, -2, 2, 1, '#3f8cff');            // jewels
+      R(-6, -3, 1, 1, HLW); R(-6, -1, 12, 1, SH); R(4, -7, 1, 4, SH);
       break;
     case 'pirate':
       R(-9, -3, 18, 3, col); R(-7, -5, 14, 3, col); R(-4, -7, 8, 2, col); // tricorne
       R(-9, -3, 18, 1, c2);                                               // trim
       R(-2, -5, 4, 3, c2); R(-2, -4, 1, 1, col); R(1, -4, 1, 1, col); R(-1, -3, 2, 1, col); // skull
+      R(-4, -7, 1, 1, HLW); R(-9, -1, 18, 1, SH); R(5, -5, 1, 3, SH);
       break;
     case 'halo': {
       const bob = Math.round(Math.sin(tNow * 2) * sc);
@@ -1136,6 +1146,7 @@ function drawHatArt(cx, by, key, sc) {
       R(-6, -2, 12, 2, c2);                               // rim
       R(-4, -5, 8, 3, col); R(-3, -8, 6, 3, col); R(-1, -11, 3, 3, col); R(0, -13, 2, 2, '#ffd54a'); // cone
       R(-3, -4, 2, 1, '#fff'); R(1, -7, 1, 1, '#fff'); R(-1, -10, 1, 1, c2); // confetti stripes
+      R(-4, -5, 1, 1, HLW); R(-6, -1, 12, 1, SH); R(2, -8, 1, 3, SH);
       break;
     case 'flame': {
       const f = tNow * 9;
@@ -1148,6 +1159,156 @@ function drawHatArt(cx, by, key, sc) {
       break;
     }
   }
+}
+
+// ---- glove material ramps [outline, shadow, base, light, highlight] ------
+const GLOVE_RAMP = {
+  croc: { o: '#1e4419', s: '#295722', b: '#5aa843', l: '#7bc85e', h: '#a4e07a' },
+  gold: { o: '#6e4a08', s: '#a4741a', b: '#ffd54a', l: '#ffe089', h: '#fff6c8' },
+  neon: { o: '#0a5a48', s: '#1fa888', b: '#4ef0c8', l: '#8ffce0', h: '#daffff', glow: '#4ef0c8' },
+  starry: { o: '#12163a', s: '#252f6a', b: '#3a4a9a', l: '#5566c0', h: '#aab6ff', star: '#f4f2e4', sgold: '#ffd54a' },
+  bone: { o: '#6a6a5e', s: '#a8a89a', b: '#e8e8e0', l: '#f4f4ee', h: '#ffffff', socket: '#1a1a22' },
+  candy: { o: '#a83f63', s: '#d05580', b: '#ff8ab0', l: '#fff0f8', h: '#ffffff' },
+  pearl: { o: '#8878a8', s: '#c8c0d8', b: '#f4f0f8', l: '#ffffff', h: '#ffffff', ic: '#d6f2ef', ip: '#f6dbe9' },
+  royal: { o: '#3a1a68', s: '#5a2a90', b: '#8a4fd0', l: '#a878e0', h: '#d8c0ff', trim: '#ffd54a', gr: '#ff5348', gb: '#3f8cff' },
+};
+
+// distinctive on-hand sprite treatment per glove (keyed on id, pat fallback)
+function drawGloveDeco(x, y, fl, gid, g, grab) {
+  const R = GLOVE_RAMP[gid];
+  const py = grab ? y + 3 : y + fl + 1;
+  const px = grab ? x - 4 : x - 3;
+  switch (gid) {
+    case 'croc':
+      if (!grab) {
+        rect(x - 3, py, 7, 1, R.s); rect(x - 2, py + 2, 2, 1, R.s); rect(x + 1, py + 2, 2, 1, R.s);
+        rect(x - 3, py + 4, 2, 1, R.s); rect(x, py + 4, 2, 1, R.s); rect(x + 3, py + 4, 1, 1, R.s);
+        rect(x - 2, py + 1, 1, 1, R.l); rect(x + 2, py + 3, 1, 1, R.l); rect(x + 0, py + 5, 1, 1, R.l);
+      } else { for (let k = 0; k < 4; k++) { const kx = x - 5 + k * 3; rect(kx, y - 1, 2, 1, R.l); rect(kx, y + 1, 2, 1, R.s); rect(kx, y + 4, 2, 1, R.s); } }
+      break;
+    case 'gold':
+      if (!grab) {
+        rect(x - 1, y + 2, 1, fl - 3, R.l); rect(x, y + 2, 1, 1, R.h);
+        rect(x - 4, y + fl - 1, 14, 1, R.l); rect(x - 4, y + fl + 8, 14, 1, R.o);
+        rect(x - 2, py + 1, 1, 1, R.h); rect(x + 2, py + 3, 1, 1, R.h);
+        const s = (tNow * 22 | 0) % 16; if (s < 8) { for (let i = 0; i < 3; i++) rect(x - 3 + s + i, y + fl + i, 1, 1, R.h); }
+      } else { for (let k = 0; k < 4; k++) { const kx = x - 5 + k * 3; rect(kx, y - 1, 2, 1, R.h); rect(kx, y + 2, 2, 1, R.o); rect(kx, y + 0, 1, 1, R.h); } rect(x - 6, y + 3, 14, 1, R.l); }
+      break;
+    case 'neon':
+      if (!grab) { rect(x - 1, y, 1, fl, R.l); rect(x + 9, y + fl + 4, 1, 5, R.l); rect(x - 4, y + fl + 9, 14, 1, R.l); rect(x + 3, y + fl + 3, 1, 1, R.h); }
+      else { rect(x - 6, y - 1, 1, 11, R.l); rect(x + 7, y + 2, 1, 7, R.l); rect(x + 2, y + 3, 1, 1, R.h); }
+      break;
+    case 'starry': {
+      const cy = grab ? y + 10 : y + fl + 9, cl = grab ? x - 6 : x - 4;
+      rect(cl + 2, cy + 1, 1, 1, R.star); rect(cl + 6, cy + 2, 1, 1, R.h); rect(cl + 9, cy + 1, 1, 1, R.sgold); rect(cl + 12, cy + 2, 1, 1, R.star); rect(cl + 4, cy + 0, 1, 1, R.sgold);
+      break; }
+    case 'bone':
+      if (grab) { for (let k = 0; k < 4; k++) { const kx = x - 5 + k * 3; rect(kx, y - 2, 2, 1, R.socket); fillCircle(kx + 0, y + 0, 1, R.b); rect(kx, y + 1, 2, 1, R.s); rect(kx, y - 1, 1, 1, R.h); } }
+      else { rect(x - 3, py + 3, 8, 1, R.b); rect(x - 1, py + 1, 1, 5, R.b); rect(x - 3, py + 4, 8, 1, R.s); rect(x - 1, py + 6, 1, 1, R.socket); for (let k = 0; k < 3; k++) { const kx = x + 3 + k * 3; rect(kx, y + fl - 1 + k, 3, 1, R.b); rect(kx, y + fl + 2 + k, 3, 1, R.s); } }
+      break;
+    case 'candy': {
+      const by0 = grab ? y : y + fl - 1, bx0 = grab ? x - 6 : x - 4, ww = 14, hh = grab ? 10 : 11;
+      for (let d = -hh; d < ww; d += 4) for (let r = 0; r < hh; r++) { const cxp = bx0 + d + r; if (cxp >= bx0 && cxp < bx0 + ww) rect(cxp, by0 + r, 1, 1, R.l); }
+      rect(bx0, by0, ww, 1, R.h);
+      break; }
+    case 'pearl':
+      rect(px, py, 6, 1, R.l); rect(px + 1, py + 2, 1, 1, R.ic); rect(px + 4, py + 3, 1, 1, R.ip); rect(px + 2, py + 5, 1, 1, R.ic); rect(px + 3, py + 1, 1, 1, R.h);
+      break;
+    case 'royal':
+      rect(px + 2, py + 2, 2, 2, R.trim); rect(px + 2, py + 2, 1, 1, R.gr); rect(px + 3, py + 3, 1, 1, R.gb); rect(px + 2, py + 2, 1, 1, R.h);
+      if (grab) { for (let k = 0; k < 4; k += 2) rect(x - 5 + k * 3, y - 1, 1, 1, R.trim); }
+      break;
+    default:
+      if (g.pat === 'scale') { rect(px + 1, py + 1, 2, 2, g.shade); rect(px + 4, py + 3, 2, 2, g.shade); rect(px + 2, py + 6, 2, 2, g.shade); }
+      else if (g.pat === 'dot') { rect(px + 1, py + 2, 1, 1, g.shade); rect(px + 4, py + 4, 1, 1, g.shade); rect(px + 2, py + 7, 1, 1, g.shade); }
+      else if (g.pat === 'bones') { rect(px, py + 3, 8, 1, '#fff'); rect(px + 2, py + 1, 1, 5, '#fff'); }
+      else if (g.pat === 'gem') { rect(px + 3, py + 3, 2, 2, C.gold); }
+      else if (g.pat === 'shine') { rect(px, py, 2, 4, '#fff6c8'); }
+      if (gid === 'leather') rect(px, py + 4, 7, 1, g.cuff);
+      if (gid === 'rubber') rect(px + 3, py, 1, 7, '#e8f4f8');
+      break;
+  }
+}
+
+// signature per-frame effect emitted while a glove is equipped
+const GLOVE_FX = {
+  gold(x, y, fl, grab) {
+    if (rnd() < 0.35) {
+      const sx = grab ? x + ri(-5, 7) : x + ri(-4, 8);
+      const sy = grab ? y + ri(-1, 9) : y + fl + ri(-2, 8);
+      parts.push({ x: sx, y: sy, vx: (rnd() - 0.5) * 10, vy: 8 + rnd() * 16, g: 40, t: 0, life: 0.5 + rnd() * 0.4, col: rnd() < 0.5 ? '#ffe089' : '#fff6c8', sz: 1 });
+    }
+  },
+  neon(x, y, fl, grab) {
+    const a = 0.22 + 0.20 * Math.sin(tNow * 5);
+    ctx.globalAlpha = clamp(a, 0, 1);
+    const cx = grab ? x + 1 : x + 3, cy = grab ? y + 4 : y + fl + 4, rx = 11, ry = grab ? 9 : 11;
+    for (let i = 0; i < 8; i++) { const th = i * Math.PI / 4; rect((cx + Math.cos(th) * rx) | 0, (cy + Math.sin(th) * ry) | 0, 1, 1, '#4ef0c8'); }
+    ctx.globalAlpha = 1;
+  },
+  starry(x, y, fl, grab) {
+    const cl = grab ? x - 6 : x - 4, cy = grab ? y + 10 : y + fl + 9, cw = 14;
+    [[3, 1], [8, 2], [12, 1]].forEach((p, i) => { ctx.globalAlpha = 0.35 + 0.65 * Math.max(0, Math.sin(tNow * 3 + i * 2.1)); rect(cl + p[0], cy + p[1], 1, 1, i === 1 ? '#ffd54a' : '#f4f2e4'); });
+    for (let i = 0; i < 2; i++) { const ph = (tNow * 0.35 + i * 0.5) % 1; ctx.globalAlpha = (1 - ph) * 0.9; rect((cl + ((tNow * 5 + i * 7) % cw)) | 0, (cy - 1 - ph * 5) | 0, 1, 1, '#aab6ff'); }
+    ctx.globalAlpha = 1;
+  },
+  royal(x, y, fl, grab) {
+    const gx = grab ? x - 2 : x - 1, gy = grab ? y + 5 : y + fl + 3;
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(tNow * 4); rect(gx, gy, 1, 1, '#fff6c8'); ctx.globalAlpha = 1;
+  },
+  pearl(x, y, fl, grab) {
+    const s = (tNow * 9 | 0) % 18; if (s < 7) { ctx.globalAlpha = 0.4; const bx0 = grab ? x - 6 : x - 4, by0 = grab ? y - 1 : y + fl - 1; rect(bx0 + s, by0 + s, 1, 2, '#ffffff'); ctx.globalAlpha = 1; }
+  },
+};
+
+// signature per-frame effect emitted while a hat is equipped (bx,by = hat baseline)
+const HAT_FX = {
+  wizard(bx, by) {
+    [[-3, -5], [1, -8], [0, -13]].forEach((p, i) => { ctx.globalAlpha = 0.4 + 0.6 * Math.max(0, Math.sin(tNow * 4 + i * 2)); rect(bx + p[0], by + p[1], 1, 1, '#fff6c8'); });
+    for (let i = 0; i < 2; i++) { const t = (tNow * 0.5 + i * 0.5) % 1; ctx.globalAlpha = (1 - t) * 0.85; rect((bx + 1 + Math.sin(tNow * 2 + i * 3) * 2) | 0, (by - 13 - t * 6) | 0, 1, 1, i ? '#ffd54a' : '#ffffff'); }
+    ctx.globalAlpha = 1;
+  },
+  halo(bx, by) {
+    const bob = Math.round(Math.sin(tNow * 2)), hx = bx, hy = by - 8 - bob;
+    ctx.globalAlpha = 0.12; fillCircle(hx, hy, 4, '#fff6c8');
+    for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3 + tNow * 0.6, len = 3 + Math.round(1.5 * (0.5 + 0.5 * Math.sin(tNow * 3 + i))); ctx.globalAlpha = 0.5; rect((hx + Math.cos(a) * len) | 0, (hy + Math.sin(a) * len) | 0, 1, 1, '#fff6c8'); }
+    ctx.globalAlpha = 1;
+  },
+  flame(bx, by) {
+    const flick = 0.06 + 0.04 * Math.sin(tNow * 13) + 0.03 * Math.sin(tNow * 7.3);
+    const jx = meta.set.shake ? ri(-1, 1) : 0;
+    ctx.globalAlpha = clamp(flick, 0, 0.16); fillCircle(bx + jx, by - 6, 10, '#ff8a30'); ctx.globalAlpha = 1;
+    if (rnd() < 0.5) parts.push({ x: bx + ri(-4, 4), y: by - 4 - ri(0, 4), vx: (rnd() - 0.5) * 6, vy: -10 - rnd() * 12, g: -6, t: 0, life: 0.4 + rnd() * 0.4, col: rnd() < 0.5 ? '#ff6a20' : '#ffe089', sz: 1 });
+  },
+  party(bx, by) {
+    if (rnd() < 0.4) { const cols = ['#ff8ab0', '#4ef0c8', '#ffd54a', '#f4f2e4']; parts.push({ x: bx + 1 + ri(-2, 2), y: by - 12, vx: (rnd() - 0.5) * 44, vy: -30 - rnd() * 30, g: 180, t: 0, life: 0.6 + rnd() * 0.5, col: cols[ri(0, 3)], sz: ri(1, 2) }); }
+  },
+  crownhat(bx, by) {
+    const s = ((tNow * 10) % 18) - 1;
+    if (s >= 0 && s < 12) { ctx.globalAlpha = 0.75; rect(bx - 6 + s, by - 4, 1, 1, '#fff6c8'); rect(bx - 6 + s, by - 3, 1, 1, '#ffffff88'); ctx.globalAlpha = 1; }
+    ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(tNow * 3)); rect(bx - 5, by - 2, 1, 1, '#ff5348'); rect(bx + 3, by - 2, 1, 1, '#3f8cff'); ctx.globalAlpha = 1;
+  },
+  pirate(bx, by) {
+    rect(bx + 3, by - 10, 1, 3, '#2a1a10');
+    const w = 2 + Math.round(0.5 + 0.5 * Math.sin(tNow * 7));
+    rect(bx + 4, by - 10, w, 2, '#c9556a'); rect(bx + 4, by - 10, 1, 2, '#8a2a16');
+    if (w > 2) rect(bx + 4 + w, by - 9, 1, 1, '#c9556a');
+  },
+  top(bx, by) {
+    const s = (tNow * 8) % 16; if (s < 9) { ctx.globalAlpha = 0.5; rect((bx - 4 + s * 0.6) | 0, (by - 10 + s) | 0, 1, 2, '#ffffffaa'); ctx.globalAlpha = 1; }
+  },
+};
+
+function drawCosmeticFx(x, y, grab) {
+  const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
+  const hid = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
+  const press = handPressT > 0 ? 2 : 0, fl = press ? 7 : 9;
+  const bx = grab ? x + 1 : x, by = grab ? y - 2 : y + 2;
+  ctx.save();
+  const gf = GLOVE_FX[gid]; if (gf) gf(x, y, fl, grab);
+  const hf = HAT_FX[hid]; if (hf) hf(bx, by, grab);
+  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 const ACHS = [
   { id: 'firstpress', name: 'FIRST BITE', desc: 'Press your first tooth', glove: 'rubber' },
@@ -3254,8 +3415,20 @@ function drawCosmeticArt(cx, cy, kind, k) {
   }
 }
 // the GATOR'S CLOSET boutique: two random-rarity cosmetics for sale (right wall)
-function drawCosmeticStand() {
-  const X = 352, Y = 80, Wc = 122;
+// shop material ramps [outline, shadow, base, light, highlight]
+const RAMP = {
+  steel: ['#1c2429', '#33454e', '#55707c', '#7f97a1', '#b9c9cf'],
+  wood: ['#241708', '#3a2818', '#5f4228', '#7a5230', '#9a6a3c'],
+  glass: ['#0b2a30', '#12525e', '#1d6f7d', '#3aa6b4', '#bfeef2'],
+  appl: ['#5d6a68', '#97a4a2', '#cdd6d4', '#e6ecea', '#ffffff'],
+  sign: ['#14361c', '#245c2a', '#2c7d3a', '#63d66a', '#bff0b8'],
+};
+const STOCK = ['#b5432f', '#2f8b8b', '#c9941a', '#4a6ab0', '#a03a4a', '#5f8440', '#c86a5a', '#7a5230'];
+
+function drawCosmeticStand(X, Y, Wc) {
+  X = X === undefined ? 8 : X;
+  Y = Y === undefined ? 108 : Y;
+  Wc = Wc === undefined ? 120 : Wc;
   // wardrobe carcass + velvet interior
   rr(X - 2, Y + 2, Wc + 4, 106, 4, '#00000066');
   rr(X, Y, Wc, 104, 4, '#6a4a2a');
@@ -3312,7 +3485,7 @@ function drawCosmeticStand() {
   });
 }
 
-const BARREL = { x: 124, y: 200, w: 44, h: 46 };
+const BARREL = { x: 6, y: 216, w: 42, h: 44 };
 function drawBarrel() {
   // wooden sell barrel
   rr(BARREL.x, BARREL.y + 4, BARREL.w, BARREL.h - 4, 3, '#5a3a1e');
@@ -3349,56 +3522,102 @@ function drawShop() {
   rr(174, 235, 172, 20, 3, '#8a5038');
   for (let k = 0; k < 4; k++) rect(178 + k * 42, 237, 22, 16, k % 2 ? '#a86a48' : '#6a3a2a');
   rect(174, 244, 172, 2, '#5a3020');
-  // window on the left wall, night swamp outside
-  panel(20, 60, 88, 74, { face: '#0c1c26', edge: '#2e1f12', r: 2 });
-  ['#0a1626', '#0f2434', '#17343f'].forEach((c, i) => rect(22, 62 + i * 24, 84, 24, c));
-  fillCircle(84, 78, 9, '#e8e8d0'); ctx.save(); ctx.globalAlpha = 0.25; fillCircle(84, 78, 12, '#e8e8d0'); ctx.restore();
-  for (let x = 26; x < 102; x += 6) { const h1 = 10 + ((Math.sin(x * 0.3) * 5) | 0); rect(x, 132 - h1, 6, h1, '#0d2028'); }
-  if ((tNow % 3) < 1.6) { const fx2 = 40 + (tNow * 7 % 50); rect(fx2, 90 + Math.sin(tNow * 3) * 8, 1, 1, '#eaffa0'); }
-  rect(20, 94, 88, 3, '#2e1f12'); rect(62, 60, 3, 74, '#2e1f12'); // cross frame
-  rect(16, 134, 96, 5, '#241708'); // sill
-  // hanging lantern between window and sign
+  // recessed fluorescent strip light over the aisle
+  rect(150, 2, 200, 3, RAMP.steel[1]); rect(150, 5, 200, 5, RAMP.steel[2]);
+  rect(154, 6, 192, 3, '#fdfbe6'); rect(154, 6, 192, 1, '#ffffff');
+  rect(150, 10, 200, 1, RAMP.steel[0]);
+  ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 5) * 0.012; rect(150, 11, 200, 22, '#fff7d8');
+  ctx.globalAlpha = 0.05; rect(150, 11, 200, 40, '#fff7d8'); ctx.restore();
+  // hanging lantern (warm left accent, kept)
   rect(146, 0, 2, 22, '#241708');
-  rr(141, 22, 12, 14, 3, '#2a2018');
-  rect(144, 25, 6, 8, '#ffd54a');
-  rect(145, 26, 2, 3, '#fff6c8');
+  rr(141, 22, 12, 14, 3, '#2a2018'); rect(144, 25, 6, 8, '#ffd54a'); rect(145, 26, 2, 3, '#fff6c8');
   ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 4) * 0.025; fillCircle(147, 30, 34, '#ffb848'); ctx.globalAlpha = 0.06; fillCircle(147, 32, 52, '#ffb848'); ctx.restore();
-  // wooden shelves behind the goods
-  const shelf = (sy, sh2) => {
-    rr(164, sy, 300, sh2, 3, '#4a3320');
-    rr(166, sy + 2, 296, sh2 - 4, 3, '#5f4228');
-    for (let k = 0; k < 5; k++) rect(170 + k * 60, sy + 2, 1, sh2 - 4, '#4a332044');
-    rect(166, sy + sh2 - 3, 296, 3, '#3a2818');
-    rect(170, sy + sh2, 4, 6, '#241708'); rect(456, sy + sh2, 4, 6, '#241708'); // brackets
+  // raised EVERGLADES sign on ropes (clears the stock shelf below)
+  rect(238, 8, 2, 10, '#8a7a58'); rect(354, 8, 2, 10, '#8a7a58');
+  panel(206, 18, 182, 26, { face: '#5f4228', edge: '#8a6a3a', r: 2 });
+  drawTextCSh('EVERGLADES', 296, 22, '#ffe6b0', 2);
+  drawTextC('T R A D I N G   P O S T', 296, 36, '#c8a878', 1);
+
+  // ---- main metal gondola (holds the 4 gear cards + stocked upper shelf) ----
+  (function gondola() {
+    const gx = 134, gw = 220, gy = 44, gh = 140;
+    rr(gx + 2, gy + 3, gw, gh, 2, '#00000055');
+    rect(gx + 6, gy + 2, gw - 12, gh - 4, '#a8986f');
+    rect(gx + 6, gy + 2, gw - 12, 2, '#8a7a54');
+    for (let px = gx + 12; px < gx + gw - 10; px += 8)
+      for (let py = gy + 10; py < gy + gh - 6; py += 8) rect(px, py, 1, 1, '#8a7a54');
+    [gx, gx + gw - 6].forEach(ux => {
+      rect(ux, gy, 6, gh, RAMP.steel[2]); rect(ux, gy, 1, gh, RAMP.steel[3]);
+      rect(ux + 2, gy, 2, gh, RAMP.steel[1]); rect(ux + 5, gy, 1, gh, RAMP.steel[0]);
+      for (let sy = gy + 8; sy < gy + gh; sy += 10) rect(ux + 2, sy, 2, 1, RAMP.steel[0]);
+    });
+    const deck = (dy) => {
+      rect(gx + 6, dy, gw - 12, 3, RAMP.steel[2]); rect(gx + 6, dy, gw - 12, 1, RAMP.steel[4]);
+      rect(gx + 6, dy + 3, gw - 12, 1, RAMP.steel[0]);
+      rect(gx + 6, dy + 4, gw - 12, 4, '#f2c53a'); rect(gx + 6, dy + 4, gw - 12, 1, '#fff0a8'); rect(gx + 6, dy + 7, gw - 12, 1, '#b8901e');
+      for (let lx = gx + 12; lx < gx + gw - 14; lx += 17) { rect(lx, dy + 5, 11, 2, '#fff8e0'); rect(lx + 1, dy + 5, 1, 2, '#b03020'); }
+    };
+    deck(64); deck(174);
+  })();
+  // stocked product silhouettes on the upper shelf
+  const stockItem = (x, kind, col) => {
+    const b = 64;
+    if (kind === 0) { rr(x, b - 15, 8, 15, 1, col); rect(x, b - 15, 8, 1, '#ffffff55'); rect(x, b - 14, 8, 2, '#00000030'); rect(x, b - 9, 8, 4, '#ffffff2a'); rect(x + 7, b - 14, 1, 14, '#00000044'); rect(x + 1, b - 13, 1, 1, '#ffffffaa'); }
+    else if (kind === 1) { rr(x, b - 13, 9, 13, 3, '#cfe3e0'); rr(x + 1, b - 8, 7, 7, 2, col); rect(x, b - 13, 9, 3, '#8a6a3c'); rect(x + 1, b - 12, 3, 1, '#c8a860'); rect(x + 1, b - 6, 1, 4, '#ffffff66'); }
+    else { rr(x, b - 16, 11, 16, 1, col); rect(x, b - 16, 11, 1, '#ffffff55'); rect(x + 1, b - 11, 9, 5, '#ffffff26'); rect(x + 10, b - 15, 1, 15, '#00000044'); }
   };
-  shelf(88, 88); shelf(182, 52);
-  // hanging wooden sign on ropes
-  rect(238, 30, 2, 12, '#8a7a58'); rect(354, 30, 2, 12, '#8a7a58');
-  panel(206, 40, 182, 26, { face: '#5f4228', edge: '#8a6a3a', r: 2 });
-  drawTextCSh('EVERGLADES', 296, 44, '#ffe6b0', 2);
-  drawTextC('T R A D I N G   P O S T', 296, 58, '#c8a878', 1);
-  // park arrowhead emblem
-  rr(166, 34, 30, 36, 4, '#5a4028');
-  rr(168, 36, 26, 32, 4, '#7a5a34');
-  rect(172, 42, 8, 12, '#2c5a24'); rect(176, 38, 3, 6, '#2c5a24'); // tree
-  rect(182, 52, 8, 4, '#5aa843'); rect(184, 50, 4, 2, '#5aa843'); // gator
-  rect(170, 60, 22, 3, '#3f6aa8'); // water stripe
-  // Merle the manatee greets you from the floor by the window (left)
-  rr(30, 190, 60, 12, 3, '#4a3320'); rr(32, 192, 56, 6, 3, '#5f4228'); // little stool/counter
-  rr(38, 172, 12, 10, 2, '#c8b060'); rect(40, 170, 8, 3, '#a89040'); // tip jar
-  rect(41, 176, 3, 2, C.gold); rect(45, 177, 3, 2, C.gold);
-  drawVendor(52, 150);
+  { let sx = 146, ki = 0; while (sx < 346) { stockItem(sx, ki % 3, STOCK[ki % STOCK.length]); sx += (ki % 3 === 2 ? 14 : 11); ki++; } }
+
+  // ---- glowing drink cooler (center-right, between gondola and Merle) ----
+  (function cooler() {
+    const cx = 356, cy = 44, cw = 60, ch = 120, glow = 0.6 + Math.sin(tNow * 2) * 0.08;
+    rr(cx - 2, cy + 2, cw + 4, ch, 3, '#00000066');
+    rr(cx, cy, cw, ch, 3, RAMP.appl[0]); rr(cx + 1, cy + 1, cw - 2, ch - 2, 2, RAMP.appl[2]);
+    rect(cx + 2, cy + 2, cw - 4, 2, RAMP.appl[4]); rect(cx + 2, cy + ch - 4, cw - 4, 2, RAMP.appl[1]);
+    rect(cx + 2, cy + 3, cw - 4, 8, RAMP.glass[1]); rect(cx + 2, cy + 3, cw - 4, 1, '#dff8ff');
+    drawTextC('ICE COLD', cx + cw / 2, cy + 4, '#dff8ff', 1);
+    const door = (dx, dw) => {
+      rr(dx, cy + 13, dw, ch - 20, 2, RAMP.appl[1]); rr(dx + 2, cy + 15, dw - 4, ch - 24, 1, RAMP.glass[0]);
+      rect(dx + 2, cy + 15, dw - 4, (ch - 24) / 3, RAMP.glass[1]);
+      rect(dx + 2, cy + 15 + 2 * (ch - 24) / 3, dw - 4, (ch - 24) / 3, RAMP.glass[0]);
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
+        const bx = dx + 4 + c * ((dw - 8) / 2), by = cy + 18 + r * ((ch - 30) / 3);
+        rr(bx, by, (dw - 12) / 2, (ch - 34) / 3, 1, STOCK[(r * 2 + c) % STOCK.length]); rect(bx, by, (dw - 12) / 2, 1, '#ffffff40');
+      }
+      ctx.save(); ctx.globalAlpha = 0.16; rect(dx + 3, cy + 16, 3, ch - 26, RAMP.glass[4]); ctx.restore();
+      for (let fy = cy + 16; fy < cy + ch - 12; fy += 4) rect(dx + 2, fy + ((fy / 4) & 1), 1, 1, RAMP.glass[4]);
+      rect(dx + dw - 3, cy + 22, 2, ch - 36, RAMP.steel[4]);
+    };
+    const dw = (cw - 8) / 2; door(cx + 3, dw); door(cx + 5 + dw, dw);
+    rect(cx + cw / 2 - 1, cy + 13, 2, ch - 20, RAMP.appl[0]);
+    ctx.save(); ctx.globalAlpha = 0.12 * glow; fillCircle(cx + cw / 2, cy + ch, 44, RAMP.glass[3]);
+    ctx.globalAlpha = 0.06 * glow; rect(cx - 8, cy, cw + 16, ch + 24, RAMP.glass[3]); ctx.restore();
+    const vt = tNow % 3;
+    if (vt < 1.2) { ctx.save(); ctx.globalAlpha = (1.2 - vt) * 0.25; fillCircle(cx + 8 + vt * 6, cy + ch - 4 - vt * 5, 3 + vt * 2, RAMP.glass[4]); ctx.restore(); }
+  })();
+
+  // ---- Merle at his checkout counter (far RIGHT) ----
+  drawVendor(424, 100);
+  (function counter() {
+    const kx = 408, ky = 150, kw = 72, kh = 26;
+    rr(kx, ky + 2, kw, kh, 2, '#00000066'); rr(kx, ky, kw, kh, 2, RAMP.wood[0]); rr(kx + 1, ky + 1, kw - 2, kh - 3, 2, RAMP.wood[2]);
+    for (let px = kx + 6; px < kx + kw; px += 12) rect(px, ky + 3, 1, kh - 6, RAMP.wood[1]);
+    rect(kx, ky, kw, 3, RAMP.steel[2]); rect(kx, ky, kw, 1, RAMP.steel[4]); rect(kx, ky + 3, kw, 1, RAMP.steel[0]);
+    rr(kx + 6, ky + 5, 22, 18, 3, RAMP.wood[3]); rect(kx + 12, ky + 9, 8, 8, '#2c5a24'); rect(kx + 15, ky + 7, 3, 4, '#2c5a24');
+    rr(kx + 34, ky - 8, 16, 9, 1, RAMP.steel[1]); rect(kx + 36, ky - 6, 12, 3, C.green);
+  })();
+  rr(456, 140, 12, 10, 2, '#c8b060'); rect(458, 138, 8, 3, '#a89040'); rect(459, 144, 3, 2, C.gold); rect(463, 145, 3, 2, C.gold);
   const vline = VENDOR.lines[Math.floor(tNow / 6) % VENDOR.lines.length];
   if ((tNow % 6) < 4.2) {
     const bw = Math.min(150, textW(vline.slice(0, 28), 1) + 12);
-    panel(22, 118, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
-    drawText(vline.slice(0, 28), 27, 122, '#3a2818', 1);
-    rect(58, 132, 3, 6, '#f4f2e4'); // bubble tail down toward Merle
+    panel(316, 70, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
+    drawText(vline.slice(0, 28), 321, 74, '#3a2818', 1);
+    rect(452, 84, 3, 6, '#f4f2e4'); // tail down toward Merle
   }
-  hit(40, 150, 56, 60, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
+  hit(418, 100, 60, 74, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
 
-  // =========== GATOR'S CLOSET: the cosmetics boutique (right) ===========
-  drawCosmeticStand();
+  // =========== GATOR'S CLOSET: the cosmetics boutique (LEFT end-cap) ===========
+  drawCosmeticStand(8, 108, 120);
 
   // ---- money-only HUD: in the shop you only care about your wallet ----
   panel(8, 8, 100, 30, { face: '#26321e', edge: '#5a7a3a' });
@@ -5554,7 +5773,8 @@ function drawTooltip() {
 // ------------------------------------------------------------ the hand ----
 function drawHand() {
   if (!mouseSeen) return;
-  const g = GLOVES[gloveUnlocked(meta.glove) ? meta.glove : 'bare'];
+  const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
+  const g = GLOVES[gid];
   const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   const press = handPressT > 0 ? 2 : 0;
   const grab = !!G.drag;
@@ -5567,6 +5787,7 @@ function drawHand() {
     for (let k = 0; k < 4; k++) rect(x - 5 + k * 3, y - 1, 2, 3, shade);
     rect(x + 6, y + 2, 2, 5, shade);
     rr(x - 8, y + 3, 4, 6, 2, skin); // thumb wrapping
+    drawGloveDeco(x, y, 0, gid, g, true);
     rr(x - 7, y + 10, 16, 5, 1, dark);
     rr(x - 6, y + 10, 14, 4, 1, g.cuff);
   } else {
@@ -5589,12 +5810,8 @@ function drawHand() {
     rr(x - 6, y + fl + 3, 4, 5, 2, skin);
     // knuckle crease
     rect(x - 2, y + fl + 6, 6, 1, shade);
-    // pattern
-    if (g.pat === 'scale') { rect(x - 2, y + fl + 2, 2, 2, shade); rect(x + 2, y + fl + 4, 2, 2, shade); rect(x - 1, y + fl + 7, 2, 2, shade); }
-    if (g.pat === 'dot') { rect(x - 2, y + fl + 3, 1, 1, shade); rect(x + 2, y + fl + 5, 1, 1, shade); rect(x, y + fl + 8, 1, 1, shade); }
-    if (g.pat === 'bones') { rect(x - 3, y + fl + 4, 8, 1, '#fff'); rect(x - 1, y + fl + 2, 1, 5, '#fff'); }
-    if (g.pat === 'gem') { rect(x + 1, y + fl + 4, 2, 2, C.gold); }
-    if (g.pat === 'shine') { rect(x - 3, y + fl + 1, 2, 4, '#fff6c8'); }
+    // signature glove sprite treatment (per-id, pat fallback)
+    drawGloveDeco(x, y, fl, gid, g, false);
     // cuff
     rr(x - 5, y + fl + 9, 16, 5, 1, dark);
     rr(x - 4, y + fl + 9, 14, 4, 1, g.cuff);
@@ -5605,6 +5822,8 @@ function drawHand() {
     if (grab) drawHatArt(x + 1, y - 2, hatKey, 1);
     else drawHatArt(x, y + 2, hatKey, 1);
   }
+  // signature per-frame cosmetic effects (sparkles, glow, embers, confetti)
+  drawCosmeticFx(x, y, grab);
 }
 
 // ------------------------------------------------------------ fx update ---
