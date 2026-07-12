@@ -4744,6 +4744,17 @@ function drawGachaMachine(x, y, jolt, crankA, hideCap) {
   rect(2, 124, 100, 4, '#2a1216');
   ctx.restore();
 }
+// ---- ranger-station quest board palettes + push-pin helper --------------
+const WOOD = { ink: '#2a1808', dk: '#4a3016', sh: '#5e3c1c', base: '#714a24', lt: '#8a5e30', hi: '#a5743e' };
+const CORK = { ink: '#6a4420', dk: '#8a5a28', base: '#b5813f', lt: '#c89a55', fleck: '#d8b070' };
+const PAPER = { ink: '#8a7a52', sh: '#d3c48c', base: '#ece0b4', lt: '#f6eecb', hi: '#fffbe8', pen: '#4a3a22', pen2: '#7a6a48' };
+const PINS = [{ d: '#1c5a24', b: '#63d66a', l: '#a8f0ac' }, { d: '#153a6a', b: '#3e8cd0', l: '#7ec0ff' }, { d: '#7a1a14', b: '#e5463a', l: '#ff8a7a' }];
+function pushPin(cx, cy, ramp, glint) {
+  cx |= 0; cy |= 0;
+  fillCircle(cx + 1, cy + 2, 3, '#00000055');
+  fillCircle(cx, cy, 4, ramp.d); fillCircle(cx, cy, 3, ramp.b); fillCircle(cx - 1, cy - 1, 2, ramp.l);
+  ctx.save(); ctx.globalAlpha = 0.35 + 0.65 * glint; rect(cx - 1, cy - 1, 1, 1, '#ffffff'); ctx.restore();
+}
 function drawPassScreen(dt) {
   ensureDaily();
   // cozy back room: dark planks + string lights
@@ -4786,39 +4797,80 @@ function drawPassScreen(dt) {
     cb: () => { if (!G.gacha || G.gacha.phase === 'reveal') { G.gacha = null; G.gachaShow = true; sfx.pin(); } },
   });
 
-  // ---- quest board (cookies come from these) ----
-  panel(236, 50, 232, 172, { face: '#1a121066', edge: '#5a4028', r: 4 });
-  drawTextCSh('QUEST BOARD', 352, 56, C.purple, 1);
-  drawTextC('FINISH QUESTS TO EARN COOKIES', 352, 66, '#8a7a58', 1);
+  // ---- quest board: carved ranger-station corkboard -------------------
+  const BX = 236, BY = 50, BW = 232, BH = 172, CKX = 241, CKY = 55, CKW = 222, CKH = 162;
+  rr(BX + 2, BY + 3, BW, BH, 4, '#00000070');
+  rr(BX, BY, BW, BH, 4, WOOD.ink); rr(BX + 1, BY + 1, BW - 2, BH - 2, 3, WOOD.base);
+  rect(BX + 2, BY + 2, BW - 4, 2, WOOD.hi); rect(BX + 2, BY + BH - 4, BW - 4, 2, WOOD.dk);
+  rect(BX + 2, BY + 2, 2, BH - 4, WOOD.lt); rect(BX + BW - 4, BY + 2, 2, BH - 4, WOOD.dk);
+  for (let gy = BY + 8; gy < BY + BH - 6; gy += 11) { rect(BX + 3, gy, 1, 7, WOOD.sh); rect(BX + BW - 4, gy + 4, 1, 7, WOOD.sh); }
+  rr(CKX - 1, CKY - 1, CKW + 2, CKH + 2, 3, WOOD.ink); rr(CKX, CKY, CKW, CKH, 2, CORK.base);
+  for (let fy = CKY + 2; fy < CKY + CKH - 2; fy += 5) for (let fx = CKX + 2; fx < CKX + CKW - 2; fx += 5) {
+    const h = (fx * 7 + fy * 13) % 7;
+    if (h === 0) rect(fx, fy, 1, 1, CORK.dk); else if (h === 3) rect(fx + 2, fy + 1, 1, 1, CORK.fleck); else if (h === 5) rect(fx + 1, fy + 2, 1, 1, CORK.lt);
+  }
+  ctx.save(); ctx.globalAlpha = 0.25; rect(CKX, CKY, CKW, 3, CORK.ink); rect(CKX, CKY, 3, CKH, CORK.ink); ctx.globalAlpha = 0.18; rect(CKX, CKY + CKH - 2, CKW, 2, '#ffffff'); ctx.restore();
+  pushPin(CKX + 7, CKY + 7, PINS[1], 0.4); pushPin(CKX + CKW - 7, CKY + 7, PINS[2], 0.6);
+  pushPin(CKX + 7, CKY + CKH - 7, PINS[0], 0.5); pushPin(CKX + CKW - 7, CKY + CKH - 7, PINS[1], 0.3);
+  // carved hanging header sign
+  const sx = 290, sy = 40, sw = 124, sh = 24;
+  rr(sx + 2, sy + 3, sw, sh, 3, '#00000066');
+  rr(sx, sy, sw, sh, 3, WOOD.dk); rr(sx + 1, sy + 1, sw - 2, sh - 2, 2, WOOD.base);
+  rect(sx + 2, sy + 2, sw - 4, 2, WOOD.hi); rect(sx + 2, sy + sh - 4, sw - 4, 2, WOOD.ink);
+  rect(sx + 4, sy + 9, sw - 8, 1, WOOD.sh); rect(sx + 4, sy + 16, sw - 8, 1, WOOD.sh);
+  [sx + 8, sx + sw - 8].forEach(cxs => { fillCircle(cxs, sy + 7, 2, '#d8b060'); rect(cxs - 1, sy + 7, 2, 1, '#8a5a10'); });
+  drawTextCSh('QUEST BOARD', 352, sy + 5, C.gold, 1, WOOD.ink);
+  drawTextC('EARN COOKIES', 352, sy + 14, '#d8b878', 1);
   NPC_ORDER.forEach((nk, i) => {
-    const npc = NPCS[nk];
-    const cq = chainQuest(nk);
-    const x = 242, y = 74 + i * 48, w2 = 220, h2 = 44;
-    panel(x, y, w2, h2, { face: '#1a2530ee', edge: npc.col });
-    rr(x + 3, y + 3, 30, 30, 3, '#10181e');
-    ctx.save(); ctx.translate(x + 4, y + 4); ctx.scale(0.9, 0.9); drawNpcFace(0, 0, nk); ctx.restore();
-    drawText(npc.name, x + 38, y + 4, npc.col, 1);
-    // chain pips
-    QUEST_CHAINS[nk].forEach((_, s) => {
-      const done = meta.chains[nk].step > s;
-      rect(x + 150 + s * 8, y + 5, 5, 5, done ? C.gold : '#0a1215');
-      if (done) rect(x + 151 + s * 8, y + 6, 3, 3, '#fff6c8');
-    });
+    const npc = NPCS[nk], cq = chainQuest(nk), done = !cq, pin = PINS[i];
+    const cardX = 248, cardW = 206, cardH = 44, cardY = 70 + i * 47;
+    const tilt = i % 2 ? 1 : -1, flut = Math.sin(tNow * 1.6 + i * 2.1);
+    const px = cardX + 3, py = cardY + 2, pw = 200, ph = 39, rx = px + 42;
+    // tilt shadow + 3-tone paper note
+    ctx.save(); ctx.globalAlpha = 0.5; rr(px + tilt * 2, py + 3 + (flut > 0 ? 1 : 0), pw, ph, 3, '#00000088'); ctx.restore();
+    rr(px, py, pw, ph, 3, PAPER.ink); rr(px + 1, py + 1, pw - 2, ph - 2, 2, PAPER.base);
+    rect(px + 2, py + 2, pw - 4, 2, PAPER.hi); rect(px + 2, py + ph - 4, pw - 4, 2, PAPER.sh); rect(px + 2, py + 2, 1, ph - 4, PAPER.lt);
+    rect(rx, py + 13, pw - 46, 1, PAPER.sh); rect(rx, py + 23, pw - 46, 1, PAPER.sh);
+    // tape on opposite corners
+    ctx.save(); ctx.globalAlpha = 0.5; rr(px - 3, py - 2, 15, 7, 1, PAPER.hi); rect(px - 3, py - 2, 15, 1, PAPER.lt); rr(px + pw - 12, py + ph - 5, 15, 7, 1, PAPER.hi); rect(px + pw - 12, py + ph - 5, 15, 1, PAPER.lt); ctx.restore();
+    // dog-ear fold
+    const dog = 4 + Math.round(flut + 1);
+    for (let k = 0; k < dog; k++) rect(px + pw - 1 - k, py + ph - 1 - (dog - 1 - k), 1, 1, PAPER.lt);
+    rect(px + pw - dog, py + ph - dog, dog, 1, PAPER.sh);
+    // polaroid portrait
+    rr(px + 2, py + 2, 34, 34, 2, PAPER.hi); rr(px + 3, py + 3, 32, 30, 1, '#10181e'); rect(px + 3, py + 3, 32, 2, npc.col + '55');
+    ctx.save(); ctx.beginPath(); ctx.rect(px + 3, py + 3, 32, 30); ctx.clip(); drawNpcFace(px + 4, py + 3, nk); ctx.restore();
+    rect(px + 3, py + 33, 32, 3, PAPER.base); rect(px + 6, py + 34, 6, 1, PAPER.pen2);
+    // name + chain pips
+    drawTextSh(npc.name, rx, py + 3, npc.col, 1, '#00000060');
+    for (let s = 0; s < 8; s++) { const on = meta.chains[nk].step > s, gx = 412 + s * 5; rect(gx, py + 3, 3, 3, on ? C.gold : CORK.ink); if (on) rect(gx, py + 3, 1, 1, '#fff6c8'); }
+    if (cq) drawText(cq.name, rx, py + 13, PAPER.pen, 1); else drawText('CHAIN COMPLETE', rx, py + 13, C.greenD, 1);
     if (cq) {
-      drawText(cq.name, x + 38, y + 14, C.white, 1);
-      rect(x + 38, y + 24, 130, 6, '#0a1215');
-      const pr = clamp(cq.prog / cq.goal, 0, 1);
-      if (pr > 0) {
-        rect(x + 38, y + 24, Math.floor(130 * pr), 6, C.gold);
-        rect(x + 38, y + 24, Math.floor(130 * pr), 2, '#ffe089');
+      const bx = rx, by = py + 24, pr = clamp(cq.prog / cq.goal, 0, 1), frac = pr * 10;
+      rr(bx - 1, by - 1, 121, 8, 1, '#0a1215'); rect(bx - 1, by + 5, 121, 1, '#1a2530');
+      for (let j = 0; j < 10; j++) {
+        const sxg = bx + j * 12; let fillW = 0;
+        if (j < Math.floor(frac)) fillW = 11; else if (j === Math.floor(frac)) fillW = Math.round((frac - Math.floor(frac)) * 11);
+        if (fillW > 0) { rect(sxg, by, fillW, 6, C.gold); rect(sxg, by, fillW, 2, '#ffe089'); rect(sxg, by + 5, fillW, 1, C.goldD); rect(sxg, by, 1, 1, '#fffbe8'); }
+        else rect(sxg, by, 11, 6, '#101a1f');
       }
-      drawText(cq.prog + '/' + cq.goal, x + 38, y + 33, C.dim, 1);
-      ICONS.cookie(x + 176, y + 20);
-      drawText('+' + cq.rp, x + 190, y + 24, C.gold, 1);
+      const fillPx = Math.round(pr * 119);
+      if (fillPx > 4) { const sw2 = (tNow * 46) % (fillPx + 18) - 9; ctx.save(); ctx.globalAlpha = 0.22; rect(bx + sw2, by, 2, 6, '#ffffff'); ctx.restore(); }
+      drawText(cq.prog + '/' + cq.goal, rx, py + 32, PAPER.pen2, 1);
+      const cyB = py + 30 + Math.round(Math.sin(tNow * 2 + i));
+      ICONS.cookie(416, cyB); drawText('+' + cq.rp, 430, py + 32, C.goldD, 1);
     } else {
-      drawText('ALL QUESTS DONE - LEGEND!', x + 38, y + 20, C.green, 1);
+      const sc2 = px + pw / 2 + 24, scy = py + ph / 2;
+      ctx.save(); ctx.globalAlpha = 0.9;
+      rr(sc2 - 32, scy - 9, 60, 18, 3, C.red); rr(sc2 - 30, scy - 7, 56, 14, 2, PAPER.base); rr(sc2 - 30, scy - 7, 56, 14, 2, C.red + '22');
+      drawTextC('DONE', sc2 - 6, scy - 3, C.redD, 1);
+      rect(sc2 + 16, scy + 1, 2, 2, C.redD); rect(sc2 + 18, scy + 3, 2, 2, C.redD); rect(sc2 + 20, scy - 1, 2, 2, C.redD); rect(sc2 + 22, scy - 3, 2, 2, C.redD);
+      ctx.restore();
+      drawTextC('LEGEND RANGER', px + pw / 2, py + ph - 8, C.gold, 1);
     }
-    hit(x, y, w2, h2, { id: 'npc' + nk, tip: npc.name + '|' + npc.who + "|'" + npc.line + "'" });
+    // push-pin holds the note (over the tape)
+    pushPin(px + pw / 2, py, pin, 0.5 + 0.5 * Math.sin(tNow * 3 + i * 1.7));
+    hit(cardX, cardY, cardW, cardH, { id: 'npc' + nk, tip: npc.name + '|' + npc.who + "|'" + npc.line + "'" });
   });
 
   drawTextC('EARN COOKIES: QUESTS, ACHIEVEMENTS +25, EVENTS +3, ANTES +2', W / 2, 236, '#54707a', 1);
