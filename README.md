@@ -28,11 +28,13 @@ Every ante is a journey across a map. Pick your path at each fork:
 - **SNAPPY TURTLE** — a gentle target under a mossy shell, modest pay
 - **RISKY GATOR** — 1.5× the target, better pay
 - **GOLDEN GATOR** — a gilded monster with 1.9× the target and a fat purse
-- **? EVENTS** — no fight, no shop: a **skill mini-game**. Hook fish off the
-  night dock, lob drumsticks to a cruising gator, hold the campfire gumbo at a
-  simmer, pull marshmallows at peak gold, shoot up the carnival duck gallery,
-  bag frogs between hops, photograph rare birds, or steer an airboat through
-  logs and coins. Eight games — the better you play, the more they pay.
+- **? EVENTS** — no fight, no shop: a **skill mini-game**, each with its own
+  pixel emblem on the intro card. Hook fish off the night dock, lob drumsticks
+  to a cruising gator, hold the campfire gumbo at a simmer, pull marshmallows
+  at peak gold, shoot up the carnival duck gallery, bag frogs between hops,
+  photograph rare birds, steer an airboat through logs and coins, flip patties
+  on the swamp grill at golden-brown, or scrub the algae off a spa-day manatee.
+  Ten games — the better you play, the more they pay.
 
 Fight nodes carry **modifiers** so every fork is a different gamble: FOGGY,
 SWARMING, BRITTLE, TOLL GATE and TIRED ARM make routes nastier; BLESSED,
@@ -71,6 +73,8 @@ red eyes.
   Chomp-Pops, Swamp Sundae (five teeth, pick TWO), Tackle Box and the Ranger
   Toolbelt — bigger packs pull rarer teeth, up to Obsidian, Pearl, Crystal,
   Honey, Fossil, Wraith and the mythical **TITAN TOOTH** (+20)
+- **GATOR'S CLOSET** — the shop's cosmetics boutique. Two random-rarity looks
+  each visit (gloves and hats, priced by rarity), bought and worn on the spot
 - **Click any card** for a full-detail view with flavor text
 - **Drag cards onto the gator** to use them; drag charms into the **sell barrel**
 
@@ -95,13 +99,17 @@ shop reroll, fatter snack packs). No duplicates, ever. Cookies come from
 **three NPC quest chains** — Granny Snapper the turtle, Ferryman Crow, and Doc
 Mudbug the crawfish dentist — tracked live on the trail map.
 
-### Your hand, your gloves
+### Your hand, your gloves — and your hat
 
-You press with an on-screen pixel hand — and it's customizable. Earn
+You press with an on-screen pixel hand — and it's customizable two ways. Earn
 **achievements** (first press, beating bosses, holding $50, surviving 25 snaps,
 clean sweeps, winning a run…) or lucky gacha spins to unlock **11 gloves**,
-from the humble Rubber Glove to the Midas Touch and the Night Sky. Pick yours
-from the rack on the title screen.
+from the humble Rubber Glove to the Midas Touch and the Night Sky. Then top it
+off with one of **13 HATS** — straw hat, ranger peak, top hat, bog wizard,
+pirate tricorne, party cone, an animated swamp-fire crown and more — perched
+right on your dentist's hand. Bought at the shop's cosmetics closet, won in the
+gacha, or earned by beating a boss. Pick your glove and hat from the twin racks
+on the title screen; both show up on the cursor everywhere you play.
 
 ### Controls
 

@@ -552,6 +552,17 @@ const ICONS = {
   tbath(x, y) { rr(x + 1, y + 5, 10, 6, 2, '#4fb3d9'); rect(x + 2, y + 4, 8, 2, '#9fe8ff'); ICONS.tooth(x, y - 3, '#f4f2e4'); rect(x + 3, y + 6, 1, 1, '#e8f8ff'); rect(x + 8, y + 7, 1, 1, '#e8f8ff'); },
   troot(x, y) { rect(x + 5, y + 1, 2, 7, '#c8d2d8'); rect(x + 4, y + 0, 4, 2, '#3a6a4a'); rect(x + 3, y + 8, 2, 3, '#f4f0dc'); rect(x + 7, y + 8, 2, 3, '#f4f0dc'); rect(x + 9, y + 3, 2, 2, C.gold); },
   tdiamond(x, y) { ICONS.gem(x, y, '#eafcff'); rect(x + 5, y + 4, 2, 2, '#fff'); rect(x + 3, y + 10, 6, 1, '#9fe8ff'); },
+  // ---- mini-game emblem sprites (shown on the event intro card) ----
+  mg_fish(x, y) { rr(x + 1, y + 4, 8, 5, 2, '#5c8a9a'); rect(x + 8, y + 3, 3, 7, '#48707e'); rect(x, y + 5, 2, 3, '#48707e'); rect(x + 3, y + 5, 1, 1, '#10181e'); rect(x + 5, y + 2, 3, 2, '#7fb8c8'); },
+  mg_gator(x, y) { rr(x + 1, y + 5, 10, 4, 2, '#3c7c2e'); rr(x + 6, y + 2, 5, 4, 2, '#5aa843'); rect(x + 8, y + 3, 1, 1, '#ffe089'); for (let k = 0; k < 4; k++) rect(x + 2 + k * 2, y + 9, 1, 2, '#f4f0dc'); },
+  mg_pot(x, y) { rr(x + 1, y + 4, 10, 6, 2, '#3a444c'); rect(x, y + 5, 1, 3, '#5a646c'); rect(x + 11, y + 5, 1, 3, '#5a646c'); rect(x + 2, y + 3, 8, 2, '#7ec850'); rect(x + 4, y + 1, 1, 2, '#9ab87a'); rect(x + 7, y + 1, 1, 2, '#9ab87a'); },
+  mg_mallow(x, y) { rect(x + 5, y + 5, 1, 6, '#8a6a3a'); rr(x + 3, y + 1, 6, 5, 2, '#f4e2c8'); rect(x + 4, y + 2, 4, 2, '#e0b060'); },
+  mg_duck(x, y) { rr(x + 2, y + 5, 7, 4, 2, '#e8c84a'); rr(x + 6, y + 2, 4, 4, 2, '#f0d868'); rect(x + 9, y + 4, 2, 1, C.orange); rect(x + 8, y + 3, 1, 1, '#10181e'); },
+  mg_frog(x, y) { rr(x + 2, y + 5, 8, 5, 2, '#5aa843'); rect(x + 2, y + 3, 2, 2, '#8cd34f'); rect(x + 8, y + 3, 2, 2, '#8cd34f'); rect(x + 2, y + 3, 1, 1, C.ink); rect(x + 9, y + 3, 1, 1, C.ink); rect(x + 4, y + 8, 1, 2, '#3c7c2e'); rect(x + 7, y + 8, 1, 2, '#3c7c2e'); },
+  mg_cam(x, y) { rr(x + 1, y + 3, 10, 7, 2, '#3a444c'); rect(x + 3, y + 2, 3, 1, '#5a646c'); fillCircle(x + 6, y + 6, 2, '#9fe8ff'); rect(x + 9, y + 4, 1, 1, '#ff5348'); },
+  mg_boat(x, y) { rr(x + 1, y + 6, 9, 3, 1, '#5f4228'); rect(x + 8, y + 2, 1, 5, '#3a444c'); rect(x + 6, y + 2, 5, 1, '#9fb2b8'); rect(x + 6, y + 4, 5, 1, '#9fb2b8'); rect(x + 2, y + 5, 2, 1, '#8a6a3a'); },
+  mg_burger(x, y) { rr(x + 1, y + 2, 10, 3, 2, '#e0a848'); rect(x + 2, y + 5, 8, 1, '#4fae5c'); rect(x + 1, y + 6, 10, 2, '#8a4a28'); rr(x + 1, y + 8, 10, 2, 1, '#e0a848'); rect(x + 3, y + 3, 2, 1, '#fff2c8'); },
+  mg_manatee(x, y) { rr(x + 1, y + 3, 9, 7, 3, '#8a969c'); rr(x + 8, y + 5, 3, 4, 2, '#8a969c'); rect(x + 3, y + 5, 1, 1, C.ink); rect(x + 6, y + 5, 1, 1, C.ink); rect(x + 2, y + 8, 3, 1, '#7ec850'); rect(x + 6, y + 4, 2, 1, '#7ec850'); },
 };
 
 // -------- animal ranger portraits, gator-style tracking eyes --------------
@@ -1036,6 +1047,108 @@ const GLOVES = {
   starry: { name: 'NIGHT SKY', skin: '#3a4a9a', shade: '#252f6a', cuff: '#ffd54a', gacha: true, pat: 'gem', flav: 'Wears the stars.' },
 };
 const GLOVE_ORDER = ['bare', 'rubber', 'leather', 'croc', 'gold', 'bone', 'pearl', 'royal', 'neon', 'candy', 'starry'];
+// rarity per glove (0..5) - drives cosmetic-stand price + rarity ring
+const GLOVE_RAR = { bare: 0, rubber: 0, leather: 1, croc: 2, bone: 2, gold: 3, pearl: 3, neon: 3, candy: 3, royal: 4, starry: 5 };
+
+// ------------------------------------------- HATS (worn on the hand) ------
+// A second cosmetic slot for your dentist hand. Most are bought at the shop's
+// cosmetics stand (random rarity); a couple are earned or won in the gacha.
+// col/col2 = felt + band/trim; ico decides the pixel silhouette in drawHatArt.
+const HATS = {
+  none: { name: 'BARE HEAD', rar: 0, free: true, ico: 'none', flav: 'Wind in your knuckle hair.' },
+  straw: { name: 'STRAW HAT', rar: 0, free: true, ico: 'straw', col: '#e8c86a', col2: '#b8933a', flav: 'Keeps the bog sun off.' },
+  cap: { name: 'CANVAS CAP', rar: 1, shop: true, ico: 'cap', col: '#4a8a5c', col2: '#2c5a38', flav: 'Bent brim, well loved.' },
+  bandana: { name: 'SWAMP BANDANA', rar: 1, shop: true, ico: 'bandana', col: '#c9556a', col2: '#f4f2e4', flav: 'Pirate of the shallows.' },
+  ranger: { name: 'RANGER PEAK', rar: 2, shop: true, ico: 'ranger', col: '#7a5a34', col2: '#c8a040', flav: 'Protect and re-fill.' },
+  cowboy: { name: 'BAYOU STETSON', rar: 2, shop: true, ico: 'cowboy', col: '#a8763a', col2: '#5a3a1e', flav: 'Yeehaw, gently.' },
+  top: { name: 'DAPPER TOPPER', rar: 3, shop: true, ico: 'top', col: '#1c2226', col2: '#c8b060', flav: 'For very formal extractions.' },
+  wizard: { name: 'BOG CONJURER', rar: 3, shop: true, ico: 'wizard', col: '#4a3a8a', col2: '#ffd54a', flav: 'Molar, meet magic.' },
+  crown: { name: 'TIN CROWN', rar: 3, ach: 'boss', ico: 'crownhat', col: '#ffd54a', col2: '#c9941a', flav: 'Bestowed by a beaten boss.' },
+  pirate: { name: 'GATOR CORSAIR', rar: 4, shop: true, ico: 'pirate', col: '#20242a', col2: '#e8e8e0', flav: 'Yarr. Floss ye timbers.' },
+  halo: { name: 'MARSH ANGEL', rar: 4, gacha: true, ico: 'halo', col: '#ffe089', col2: '#fff6c8', flav: 'Blessed be the bicuspid.' },
+  party: { name: 'PARTY CONE', rar: 5, shop: true, ico: 'party', col: '#ff8ab0', col2: '#4ef0c8', flav: 'Every bank is a birthday.' },
+  flame: { name: 'SWAMP FIRE', rar: 5, gacha: true, ico: 'flame', col: '#ff6a20', col2: '#ffe089', flav: 'The hottest take in the bog.' },
+};
+const HAT_ORDER = ['none', 'straw', 'cap', 'bandana', 'ranger', 'cowboy', 'top', 'wizard', 'crown', 'pirate', 'halo', 'party', 'flame'];
+const hatUnlocked = k => HATS[k].free || !!meta.hatOwn[k] || (HATS[k].ach ? !!meta.ach[HATS[k].ach] : false);
+
+// Draws a hat centered at cx with its brim sitting on baseline `by`, scaled by
+// integer sc. dy is measured UP from the baseline (negative = higher).
+function drawHatArt(cx, by, key, sc) {
+  sc = sc || 1;
+  const h = HATS[key]; if (!h || h.ico === 'none') return;
+  const col = h.col || '#8a6a3a', c2 = h.col2 || '#5a3a1e', dk = '#00000055';
+  const R = (dx, dy, w, hh, c) => rect((cx + dx * sc) | 0, (by + dy * sc) | 0, Math.max(1, w * sc) | 0, Math.max(1, hh * sc) | 0, c);
+  switch (h.ico) {
+    case 'straw':
+      R(-9, -2, 18, 3, dk); R(-8, -2, 16, 2, col);       // wide brim
+      R(-5, -7, 10, 5, col); R(-4, -8, 8, 1, col);        // dome
+      R(-5, -4, 10, 1, c2); R(-3, -7, 2, 3, '#f8e6a0');   // band + shine
+      break;
+    case 'cap':
+      R(-5, -6, 10, 5, col); R(-4, -7, 8, 1, col);        // crown
+      R(-9, -2, 8, 2, c2); R(-9, -1, 6, 1, dk);           // bill (left)
+      R(-4, -4, 8, 1, '#ffffff44');
+      break;
+    case 'bandana':
+      R(-6, -6, 12, 5, col); R(-5, -7, 10, 1, col);       // wrap
+      R(-2, -4, 2, 2, c2); R(2, -3, 2, 2, c2);            // white dots
+      R(4, -6, 4, 3, col); R(6, -5, 3, 4, col);           // side knot
+      break;
+    case 'ranger':
+      R(-9, -2, 18, 2, c2); R(-8, -3, 16, 1, col);        // flat brim
+      R(-5, -8, 10, 6, col); R(-4, -9, 8, 1, col);        // peaked crown
+      R(-1, -9, 2, 7, c2); R(-5, -5, 10, 1, c2);          // pinch + band
+      break;
+    case 'cowboy':
+      R(-10, -2, 20, 2, col); R(-10, -1, 20, 1, dk);      // curled brim
+      R(-11, -3, 3, 2, col); R(8, -3, 3, 2, col);         // upturned sides
+      R(-5, -8, 10, 6, col); R(-4, -9, 8, 1, col);
+      R(-2, -9, 1, 7, c2); R(1, -9, 1, 7, c2);            // crease
+      R(-5, -4, 10, 1, c2);                               // band
+      break;
+    case 'top':
+      R(-8, -2, 16, 2, col); R(-8, -1, 16, 1, dk);        // brim
+      R(-5, -11, 10, 9, col); R(-5, -5, 10, 2, c2);       // tall crown + band
+      R(-4, -10, 2, 6, '#ffffff33');
+      break;
+    case 'wizard':
+      R(-8, -2, 16, 2, col); R(-7, -3, 14, 1, col);       // brim
+      R(-4, -6, 8, 4, col); R(-3, -9, 6, 3, col); R(-1, -12, 3, 3, col); R(0, -14, 2, 2, col); // cone
+      R(-3, -5, 2, 2, c2); R(1, -8, 1, 1, c2); R(0, -13, 1, 1, '#fff'); // stars
+      break;
+    case 'crownhat':
+      R(-6, -3, 12, 3, col); R(-6, -7, 2, 4, col); R(-1, -8, 2, 5, col); R(4, -7, 2, 4, col); // points
+      R(-6, -4, 12, 1, c2); R(-5, -2, 2, 1, '#ff5348'); R(3, -2, 2, 1, '#3f8cff');            // jewels
+      break;
+    case 'pirate':
+      R(-9, -3, 18, 3, col); R(-7, -5, 14, 3, col); R(-4, -7, 8, 2, col); // tricorne
+      R(-9, -3, 18, 1, c2);                                               // trim
+      R(-2, -5, 4, 3, c2); R(-2, -4, 1, 1, col); R(1, -4, 1, 1, col); R(-1, -3, 2, 1, col); // skull
+      break;
+    case 'halo': {
+      const bob = Math.round(Math.sin(tNow * 2) * sc);
+      R(-6, -8 - (bob / sc), 12, 2, col); R(-5, -9 - (bob / sc), 10, 1, h.col2); // ring
+      R(-6, -6 - (bob / sc), 1, 1, col); R(5, -6 - (bob / sc), 1, 1, col);
+      break;
+    }
+    case 'party':
+      R(-6, -2, 12, 2, c2);                               // rim
+      R(-4, -5, 8, 3, col); R(-3, -8, 6, 3, col); R(-1, -11, 3, 3, col); R(0, -13, 2, 2, '#ffd54a'); // cone
+      R(-3, -4, 2, 1, '#fff'); R(1, -7, 1, 1, '#fff'); R(-1, -10, 1, 1, c2); // confetti stripes
+      break;
+    case 'flame': {
+      const f = tNow * 9;
+      R(-6, -3, 12, 3, '#6a3a1e'); R(-6, -4, 12, 1, col); // charred band
+      for (let k = 0; k < 5; k++) {
+        const fx = -5 + k * 2.4, fh = 4 + Math.abs(Math.sin(f + k * 1.7)) * 4;
+        R(fx, -3 - fh, 2, fh, col);
+        R(fx, -3 - fh, 1, fh * 0.5, h.col2);
+      }
+      break;
+    }
+  }
+}
 const ACHS = [
   { id: 'firstpress', name: 'FIRST BITE', desc: 'Press your first tooth', glove: 'rubber' },
   { id: 'ante3', name: 'GETTING TOOTHY', desc: 'Reach Ante 3', glove: 'leather' },
@@ -1076,16 +1189,19 @@ const RANGERS = {
 const RANGER_ORDER = ['scout', 'medic', 'trader', 'frog', 'snail'];
 
 // ----------------------------------- swamp mini-games (skill events) ------
-// event nodes launch one of five pixel mini-games; pay scales with skill
+// event nodes launch one of ten pixel mini-games; pay scales with skill.
+// icon = an mg_* sprite from ICONS, shown on the intro card.
 const MINIGAMES = {
-  fish: { name: "GONE FISHIN'", icon: 'gem', how: ['Wait for the bobber to DIP -', 'then TAP fast to hook it! 5 casts.'] },
-  feed: { name: 'FEEDING TIME', how: ['A hungry gator cruises the pool.', 'TAP to lob a drumstick onto the X - lead him! 6 throws.'] },
-  cook: { name: 'CAMP GUMBO', how: ['TAP to stoke the fire.', 'Hold the needle in the green for 10 seconds.'] },
-  mallow: { name: 'MALLOW ROAST', how: ['Marshmallows toast fast and burn faster.', 'TAP to pull each one at peak GOLD. 3 mallows.'] },
-  ducks: { name: 'DUCK GALLERY', how: ['Wooden ducks cross the stalls - TAP to shoot!', 'Gold ducks pay triple. 14 seconds.'] },
-  froggy: { name: 'FROG ROUNDUP', how: ['Frogs only rest a moment between hops.', 'TAP one while it sits to bag it! 14 seconds.'] },
-  birdy: { name: 'BIRD SNAPS', how: ['Line the photo frame up on a flying bird', 'and TAP to snap it. 6 shots of film!'] },
-  boat: { name: 'AIRBOAT RUN', how: ['MOVE your finger or mouse to steer the airboat.', 'Grab coins, dodge the logs! 15 seconds.'] },
+  fish: { name: "GONE FISHIN'", icon: 'mg_fish', how: ['Wait for the bobber to DIP -', 'then TAP fast to hook it! 5 casts.'] },
+  feed: { name: 'FEEDING TIME', icon: 'mg_gator', how: ['A hungry gator cruises the pool.', 'TAP to lob a drumstick onto the X - lead him! 6 throws.'] },
+  cook: { name: 'CAMP GUMBO', icon: 'mg_pot', how: ['TAP to stoke the fire.', 'Hold the needle in the green for 10 seconds.'] },
+  mallow: { name: 'MALLOW ROAST', icon: 'mg_mallow', how: ['Marshmallows toast fast and burn faster.', 'TAP to pull each one at peak GOLD. 3 mallows.'] },
+  ducks: { name: 'DUCK GALLERY', icon: 'mg_duck', how: ['Wooden ducks cross the stalls - TAP to shoot!', 'Gold ducks pay triple. 14 seconds.'] },
+  froggy: { name: 'FROG ROUNDUP', icon: 'mg_frog', how: ['Frogs only rest a moment between hops.', 'TAP one while it sits to bag it! 14 seconds.'] },
+  birdy: { name: 'BIRD SNAPS', icon: 'mg_cam', how: ['Line the photo frame up on a flying bird', 'and TAP to snap it. 6 shots of film!'] },
+  boat: { name: 'AIRBOAT RUN', icon: 'mg_boat', how: ['MOVE your finger or mouse to steer the airboat.', 'Grab coins, dodge the logs! 15 seconds.'] },
+  burger: { name: 'GATOR GRILL', icon: 'mg_burger', how: ['Patties sizzle on the swamp grill.', 'TAP to FLIP at golden-brown - two flips per burger!'] },
+  manatee: { name: 'MANATEE SPA', icon: 'mg_manatee', how: ['Sweet Merle is caked in algae.', 'MOVE the brush over the green to scrub him clean! 16s.'] },
 };
 const MINIGAME_KEYS = Object.keys(MINIGAMES);
 
@@ -1143,6 +1259,7 @@ function gachaPool() {
     p.push({ kind: 'card', def: d, rar: d.tier <= 5 ? 0 : d.tier <= 10 ? 1 : 2 });
   });
   GLOVE_ORDER.forEach(k => { if (GLOVES[k].gacha && !meta.gachaOwn[k]) p.push({ kind: 'glove', k, rar: 2 }); });
+  HAT_ORDER.forEach(k => { if (HATS[k].gacha && !meta.hatOwn[k]) p.push({ kind: 'hat', k, rar: 3 }); });
   Object.keys(PERKS).forEach(k => { if (!meta.perks[k]) p.push({ kind: 'perk', k, rar: 3 }); });
   return p;
 }
@@ -1167,6 +1284,7 @@ function gachaSpin() {
 function gachaAward(prize) {
   if (prize.kind === 'card') { meta.unlocked[prize.def.id] = true; toasts.push({ name: prize.def.name + ' UNLOCKED!', sub: 'NOW IN YOUR SHOP POOL', t: 0 }); }
   else if (prize.kind === 'glove') { meta.gachaOwn[prize.k] = true; toasts.push({ name: GLOVES[prize.k].name + '!', sub: 'NEW GLOVE ON THE MENU RACK', t: 0 }); }
+  else if (prize.kind === 'hat') { meta.hatOwn[prize.k] = true; toasts.push({ name: HATS[prize.k].name + '!', sub: 'NEW HAT ON THE MENU RACK', t: 0 }); }
   else if (prize.kind === 'perk') { meta.perks[prize.k] = true; toasts.push({ name: PERKS[prize.k].name + '!', sub: 'PERMANENT UPGRADE ACTIVE', t: 0 }); }
   else { meta.rp = (meta.rp || 0) + 15; toasts.push({ name: 'COOKIE JAR!', sub: '+15 COOKIES BACK', t: 0 }); }
   saveMeta();
@@ -1175,8 +1293,9 @@ function gachaAward(prize) {
 const gachaPrizeInfo = z =>
   z.kind === 'card' ? { name: z.def.name, desc: z.def.desc, rar: z.rar }
     : z.kind === 'glove' ? { name: GLOVES[z.k].name, desc: 'GLOVE SKIN - ' + GLOVES[z.k].flav, rar: 2 }
-      : z.kind === 'perk' ? { name: PERKS[z.k].name, desc: PERKS[z.k].desc, rar: 3 }
-        : { name: 'COOKIE JAR', desc: 'You own everything! +15 cookies back.', rar: 1 };
+      : z.kind === 'hat' ? { name: HATS[z.k].name, desc: 'HAT - ' + HATS[z.k].flav, rar: 3 }
+        : z.kind === 'perk' ? { name: PERKS[z.k].name, desc: PERKS[z.k].desc, rar: 3 }
+          : { name: 'COOKIE JAR', desc: 'You own everything! +15 cookies back.', rar: 1 };
 
 // three quest-giver NPCs, each with a PERMANENT quest chain (not daily)
 const NPCS = {
@@ -1231,10 +1350,12 @@ const QUESTS = [
   { id: 'pack1', name: 'OPEN A PACK', goal: 1 },
 ];
 
-let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false, gachaOwn: {}, perks: {} };
+let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', hat: 'straw', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false, gachaOwn: {}, hatOwn: {}, perks: {} };
 try { const m = JSON.parse(localStorage.getItem('bd_meta') || 'null'); if (m) meta = Object.assign(meta, m); } catch (e) { }
 if (!meta.unlocked) meta.unlocked = {};
 if (!meta.gachaOwn) meta.gachaOwn = {};
+if (!meta.hatOwn) meta.hatOwn = {};
+if (!meta.hat) meta.hat = 'straw';
 if (!meta.perks) meta.perks = {};
 if (!meta.set) meta.set = { mus: 2, sfx: 2, shake: 1, crt: 1 };
 if (!meta.chains) meta.chains = { granny: { step: 0, prog: 0 }, crow: { step: 0, prog: 0 }, doc: { step: 0, prog: 0 } };
@@ -1288,7 +1409,7 @@ function unlock(id) {
   addRP(25);
   sfx.ach();
 }
-const gloveUnlocked = k => GLOVES[k].gacha ? !!meta.gachaOwn[k] : (!GLOVES[k].ach || !!meta.ach[GLOVES[k].ach]);
+const gloveUnlocked = k => !!meta.gachaOwn[k] || (GLOVES[k].gacha ? false : (!GLOVES[k].ach || !!meta.ach[GLOVES[k].ach]));
 ensureDaily();
 
 // ------------------------------------------------------------ state -------
@@ -1821,6 +1942,7 @@ function enterShop() {
   G.rerollCost = meta.perks.coupon ? 0 : (has('tacklecharm') ? 3 : 4);
   rollShop();
   stockPacks();
+  rollCosmetics();
   G.state = 'shop';
   G.shopEnter = tNow; // door swings open, Merle looks up
   G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
@@ -1852,6 +1974,52 @@ function stockPacks() {
   // the snack stand carries two random products per visit
   const picks = shuffle(PACK_DEFS.slice()).slice(0, 2);
   G.shopPacks = picks.map(d => ({ kind: d.kind, def: d, price: d.cost, sold: false }));
+}
+// ---- cosmetics boutique: random-rarity gloves + hats for sale ----
+const COSMETIC_PRICE = [6, 10, 16, 24, 36, 52]; // by rarity 0..5
+function cosmeticPool() {
+  const pool = [];
+  // achievement/basic gloves become a buyable alt-path (gacha gloves stay gacha)
+  GLOVE_ORDER.forEach(k => {
+    if (k === 'bare' || GLOVES[k].gacha || gloveUnlocked(k)) return;
+    pool.push({ kind: 'glove', k, rar: GLOVE_RAR[k] || 0 });
+  });
+  // shop-flagged hats (gacha + achievement hats stay exclusive)
+  HAT_ORDER.forEach(k => {
+    if (!HATS[k].shop || hatUnlocked(k)) return;
+    pool.push({ kind: 'hat', k, rar: HATS[k].rar || 0 });
+  });
+  return pool;
+}
+function weightedCosmetic(pool) {
+  const w = pool.map(c => [6, 5, 3.5, 2, 1, 0.4][c.rar] || 0.4);
+  let tot = w.reduce((a, b) => a + b, 0), r = rnd() * tot;
+  for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) return pool[i]; }
+  return pool[pool.length - 1];
+}
+function rollCosmetics() {
+  let pool = cosmeticPool();
+  const picks = [];
+  for (let n = 0; n < 2 && pool.length; n++) {
+    const c = weightedCosmetic(pool);
+    pool = pool.filter(o => o !== c);
+    picks.push({ kind: c.kind, k: c.k, rar: c.rar, price: COSMETIC_PRICE[c.rar], sold: false });
+  }
+  G.cosmetics = picks;
+}
+function buyCosmetic(c) {
+  if (!c || c.sold) return;
+  if (G.money < c.price) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH $', C.red, 1); return; }
+  G.money -= c.price;
+  c.sold = true;
+  if (c.kind === 'glove') { meta.gachaOwn[c.k] = true; meta.glove = c.k; }
+  else { meta.hatOwn[c.k] = true; meta.hat = c.k; }
+  saveMeta();
+  quest('buy4', 1);
+  const nm = c.kind === 'glove' ? GLOVES[c.k].name : HATS[c.k].name;
+  toasts.push({ name: 'NEW LOOK: ' + nm, sub: 'EQUIPPED - ' + RAR_NAME[c.rar], t: 0 });
+  sfx.buy();
+  burst(mx, my, RAR_COL[c.rar], 12, 70);
 }
 function buyPack(p) {
   if (!p || p.sold) return;
@@ -3075,6 +3243,75 @@ function drawSnap() {
 }
 
 // ------------------------------------------------------------ shop --------
+// preview a cosmetic (glove or hat) centered at (cx,cy) for the boutique/racks
+function drawCosmeticArt(cx, cy, kind, k) {
+  if (kind === 'hat') {
+    if (HATS[k].ico === 'none') { ICONS.skull(cx - 6, cy - 6); return; }
+    drawHatArt(cx, cy + 9, k, 2);
+  } else {
+    ctx.save(); ctx.translate(cx - 12, cy - 11); ctx.scale(2, 2);
+    ICONS.glove(0, 0, GLOVES[k].skin); ctx.restore();
+  }
+}
+// the GATOR'S CLOSET boutique: two random-rarity cosmetics for sale (right wall)
+function drawCosmeticStand() {
+  const X = 352, Y = 80, Wc = 122;
+  // wardrobe carcass + velvet interior
+  rr(X - 2, Y + 2, Wc + 4, 106, 4, '#00000066');
+  rr(X, Y, Wc, 104, 4, '#6a4a2a');
+  rr(X + 2, Y + 2, Wc - 4, 100, 3, '#3a2038');
+  rr(X + 4, Y + 4, Wc - 8, 96, 3, '#2a1830');
+  rect(X + 4, Y + 4, Wc - 8, 2, '#4a2c50'); // velvet sheen
+  // header plaque on little chains
+  rect(X + 26, Y - 8, 2, 8, '#8a7a58'); rect(X + Wc - 28, Y - 8, 2, 8, '#8a7a58');
+  panel(X + 8, Y - 16, Wc - 16, 15, { face: '#5f4228', edge: '#c8a040', r: 2 });
+  drawTextCSh("GATOR'S CLOSET", X + Wc / 2, Y - 12, '#ffe6b0', 1);
+  const cos = G.cosmetics || [];
+  if (!cos.length) {
+    drawTextC('FRESH OUT!', X + Wc / 2, Y + 40, C.gold, 1);
+    drawWrappedC('You own every look, sharp dresser.', X + Wc / 2, Y + 54, Wc - 12, C.dim);
+    // a lonely coat hanger
+    rect(X + Wc / 2 - 10, Y + 74, 20, 1, '#9a8a6a'); rect(X + Wc / 2, Y + 70, 1, 4, '#9a8a6a');
+    return;
+  }
+  cos.forEach((c, i) => {
+    const sy = Y + 6 + i * 48, rc = RAR_COL[c.rar];
+    const hov = mx >= X + 6 && mx < X + Wc - 6 && my >= sy && my < sy + 44 && !c.sold;
+    rr(X + 6, sy, Wc - 12, 44, 3, hov ? rc : '#1c1226');
+    rr(X + 7, sy + 1, Wc - 14, 42, 3, '#241832');
+    // rarity disc + art
+    const cx = X + 28, cy = sy + 21;
+    fillCircle(cx, cy + 1, 15, '#00000055');
+    fillCircle(cx, cy, 15, rc);
+    fillCircle(cx, cy, 12, '#2a1830');
+    fillCircle(cx, cy - 1, 11, '#33203c');
+    if (c.sold) {
+      ctx.save(); ctx.globalAlpha = 0.4; drawCosmeticArt(cx, cy, c.kind, c.k); ctx.restore();
+      drawTextCSh('WORN!', X + Wc / 2 + 12, sy + 18, C.green, 1);
+      drawTextC('LOOKIN GOOD', X + Wc / 2 + 12, sy + 28, C.dim, 1);
+      return;
+    }
+    drawCosmeticArt(cx, cy, c.kind, c.k);
+    // name / rarity / price
+    const tx = X + 48, nm = (c.kind === 'glove' ? GLOVES[c.k].name : HATS[c.k].name);
+    if (nm.length > 10 && nm.includes(' ')) {
+      const cut = nm.lastIndexOf(' ');
+      drawText(nm.slice(0, cut), tx, sy + 6, C.white, 1);
+      drawText(nm.slice(cut + 1), tx, sy + 15, C.white, 1);
+    } else drawText(nm, tx, sy + 8, C.white, 1);
+    drawText(RAR_NAME[c.rar], tx, sy + 25, rc, 1);
+    const afford = G.money >= c.price;
+    rr(tx, sy + 33, 30, 9, 2, afford ? '#3a2c10' : '#2a1a1a');
+    drawText('$' + c.price, tx + 3, sy + 34, afford ? C.gold : C.red, 1);
+    if (hov) drawTextC(c.kind === 'glove' ? 'GLOVE' : 'HAT', X + Wc - 24, sy + 34, rc, 1);
+    hit(X + 6, sy, Wc - 12, 44, {
+      id: 'cos' + i, cursor: true, cb: () => buyCosmetic(c),
+      tip: nm + '|' + RAR_NAME[c.rar] + ' ' + (c.kind === 'glove' ? 'GLOVE' : 'HAT') + '|'
+        + (c.kind === 'glove' ? GLOVES[c.k].flav : HATS[c.k].flav) + '|$' + c.price + ' - CLICK TO WEAR IT',
+    });
+  });
+}
+
 const BARREL = { x: 124, y: 200, w: 44, h: 46 };
 function drawBarrel() {
   // wooden sell barrel
@@ -3146,24 +3383,22 @@ function drawShop() {
   rect(172, 42, 8, 12, '#2c5a24'); rect(176, 38, 3, 6, '#2c5a24'); // tree
   rect(182, 52, 8, 4, '#5aa843'); rect(184, 50, 4, 2, '#5aa843'); // gator
   rect(170, 60, 22, 3, '#3f6aa8'); // water stripe
-  // mounted "big catch" fish + antler hooks on the free wall
-  rr(28, 152, 56, 16, 5, '#5c8a9a'); rect(20, 156, 10, 8, '#5c8a9a'); rect(80, 154, 8, 4, '#48707e'); rect(38, 156, 3, 3, '#10181e');
-  rect(24, 172, 60, 4, '#4a3320');
-  // Merle the manatee at his counter (right side)
-  rr(420, 146, 58, 40, 3, '#4a3320');
-  rr(422, 148, 54, 8, 3, '#5f4228');
-  rect(424, 186, 4, 26, '#241708'); rect(468, 186, 4, 26, '#241708'); // counter legs
-  rr(428, 160, 14, 12, 2, '#c8b060'); rect(430, 158, 10, 3, '#a89040'); // tip jar
-  rect(431, 164, 3, 2, C.gold); rect(436, 166, 3, 2, C.gold);
-  drawVendor(432, 108);
+  // Merle the manatee greets you from the floor by the window (left)
+  rr(30, 190, 60, 12, 3, '#4a3320'); rr(32, 192, 56, 6, 3, '#5f4228'); // little stool/counter
+  rr(38, 172, 12, 10, 2, '#c8b060'); rect(40, 170, 8, 3, '#a89040'); // tip jar
+  rect(41, 176, 3, 2, C.gold); rect(45, 177, 3, 2, C.gold);
+  drawVendor(52, 150);
   const vline = VENDOR.lines[Math.floor(tNow / 6) % VENDOR.lines.length];
   if ((tNow % 6) < 4.2) {
-    const bw = Math.min(150, textW(vline, 1) + 12);
-    panel(470 - bw, 74, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
-    drawText(vline.slice(0, 30), 470 - bw + 5, 78, '#3a2818', 1);
-    rect(452, 88, 3, 4, '#f4f2e4'); // bubble tail toward Merle
+    const bw = Math.min(150, textW(vline.slice(0, 28), 1) + 12);
+    panel(22, 118, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
+    drawText(vline.slice(0, 28), 27, 122, '#3a2818', 1);
+    rect(58, 132, 3, 6, '#f4f2e4'); // bubble tail down toward Merle
   }
-  hit(424, 104, 52, 78, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
+  hit(40, 150, 56, 60, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
+
+  // =========== GATOR'S CLOSET: the cosmetics boutique (right) ===========
+  drawCosmeticStand();
 
   // ---- money-only HUD: in the shop you only care about your wallet ----
   panel(8, 8, 100, 30, { face: '#26321e', edge: '#5a7a3a' });
@@ -3173,10 +3408,10 @@ function drawShop() {
     () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
   drawTopBar(true);
 
-  const bx0 = 180;
+  const bx0 = 148;
   G.shopItems.forEach((it, i) => {
-    const x = bx0 + i * 58, y = 96;
-    panel(x - 4, y - 6, 52, 82, { face: '#1a2530dd' });
+    const x = bx0 + i * 51, y = 96;
+    panel(x - 4, y - 6, 50, 82, { face: '#1a2530dd' });
     if (it.sold) {
       drawTextC('SOLD', x + 22, y + 30, C.dim, 1);
       return;
@@ -3835,46 +4070,66 @@ function drawMenu() {
   panel(W / 2 - 94 + sway * 1.5, 60, 188, 14, { face: '#4a3320', edge: '#6a4a2a', r: 2 });
   drawTextC('A PUSH-YOUR-LUCK DENTAL ROGUELIKE', W / 2 + sway * 1.5, 64, '#e8d8b0', 1);
 
-  // dock planks under the button row
-  rect(120, 244, 360, 26, '#3a2818');
-  rect(120, 244, 360, 3, '#4a3320');
-  for (let x = 132; x < 480; x += 46) rect(x, 247, 1, 23, '#2e1f12');
-  [150, 300, 448].forEach(x => { rect(x, 240, 5, 6, '#241708'); });
+  // little carved tooth emblems on the sign corners
+  [sx0 + 12, sx0 + 224].forEach(tx => { rr(tx, 40, 8, 11, 2, '#e8dcc0'); rect(tx + 2, 49, 2, 2, '#c8b89a'); rect(tx + 4, 49, 2, 2, '#c8b89a'); rect(tx + 2, 42, 1, 3, '#fff6e0'); });
 
-  button(W / 2 - 78, 206, 156, 34, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'start', sc: 2 });
-  button(122, 246, 82, 19, 'HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, { id: 'how' });
-  button(210, 246, 82, 19, 'GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', tip: 'SCOUT GACHA-PON|Trade cookies for capsule prizes:|cards, glove skins, permanent upgrades|' + (meta.rp || 0) + ' SCOUT COOKIES' });
-  button(298, 246, 82, 19, 'SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, { id: 'setbtn' });
-  button(386, 246, 82, 19, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'credbtn' });
+  // quests / cookies / best (top-left, above the glove rack)
   ensureDaily();
   const steps = NPC_ORDER.reduce((a, nk) => a + meta.chains[nk].step, 0);
-  drawTextSh('QUESTS: ' + steps + '/24', 10, 152, C.dim, 1);
-  ICONS.cookie(8, 162);
-  drawTextSh(fmt(meta.rp || 0) + ' COOKIES', 24, 165, C.gold, 1);
-  if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 180, '#8fa6a8', 1);
+  drawTextSh('QUESTS: ' + steps + '/24', 10, 150, C.dim, 1);
+  ICONS.cookie(8, 160);
+  drawTextSh(fmt(meta.rp || 0) + ' COOKIES', 24, 163, C.gold, 1);
+  if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 178, '#8fa6a8', 1);
 
-  // glove rack (bottom left) - 6 wide to fit the gacha skins
-  panel(6, 194, 110, 68, { face: '#16222acc' });
-  drawTextC('GLOVES', 61, 199, C.dim, 1);
-  GLOVE_ORDER.forEach((k, i) => {
-    const gx = 12 + (i % 6) * 17, gy = 208 + Math.floor(i / 6) * 19;
-    const g = GLOVES[k];
-    const open = gloveUnlocked(k);
-    const sel = meta.glove === k;
-    rr(gx, gy, 16, 16, 2, sel ? C.gold : '#0d161b');
-    rr(gx + 1, gy + 1, 14, 14, 2, open ? '#243642' : '#141c22');
-    if (open) ICONS.glove(gx + 2, gy + 2, g.skin);
-    else { drawTextC('?', gx + 8, gy + 5, '#41565e', 1); }
-    const a = ACHS.find(a => a.id === g.ach);
-    hit(gx, gy, 16, 16, {
-      id: 'glove' + k, cursor: open,
-      tip: open ? (g.name + '|' + g.flav + (sel ? '|EQUIPPED' : '|CLICK TO EQUIP'))
-        : ('LOCKED: ' + g.name + '|' + (g.gacha ? 'WIN IT IN THE GACHA-PON' : a ? 'ACHIEVEMENT: ' + a.name + '|' + a.desc : '')),
-      cb: () => { if (open) { meta.glove = k; saveMeta(); sfx.buy(); } else sfx.error(); },
+  // ===== bottom: big NEW RUN + utility row, flanked by cosmetic racks =====
+  // center dock planks behind the buttons
+  rect(120, 186, 240, 84, '#3a2818'); rect(120, 186, 240, 3, '#4a3320');
+  for (let x = 132; x < 360; x += 34) rect(x, 189, 1, 81, '#2e1f12');
+  button(W / 2 - 82, 192, 164, 36, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'start', sc: 2 });
+  const UBTN = [
+    ['HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, 'how', null],
+    ['GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
+    ['SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, 'setbtn', null],
+    ['CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, 'credbtn', null],
+  ];
+  UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
+    const bx = 122 + i * 60;
+    button(bx, 238, 56, 22, label, c1, c2, cb, {
+      id, sub, subCol: C.gold,
+      tip: id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
     });
   });
-  const done = ACHS.filter(a => meta.ach[a.id]).length;
-  drawTextC(done + '/' + ACHS.length + ' UNLOCKED', 61, 250, '#54707a', 1);
+
+  // ---- cosmetic racks: GLOVES (left) + HATS (right) ----
+  const rack = (px, title, order, sel, isOpen, art, tipFor, equip) => {
+    panel(px, 182, 112, 80, { face: '#16222acc' });
+    const owned = order.filter(isOpen).length;
+    drawTextC(title + ' ' + owned + '/' + order.length, px + 56, 186, C.dim, 1);
+    order.forEach((k, i) => {
+      const cx = px + 6 + (i % 6) * 17, cy = 197 + Math.floor(i / 6) * 19;
+      const open = isOpen(k), on = sel() === k;
+      rr(cx, cy, 16, 16, 2, on ? C.gold : '#0d161b');
+      rr(cx + 1, cy + 1, 14, 14, 2, open ? '#243642' : '#141c22');
+      if (open) art(cx, cy, k); else drawTextC('?', cx + 8, cy + 5, '#41565e', 1);
+      hit(cx, cy, 16, 16, {
+        id: title + k, cursor: open, tip: tipFor(k, open, on),
+        cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); },
+      });
+    });
+  };
+  rack(4, 'GLOVES', GLOVE_ORDER, () => meta.glove, gloveUnlocked,
+    (cx, cy, k) => ICONS.glove(cx + 2, cy + 2, GLOVES[k].skin),
+    (k, open, on) => {
+      const a = ACHS.find(a => a.id === GLOVES[k].ach);
+      return open ? (GLOVES[k].name + '|' + GLOVES[k].flav + (on ? '|EQUIPPED' : '|CLICK TO EQUIP'))
+        : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : a ? 'ACHIEVEMENT: ' + a.name + '|' + a.desc : 'BUY AT THE SHOP CLOSET'));
+    },
+    k => { meta.glove = k; });
+  rack(364, 'HATS', HAT_ORDER, () => meta.hat, hatUnlocked,
+    (cx, cy, k) => { if (HATS[k].ico === 'none') rect(cx + 4, cy + 10, 8, 2, '#54707a'); else drawHatArt(cx + 8, cy + 13, k, 1); },
+    (k, open, on) => open ? (HATS[k].name + '|' + HATS[k].flav + (on ? '|EQUIPPED' : '|CLICK TO EQUIP'))
+      : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
+    k => { meta.hat = k; });
 }
 
 function drawHow() {
@@ -4397,6 +4652,7 @@ function drawPassScreen(dt) {
       // prize icon
       const iy = py2 + 40;
       if (g.prize.kind === 'glove') ICONS.glove(W / 2 - 6, iy, GLOVES[g.prize.k].skin);
+      else if (g.prize.kind === 'hat') drawHatArt(W / 2, iy + 12, g.prize.k, 1);
       else if (g.prize.kind === 'perk') (ICONS[PERKS[g.prize.k].ico] || ICONS.star)(W / 2 - 6, iy);
       else if (g.prize.kind === 'card') (ICONS[g.prize.def.ico] || ICONS.star)(W / 2 - 6, iy);
       else ICONS.cookie(W / 2 - 6, iy);
@@ -4415,6 +4671,7 @@ function drawGachaShowcase() {
   const all = [];
   exchangeItems().forEach(d => all.push({ name: d.name, desc: d.desc, ico: d.ico, rar: d.tier <= 5 ? 0 : d.tier <= 10 ? 1 : 2, owned: !!meta.unlocked[d.id], kind: CHARMS.includes(d) ? 'BADGE' : TOOLS.includes(d) ? 'TOOL' : 'CARD' }));
   GLOVE_ORDER.forEach(k => { if (GLOVES[k].gacha) all.push({ name: GLOVES[k].name, desc: 'GLOVE SKIN - ' + GLOVES[k].flav, ico: 'glove', skin: GLOVES[k].skin, rar: 2, owned: !!meta.gachaOwn[k], kind: 'GLOVE' }); });
+  HAT_ORDER.forEach(k => { if (HATS[k].gacha) all.push({ name: HATS[k].name, desc: 'HAT - ' + HATS[k].flav, ico: 'hat', hatKey: k, rar: 3, owned: !!meta.hatOwn[k], kind: 'HAT' }); });
   Object.keys(PERKS).forEach(k => all.push({ name: PERKS[k].name, desc: PERKS[k].desc, ico: PERKS[k].ico, rar: 3, owned: !!meta.perks[k], kind: 'PERK' }));
   const owned = all.filter(a => a.owned).length;
   const px = 28, py = 12, pw = 424, ph = 246;
@@ -4434,6 +4691,7 @@ function drawGachaShowcase() {
     panel(x, y, cw - 6, ch - 6, { face: a.owned ? '#26321e' : '#141c22', edge: a.owned ? RAR_COLS[a.rar] : RAR_COLS[a.rar] + '66', r: 2 });
     ctx.save(); if (!a.owned) ctx.globalAlpha = 0.35;
     if (a.ico === 'glove') ICONS.glove(x + 13, y + 6, a.skin);
+    else if (a.ico === 'hat') drawHatArt(x + 19, y + 16, a.hatKey, 1);
     else (ICONS[a.ico] || ICONS.star)(x + 13, y + 6);
     ctx.restore();
     if (a.owned) { rect(x + cw - 14, y + 3, 6, 6, C.green); drawText('+', x + cw - 13, y + 4, '#0d161b', 1); }
@@ -4991,6 +5249,112 @@ const GAMES = {
     },
     hud: s => 'TIME: ' + Math.max(0, s.timer).toFixed(1) + 's   COINS: $' + s.coins + (s.stun > 0 ? '   *CRUNCH*' : ''),
   },
+  // ---------------------------------------------- 9. flippin' burgers -------
+  burger: {
+    init(s) { Object.assign(s, { timer: 14, served: 0, side: 0, cook: 0, rate: 0.5 + rnd() * 0.12, msg: '', msgT: 0, flash: 0, sizzle: [] }); },
+    newPatty(s) { s.side = 0; s.cook = 0; s.rate = 0.5 + rnd() * 0.12; },
+    update(s, dt) {
+      s.timer -= dt; s.msgT -= dt; s.flash = Math.max(0, s.flash - dt * 3);
+      s.cook += s.rate * dt;
+      if (s.cook > 0.72 && rnd() < dt * 9) s.sizzle.push({ x: -8 + rnd() * 16, t: 0 });
+      s.sizzle.forEach(p => { p.t += dt; });
+      s.sizzle = s.sizzle.filter(p => p.t < 0.5);
+      if (s.cook > 1.4) { s.msg = 'BURNT IT!'; s.msgT = 1; sfx.error(); this.newPatty(s); }
+      if (s.timer <= 0) this.done(s);
+    },
+    tap(s) {
+      if (s.cook < 0.78) { s.msg = 'STILL RAW - WAIT!'; s.msgT = 0.9; sfx.error(); return; }
+      const clean = s.cook >= 0.9 && s.cook <= 1.18;
+      sfx.click(clean ? 6 : 3); s.flash = 1;
+      burst(240, this.gy - 8, clean ? '#ffe089' : '#c88a4a', clean ? 10 : 5, 60);
+      if (s.side === 0) { s.side = 1; s.cook = 0; s.rate = 0.5 + rnd() * 0.12; s.msg = clean ? 'PERFECT FLIP!' : 'FLIPPED'; s.msgT = 0.9; }
+      else { s.served++; this.newPatty(s); s.msg = clean ? 'ORDER UP! +1' : 'SERVED'; s.msgT = 1; sfx.coin(); }
+    },
+    done(s) {
+      const ck = s.served >= 6 ? 4 : s.served >= 3 ? 2 : 0;
+      finishGame(s.served + ' BURGERS', s.served * 2, ck, ['GRILL TIPS: +$' + (s.served * 2)]);
+    },
+    draw(s) {
+      const gy = this.gy = stageCamp() - 6, gx = 240;
+      rect(gx - 46, gy + 6, 6, 20, '#241708'); rect(gx + 40, gy + 6, 6, 20, '#241708'); // legs
+      for (let k = 0; k < 5; k++) drawCampfire(gx - 34 + k * 17, gy + 12, 0.5);
+      rr(gx - 52, gy - 4, 104, 10, 3, '#3a444c'); rr(gx - 50, gy - 3, 100, 6, 2, '#5a646c'); // flat-top
+      for (let k = 0; k < 9; k++) rect(gx - 46 + k * 11, gy - 3, 1, 6, '#2a343c'); // grate
+      drawRangerSitting(gx - 92, gy - 30); // line cook off to the left
+      if (s) {
+        const c = s.cook, col = c < 0.5 ? '#c96a5a' : c < 0.85 ? '#a85838' : c < 1.18 ? '#7a4526' : c < 1.4 ? '#5a3018' : '#2a1a12';
+        const py = gy - 8 - (s.flash > 0.5 ? 12 * (s.flash - 0.5) : 0);
+        rr(gx - 15, py, 30, 9, 4, '#1a1008'); rr(gx - 14, py, 28, 7, 3, col);
+        if (s.side === 1) { rect(gx - 9, py - 2, 18, 2, '#4fae5c'); rect(gx - 7, py - 3, 14, 1, '#e0a848'); }
+        s.sizzle.forEach(p => { ctx.save(); ctx.globalAlpha = 1 - p.t / 0.5; rect(gx + p.x, py - 2 - p.t * 14, 1, 1, '#ffe089'); ctx.restore(); });
+        // doneness meter with the golden FLIP zone
+        const mX = gx + 74, mY = gy - 62, mH = 62;
+        rr(mX, mY, 10, mH, 2, '#1a2228');
+        const zTop = mY + mH - Math.floor(1.18 / 1.4 * mH), zBot = mY + mH - Math.floor(0.9 / 1.4 * mH);
+        rect(mX + 1, zTop, 8, zBot - zTop, '#2c7d3a');
+        const fy = mY + mH - Math.floor(clamp(c / 1.4, 0, 1) * mH);
+        rect(mX + 1, fy, 8, mY + mH - fy, c > 1.18 ? C.red : c > 0.78 ? C.gold : '#7fb8e8');
+        drawTextC('FLIP', mX + 5, mY - 8, C.green, 1);
+        for (let i = 0; i < s.served; i++) { const bx = gx - 62 + (i % 8) * 8, by = gy + 16 + ((i / 8) | 0) * 6; rr(bx, by, 6, 3, 1, '#e0a848'); }
+      }
+    },
+    hud: s => 'TIME: ' + Math.max(0, s.timer).toFixed(1) + 's   SERVED: ' + s.served,
+  },
+  // ---------------------------------------------- 10. manatee spa ----------
+  manatee: {
+    init(s) { Object.assign(s, { timer: 16, cleared: 0, bub: [], brush: null }); this.spawn(s); },
+    spawn(s) {
+      s.spots = [];
+      for (let i = 0; i < 9; i++) {
+        const a = rnd() * 6.28, r = 6 + rnd() * 38;
+        s.spots.push({ x: 240 + Math.cos(a) * r * 1.4, y: STAGE.y + 96 + Math.sin(a) * r * 0.55, life: 1, r: 3 + (rnd() * 2 | 0) });
+      }
+    },
+    update(s, dt) {
+      s.timer -= dt;
+      const bx = clamp(mx, STAGE.x, STAGE.x + STAGE.w), by = clamp(my, STAGE.y, STAGE.y + STAGE.h);
+      s.brush = { x: bx, y: by };
+      s.spots.forEach(sp => {
+        if (sp.life <= 0) return;
+        if (Math.hypot(sp.x - bx, sp.y - by) < 15) {
+          sp.life -= 2.0 * dt;
+          if (rnd() < dt * 16) s.bub.push({ x: sp.x + (rnd() - .5) * 8, y: sp.y, t: 0 });
+          if (sp.life <= 0) { s.cleared++; sfx.pin(); burst(sp.x, sp.y, '#8fd0a0', 6, 40); }
+        }
+      });
+      s.bub.forEach(b => { b.t += dt; b.y -= 20 * dt; });
+      s.bub = s.bub.filter(b => b.t < 0.6);
+      if (s.spots.every(sp => sp.life <= 0)) this.spawn(s);
+      if (s.timer <= 0) this.done(s);
+    },
+    tap() { }, // the brush follows the cursor
+    done(s) {
+      const ck = s.cleared >= 14 ? 4 : s.cleared >= 8 ? 2 : 0;
+      finishGame(s.cleared + ' SCRUBBED', Math.min(14, s.cleared), ck, ['A GRATEFUL MANATEE: +$' + Math.min(14, s.cleared)]);
+    },
+    draw(s) {
+      const wy = stageNight('#123038');
+      for (let k = 0; k < 6; k++) { const sx = STAGE.x + 40 + k * 60; ctx.save(); ctx.globalAlpha = 0.07; rr(sx + Math.sin(tNow * 1.5 + k) * 4, wy - 20 - (tNow * 8 + k * 20) % 40, 10, 8, 4, '#cfe8f0'); ctx.restore(); }
+      const cx = 240, cy = STAGE.y + 96;
+      rr(cx + 58, cy - 8, 24, 22, 9, '#7a868c'); // paddle tail
+      rr(cx - 66, cy - 24, 130, 48, 20, '#8a969c'); // body
+      rr(cx - 62, cy - 20, 122, 40, 18, '#9aa6ac');
+      rect(cx - 58, cy - 17, 116, 3, '#a8b4ba');
+      rr(cx - 42, cy + 16, 15, 11, 5, '#7a868c'); rr(cx + 22, cy + 16, 15, 11, 5, '#7a868c'); // flippers
+      rr(cx - 80, cy - 10, 22, 22, 9, '#8a969c'); // snout
+      rect(cx - 76, cy + 3, 3, 2, '#5a646c'); rect(cx - 70, cy + 4, 3, 2, '#5a646c');
+      critterEye(cx - 74, cy - 5, 5, 6, '#8a969c', '#f4f2e4', '#1b1408', 0);
+      critterEye(cx - 65, cy - 5, 5, 6, '#8a969c', '#f4f2e4', '#1b1408', 1.5);
+      if (s) {
+        s.spots.forEach(sp => { if (sp.life <= 0) return; ctx.save(); ctx.globalAlpha = 0.35 + sp.life * 0.55; fillCircle(sp.x, sp.y, sp.r + 1, '#3c6a2e'); fillCircle(sp.x, sp.y, sp.r, '#5aa03a'); rect(sp.x - 1, sp.y - 1, 1, 1, '#7ec850'); ctx.restore(); });
+        s.bub.forEach(b => { ctx.save(); ctx.globalAlpha = 1 - b.t / 0.6; fillCircle(b.x, b.y, 2, '#cfe8f0'); ctx.restore(); });
+        const bx = s.brush ? s.brush.x : mx, by = s.brush ? s.brush.y : my;
+        rr(bx - 8, by - 5, 16, 5, 2, '#8a5a2a'); rect(bx - 8, by - 5, 16, 2, '#a87038');
+        for (let k = 0; k < 5; k++) rect(bx - 6 + k * 3, by, 2, 5, '#e8e4d0');
+      }
+    },
+    hud: s => 'TIME: ' + Math.max(0, s.timer).toFixed(1) + 's   SCRUBBED: ' + s.cleared,
+  },
 };
 function addRippleThrottle(s, x, y) { s._rp = (s._rp || 0) - 0.016; if (s._rp <= 0) { s._rp = 0.3; addRipple(x, y, false); } }
 
@@ -5012,6 +5376,15 @@ function drawEvent(dt) {
   ctx.restore();
 
   if (ev.phase === 'intro') {
+    // game "poster": a big park-badge emblem over the previewed stage
+    const cxp = W / 2, cyp = STAGE.y + 54;
+    fillCircle(cxp, cyp + 2, 30, '#00000088');
+    fillCircle(cxp, cyp, 29, '#c8a040');
+    fillCircle(cxp, cyp, 26, '#2a3a30');
+    fillCircle(cxp, cyp - 1, 24, '#33463a');
+    for (let a = 0; a < 10; a++) { const an = a / 10 * Math.PI * 2; rect(cxp + Math.cos(an) * 26 - 1, cyp + Math.sin(an) * 26 - 1, 1, 1, '#00000055'); }
+    if (def.icon) { ctx.save(); ctx.translate(cxp - 18, cyp - 18); ctx.scale(3, 3); (ICONS[def.icon] || ICONS.star)(0, 0); ctx.restore(); }
+    drawTextCSh(def.name, cxp, cyp + 34, C.gold, 2, '#2a1a0c');
     def.how.forEach((ln, i) => drawTextCSh(ln, W / 2, 200 + i * 11, i ? C.dim : C.white, 1));
     button(W / 2 - 55, 228, 110, 24, 'START >', '#d94f30', '#8a2a16', () => {
       ev.phase = 'play'; ev.s = {}; game.init(ev.s); sfx.whoosh();
@@ -5182,6 +5555,7 @@ function drawTooltip() {
 function drawHand() {
   if (!mouseSeen) return;
   const g = GLOVES[gloveUnlocked(meta.glove) ? meta.glove : 'bare'];
+  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   const press = handPressT > 0 ? 2 : 0;
   const grab = !!G.drag;
   const x = mx, y = my + press;
@@ -5225,6 +5599,11 @@ function drawHand() {
     rr(x - 5, y + fl + 9, 16, 5, 1, dark);
     rr(x - 4, y + fl + 9, 14, 4, 1, g.cuff);
     rect(x - 4, y + fl + 9, 14, 1, '#ffffff44');
+  }
+  // the hat perches on top of the hand (a jaunty little dentist's topper)
+  if (hatKey !== 'none') {
+    if (grab) drawHatArt(x + 1, y - 2, hatKey, 1);
+    else drawHatArt(x, y + 2, hatKey, 1);
   }
 }
 
