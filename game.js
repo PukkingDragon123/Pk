@@ -3663,7 +3663,7 @@ function drawShop() {
     drawPackArt(x, yy, 64, 44, p.def);
     const afford = G.money >= p.price;
     drawTextC('$' + p.price, x + 32, yy + 44, afford ? C.gold : C.red, 1);
-    hit(x, y - 2, 64, 48, {
+    hit(x, y - 2, 64, 40, { // 40 tall: bottom clears the NEXT button at y226
       cb: () => buyPack(p), id: 'pack' + p.kind, cursor: true,
       tip: p.def.name + '|' + (p.kind === 'tooth' ? 'SHOWS ' + p.def.show + ' TEETH, PICK ' + p.def.picks : 'SHOWS ' + p.def.show + ' TOOLS, PICK ' + p.def.picks) + "|'" + p.def.flav + "'",
     });
