@@ -921,9 +921,9 @@ const mutSizeMul = () => (G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].sizeMul)
 // the round-0 "small" node is a lil baby gator (smaller body + mouth, see mouthLayout)
 function lilGator() { return G.state !== 'menu' && G.round === 0 && G.nodeType === 'small'; }
 function baseCrocStyle() {
-  if (G.summer) {
-    if (G.state !== 'menu' && G.round === 2) return SHARK_STYLES.mega;
-    if (G.state !== 'menu' && G.round === 1) return SHARK_STYLES.tiger;
+  if (G.summer && G.state !== 'menu') { // the title mascot is always the swamp gator
+    if (G.round === 2) return SHARK_STYLES.mega;
+    if (G.round === 1) return SHARK_STYLES.tiger;
     return SHARK_STYLES.reef;
   }
   if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
@@ -4484,6 +4484,7 @@ function drawWin() {
 
 // ------------------------------------------------------------ menu --------
 function drawMenu() {
+  if (G.summer) { G.summer = false; G.mut = null; } // a summer run is over once we're back at the title
   const th = THEMES.night;
   drawSceneBack(th);
   // a distant airboat crosses the far water now and then
@@ -4887,6 +4888,7 @@ function drawHow() {
 // ------------------------------------------------------- ranger select ----
 let rangerFocus = null;
 function drawRangerSelect() {
+  if (G.summer) { G.summer = false; G.mut = null; } // ranger select always precedes a fresh swamp run
   const th = THEMES.night;
   drawSceneBack(th);
   drawSceneFront(th);
