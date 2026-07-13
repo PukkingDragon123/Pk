@@ -177,7 +177,7 @@ function trackNow() {
   if (typeof G === 'undefined') return TRACKS.menu;
   if (G.paused) return null;
   switch (G.state) {
-    case 'menu': case 'ranger': case 'how': case 'skins': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
+    case 'menu': case 'ranger': case 'how': case 'skins': case 'summer': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
     case 'intro': return TRACKS.boss;
     case 'map': case 'event': return TRACKS.map;
     case 'shop': case 'bench': return TRACKS.shop;
@@ -271,8 +271,28 @@ const THEMES = {
     waterFront: '#100c1a', moon: '#f0d8a0', moonHalo: '#f0d8a022', stars: true,
     reed: '#1e1430', reedHead: '#4a3a28', pad: '#243048', padHi: '#38445e',
   },
+  // ---- MALDIVES summer stage: bright turquoise lagoon + white sand ----
+  maldives: {
+    sky: ['#8fd8f0', '#a4e2f4', '#bceafa', '#d6f4fc', '#f0fbff'],
+    treeFar: '#3f9e6a', tree: '#2e7a4e', water: '#2fc0d0', waterHi: '#a4f0ee',
+    waterFront: '#28aec0', moon: '#fff4c8', moonHalo: '#fff4c822', stars: false,
+    reed: '#3f9e6a', reedHead: '#e8d060', pad: '#3fc8a4', padHi: '#8ff0d0',
+    day: true, sun: true, beach: true,
+  },
+  maldivesDusk: {
+    sky: ['#ff9e6a', '#ffb27e', '#ffc79a', '#e0b0c8', '#9a86c8'],
+    treeFar: '#7a5a6a', tree: '#3a2a44', water: '#3a86a8', waterHi: '#ffcf9a',
+    waterFront: '#2e6e90', moon: '#fff0b0', moonHalo: '#fff0b022', stars: false,
+    reed: '#7a5a6a', reedHead: '#e8d060', pad: '#3f8aa4', padHi: '#8fd0e0',
+    day: true, sun: true, beach: true, dusk: true,
+  },
 };
 function themeNow() {
+  if (G.summer) {
+    if (G.state === 'shop') return THEMES.maldives;
+    if (G.round === 2 && G.state !== 'menu') return THEMES.maldivesDusk;
+    return THEMES.maldives;
+  }
   if (G.state === 'shop') return THEMES.shop;
   if (G.round === 2 && G.state !== 'menu') return THEMES.boss;
   return THEMES.night;
@@ -345,11 +365,23 @@ function drawSceneBack(th) {
   }
   // moon + halo
   const mx0 = 404, my0 = 40, mr = th === THEMES.boss ? 24 : 19;
-  ctx.globalAlpha = 0.25; fillCircle(mx0, my0, mr + 6, th.moon); ctx.globalAlpha = 1;
-  fillCircle(mx0, my0, mr, th.moon);
-  ctx.globalAlpha = 0.22;
-  fillCircle(mx0 - 6, my0 - 4, 4, '#000'); fillCircle(mx0 + 5, my0 + 6, 3, '#000'); fillCircle(mx0 + 8, my0 - 7, 2, '#000');
-  ctx.globalAlpha = 1;
+  if (th.sun) {
+    // blazing summer sun with slowly turning rays
+    ctx.save();
+    ctx.globalAlpha = 0.5; fillCircle(mx0, my0, mr + 8, th.moon); ctx.globalAlpha = 1;
+    for (let k = 0; k < 12; k++) {
+      const a = k / 12 * Math.PI * 2 + tNow * 0.25;
+      rect((mx0 + Math.cos(a) * (mr + 7)) | 0, (my0 + Math.sin(a) * (mr + 7)) | 0, 3, 3, th.moon);
+    }
+    fillCircle(mx0, my0, mr, '#fff0a8'); fillCircle(mx0, my0, mr - 4, '#fffce0');
+    ctx.restore();
+  } else {
+    ctx.globalAlpha = 0.25; fillCircle(mx0, my0, mr + 6, th.moon); ctx.globalAlpha = 1;
+    fillCircle(mx0, my0, mr, th.moon);
+    ctx.globalAlpha = 0.22;
+    fillCircle(mx0 - 6, my0 - 4, 4, '#000'); fillCircle(mx0 + 5, my0 + 6, 3, '#000'); fillCircle(mx0 + 8, my0 - 7, 2, '#000');
+    ctx.globalAlpha = 1;
+  }
   // soft moonbeam shafts falling toward the water
   ctx.save();
   [[-30, 16, 0.05], [-6, 20, 0.06], [16, 14, 0.04]].forEach(([ox, w2, a]) => {
@@ -365,31 +397,45 @@ function drawSceneBack(th) {
   for (let k = 0; k < 3; k++) {
     const cw = 70 + k * 28;
     const cx0 = ((tNow * (4 + k * 2) + k * 210) % (W + cw + 60)) - cw - 30;
-    ctx.globalAlpha = 0.16;
-    rr(cx0, 32 + k * 22, cw, 8, 3, '#000');
-    rr(cx0 + 12, 28 + k * 22, cw - 30, 6, 3, '#000');
+    const cloudCol = th.day ? '#ffffff' : '#000';
+    ctx.globalAlpha = th.day ? 0.55 : 0.16;
+    rr(cx0, 32 + k * 22, cw, 8, 3, cloudCol);
+    rr(cx0 + 12, 28 + k * 22, cw - 30, 6, 3, cloudCol);
     ctx.globalAlpha = 1;
   }
-  // far treeline (jagged silhouette)
-  for (let x = 0; x < W; x += 6) {
-    const h1 = 34 + ((Math.sin(x * 0.13) * 12) | 0) + ((x * 7) % 9);
-    rect(x, WATERY - h1, 6, h1, th.treeFar);
-  }
-  // near trees: two big canopies with trunks + hanging moss
-  const treeBlob = (bx, bw, bh) => {
-    rr(bx, WATERY - bh, bw, bh, 4, th.tree);
-    rr(bx + bw / 4, WATERY - bh - 12, bw / 2, 16, 4, th.tree);
-    rect(bx + bw / 2 - 3, WATERY - 28, 6, 28, th.tree);
-  };
-  treeBlob(-30, 130, 66); treeBlob(392, 120, 74);
-  // moss strands
-  for (let k = 0; k < 9; k++) {
-    const x0 = k < 5 ? 8 + k * 20 : 396 + (k - 5) * 22;
-    const len = 10 + (k * 37) % 14;
-    const sway = Math.sin(tNow * 1.1 + k * 1.9) * 2;
-    for (let seg = 0; seg < len; seg += 2) {
-      rect(x0 + sway * (seg / len), WATERY - 62 + seg, 1, 2, th.treeFar);
+  if (!th.beach) {
+    // far treeline (jagged silhouette)
+    for (let x = 0; x < W; x += 6) {
+      const h1 = 34 + ((Math.sin(x * 0.13) * 12) | 0) + ((x * 7) % 9);
+      rect(x, WATERY - h1, 6, h1, th.treeFar);
     }
+    // near trees: two big canopies with trunks + hanging moss
+    const treeBlob = (bx, bw, bh) => {
+      rr(bx, WATERY - bh, bw, bh, 4, th.tree);
+      rr(bx + bw / 4, WATERY - bh - 12, bw / 2, 16, 4, th.tree);
+      rect(bx + bw / 2 - 3, WATERY - 28, 6, 28, th.tree);
+    };
+    treeBlob(-30, 130, 66); treeBlob(392, 120, 74);
+    // moss strands
+    for (let k = 0; k < 9; k++) {
+      const x0 = k < 5 ? 8 + k * 20 : 396 + (k - 5) * 22;
+      const len = 10 + (k * 37) % 14;
+      const sway = Math.sin(tNow * 1.1 + k * 1.9) * 2;
+      for (let seg = 0; seg < len; seg += 2) {
+        rect(x0 + sway * (seg / len), WATERY - 62 + seg, 1, 2, th.treeFar);
+      }
+    }
+  } else {
+    // distant Maldives sandbars with a few palm silhouettes on the horizon
+    for (let x = 0; x < W; x += 8) {
+      const s = Math.sin(x * 0.045 + 1.2);
+      if (s > -0.1) rect(x, WATERY - 6 - ((s * 6) | 0), 8, 8 + ((s * 6) | 0), th.treeFar);
+    }
+    [58, 190, 300, 372].forEach((px, i) => {
+      const ph = WATERY - 12 - (i % 2) * 4;
+      rect(px, ph, 2, 12, th.tree);
+      for (let f = 0; f < 5; f++) { const a = f / 4 * Math.PI - Math.PI / 2; rect((px + 1 + Math.cos(a) * 6) | 0, (ph + 1 + Math.sin(a) * 4) | 0, 3, 2, th.tree); }
+    });
   }
   // water
   rect(0, WATERY, W, H - WATERY, th.water);
@@ -463,18 +509,32 @@ function drawSceneFront(th) {
     else rect(b.x, b.y, 2, 2, '#7fb8c8');
     ctx.globalAlpha = 1;
   });
-  // cattail reeds in the corners (clear of the sidebar)
-  const reedAt = (x0, hh, k) => {
-    const sway = Math.sin(tNow * 1.4 + k * 2.1) * 2;
-    for (let seg = 0; seg < hh; seg += 2) {
-      rect(x0 + sway * (seg / hh), H - seg - 2, 1, 2, th.reed);
-    }
-    rr(x0 + sway - 1, H - hh - 8, 3, 8, 1, th.reedHead);
-  };
-  reedAt(120, 26, 0); reedAt(128, 34, 1); reedAt(137, 22, 2);
-  reedAt(458, 30, 3); reedAt(466, 40, 4); reedAt(473, 24, 5);
-  // fireflies
-  fireflies.forEach((f, i) => {
+  if (th.beach) {
+    // foreground palm trees framing the corners (drooping fronds + coconuts)
+    const palm = (bx) => {
+      const sway = Math.sin(tNow * 1.0 + bx * 0.1) * 2;
+      for (let s = 0; s < 44; s += 2) rect((bx + sway * (s / 44)) | 0, H - s - 2, 3, 2, '#7a5330');
+      const tx = (bx + sway) | 0, ty = H - 46;
+      [-1.4, -0.9, -0.4, 0.2, 0.7, 1.2].forEach(a => {
+        for (let l = 1; l <= 8; l++) rect((tx + 1 + Math.cos(a) * l * 2.6) | 0, (ty + Math.sin(a) * l * 1.8 + l * l * 0.06) | 0, 2, 2, l < 6 ? '#3aa85e' : '#2e7a4a');
+      });
+      rect(tx - 1, ty, 3, 3, '#8a6238'); rect(tx + 3, ty + 1, 2, 2, '#8a6238');
+    };
+    palm(122); palm(150); palm(455); palm(470);
+  } else {
+    // cattail reeds in the corners (clear of the sidebar)
+    const reedAt = (x0, hh, k) => {
+      const sway = Math.sin(tNow * 1.4 + k * 2.1) * 2;
+      for (let seg = 0; seg < hh; seg += 2) {
+        rect(x0 + sway * (seg / hh), H - seg - 2, 1, 2, th.reed);
+      }
+      rr(x0 + sway - 1, H - hh - 8, 3, 8, 1, th.reedHead);
+    };
+    reedAt(120, 26, 0); reedAt(128, 34, 1); reedAt(137, 22, 2);
+    reedAt(458, 30, 3); reedAt(466, 40, 4); reedAt(473, 24, 5);
+  }
+  // fireflies (night only)
+  if (!th.day) fireflies.forEach((f, i) => {
     const br = (Math.sin(tNow * 2.1 + f.ph) + 1) / 2;
     if (br > 0.55) {
       ctx.globalAlpha = (br - 0.55) * 0.8;
@@ -840,14 +900,42 @@ const CROC_STYLES = {
   bogqueen: { a: '#8a5a9a', b: '#623e70', c: '#b07cc4', d: '#3e2848', maw: '#3a1030', mawD: '#280a20', tongue: '#c94f8a', tongueHi: '#e077aa', sclera: '#f4e8ff', crown: true, bags: true },
   apexpred: { a: '#2e3a34', b: '#1c2620', c: '#48584e', d: '#0e1612', maw: '#2e0810', mawD: '#1c040a', tongue: '#8a3040', tongueHi: '#a84858', sclera: '#e8d0c0', redEye: true, scars: true, fangs: true, ridge: true },
 };
+// SHARK styles for the MALDIVES summer stage (grey-blue hide, pale bellies)
+const SHARK_STYLES = {
+  reef: { a: '#7fa8c0', b: '#547e98', c: '#a8ccdc', d: '#3a5c72', maw: '#8a3a4e', mawD: '#5e2434', tongue: '#e0778a', tongueHi: '#f0a0b0', sclera: '#f4f8fc', shark: true },
+  tiger: { a: '#5f8296', b: '#3e5c6e', c: '#89aebe', d: '#2a4250', maw: '#7a2f42', mawD: '#521e2c', tongue: '#d06578', tongueHi: '#e890a0', sclera: '#eef4f8', shark: true, scars: true, ridge: true },
+  mega: { a: '#42555f', b: '#2c3c44', c: '#66808c', d: '#1a262c', maw: '#5e1e2c', mawD: '#3e121c', tongue: '#a84858', tongueHi: '#c06a78', sclera: '#e8f0f4', shark: true, fangs: true, scars: true, ridge: true, redEye: true },
+};
+// CROC / SHARK MUTATIONS: rare variants Professor Manta wants photographed.
+// tint overrides some hide colors; deco adds a signature feature in drawCroc;
+// sizeMul scales the whole maw (body follows); teeth adds mouth slots.
+const MUTATIONS = {
+  diamond: { name: 'DIAMOND', col: '#9fe8ff', rar: 4, tint: { a: '#8fd6ea', b: '#5fa8c8', c: '#cbf4ff', sclera: '#eafcff' }, flav: 'A hide of living crystal.' },
+  dwarf: { name: 'DWARF', col: '#a8e078', rar: 2, sizeMul: 0.72, flav: 'Tiny, grumpy, adorable.' },
+  extra: { name: 'EXTRA-TOOTHED', col: '#f0d060', rar: 3, teeth: 4, flav: 'Simply too many teeth.' },
+  mega: { name: 'MEGA', col: '#ff9048', rar: 4, sizeMul: 1.26, flav: 'A jaw that blots the sun.' },
+  alien: { name: 'ALIEN', col: '#9cff8c', rar: 5, tint: { a: '#5fbf52', b: '#3a8a3a', c: '#a8ff9c', d: '#245a24', sclera: '#0c0c14' }, flav: 'Not from this swamp.' },
+};
+const MUT_ORDER = ['diamond', 'dwarf', 'extra', 'mega', 'alien'];
+const mutSizeMul = () => (G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].sizeMul) || 1;
 // the round-0 "small" node is a lil baby gator (smaller body + mouth, see mouthLayout)
 function lilGator() { return G.state !== 'menu' && G.round === 0 && G.nodeType === 'small'; }
-function crocStyle() {
+function baseCrocStyle() {
+  if (G.summer) {
+    if (G.state !== 'menu' && G.round === 2) return SHARK_STYLES.mega;
+    if (G.state !== 'menu' && G.round === 1) return SHARK_STYLES.tiger;
+    return SHARK_STYLES.reef;
+  }
   if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
   if (G.state !== 'menu' && G.nodeType === 'gold') return CROC_STYLES.gold;
   if (G.state !== 'menu' && G.round === 1) return CROC_STYLES.big;
   if (lilGator()) return CROC_STYLES.lilgator;
   return CROC_STYLES.small;
+}
+function crocStyle() {
+  const base = baseCrocStyle();
+  if (G.state !== 'menu' && G.mut && MUTATIONS[G.mut]) return Object.assign({}, base, MUTATIONS[G.mut].tint || {}, { mut: G.mut });
+  return Object.assign({}, base, { mut: null });
 }
 
 // ------------------------------------------------------------ game data ---
@@ -953,6 +1041,12 @@ const CHARMS = [
   { id: 'totem', name: 'GATOR TOTEM', cost: 7, rar: 1, ico: 'totem', tier: 6, desc: 'X1.5 MULT when banking against a BOSS', flav: 'Carved from a lost canoe.' },
   { id: 'hound', name: "HOUND'S TOOTH", cost: 7, rar: 1, ico: 'hound', tier: 7, desc: 'Chain MULT grows +2 after your 5th press each bite', flav: 'Loyal to long bites.' },
   { id: 'moonshine', name: 'MOONSHINE JUG', cost: 9, rar: 2, ico: 'moonshine', tier: 8, desc: '+1 BITE and +1 X-RAY every round', flav: 'Ranger fuel. Handle with care.' },
+  // ---- SUMMER upgrades (beach flavor, everyday hooks) ----
+  { id: 'suncharm', name: 'SUN CHARM', cost: 7, rar: 2, ico: 'bolt', desc: '+MULT equal to your X-RAYS left at the start of each mouth', flav: 'Soaks up rays, radiates points.' },
+  { id: 'msgbottle', name: 'MESSAGE BOTTLE', cost: 5, rar: 1, ico: 'bottle', desc: 'Every 3rd bite you bank pays +$6', flav: 'The tide brings good news.' },
+  { id: 'starfish', name: 'LUCKY STARFISH', cost: 7, rar: 2, ico: 'star', desc: 'CLEAN SWEEP adds +3 TEETH per tooth pressed', flav: 'Makes a wish on every sweep.' },
+  { id: 'coconut', name: 'COCONUT', cost: 7, rar: 2, ico: 'shield', desc: 'Every 5th press in a bite gives +25 TEETH', flav: 'Crack it open for a payout.' },
+  { id: 'palmfrond', name: 'PALM FROND', cost: 6, rar: 1, ico: 'gem', desc: '+2 MULT per 3 teeth pressed when you bank', flav: 'Sways in your favor.' },
 ];
 
 const CONS = [
@@ -1558,13 +1652,15 @@ const QUESTS = [
   { id: 'pack1', name: 'OPEN A PACK', goal: 1 },
 ];
 
-let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', hat: 'straw', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false, gachaOwn: {}, hatOwn: {}, perks: {} };
+let meta = { ach: {}, lifeSnaps: 0, glove: 'bare', hat: 'none', rp: 0, ranger: 'scout', daily: null, unlocked: {}, chains: null, set: null, itchFollow: false, gachaOwn: {}, hatOwn: {}, perks: {}, summer: null };
 try { const m = JSON.parse(localStorage.getItem('bd_meta') || 'null'); if (m) meta = Object.assign(meta, m); } catch (e) { }
 if (!meta.unlocked) meta.unlocked = {};
 if (!meta.gachaOwn) meta.gachaOwn = {};
 if (!meta.hatOwn) meta.hatOwn = {};
-if (!meta.hat) meta.hat = 'straw';
+if (!meta.hat) meta.hat = 'none';
 if (!meta.perks) meta.perks = {};
+// SUMMER EVENT progress: photographed mutations, tickets earned, quest claims
+if (!meta.summer) meta.summer = { caught: {}, tix: 0, q: {}, unlocked: false, won: false };
 if (!meta.set) meta.set = { mus: 2, sfx: 2, shake: 1, crt: 1 };
 if (!meta.chains) meta.chains = { granny: { step: 0, prog: 0 }, crow: { step: 0, prog: 0 }, doc: { step: 0, prog: 0 } };
 function saveMeta() { try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
@@ -1654,6 +1750,7 @@ const G = {
   gacha: null,     // gacha-pon machine anim {phase, t, prize, capCol}
   shopEnter: -9,   // walk-in door animation timer
   compoundMult: 0, sweepCarry: 0, denturesUsed: false, feastTimes: [],
+  summer: false, mut: null, crabs: [], crabT: 0, seashellUsed: false, // summer stage + mutations
 };
 let trans = null;  // iris wipe: {t, cb, fired}
 function startTransition(cb) { if (trans) return; trans = { t: 0, cb, fired: false }; sfx.whoosh(); }
@@ -1663,6 +1760,8 @@ try { best = parseInt(localStorage.getItem('bitedown_best') || '0') || 0; } catc
 function saveBest() { try { localStorage.setItem('bitedown_best', '' + best); } catch (e) { } }
 
 const has = id => G.charms.some(c => c.id === id);
+// summer runs spend HERMIT CRABS (CR) instead of dollars
+const curLabel = n => G.summer ? (fmt(n) + ' CR') : ('$' + fmt(n));
 const rangerUnlocked = k => !RANGERS[k].ach || !!meta.ach[RANGERS[k].ach];
 const bossIs = id => !!(G.boss && G.round === 2 && G.boss.id === id);
 const xraysBlocked = () => bossIs('murky');
@@ -1708,6 +1807,7 @@ function newRun(rangerKey) {
   G.runSweeps = 0;
   G.eventBuffs = { bites: 0, xrays: 0, mult: 0, snapNext: 0 };
   G.compoundMult = 0; G.sweepCarry = 0; G.bench = null; G.pack = null;
+  G.summer = false; G.mut = null; G.crabs = []; // normal swamp run by default
   floats = []; parts = []; shake = 0; flyers = [];
   genMap();
   G.state = 'map';
@@ -1764,6 +1864,7 @@ function startFight(node) {
   G.nodeType = node.type;
   G.nodeMods = node.mods || [];
   G.nodeName = NODE_DEFS[node.type].name;
+  if (G.summer) G.nodeName = node.type === 'boss' ? 'MEGALODON' : node.type === 'small' ? 'REEF SHARK' : 'TIGER SHARK';
   G.round = node.type === 'boss' ? 2 : node.type === 'small' ? 0 : 1;
   G.boss = node.type === 'boss' ? (G.ante === 8 ? FINAL_BOSS : G.bossOrder[(G.ante - 1) % G.bossOrder.length]) : null;
   G.target = Math.round((G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.7, G.ante - 8)) * NODE_DEFS[node.type].mult
@@ -1783,7 +1884,12 @@ function startFight(node) {
   G.xrays = Math.max(0, G.xrays);
   if (has('foreverglades')) gainMoney(2);
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
-  G.numbUsed = false; G.greedyCount = 0;
+  G.numbUsed = false; G.greedyCount = 0; G.seashellUsed = false;
+  // roll a rare MUTATION on this croc/shark - Professor Manta pays for photos
+  const canMut = G.summer || node.type !== 'boss';
+  G.mut = (canMut && rnd() < 0.4) ? choice(MUT_ORDER) : null;
+  if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
+  G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
   G.denturesUsed = false; G.feastTimes = [];
   G.roundBuffMult = G.eventBuffs.mult || 0;
@@ -1842,7 +1948,10 @@ function closeEvent() {
 function mouthSizeFor() {
   let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0) + (bossIs('king') ? 2 : 0)
     + (G.ranger === 'scout' ? 1 : 0) + (has('cypressroot') ? 1 : 0);
-  if (lilGator()) size = Math.min(size, 8); // the lil gator has a small mouth
+  if (lilGator()) size = Math.min(size, 12); // the lil gator shows off a fuller set now
+  if (G.mut === 'extra') size += 4;           // EXTRA-TOOTHED mutation: crammed maw
+  if (G.mut === 'mega') size += 2;
+  if (G.mut === 'dwarf') size = Math.min(size, 8);
   return Math.max(6, Math.min(size, G.deck.length));
 }
 
@@ -1870,6 +1979,7 @@ function newMouth() {
   if (G.ranger === 'snail') G.pool.mult += 3;
   if (G.roundBuffMult) G.pool.mult += G.roundBuffMult;
   if (has('compound') && G.compoundMult > 0) G.pool.mult += G.compoundMult;
+  if (has('suncharm')) G.pool.mult += G.xrays; // SUN CHARM: bank your unused sight
   if (G.sweepCarry > 0) {
     if (has('ouroboros')) { G.pool.mult += G.sweepCarry; float(W / 2 + 50, 104, 'TAIL EATER: +' + G.sweepCarry + ' MULT', C.purple, 1, 1.5); }
     G.sweepCarry = 0;
@@ -1980,6 +2090,7 @@ function pressTooth(i) {
     if (has('lantern') && s.revealed === 'safe') mgain += 2;
     if (has('babyfangs') && s.t.base <= 2) mgain += 4;
     if (has('overbite') && G.pool.clicks === 1 && !echoed) { add += 12; float(p.x, p.y - 22, 'OVERBITE +12', C.blue, 1); }
+    if (has('coconut') && !echoed && G.pool.clicks % 5 === 0) { add += 25; float(p.x, p.y - 22, 'COCONUT +25', '#8fe89c', 1); }
     if (has('tinfang') && s.t.type === 'plain') add *= 2;
     let steel = false;
     if (s.t.type === 'fossil') mgain = 0; // the chain does not grow on fossils
@@ -2064,6 +2175,8 @@ function bankMath(sweep) {
   if (has('totem') && G.round === 2) m *= 1.5;
   if (has('jackpot') && G.pool.clicks === 7) m *= 5;
   if (has('gambit') && G.mouth.filter(s => s.snap && !s.pressed && !s.gone).length === 2) m *= 2.5;
+  if (sweep && has('starfish')) t += 3 * G.pool.clicks;
+  if (has('palmfrond')) m += 2 * Math.floor(G.pool.clicks / 3);
   if (sweep) m *= has('collector') ? 2 : (G.ranger === 'frog' ? 1.75 : 1.25);
   return Math.floor(t * m);
 }
@@ -2083,6 +2196,7 @@ function bank(sweep) {
   if (val > G.stats.bestBank) G.stats.bestBank = val;
   if (has('canteen') && G.pool.clicks <= 3) { gainMoney(3); float(60, 182, 'CANTEEN +$3', C.gold, 1); }
   if (has('baitbucket')) { gainMoney(1); float(60, 166, 'BAIT +$1', C.gold, 1); }
+  if (has('msgbottle') && G.stats.banks % 3 === 0) { gainMoney(6); float(60, 150, 'BOTTLE +$6', C.gold, 1); }
   if (has('compound')) { G.compoundMult++; float(60, 174, 'COMPOUND +1', C.purple, 1); }
   if (has('undertow')) G.undertowNext = true;
   if (sweep && has('ouroboros')) { G.sweepCarry = G.pool.mult; float(W / 2 + 50, 128, 'THE CHAIN SURVIVES!', C.purple, 1, 1.6); }
@@ -2141,6 +2255,7 @@ function cashOut() {
     unlock('win');
     quest('run1', 1);
     addRP(30, 'RUN WON');
+    meta.summer.won = true; saveMeta(); // Professor Manta's "beat 8 antes" quest
     G.state = 'win';
     return;
   }
@@ -2598,8 +2713,15 @@ function toggleXrayMode() {
 // ------------------------------------------------------------ layout ------
 const SIDEBAR = { x: 2, y: 2, w: 110, h: 266 };
 function mouthLayout() {
-  // the lil gator has a much smaller, re-centered mouth (body geometry follows the maw)
-  const maw = lilGator() ? { x: 230, y: 128, w: 128, h: 64 } : { x: 186, y: 112, w: 216, h: 92 };
+  // the lil gator has a smaller, re-centered mouth (body geometry follows the maw)
+  const maw = lilGator() ? { x: 210, y: 128, w: 176, h: 66 } : { x: 186, y: 112, w: 216, h: 92 };
+  // MEGA / DWARF mutations scale the whole maw about its center; body follows
+  const m = mutSizeMul();
+  if (m !== 1) {
+    const ccx = maw.x + maw.w / 2, ccy = maw.y + maw.h / 2;
+    maw.w = Math.round(maw.w * m); maw.h = Math.round(maw.h * m);
+    maw.x = Math.round(ccx - maw.w / 2); maw.y = Math.round(ccy - maw.h / 2);
+  }
   const n = G.mouth.length;
   const topN = Math.ceil(n / 2), botN = n - topN;
   const slots = [];
@@ -3013,6 +3135,48 @@ function drawCroc(closeT, opts) {
     rect(hx, hy + 10, 24, 3, C.gold);
     rect(hx + 2, hy + 2, 3, 8, '#3a4248');
   }
+
+  // ---- SHARK features (MALDIVES summer stage) ----
+  if (st.shark) {
+    // tall back-swept dorsal fin rising from the crown of the head
+    const fnx = maw.x + maw.w / 2, fbase = jy - 2;
+    for (let k = 0; k < 18; k++) {
+      const half = Math.max(1, 9 - Math.floor(k * 0.5));
+      rect(fnx - half + Math.floor(k * 0.5), fbase - k * 2, half * 2, 3, k < 3 ? st.a : st.b);
+    }
+    rect(fnx - 1, fbase - 34, 2, 6, st.c);
+    // gill slits on each cheek
+    [[maw.x + 4, 1], [maw.x + maw.w - 12, -1]].forEach(([gxs, dir]) => {
+      for (let k = 0; k < 4; k++) rect(gxs + dir * k * 3, jy + 30 - k, 2, 13, st.d);
+    });
+    // pointed snout tip poking forward
+    rect(bodyX - 10, jy + 26, 10, 9, st.a); rect(bodyX - 15, jy + 29, 5, 4, st.b);
+  }
+
+  // ---- MUTATION signature features (Professor Manta's photo subjects) ----
+  if (st.mut === 'diamond') {
+    [[bodyX + 40, jy + 20], [bodyX + bodyW - 56, jy + 22], [maw.x + maw.w / 2 - 4, jy + 34]].forEach(([gx, gy]) => {
+      rect(gx + 2, gy, 4, 2, '#eafcff'); rect(gx, gy + 2, 8, 2, '#bff4ff'); rect(gx + 2, gy + 4, 4, 2, '#8fd6ea'); rect(gx + 3, gy + 1, 1, 1, '#fff');
+    });
+    for (let k = 0; k < 7; k++) { if (Math.sin(tNow * 3 + k * 1.7) > 0.45) rect(bodyX + 20 + (k * 53) % (bodyW - 40), jy + 8 + (k * 29) % 42, 1, 1, '#ffffff'); }
+  } else if (st.mut === 'extra') {
+    const fy = jy + 56;
+    [maw.x - 8, maw.x + maw.w + 2, maw.x + 24, maw.x + maw.w - 28].forEach(fx => {
+      rect(fx, fy, 5, 7, '#f4f0dc'); rect(fx + 1, fy + 7, 3, 4, '#e8e0c0');
+    });
+  } else if (st.mut === 'mega') {
+    rect(bodyX + 6, jy + 1, bodyW - 12, 4, st.b);            // heavy brow band
+    [exL, exR].forEach(ex => rect(ex - 4, ey - 5, 30, 3, st.d)); // scowling ridges
+  } else if (st.mut === 'alien') {
+    const acx = maw.x + maw.w / 2;
+    [-17, 15].forEach(ox => {
+      rect(acx + ox, ey - 18, 2, 13, st.c);
+      const gl = Math.sin(tNow * 4 + ox) * 0.5 + 0.5;
+      ctx.save(); ctx.globalAlpha = 0.35 + gl * 0.4; fillCircle(acx + ox + 1, ey - 20, 5, '#8fff7c'); ctx.restore();
+      fillCircle(acx + ox + 1, ey - 20, 3, '#c8ff9c');
+    });
+    rr(acx - 5, ey + 2, 11, 9, 3, '#0c0c14'); rr(acx - 3, ey + 3, 7, 6, 2, '#9cff8c'); rect(acx - 1, ey + 4, 2, 4, '#0c0c14');
+  }
 }
 
 function toothTip(s) {
@@ -3292,8 +3456,8 @@ function drawSidebar() {
   y += 15;
 
   panel(x, y, w, 18, { face: '#26321e', edge: '#5a7a3a' });
-  drawText('$' + G.money, x + 6, y + 5, C.gold, 2);
-  drawTextC('MONEY', x + w - 22, y + 7, '#9ab87a', 1);
+  drawText(curLabel(G.money), x + 6, y + 5, C.gold, 2);
+  drawTextC(G.summer ? 'CRABS' : 'MONEY', x + w - 22, y + 7, '#9ab87a', 1);
   y += 23;
 
   const deckOk = G.state === 'play' || G.state === 'shop' || G.state === 'swap';
@@ -3365,6 +3529,14 @@ function drawPlay() {
   drawSceneFront(th);
   drawSidebar();
   drawTopBar(false);
+  if (G.summer) drawCrabs();
+  // Professor Manta's camera: photograph an un-logged mutation for tickets
+  if (G.mut && meta.summer && !meta.summer.caught[G.mut]) {
+    button(284, 44, 96, 20, 'CAPTURE', '#2a8ad0', '#164a80', capturePhoto,
+      { id: 'capture', sc: 1, tip: 'PHOTOGRAPH THIS ' + MUTATIONS[G.mut].name + '|Log it for Professor Manta' });
+    ICONS.mg_cam(288, 46);
+  }
+  if (G.photoT > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, G.photoT * 1.8); rect(0, 0, W, H, '#ffffff'); ctx.restore(); }
 
   if (G.mode === 'xray') {
     drawTextCSh('CLICK A TOOTH TO X-RAY IT', W / 2 + 50, 66, '#9fe8ff', 1);
@@ -3584,8 +3756,8 @@ function drawShop() {
   // raised EVERGLADES sign on ropes (clears the stock shelf below)
   rect(238, 8, 2, 10, '#8a7a58'); rect(354, 8, 2, 10, '#8a7a58');
   panel(206, 18, 182, 26, { face: '#5f4228', edge: '#8a6a3a', r: 2 });
-  drawTextCSh('EVERGLADES', 296, 22, '#ffe6b0', 2);
-  drawTextC('T R A D I N G   P O S T', 296, 36, '#c8a878', 1);
+  drawTextCSh(G.summer ? 'MALDIVES' : 'EVERGLADES', 296, 22, '#ffe6b0', 2);
+  drawTextC(G.summer ? 'B E A C H   S H A C K' : 'T R A D I N G   P O S T', 296, 36, '#c8a878', 1);
 
   // ---- main metal gondola (holds the 4 gear cards + stocked upper shelf) ----
   (function gondola() {
@@ -3646,7 +3818,7 @@ function drawShop() {
   })();
 
   // ---- Merle at his checkout counter (far RIGHT) ----
-  drawVendor(424, 100);
+  if (G.summer) drawDuckVendor(424, 100); else drawVendor(424, 100);
   (function counter() {
     const kx = 408, ky = 150, kw = 72, kh = 26;
     rr(kx, ky + 2, kw, kh, 2, '#00000066'); rr(kx, ky, kw, kh, 2, RAMP.wood[0]); rr(kx + 1, ky + 1, kw - 2, kh - 3, 2, RAMP.wood[2]);
@@ -3670,7 +3842,7 @@ function drawShop() {
 
   // ---- money-only HUD: in the shop you only care about your wallet ----
   panel(8, 8, 100, 30, { face: '#26321e', edge: '#5a7a3a' });
-  drawText('$' + G.money, 18, 16, C.gold, 3);
+  drawText(curLabel(G.money), 18, 16, C.gold, 3);
   drawTextC('YOUR MONEY', 58, 42, '#9ab87a', 1);
   button(8, 52, 100, 16, 'TEETH ' + G.drawPile.length + '/' + G.deck.length, '#3a5560', '#243a44',
     () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
@@ -4353,16 +4525,18 @@ function drawMenu() {
   button(W / 2 - 82, 190, 164, 38, 'NEW RUN', '#d94f30', '#8a2a16', startRun, { id: 'start', sc: 2 });
   const UBTN = [
     ['SKINS', '#2c6b58', '#184234', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
+    ['SUMMER', '#2a8ad0', '#164a80', () => { G.state = 'summer'; sfx.click(2); }, 'summerbtn', (meta.summer.tix || 0) + ' TIX'],
     ['GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
     ['SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, 'setbtn', null],
     ['CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, 'credbtn', null],
   ];
   UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
-    const bx = 122 + i * 60;
-    button(bx, 238, 56, 22, label, c1, c2, cb, {
-      id, sub, subCol: id === 'skinsbtn' ? '#8fe8c8' : C.gold,
+    const bx = 102 + i * 56;
+    button(bx, 238, 52, 22, label, c1, c2, cb, {
+      id, sub, subCol: id === 'skinsbtn' ? '#8fe8c8' : id === 'summerbtn' ? '#ffe6a0' : C.gold,
       tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|hats + gloves, equip and show off'
-        : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
+        : id === 'summerbtn' ? 'SUMMER EVENT|Professor Manta + the Maldives stage|Photograph rare mutations for tickets'
+          : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
     });
   });
 }
@@ -4404,57 +4578,65 @@ function drawCharacter(cx, cy) {
 }
 
 // --------------------------------------------------- SKINS (cosmetics) -----
+// a cool FLOATING display stand: a hovering glass slab with a bob + thrusters
+function floatStand(sx, sy0, accent, title, order, cur, isOpen, art, tipFor, equip) {
+  const bob = Math.round(Math.sin(tNow * 1.6 + sx * 0.05) * 3);
+  const sw = 152, sh = 150, sy = sy0 + bob;
+  // shadow cast on the floor + hover glow
+  ctx.save(); ctx.globalAlpha = 0.22; fillCircle(sx + sw / 2, sy0 + sh + 26, 50, '#000'); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.14; rr(sx - 6, sy - 6, sw + 12, sh + 12, 12, accent); ctx.restore();
+  // anti-grav thruster sparkles beneath the slab
+  for (let k = 0; k < 6; k++) { const px = sx + 12 + k * 26, a = (tNow * 1.6 + k * 0.4) % 1; ctx.save(); ctx.globalAlpha = 1 - a; rect(px, (sy + sh + 2 + a * 12) | 0, 2, 3, accent); ctx.restore(); }
+  // floating glass slab
+  rr(sx, sy + 5, sw, sh, 8, '#00000066');
+  rr(sx, sy, sw, sh, 8, '#15303c'); rr(sx + 2, sy + 2, sw - 4, sh - 4, 7, '#0b1c26');
+  rect(sx + 8, sy + 5, sw - 16, 2, accent); rr(sx + 4, sy + 4, sw - 8, 3, 2, accent + '55');
+  // hovering title plaque
+  panel(sx + 22, sy - 17, sw - 44, 15, { face: '#0e1c24', edge: accent, r: 3 });
+  drawTextCSh(title, sx + sw / 2, sy - 13, '#ffffff', 1);
+  // item grid
+  const cols = 5, cw = 27, ch2 = 29, gx0 = sx + (sw - cols * cw) / 2 + 3, gy0 = sy + 14;
+  order.forEach((k, i) => {
+    const gx = gx0 + (i % cols) * cw, gy = gy0 + Math.floor(i / cols) * ch2;
+    const open = isOpen(k), on = cur() === k, rar = (order === GLOVE_ORDER ? GLOVE_RAR[k] : HATS[k].rar) || 0;
+    rr(gx, gy, 23, 25, 3, on ? C.gold : (open ? RAR_COL[rar] : '#0d161b'));
+    rr(gx + 1, gy + 1, 21, 23, 2, open ? '#22343e' : '#141c22');
+    if (open) art(gx + 12, gy + 13, k); else drawTextC('?', gx + 12, gy + 8, '#41565e', 1);
+    if (on) rect(gx + 8, gy + 21, 7, 2, C.gold);
+    hit(gx, gy, 23, 25, { id: title + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
+  });
+  const owned = order.filter(isOpen).length;
+  drawTextC(owned + '/' + order.length + ' OWNED', sx + sw / 2, sy + sh - 11, '#6a8a94', 1);
+}
 function drawSkins() {
   const th = THEMES.shop;
   drawSceneBack(th); drawSceneFront(th);
-  overlayDim(0.55);
+  overlayDim(0.6);
   drawTextCSh('SKINS', W / 2, 8, C.gold, 3);
-  drawTextC('DRESS UP YOUR DENTIST - CLICK A STAND TO EQUIP', W / 2, 30, '#c8b8a0', 1);
+  drawTextC('CLICK A FLOATING STAND TO EQUIP', W / 2, 30, '#c8b8a0', 1);
 
-  // ---- center: your character on a little pedestal ----
-  const cx = W / 2, cyH = 96;
-  rr(cx - 30, cyH + 58, 60, 10, 4, '#3a2818'); rr(cx - 28, cyH + 56, 56, 6, 3, '#5f4228'); rect(cx - 26, cyH + 57, 52, 1, '#8a6a3a'); // pedestal
+  // ---- center: your dentist hovering on an anti-grav disc ----
+  const cx = W / 2, cyH = 100, disc = Math.round(Math.sin(tNow * 1.5) * 2);
+  ctx.save(); ctx.globalAlpha = 0.25; fillCircle(cx, cyH + 66, 30, '#000'); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.5; rr(cx - 30, cyH + 56 + disc, 60, 8, 4, '#3aa0c0'); ctx.restore();
+  rr(cx - 28, cyH + 55 + disc, 56, 6, 3, '#7fe0f0'); rect(cx - 24, cyH + 56 + disc, 48, 1, '#d8f8ff');
   drawCharacter(cx, cyH);
   const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HAND';
   const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'BARE HEAD';
-  drawTextCSh(hname, cx, cyH + 72, '#e0d0b0', 1);
-  drawTextCSh(gname, cx, cyH + 82, '#e0d0b0', 1);
+  drawTextCSh(hname, cx, cyH + 74, '#e0d0b0', 1);
+  drawTextCSh(gname, cx, cyH + 84, '#e0d0b0', 1);
 
-  // ---- glove stand (left) + hat stand (right) ----
-  const stand = (sx, title, order, cur, isOpen, art, tipFor, equip, lockNote) => {
-    const sw = 150, sh = 214, sy = 44;
-    // wooden display case
-    rr(sx - 2, sy + 2, sw + 4, sh, 4, '#00000066');
-    rr(sx, sy, sw, sh, 4, '#5f4228'); rr(sx + 3, sy + 3, sw - 6, sh - 6, 3, '#2a1c30');
-    rect(sx + 3, sy + 3, sw - 6, 2, '#7a5a34');
-    panel(sx + 10, sy - 6, sw - 20, 14, { face: '#4a3320', edge: '#c8a040', r: 2 });
-    drawTextCSh(title, sx + sw / 2, sy - 2, '#ffe6b0', 1);
-    const owned = order.filter(isOpen).length;
-    drawTextC(owned + '/' + order.length, sx + sw / 2, sy + sh - 12, '#8a7a58', 1);
-    const cols = 5, cw = 26, ch2 = 28, gx0 = sx + (sw - cols * cw) / 2 + 2, gy0 = sy + 16;
-    order.forEach((k, i) => {
-      const gx = gx0 + (i % cols) * cw, gy = gy0 + Math.floor(i / cols) * ch2;
-      const open = isOpen(k), on = cur() === k, rar = (order === GLOVE_ORDER ? GLOVE_RAR[k] : HATS[k].rar) || 0;
-      rr(gx, gy, 22, 24, 3, on ? C.gold : (open ? RAR_COL[rar] : '#0d161b'));
-      rr(gx + 1, gy + 1, 20, 22, 2, open ? '#2a3a30' : '#141c22');
-      if (open) art(gx + 11, gy + 13, k); else drawTextC('?', gx + 11, gy + 8, '#41565e', 1);
-      hit(gx, gy, 22, 24, {
-        id: title + k, cursor: true, tip: tipFor(k, open, on),
-        cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); },
-      });
-    });
-  };
-  stand(6, 'GLOVE STAND', GLOVE_ORDER, () => meta.glove, gloveUnlocked,
+  // ---- separate floating GLOVE (left) + HAT (right) stands ----
+  floatStand(10, 66, '#7fd4e8', 'GLOVE STAND', GLOVE_ORDER, () => meta.glove, gloveUnlocked,
     (mx2, my2, k) => { ctx.save(); ctx.translate(mx2 - 6, my2 - 6); ICONS.glove(0, 0, GLOVES[k].skin); ctx.restore(); },
     (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + '|' + GLOVES[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
     k => { meta.glove = k; });
-  stand(324, 'HAT STAND', HAT_ORDER, () => meta.hat, hatUnlocked,
+  floatStand(318, 66, '#ffb0d0', 'HAT STAND', HAT_ORDER, () => meta.hat, hatUnlocked,
     (mx2, my2, k) => { if (HATS[k].ico === 'none') rect(mx2 - 4, my2 - 1, 8, 2, '#54707a'); else drawHatArt(mx2, my2 + 5, k, 1); },
     (k, open, on) => open ? (HATS[k].name + '|' + HATS[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
     k => { meta.hat = k; });
 
-  button(W / 2 - 78, 244, 74, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
-  button(W / 2 + 4, 244, 74, 20, 'TUTORIAL', '#7a4fd0', '#4a2a8a', () => { startTutorial(); }, { id: 'skintut', tip: 'REPLAY THE TUTORIAL' });
+  button(W / 2 - 45, 244, 90, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
 }
 
 // ------------------------------------------------- interactive tutorial ----
@@ -4515,6 +4697,157 @@ function drawTutorial(dt) {
   }, { id: 'tutnext' });
   if (tut.step > 0) button(W / 2 - 60, 220, 56, 16, '< BACK', '#3a5560', '#243a44', () => { tut.step--; tut.t = 0; }, { id: 'tutback' });
   if (!last) button(W / 2 + 4, 220, 56, 16, 'SKIP', '#3a5560', '#243a44', () => { meta.tutDone = true; saveMeta(); G.tut = null; G.state = 'ranger'; }, { id: 'tutskip' });
+}
+
+// ==================== SUMMER EVENT: hermit crabs, camera, Manta ====================
+// a little hermit crab that scuttles onto a tooth in the Maldives stage
+function drawCrab(cx, cy, sc) {
+  sc = sc || 1;
+  const R = (dx, dy, w, h, c) => rect((cx + dx * sc) | 0, (cy + dy * sc) | 0, Math.max(1, (w * sc) | 0), Math.max(1, (h * sc) | 0), c);
+  R(-1, -4, 8, 7, '#c86a3a'); R(0, -3, 6, 5, '#e8935a'); R(2, -2, 3, 3, '#f4b47a'); R(1, -1, 2, 2, '#8a4a24'); // spiral shell
+  R(-6, 1, 8, 4, '#e8542a'); R(-5, 2, 7, 3, '#ff7a4a');           // body
+  R(-7, 4, 2, 2, '#e8542a'); R(-4, 5, 2, 2, '#e8542a'); R(-1, 5, 2, 2, '#e8542a'); // legs
+  R(-9, 0, 4, 2, '#ff7a4a'); R(-10, -1, 2, 2, '#ff7a4a'); R(1, 0, 3, 2, '#ff7a4a'); // claws
+  R(-5, -2, 1, 3, '#e8542a'); R(-2, -2, 1, 3, '#e8542a'); R(-5, -3, 1, 1, '#101010'); R(-2, -3, 1, 1, '#101010'); // eyestalks
+}
+function updateCrabs(dt) {
+  G.crabs = G.crabs.filter(c => { c.t += dt; const sl = G.mouth[c.i]; return c.t < 6.5 && sl && !sl.pressed && !sl.gone; });
+  G.crabT -= dt;
+  if (G.crabT <= 0) {
+    G.crabT = 3.5 + rnd() * 3.5;
+    const avail = G.mouth.map((s, i) => i).filter(i => { const sl = G.mouth[i]; return sl && !sl.pressed && !sl.gone && !G.crabs.some(c => c.i === i); });
+    if (avail.length) { G.crabs.push({ i: choice(avail), t: 0 }); }
+  }
+}
+function catchCrab(c) {
+  const p = toothScreenPos(c.i);
+  gainMoney(2);
+  G.crabs = G.crabs.filter(x => x !== c);
+  float(p.x, p.y - 24, '+2 CR', '#ff9838', 1);
+  burst(p.x, p.y - 12, '#ff9838', 8, 60);
+  sfx.coin();
+}
+function drawCrabs() {
+  G.crabs.forEach(c => {
+    const s = G.mouth[c.i]; if (!s || s.pressed || s.gone) return;
+    const p = toothScreenPos(c.i), bob = Math.sin(tNow * 6 + c.i) * 1.5;
+    const cx = p.x, cy = p.y - 15 + bob;
+    drawCrab(cx, cy, 1.4);
+    if ((tNow * 3 | 0) % 2) rect((cx + 6) | 0, (cy - 6) | 0, 1, 1, '#fff');
+    hit(cx - 12, cy - 8, 24, 22, { id: 'crab' + c.i, cursor: true, tip: 'HERMIT CRAB|Click to catch: +2 CRABS', cb: () => catchCrab(c) });
+  });
+}
+// Professor Manta wants a photo of every mutation
+function capturePhoto() {
+  if (!G.mut || meta.summer.caught[G.mut]) return;
+  meta.summer.caught[G.mut] = true; saveMeta();
+  G.photoT = 0.4;
+  float(W / 2 + 40, 90, 'PHOTO CAPTURED!', '#8fe8ff', 2, 1.6);
+  float(W / 2 + 40, 112, MUTATIONS[G.mut].name + ' LOGGED', '#ffffff', 1, 1.6);
+  burst(W / 2 + 40, 120, '#ffffff', 16, 80);
+  sfx.ach();
+}
+function addTix(n, label) {
+  meta.summer.tix = (meta.summer.tix || 0) + n; saveMeta();
+  if (label) toasts.push({ name: label, sub: '+' + n + ' SUMMER TICKET' + (n > 1 ? 'S' : ''), t: 0 });
+}
+function startSummerRun() { startTransition(() => { newRun(meta.ranger); G.summer = true; G.state = 'map'; }); sfx.whoosh(); }
+
+function drawTicket(x, y) {
+  rr(x, y, 16, 10, 2, '#e89a2a'); rr(x + 1, y + 1, 14, 8, 2, '#ffd66a');
+  rect(x + 8, y, 1, 10, '#e89a2a'); fillCircle(x + 4, y + 5, 2, '#ff8a3a');
+  rect(x + 10, y + 3, 4, 1, '#c97a1a'); rect(x + 10, y + 6, 4, 1, '#c97a1a');
+}
+// a tiny mutation portrait chip for the photo album
+function drawMutChip(cx, cy, k) {
+  const mu = MUTATIONS[k];
+  rr(cx - 11, cy - 6, 22, 13, 3, '#2e6322'); rr(cx - 10, cy - 5, 20, 11, 3, mu.col);
+  rect(cx - 6, cy - 2, 3, 3, '#101018'); rect(cx + 3, cy - 2, 3, 3, '#101018');
+  for (let t = 0; t < 4; t++) rect(cx - 8 + t * 5, cy + 4, 2, 3, '#f4f0dc');
+  if (k === 'diamond') rect(cx - 1, cy - 6, 2, 2, '#ffffff');
+  if (k === 'alien') { rect(cx - 6, cy - 10, 1, 4, mu.col); rect(cx + 5, cy - 10, 1, 4, mu.col); rect(cx - 6, cy - 11, 1, 1, '#c8ff9c'); rect(cx + 5, cy - 11, 1, 1, '#c8ff9c'); }
+  if (k === 'mega') rect(cx - 10, cy - 7, 20, 2, '#00000055');
+}
+// Professor Manta: a bespectacled manta-ray marine biologist
+function drawManta(x, y) {
+  const b = y + Math.round(Math.sin(tNow * 1.4) * 2), flap = Math.sin(tNow * 2.2) * 3;
+  rr(x - 30, b + 8 - flap, 26, 14, 6, '#2f4a6a'); rr(x + 30, b + 8 - flap, 26, 14, 6, '#2f4a6a'); // wings
+  rr(x - 26, b + 9 - flap, 22, 10, 5, '#3f6a94'); rr(x + 30, b + 9 - flap, 22, 10, 5, '#3f6a94');
+  rr(x - 18, b, 46, 30, 10, '#26405c'); rr(x - 16, b + 2, 42, 26, 9, '#3a5c82');           // body
+  fillCircle(x + 5, b + 21, 10, '#c8d8e8');                                                 // pale underside
+  rect(x - 8, b - 6, 4, 8, '#3a5c82'); rect(x + 10, b - 6, 4, 8, '#3a5c82');               // cephalic horns
+  rect(x + 22, b + 26, 12, 2, '#26405c'); rect(x + 32, b + 24, 8, 2, '#26405c');            // tail
+  critterEye(x - 6, b + 5, 6, 6, '#3a5c82', '#f8f4dc', '#1a2028', 3.0);
+  critterEye(x + 8, b + 5, 6, 6, '#3a5c82', '#f8f4dc', '#1a2028', 3.4);
+  // gold professor spectacles
+  rect(x - 7, b + 4, 8, 1, '#ffd54a'); rect(x + 7, b + 4, 8, 1, '#ffd54a');
+  rect(x - 7, b + 4, 1, 8, '#ffd54a'); rect(x + 1, b + 4, 1, 8, '#ffd54a'); rect(x + 7, b + 4, 1, 8, '#ffd54a'); rect(x + 15, b + 4, 1, 8, '#ffd54a');
+  rect(x - 7, b + 11, 8, 1, '#ffd54a'); rect(x + 7, b + 11, 8, 1, '#ffd54a'); rect(x + 1, b + 7, 6, 1, '#ffd54a');
+}
+
+function drawSummer(dt) {
+  const th = THEMES.maldives;
+  drawSceneBack(th); drawSceneFront(th);
+  overlayDim(0.28);
+  drawTextCSh('SUMMER EVENT', W / 2, 8, '#ffe6a0', 3);
+  drawTextC('PROFESSOR MANTA COLLECTS PHOTOS OF RARE MUTATIONS', W / 2, 30, '#0a3a4a', 1);
+
+  // ---- photo album: full-width strip of 5 mutation slots ----
+  const caught = meta.summer.caught || {};
+  const nCaught = MUT_ORDER.filter(k => caught[k]).length;
+  panel(40, 44, 400, 84, { face: '#0e2a34ee', edge: '#3aa0c0' });
+  drawTextCSh('MUTATION ALBUM   ' + nCaught + '/5', W / 2, 50, '#bfe8ff', 1);
+  MUT_ORDER.forEach((k, i) => {
+    const bx = 75 + i * 73, by = 64, got = !!caught[k], mu = MUTATIONS[k];
+    rr(bx, by, 46, 56, 3, got ? mu.col : '#0a1a20'); rr(bx + 2, by + 2, 42, 52, 2, '#08303c');
+    if (got) { drawMutChip(bx + 23, by + 24, k); drawTextC(mu.name.slice(0, 8), bx + 23, by + 46, '#eafcff', 1); }
+    else { drawTextC('?', bx + 23, by + 18, '#2a5560', 2); drawTextC('FIND ME', bx + 23, by + 46, '#3a6570', 1); }
+    hit(bx, by, 46, 56, { id: 'album' + k, tip: got ? (mu.name + ' MUTATION|PHOTOGRAPHED!|' + mu.flav) : ('??? MUTATION|Spot it in a fight and CAPTURE it') });
+  });
+  drawTextC('SPOT A MUTATION IN A FIGHT, THEN TAP  CAPTURE  TO LOG IT', W / 2, 132, '#0a3a4a', 1);
+
+  // ---- Professor Manta (bottom-left flavor) ----
+  drawManta(46, 182);
+
+  // ---- tickets + summer quests ----
+  panel(98, 146, 334, 62, { face: '#0e2a34f2', edge: '#3aa0c0' });
+  drawTicket(108, 152); drawText('SUMMER TICKETS: ' + (meta.summer.tix || 0), 130, 154, '#ffd66a', 1);
+  const q = meta.summer.q || {};
+  const sQuest = (qy, name, done, claimed, reward, claimId, onClaim) => {
+    rect(110, qy + 1, 5, 5, done ? C.green : '#3a6570');
+    drawText(name, 120, qy, done ? '#bfe8ff' : '#9ab8c0', 1);
+    if (done && !claimed) button(334, qy - 4, 90, 14, 'CLAIM +' + reward, '#e8a020', '#98650e', onClaim, { id: claimId });
+    else if (claimed) drawText('CLAIMED', 366, qy, C.green, 1);
+  };
+  sQuest(172, 'PHOTO ALL 5 MUTATIONS  (' + nCaught + '/5)', nCaught >= 5, !!q.photo, 3, 'claimphoto',
+    () => { addTix(3, 'ALBUM COMPLETE!'); meta.summer.q.photo = true; saveMeta(); sfx.ach(); });
+  sQuest(190, 'BEAT 8 ANTES - WIN ANY RUN', !!meta.summer.won, !!q.win, 2, 'claimwin',
+    () => { addTix(2, 'CHAMPION!'); meta.summer.q.win = true; saveMeta(); sfx.ach(); });
+
+  // ---- the Maldives stage ----
+  if (!meta.summer.unlocked) {
+    const can = (meta.summer.tix || 0) >= 3;
+    button(140, 214, 200, 18, can ? 'UNLOCK MALDIVES STAGE (3)' : 'NEED 3 TICKETS TO UNLOCK', can ? '#d94f30' : '#2a3f48', '#8a2a16',
+      () => { if (can) { meta.summer.tix -= 3; meta.summer.unlocked = true; saveMeta(); sfx.buy(); } else sfx.error(); }, { id: 'unlockmal', disabled: !can });
+  } else {
+    button(140, 214, 200, 18, 'PLAY MALDIVES STAGE  >', '#2c8a6b', '#184a34', startSummerRun,
+      { id: 'playmal', tip: 'BEACH RUN|Sharks, hermit-crab cash, bright Maldives stage' });
+  }
+  button(8, 244, 74, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'summerback' });
+}
+
+function drawDuckVendor(x, y) {
+  const b = y + Math.round(Math.sin(tNow * 1.3) * 1.5);
+  fillCircle(x + 23, b + 32, 21, '#d8a038'); fillCircle(x + 23, b + 31, 20, '#f0c85a'); fillCircle(x + 20, b + 28, 15, '#f8d874');
+  fillCircle(x + 23, b + 37, 12, '#fbe8a8');
+  rect(x + 4, b + 20, 10, 24, '#2c9a8a'); rect(x + 32, b + 20, 10, 24, '#2c9a8a');
+  rect(x + 6, b + 24, 3, 3, '#ff6a8a'); rect(x + 34, b + 30, 3, 3, '#ff6a8a'); rect(x + 8, b + 34, 3, 3, '#ff6a8a');
+  fillCircle(x + 23, b + 9, 13, '#f0c85a'); fillCircle(x + 21, b + 7, 10, '#f8d874');
+  rect(x + 30, b + 8, 12, 5, '#ff9838'); rect(x + 30, b + 12, 10, 3, '#e8842a'); rect(x + 40, b + 9, 2, 3, '#ff9838'); // bill
+  rect(x + 14, b + 5, 18, 5, '#1a1a22'); rect(x + 15, b + 6, 7, 3, '#3a5566'); rect(x + 24, b + 6, 7, 3, '#3a5566'); // shades
+  rect(x + 12, b + 2, 22, 3, '#ff6a8a'); rect(x + 10, b + 4, 26, 2, '#ff6a8a'); // sun visor
+  const wave = Math.sin(tNow * 3) > 0.3 ? -5 : 0;
+  rr(x - 6, b + 22 + wave, 14, 9, 4, '#e8b84a'); rr(x + 40, b + 38, 12, 7, 4, '#e8b84a');
 }
 
 function drawHow() {
@@ -4679,7 +5012,7 @@ function drawMap() {
   panel(64, 48, 382, 178, { face: '#101c1eee', edge: '#3a5a50' });
   // money + ranger chip
   panel(66, 26, 74, 18, { face: '#26321e', edge: '#5a7a3a' });
-  drawText('$' + G.money, 74, 31, C.gold, 1);
+  drawText(curLabel(G.money), 74, 31, C.gold, 1);
   drawRangerFace(112, 22, G.ranger);
   // winding channel
   for (let x = 76; x < 434; x += 4) {
@@ -6276,6 +6609,8 @@ function frame(ms) {
   updateScene(dt);
   updateBenchFx(dt);
   if (G.state === 'snap') updateSnap(dt); else shardsDone = false;
+  if (G.summer && G.state === 'play') updateCrabs(dt);
+  if (G.photoT > 0) G.photoT = Math.max(0, G.photoT - dt);
   if (G.state === 'swap') {
     G.swapT += dt;
     if (G.swapT > 0.45) { newMouth(); G.state = 'play'; }
@@ -6290,6 +6625,7 @@ function frame(ms) {
     case 'menu': drawMenu(); break;
     case 'how': drawHow(); break;
     case 'skins': drawSkins(); break;
+    case 'summer': drawSummer(dt); break;
     case 'tutorial': drawTutorial(dt); break;
     case 'ranger': drawRangerSelect(); break;
     case 'intro': drawIntro(dt); break;
@@ -6344,7 +6680,7 @@ requestAnimationFrame(frame);
 // -------------------------------------------- pause, settings, credits ----
 function togglePause() {
   if (G.overlay) { G.overlay = null; return; }
-  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
+  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'summer' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
   G.paused = !G.paused;
   sfx.pause();
 }
