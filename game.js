@@ -177,7 +177,7 @@ function trackNow() {
   if (typeof G === 'undefined') return TRACKS.menu;
   if (G.paused) return null;
   switch (G.state) {
-    case 'menu': case 'ranger': case 'how': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
+    case 'menu': case 'ranger': case 'how': case 'skins': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
     case 'intro': return TRACKS.boss;
     case 'map': case 'event': return TRACKS.map;
     case 'shop': case 'bench': return TRACKS.shop;
@@ -818,6 +818,7 @@ function drawTooth(x, y, w, h, up, type, o) {
 const CROC_STYLES = {
   small: { a: '#5aa843', b: '#3c7c2e', c: '#8cd34f', d: '#295722', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f8f4dc' },
   turtle: { a: '#8a9a4e', b: '#5c6a2e', c: '#b0bc6a', d: '#3a4420', maw: '#5a2a1a', mawD: '#3a1a0e', tongue: '#d0766a', tongueHi: '#e89a8a', sclera: '#f8f4dc', shell: true, sleepy: true },
+  lilgator: { a: '#6cbe4c', b: '#4a9636', c: '#9ce85c', d: '#2e6322', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f8f4dc', baby: true },
   big: { a: '#4e8f3d', b: '#2f6626', c: '#79b944', d: '#1f4519', maw: '#40101c', mawD: '#2a0a12', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e8c8', scars: true, ridge: true },
   twofang: { a: '#57755a', b: '#3a523e', c: '#7d9a80', d: '#263a2a', maw: '#3a0e18', mawD: '#260810', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e0c0', fangs: true, scars: true },
   murky: { a: '#7a6a40', b: '#584a28', c: '#9c8c58', d: '#3a3018', maw: '#3a2010', mawD: '#281408', tongue: '#a86040', tongueHi: '#c08058', sclera: '#d8d0a8', algae: true, sleepy: true },
@@ -839,11 +840,13 @@ const CROC_STYLES = {
   bogqueen: { a: '#8a5a9a', b: '#623e70', c: '#b07cc4', d: '#3e2848', maw: '#3a1030', mawD: '#280a20', tongue: '#c94f8a', tongueHi: '#e077aa', sclera: '#f4e8ff', crown: true, bags: true },
   apexpred: { a: '#2e3a34', b: '#1c2620', c: '#48584e', d: '#0e1612', maw: '#2e0810', mawD: '#1c040a', tongue: '#8a3040', tongueHi: '#a84858', sclera: '#e8d0c0', redEye: true, scars: true, fangs: true, ridge: true },
 };
+// the round-0 "small" node is a lil baby gator (smaller body + mouth, see mouthLayout)
+function lilGator() { return G.state !== 'menu' && G.round === 0 && G.nodeType === 'small'; }
 function crocStyle() {
   if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
   if (G.state !== 'menu' && G.nodeType === 'gold') return CROC_STYLES.gold;
   if (G.state !== 'menu' && G.round === 1) return CROC_STYLES.big;
-  if (G.state !== 'menu' && G.round === 0 && G.nodeType === 'small') return CROC_STYLES.turtle;
+  if (lilGator()) return CROC_STYLES.lilgator;
   return CROC_STYLES.small;
 }
 
@@ -935,7 +938,7 @@ const CHARMS = [
   { id: 'airhorn', name: 'AIR HORN', cost: 7, rar: 2, ico: 'skull', tier: 14, desc: '+1 BITE during BOSS rounds', flav: 'HONK. The boss blinked.' },
   { id: 'goldgrill', name: 'GOLD GRILL', cost: 8, rar: 2, ico: 'tooth', tier: 15, desc: 'GOLDEN gators pay +$5 extra', flav: 'Match their smile.' },
   // ---- nature & wildlife badges (gacha) ----
-  { id: 'heronfeather', name: 'HERON FEATHER', cost: 4, rar: 0, ico: 'eye', tier: 1, desc: '+1 X-RAY against SNAPPY TURTLES', flav: 'Sharp eyes molt off.' },
+  { id: 'heronfeather', name: 'HERON FEATHER', cost: 4, rar: 0, ico: 'eye', tier: 1, desc: '+1 X-RAY against SNAPPY GATORS', flav: 'Sharp eyes molt off.' },
   { id: 'otterpaw', name: 'OTTER PAW', cost: 6, rar: 1, ico: 'coin', tier: 4, desc: 'CLEAN SWEEPS pay +$3', flav: 'Slippery little bonus.' },
   { id: 'cypressroot', name: 'CYPRESS ROOT', cost: 7, rar: 2, ico: 'tooth', tier: 6, desc: '+1 tooth in every mouth', flav: 'Everything grows in the glades.' },
   { id: 'dragonfly', name: 'DRAGONFLY WING', cost: 5, rar: 1, ico: 'bolt', tier: 9, desc: 'Mini-games pay +2 SCOUT COOKIES', flav: 'Four wings, no waiting.' },
@@ -996,7 +999,7 @@ const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth,
 
 // ------------------------------------------------------------ map nodes ---
 const NODE_DEFS = {
-  small: { name: 'SNAPPY TURTLE', mult: 1, reward: 3, col: '#63d66a' },
+  small: { name: 'SNAPPY GATOR', mult: 1, reward: 3, col: '#63d66a' },
   big: { name: 'RISKY GATOR', mult: 1.5, reward: 5, col: '#ff9838' },
   gold: { name: 'GOLDEN GATOR', mult: 1.9, reward: 8, col: '#ffc843' },
   event: { name: 'SWAMP EVENT', col: '#c07dff' },
@@ -1022,7 +1025,7 @@ const GOOD_MODS = Object.keys(NODE_MODS).filter(k => !NODE_MODS[k].bad);
 const ANTE_BASE = [120, 320, 760, 1700, 3800, 7200, 12400, 15000]; // doubled: the swamp shows no mercy
 const ROUND_MULT = [1, 1.5, 2];
 const ROUND_REWARD = [4, 5, 8];
-const ROUND_NAMES = ['SNAPPY TURTLE', 'BIG GATOR', 'BOSS'];
+const ROUND_NAMES = ['SNAPPY GATOR', 'BIG GATOR', 'BOSS'];
 
 function targetFor(ante, round) {
   let base = ante <= 8 ? ANTE_BASE[ante - 1] : ANTE_BASE[7] * Math.pow(1.6, ante - 8);
@@ -1045,10 +1048,14 @@ const GLOVES = {
   neon: { name: 'NEON BOG', skin: '#4ef0c8', shade: '#1fa888', cuff: '#0a5a48', gacha: true, pat: 'shine', flav: 'Glows in the murk.' },
   candy: { name: 'CANDY WRAP', skin: '#ff8ab0', shade: '#d05580', cuff: '#fff0f8', gacha: true, pat: 'dot', flav: 'Do not lick.' },
   starry: { name: 'NIGHT SKY', skin: '#3a4a9a', shade: '#252f6a', cuff: '#ffd54a', gacha: true, pat: 'gem', flav: 'Wears the stars.' },
+  chrome: { name: 'CHROME CLAW', skin: '#c8d4dc', shade: '#8a98a0', cuff: '#3a444c', shop: true, flav: 'Polished to a fault.' },
+  voodoo: { name: 'VOODOO WRAP', skin: '#7a4fa8', shade: '#4a2a70', cuff: '#e0c060', shop: true, flav: 'Rattles when you floss.' },
+  frost: { name: 'FROSTBITE', skin: '#bfe8f5', shade: '#6aa8c8', cuff: '#e8f8ff', gacha: true, flav: 'Numbs the whole hand.' },
+  lava: { name: 'MAGMA FIST', skin: '#3a2018', shade: '#1e1008', cuff: '#c93818', gacha: true, flav: 'Cauterizes as it grips.' },
 };
-const GLOVE_ORDER = ['bare', 'rubber', 'leather', 'croc', 'gold', 'bone', 'pearl', 'royal', 'neon', 'candy', 'starry'];
+const GLOVE_ORDER = ['bare', 'rubber', 'leather', 'croc', 'gold', 'bone', 'pearl', 'royal', 'neon', 'candy', 'starry', 'chrome', 'voodoo', 'frost', 'lava'];
 // rarity per glove (0..5) - drives cosmetic-stand price + rarity ring
-const GLOVE_RAR = { bare: 0, rubber: 0, leather: 1, croc: 2, bone: 2, gold: 3, pearl: 3, neon: 3, candy: 3, royal: 4, starry: 5 };
+const GLOVE_RAR = { bare: 0, rubber: 0, leather: 1, croc: 2, bone: 2, gold: 3, pearl: 3, neon: 3, candy: 3, royal: 4, starry: 5, chrome: 3, voodoo: 4, frost: 4, lava: 5 };
 
 // ------------------------------------------- HATS (worn on the hand) ------
 // A second cosmetic slot for your dentist hand. Most are bought at the shop's
@@ -1171,6 +1178,10 @@ const GLOVE_RAMP = {
   candy: { o: '#a83f63', s: '#d05580', b: '#ff8ab0', l: '#fff0f8', h: '#ffffff' },
   pearl: { o: '#8878a8', s: '#c8c0d8', b: '#f4f0f8', l: '#ffffff', h: '#ffffff', ic: '#d6f2ef', ip: '#f6dbe9' },
   royal: { o: '#3a1a68', s: '#5a2a90', b: '#8a4fd0', l: '#a878e0', h: '#d8c0ff', trim: '#ffd54a', gr: '#ff5348', gb: '#3f8cff' },
+  chrome: { o: '#3a444c', s: '#8a98a0', b: '#c8d4dc', l: '#eef4f8', h: '#ffffff' },
+  voodoo: { o: '#2e1848', s: '#4a2a70', b: '#7a4fa8', l: '#a878d8', h: '#d8c0ff', charm: '#e0c060', bone: '#f0e8d0' },
+  frost: { o: '#3a6a88', s: '#6aa8c8', b: '#bfe8f5', l: '#e8f8ff', h: '#ffffff', ice: '#8fd8f0' },
+  lava: { o: '#1e1008', s: '#5a2410', b: '#8a3818', l: '#e05828', h: '#ffb040', crack: '#ff9838', hot: '#ffe089' },
 };
 
 // distinctive on-hand sprite treatment per glove (keyed on id, pat fallback)
@@ -1218,6 +1229,29 @@ function drawGloveDeco(x, y, fl, gid, g, grab) {
       rect(px + 2, py + 2, 2, 2, R.trim); rect(px + 2, py + 2, 1, 1, R.gr); rect(px + 3, py + 3, 1, 1, R.gb); rect(px + 2, py + 2, 1, 1, R.h);
       if (grab) { for (let k = 0; k < 4; k += 2) rect(x - 5 + k * 3, y - 1, 1, 1, R.trim); }
       break;
+    /* CHROME — mirror-metal plating with a hard specular band */
+    case 'chrome':
+      if (!grab) { rect(x - 1, y + 2, 1, fl - 2, R.h); rect(x - 4, y + fl - 1, 14, 1, R.h); rect(x - 4, y + fl + 8, 14, 1, R.o); rect(px + 1, py + 2, 4, 1, R.l); rect(px + 2, py + 4, 3, 1, R.s); }
+      else { for (let k = 0; k < 4; k++) rect(x - 5 + k * 3, y - 1, 2, 1, R.h); rect(x - 6, y + 3, 14, 1, R.l); rect(x - 6, y + 8, 14, 1, R.o); }
+      break;
+    /* VOODOO — stitched wrap + a dangling bone charm */
+    case 'voodoo': {
+      const cy2 = grab ? y + 9 : y + fl + 8;
+      rect(px, py + 1, 8, 1, R.s); rect(px + 1, py + 3, 6, 1, R.s); rect(px, py + 5, 8, 1, R.s); // wrap stitches
+      rect(px + 2, py + 1, 1, 1, R.l); rect(px + 5, py + 5, 1, 1, R.l);
+      rect(px + 6, cy2, 1, 4, R.charm); rect(px + 5, cy2 + 4, 3, 1, R.bone); rect(px + 5, cy2 + 3, 1, 2, R.bone); rect(px + 7, cy2 + 3, 1, 2, R.bone); // bone charm
+      break; }
+    /* FROSTBITE — frost crystals + icy rim */
+    case 'frost':
+      if (!grab) { rect(x - 1, y, 1, fl, R.h); rect(px + 1, py + 2, 1, 1, R.h); rect(px + 4, py + 3, 1, 1, R.h); rect(px + 2, py + 5, 1, 1, R.ice); rect(px + 3, py + 1, 1, 3, R.ice); rect(px + 2, py + 2, 3, 1, R.ice); }
+      else { rect(x - 6, y - 1, 1, 11, R.h); rect(x - 3, y + 3, 1, 3, R.ice); rect(x - 4, y + 4, 3, 1, R.ice); rect(x + 3, y + 5, 1, 1, R.h); }
+      break;
+    /* MAGMA — glowing crack lines through cooled rock */
+    case 'lava': {
+      const hot = (tNow * 4 | 0) % 2 ? R.crack : R.hot;
+      if (!grab) { rect(x, y + 2, 1, fl - 2, hot); rect(px + 1, py + 1, 4, 1, R.crack); rect(px + 2, py + 3, 1, 2, hot); rect(px + 4, py + 4, 3, 1, R.crack); rect(px, py + 6, 3, 1, hot); }
+      else { for (let k = 0; k < 4; k++) rect(x - 5 + k * 3, y, 1, 3, k % 2 ? hot : R.crack); rect(x - 4, y + 5, 10, 1, R.crack); rect(x, y + 7, 4, 1, hot); }
+      break; }
     default:
       if (g.pat === 'scale') { rect(px + 1, py + 1, 2, 2, g.shade); rect(px + 4, py + 3, 2, 2, g.shade); rect(px + 2, py + 6, 2, 2, g.shade); }
       else if (g.pat === 'dot') { rect(px + 1, py + 2, 1, 1, g.shade); rect(px + 4, py + 4, 1, 1, g.shade); rect(px + 2, py + 7, 1, 1, g.shade); }
@@ -1258,6 +1292,22 @@ const GLOVE_FX = {
   },
   pearl(x, y, fl, grab) {
     const s = (tNow * 9 | 0) % 18; if (s < 7) { ctx.globalAlpha = 0.4; const bx0 = grab ? x - 6 : x - 4, by0 = grab ? y - 1 : y + fl - 1; rect(bx0 + s, by0 + s, 1, 2, '#ffffff'); ctx.globalAlpha = 1; }
+  },
+  chrome(x, y, fl, grab) { // hard specular glint sweeping the plating
+    const s = (tNow * 14 | 0) % 20; if (s < 6) { ctx.globalAlpha = 0.7; const bx0 = grab ? x - 6 : x - 4, by0 = grab ? y - 1 : y + fl - 1; rect(bx0 + s, by0 + s, 1, 3, '#ffffff'); ctx.globalAlpha = 1; }
+  },
+  voodoo(x, y, fl, grab) { // purple wisp drifting up
+    const cx = grab ? x + 1 : x + 2, cy = grab ? y + 4 : y + fl + 4;
+    for (let i = 0; i < 2; i++) { const t = (tNow * 0.6 + i * 0.5) % 1; ctx.globalAlpha = (1 - t) * 0.5; rect((cx + Math.sin(tNow * 3 + i * 2) * 3) | 0, (cy - t * 12) | 0, 1, 1, i ? '#a878d8' : '#d8c0ff'); }
+    ctx.globalAlpha = 1;
+  },
+  frost(x, y, fl, grab) { // slow-falling snow motes + icy rim shimmer
+    if (rnd() < 0.25) parts.push({ x: (grab ? x : x) + ri(-5, 7), y: (grab ? y : y + fl) + ri(-2, 4), vx: (rnd() - 0.5) * 6, vy: 8 + rnd() * 10, g: 8, t: 0, life: 0.6 + rnd() * 0.4, col: rnd() < 0.5 ? '#e8f8ff' : '#8fd8f0', sz: 1 });
+    ctx.globalAlpha = 0.3 + 0.2 * Math.sin(tNow * 3); const rx = grab ? x - 6 : x - 4, ry = grab ? y + 9 : y + fl + 9; rect(rx + ((tNow * 6 | 0) % 14), ry, 1, 1, '#ffffff'); ctx.globalAlpha = 1;
+  },
+  lava(x, y, fl, grab) { // rising embers + a hot flicker glow
+    ctx.globalAlpha = 0.08 + 0.05 * Math.sin(tNow * 11); fillCircle(grab ? x + 1 : x + 2, grab ? y + 4 : y + fl + 3, 9, '#ff6a20'); ctx.globalAlpha = 1;
+    if (rnd() < 0.45) parts.push({ x: (grab ? x : x) + ri(-4, 6), y: (grab ? y : y + fl) + ri(0, 6), vx: (rnd() - 0.5) * 6, vy: -8 - rnd() * 12, g: -4, t: 0, life: 0.4 + rnd() * 0.4, col: rnd() < 0.5 ? '#ff9838' : '#ffe089', sz: 1 });
   },
 };
 
@@ -1301,12 +1351,9 @@ const HAT_FX = {
 
 function drawCosmeticFx(x, y, grab) {
   const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
-  const hid = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   const press = handPressT > 0 ? 2 : 0, fl = press ? 7 : 9;
-  const bx = grab ? x + 1 : x, by = grab ? y - 2 : y + 2;
   ctx.save();
   const gf = GLOVE_FX[gid]; if (gf) gf(x, y, fl, grab);
-  const hf = HAT_FX[hid]; if (hf) hf(bx, by, grab);
   ctx.globalAlpha = 1;
   ctx.restore();
 }
@@ -1570,7 +1617,7 @@ function unlock(id) {
   addRP(25);
   sfx.ach();
 }
-const gloveUnlocked = k => !!meta.gachaOwn[k] || (GLOVES[k].gacha ? false : (!GLOVES[k].ach || !!meta.ach[GLOVES[k].ach]));
+const gloveUnlocked = k => !!meta.gachaOwn[k] || ((GLOVES[k].gacha || GLOVES[k].shop) ? false : (!GLOVES[k].ach || !!meta.ach[GLOVES[k].ach]));
 ensureDaily();
 
 // ------------------------------------------------------------ state -------
@@ -1795,6 +1842,7 @@ function closeEvent() {
 function mouthSizeFor() {
   let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0) + (bossIs('king') ? 2 : 0)
     + (G.ranger === 'scout' ? 1 : 0) + (has('cypressroot') ? 1 : 0);
+  if (lilGator()) size = Math.min(size, 8); // the lil gator has a small mouth
   return Math.max(6, Math.min(size, G.deck.length));
 }
 
@@ -2550,7 +2598,8 @@ function toggleXrayMode() {
 // ------------------------------------------------------------ layout ------
 const SIDEBAR = { x: 2, y: 2, w: 110, h: 266 };
 function mouthLayout() {
-  const maw = { x: 186, y: 112, w: 216, h: 92 };
+  // the lil gator has a much smaller, re-centered mouth (body geometry follows the maw)
+  const maw = lilGator() ? { x: 230, y: 128, w: 128, h: 64 } : { x: 186, y: 112, w: 216, h: 92 };
   const n = G.mouth.length;
   const topN = Math.ceil(n / 2), botN = n - topN;
   const slots = [];
@@ -4300,13 +4349,10 @@ function drawMenu() {
   drawTextSh(fmt(meta.rp || 0) + ' COOKIES', 24, 163, C.gold, 1);
   if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 178, '#8fa6a8', 1);
 
-  // ===== bottom: big NEW RUN + utility row, flanked by cosmetic racks =====
-  // center dock planks behind the buttons
-  rect(120, 186, 240, 84, '#3a2818'); rect(120, 186, 240, 3, '#4a3320');
-  for (let x = 132; x < 360; x += 34) rect(x, 189, 1, 81, '#2e1f12');
-  button(W / 2 - 82, 192, 164, 36, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'start', sc: 2 });
+  // ===== bottom: big PLAY + a compact utility row (no board) =====
+  button(W / 2 - 82, 190, 164, 38, 'NEW RUN', '#d94f30', '#8a2a16', startRun, { id: 'start', sc: 2 });
   const UBTN = [
-    ['HOW TO', '#3a5560', '#243a44', () => { G.howFrom = 'menu'; G.state = 'how'; }, 'how', null],
+    ['SKINS', '#2c6b58', '#184234', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
     ['GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
     ['SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, 'setbtn', null],
     ['CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, 'credbtn', null],
@@ -4314,41 +4360,161 @@ function drawMenu() {
   UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
     const bx = 122 + i * 60;
     button(bx, 238, 56, 22, label, c1, c2, cb, {
-      id, sub, subCol: C.gold,
-      tip: id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
+      id, sub, subCol: id === 'skinsbtn' ? '#8fe8c8' : C.gold,
+      tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|hats + gloves, equip and show off'
+        : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
     });
   });
+}
+// first NEW RUN runs the tutorial once, then goes to ranger select
+function startRun() { if (!meta.tutDone) startTutorial(); else { G.state = 'ranger'; sfx.whoosh(); } }
 
-  // ---- cosmetic racks: GLOVES (left) + HATS (right) ----
-  const rack = (px, title, order, sel, isOpen, art, tipFor, equip) => {
-    panel(px, 182, 112, 80, { face: '#16222acc' });
+// ------------------------------------------------ character (hat + glove) --
+// the player's dentist: chosen ranger head wearing the equipped HAT, with the
+// equipped GLOVE on a raised fist. cy = head-center y.
+function drawCharacter(cx, cy) {
+  const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
+  const g = GLOVES[gid];
+  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
+  const yy = cy + Math.round(Math.sin(tNow * 1.5) * 1);
+  // shadow
+  ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, yy + 52, 20, '#000'); ctx.restore();
+  // torso: ranger vest over a shirt
+  rr(cx - 16, yy + 15, 32, 36, 6, '#20140c');
+  rr(cx - 15, yy + 16, 30, 34, 6, '#2c4436');
+  rect(cx - 5, yy + 16, 10, 32, '#e8e0c8');
+  rect(cx - 15, yy + 18, 5, 28, '#3a5a44'); rect(cx + 10, yy + 18, 5, 28, '#3a5a44');
+  rect(cx - 1, yy + 20, 2, 24, '#b8a068'); rect(cx - 11, yy + 22, 4, 3, C.gold); rect(cx - 10, yy + 23, 1, 1, '#fff6c8');
+  // head (chosen ranger) + hat worn on top
+  drawRangerFace(cx - 14, yy - 16, meta.ranger || 'scout');
+  if (hatKey !== 'none') drawHatArt(cx, yy - 14, hatKey, 2);
+  // raised gloved fist (mirrors drawHand's grab shape, static)
+  const hx = cx + 23, hy = yy + 16;
+  rect(cx + 12, yy + 18, 12, 4, '#2c4436'); rect(cx + 12, yy + 18, 12, 1, '#3a5a44');
+  rr(hx - 7, hy - 2, 16, 13, 3, '#20140c'); rr(hx - 6, hy - 1, 14, 11, 3, g.skin);
+  for (let k = 0; k < 4; k++) rect(hx - 5 + k * 3, hy - 1, 2, 3, g.shade);
+  rr(hx - 8, hy + 3, 4, 6, 2, g.skin);
+  drawGloveDeco(hx, hy, 0, gid, g, true);
+  rr(hx - 7, hy + 10, 16, 5, 1, '#20140c'); rr(hx - 6, hy + 10, 14, 4, 1, g.cuff);
+  // signature effects (glove on the fist, hat above the head)
+  ctx.save();
+  const gf = GLOVE_FX[gid]; if (gf) gf(hx, hy, 9, true);
+  const hf = HAT_FX[hatKey]; if (hf) hf(cx, yy - 14, false);
+  ctx.globalAlpha = 1; ctx.restore();
+}
+
+// --------------------------------------------------- SKINS (cosmetics) -----
+function drawSkins() {
+  const th = THEMES.shop;
+  drawSceneBack(th); drawSceneFront(th);
+  overlayDim(0.55);
+  drawTextCSh('SKINS', W / 2, 8, C.gold, 3);
+  drawTextC('DRESS UP YOUR DENTIST - CLICK A STAND TO EQUIP', W / 2, 30, '#c8b8a0', 1);
+
+  // ---- center: your character on a little pedestal ----
+  const cx = W / 2, cyH = 96;
+  rr(cx - 30, cyH + 58, 60, 10, 4, '#3a2818'); rr(cx - 28, cyH + 56, 56, 6, 3, '#5f4228'); rect(cx - 26, cyH + 57, 52, 1, '#8a6a3a'); // pedestal
+  drawCharacter(cx, cyH);
+  const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HAND';
+  const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'BARE HEAD';
+  drawTextCSh(hname, cx, cyH + 72, '#e0d0b0', 1);
+  drawTextCSh(gname, cx, cyH + 82, '#e0d0b0', 1);
+
+  // ---- glove stand (left) + hat stand (right) ----
+  const stand = (sx, title, order, cur, isOpen, art, tipFor, equip, lockNote) => {
+    const sw = 150, sh = 214, sy = 44;
+    // wooden display case
+    rr(sx - 2, sy + 2, sw + 4, sh, 4, '#00000066');
+    rr(sx, sy, sw, sh, 4, '#5f4228'); rr(sx + 3, sy + 3, sw - 6, sh - 6, 3, '#2a1c30');
+    rect(sx + 3, sy + 3, sw - 6, 2, '#7a5a34');
+    panel(sx + 10, sy - 6, sw - 20, 14, { face: '#4a3320', edge: '#c8a040', r: 2 });
+    drawTextCSh(title, sx + sw / 2, sy - 2, '#ffe6b0', 1);
     const owned = order.filter(isOpen).length;
-    drawTextC(title + ' ' + owned + '/' + order.length, px + 56, 186, C.dim, 1);
+    drawTextC(owned + '/' + order.length, sx + sw / 2, sy + sh - 12, '#8a7a58', 1);
+    const cols = 5, cw = 26, ch2 = 28, gx0 = sx + (sw - cols * cw) / 2 + 2, gy0 = sy + 16;
     order.forEach((k, i) => {
-      const cx = px + 6 + (i % 6) * 17, cy = 197 + Math.floor(i / 6) * 19;
-      const open = isOpen(k), on = sel() === k;
-      rr(cx, cy, 16, 16, 2, on ? C.gold : '#0d161b');
-      rr(cx + 1, cy + 1, 14, 14, 2, open ? '#243642' : '#141c22');
-      if (open) art(cx, cy, k); else drawTextC('?', cx + 8, cy + 5, '#41565e', 1);
-      hit(cx, cy, 16, 16, {
-        id: title + k, cursor: open, tip: tipFor(k, open, on),
+      const gx = gx0 + (i % cols) * cw, gy = gy0 + Math.floor(i / cols) * ch2;
+      const open = isOpen(k), on = cur() === k, rar = (order === GLOVE_ORDER ? GLOVE_RAR[k] : HATS[k].rar) || 0;
+      rr(gx, gy, 22, 24, 3, on ? C.gold : (open ? RAR_COL[rar] : '#0d161b'));
+      rr(gx + 1, gy + 1, 20, 22, 2, open ? '#2a3a30' : '#141c22');
+      if (open) art(gx + 11, gy + 13, k); else drawTextC('?', gx + 11, gy + 8, '#41565e', 1);
+      hit(gx, gy, 22, 24, {
+        id: title + k, cursor: true, tip: tipFor(k, open, on),
         cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); },
       });
     });
   };
-  rack(4, 'GLOVES', GLOVE_ORDER, () => meta.glove, gloveUnlocked,
-    (cx, cy, k) => ICONS.glove(cx + 2, cy + 2, GLOVES[k].skin),
-    (k, open, on) => {
-      const a = ACHS.find(a => a.id === GLOVES[k].ach);
-      return open ? (GLOVES[k].name + '|' + GLOVES[k].flav + (on ? '|EQUIPPED' : '|CLICK TO EQUIP'))
-        : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : a ? 'ACHIEVEMENT: ' + a.name + '|' + a.desc : 'BUY AT THE SHOP CLOSET'));
-    },
+  stand(6, 'GLOVE STAND', GLOVE_ORDER, () => meta.glove, gloveUnlocked,
+    (mx2, my2, k) => { ctx.save(); ctx.translate(mx2 - 6, my2 - 6); ICONS.glove(0, 0, GLOVES[k].skin); ctx.restore(); },
+    (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + '|' + GLOVES[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
     k => { meta.glove = k; });
-  rack(364, 'HATS', HAT_ORDER, () => meta.hat, hatUnlocked,
-    (cx, cy, k) => { if (HATS[k].ico === 'none') rect(cx + 4, cy + 10, 8, 2, '#54707a'); else drawHatArt(cx + 8, cy + 13, k, 1); },
-    (k, open, on) => open ? (HATS[k].name + '|' + HATS[k].flav + (on ? '|EQUIPPED' : '|CLICK TO EQUIP'))
-      : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
+  stand(324, 'HAT STAND', HAT_ORDER, () => meta.hat, hatUnlocked,
+    (mx2, my2, k) => { if (HATS[k].ico === 'none') rect(mx2 - 4, my2 - 1, 8, 2, '#54707a'); else drawHatArt(mx2, my2 + 5, k, 1); },
+    (k, open, on) => open ? (HATS[k].name + '|' + HATS[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
     k => { meta.hat = k; });
+
+  button(W / 2 - 78, 244, 74, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
+  button(W / 2 + 4, 244, 74, 20, 'TUTORIAL', '#7a4fd0', '#4a2a8a', () => { startTutorial(); }, { id: 'skintut', tip: 'REPLAY THE TUTORIAL' });
+}
+
+// ------------------------------------------------- interactive tutorial ----
+const TUT_STEPS = [
+  { t: 'WELCOME, DENTIST!', b: ['A gator hides a mouth full of teeth.', 'Some are safe. ONE is a SNAPPER.'], demo: 'gator' },
+  { t: 'PRESS SAFE TEETH', b: ['Each safe tooth adds to TEETH and', 'grows your MULT chain by +1.'], demo: 'press' },
+  { t: 'BANK YOUR BITE', b: ['TEETH x MULT is your bite. BANK it', 'to lock the score in - or push your luck.'], demo: 'bank' },
+  { t: 'MIND THE SNAPPER', b: ['Press the snap tooth and the jaw SLAMS -', 'you lose the whole unbanked bite!'], demo: 'snap' },
+  { t: 'USE YOUR X-RAYS', b: ['Out of ideas? X-RAY reveals if a', 'tooth is safe or a snapper. 3 per round.'], demo: 'xray' },
+  { t: "YOU'RE READY!", b: ['Hit the target before your BITES run out,', 'climb 8 antes. Good luck out there!'], demo: 'win' },
+];
+function startTutorial() { G.tut = { step: 0, t: 0 }; G.state = 'tutorial'; sfx.whoosh(); }
+function drawTutorial(dt) {
+  const th = THEMES.night;
+  drawSceneBack(th); drawSceneFront(th);
+  overlayDim(0.6);
+  const tut = G.tut; if (!tut) { G.state = 'menu'; return; }
+  tut.t += dt;
+  const st = TUT_STEPS[tut.step];
+  // demo panel: a little animated illustration
+  const dx = W / 2, dy = 66;
+  panel(dx - 60, dy - 40, 120, 74, { face: '#0e1a20f0', edge: C.gold });
+  const dcx = dx, dcy = dy;
+  if (st.demo === 'gator') { // mini gator with teeth, one flashing red
+    rr(dcx - 34, dcy - 20, 68, 16, 5, '#3c7c2e'); rect(dcx - 30, dcy - 19, 60, 1, '#5aa843');
+    for (let k = 0; k < 6; k++) rect(dcx - 26 + k * 9, dcy - 4, 6, 8, k === 3 && (tNow * 3 | 0) % 2 ? C.red : '#f4f0dc');
+    rr(dcx - 34, dcy + 4, 68, 10, 4, '#2f6626');
+    rect(dcx + 24 + ((tNow * 2 | 0) % 2 ? 0 : 1) - 30, dcy - 14, 4, 4, '#ffe089');
+  } else if (st.demo === 'press') { // finger tapping a tooth, +count floats
+    rect(dcx - 24, dcy - 16, 48, 20, '#4a1420'); for (let k = 0; k < 5; k++) rect(dcx - 22 + k * 9, dcy - 14, 6, 10, '#f4f0dc');
+    const tp = Math.sin(tNow * 4) > 0; rect(dcx - 2, dcy - 20 - (tp ? 0 : 3), 5, 12, '#e8b088'); rect(dcx - 2, dcy - 20 - (tp ? 0 : 3), 5, 3, '#3a5560');
+    if (tp) drawTextC('+3', dcx + 12, dcy - 22, C.blue, 1);
+  } else if (st.demo === 'bank') { // chips TEETH x MULT = float
+    chip(dcx - 44, dcy - 8, 26, 12, 12, '#1565b5', '#0c3f75'); drawTextC('X', dcx - 12, dcy - 6, C.red, 1);
+    chip(dcx - 4, dcy - 8, 22, 12, 4, '#c22a20', '#801812');
+    drawTextCSh('= ' + fmt(48 + (Math.sin(tNow * 3) > 0 ? 0 : 0)), dcx + 30, dcy - 8, C.gold, 1);
+    if ((tNow * 2 | 0) % 2) drawTextC('BANK!', dcx, dcy + 14, C.green, 1);
+  } else if (st.demo === 'snap') { // jaw slamming
+    const cl = (Math.sin(tNow * 4) + 1) / 2 * 10;
+    rr(dcx - 30, dcy - 22 + cl, 60, 14, 5, '#3c7c2e');
+    rr(dcx - 30, dcy + 6 - cl, 60, 14, 5, '#2f6626');
+    for (let k = 0; k < 5; k++) { rect(dcx - 24 + k * 10, dcy - 10 + cl, 5, 6, '#f4f0dc'); rect(dcx - 24 + k * 10, dcy + 4 - cl, 5, 6, '#f4f0dc'); }
+    if (cl < 2) drawTextCSh('SNAP!', dcx, dcy - 4, C.red, 2);
+  } else if (st.demo === 'xray') { // a scanned tooth
+    rr(dcx - 8, dcy - 18, 16, 26, 3, '#0a2440'); rect(dcx - 1, dcy - 15, 2, 18, '#bfe8ff'); rect(dcx - 4, dcy + 1, 2, 5, '#bfe8ff'); rect(dcx + 2, dcy + 1, 2, 5, '#bfe8ff');
+    const sw3 = (tNow % 1); rect(dcx - 8, dcy - 18 + sw3 * 24, 16, 1, '#8fe8ff');
+    drawTextC('SAFE?', dcx, dcy + 12, '#9fe8ff', 1);
+  } else { drawTextCSh('8 ANTES', dcx, dcy - 12, C.gold, 2); for (let i = 0; i < 8; i++) rect(dcx - 30 + i * 8, dcy + 8, 5, 5, i < ((tNow * 3) % 9) ? C.green : '#2a3a30'); }
+  // text card
+  drawTextCSh(st.t, W / 2, 122, C.gold, 2);
+  st.b.forEach((ln, i) => drawTextCSh(ln, W / 2, 144 + i * 12, C.white, 1));
+  // progress dots
+  for (let i = 0; i < TUT_STEPS.length; i++) rect(W / 2 - TUT_STEPS.length * 4 + i * 8, 172, 5, 5, i === tut.step ? C.gold : '#3a4a50');
+  const last = tut.step >= TUT_STEPS.length - 1;
+  button(W / 2 - 60, 190, 120, 26, last ? 'START PLAYING >' : 'NEXT >', '#d94f30', '#8a2a16', () => {
+    if (last) { meta.tutDone = true; saveMeta(); G.tut = null; G.state = 'ranger'; sfx.whoosh(); }
+    else { tut.step++; tut.t = 0; sfx.click(2); }
+  }, { id: 'tutnext' });
+  if (tut.step > 0) button(W / 2 - 60, 220, 56, 16, '< BACK', '#3a5560', '#243a44', () => { tut.step--; tut.t = 0; }, { id: 'tutback' });
+  if (!last) button(W / 2 + 4, 220, 56, 16, 'SKIP', '#3a5560', '#243a44', () => { meta.tutDone = true; saveMeta(); G.tut = null; G.state = 'ranger'; }, { id: 'tutskip' });
 }
 
 function drawHow() {
@@ -4490,7 +4656,7 @@ function nodePos(stage, k, count) {
   return { x: xs[stage], y: ys[k] };
 }
 function drawMiniGator(x, y, type) {
-  const cols = { small: ['#8a9a4e', '#5c6a2e'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
+  const cols = { small: ['#6cbe4c', '#4a9636'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
   const [a, b] = cols[type] || cols.small;
   rr(x, y + 4, 22, 9, 3, a);
   rr(x + 1, y + 10, 20, 4, 2, b);
@@ -4499,7 +4665,7 @@ function drawMiniGator(x, y, type) {
     rect(ex + 2, y + 2, 3, 3, '#f8f4dc');
     rect(ex + 3, y + 3, 1, 2, '#1b1408');
   });
-  if (type === 'small') { rr(x + 4, y - 4, 14, 6, 3, '#5c6a2e'); rect(x + 7, y - 3, 3, 2, '#3a4420'); rect(x + 12, y - 3, 3, 2, '#3a4420'); } // turtle shell
+  if (type === 'small') { rect(x + 5, y + 2, 2, 2, '#4a9636'); rect(x + 15, y + 2, 2, 2, '#4a9636'); rect(x + 3, y + 8, 2, 1, '#9ce85c'); rect(x + 17, y + 8, 2, 1, '#9ce85c'); } // lil gator snout scutes + nostrils
   if (type === 'gold') { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 16, y + 2, 1, 1, '#fff6c8'); }
   if (type === 'boss') { rect(x + 2, y - 2, 3, 3, C.red); rect(x + 9, y - 3, 3, 4, C.red); rect(x + 16, y - 2, 3, 3, C.red); }
 }
@@ -6005,7 +6171,6 @@ function drawHand() {
   if (!mouseSeen) return;
   const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
   const g = GLOVES[gid];
-  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   const press = handPressT > 0 ? 2 : 0;
   const grab = !!G.drag;
   const x = mx, y = my + press;
@@ -6047,12 +6212,8 @@ function drawHand() {
     rr(x - 4, y + fl + 9, 14, 4, 1, g.cuff);
     rect(x - 4, y + fl + 9, 14, 1, '#ffffff44');
   }
-  // the hat perches on top of the hand (a jaunty little dentist's topper)
-  if (hatKey !== 'none') {
-    if (grab) drawHatArt(x + 1, y - 2, hatKey, 1);
-    else drawHatArt(x, y + 2, hatKey, 1);
-  }
-  // signature per-frame cosmetic effects (sparkles, glow, embers, confetti)
+  // the hat is worn on the character sprite (drawCharacter), not the hand
+  // signature per-frame cosmetic effects for the glove (sparkles, glow, embers)
   drawCosmeticFx(x, y, grab);
 }
 
@@ -6128,6 +6289,8 @@ function frame(ms) {
   switch (G.state) {
     case 'menu': drawMenu(); break;
     case 'how': drawHow(); break;
+    case 'skins': drawSkins(); break;
+    case 'tutorial': drawTutorial(dt); break;
     case 'ranger': drawRangerSelect(); break;
     case 'intro': drawIntro(dt); break;
     case 'pass': drawPassScreen(dt); break;
@@ -6181,7 +6344,7 @@ requestAnimationFrame(frame);
 // -------------------------------------------- pause, settings, credits ----
 function togglePause() {
   if (G.overlay) { G.overlay = null; return; }
-  if (G.state === 'menu' || G.state === 'how' || G.state === 'ranger' || G.state === 'pass') return;
+  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
   G.paused = !G.paused;
   sfx.pause();
 }
