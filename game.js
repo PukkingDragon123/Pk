@@ -521,6 +521,13 @@ function drawSceneFront(th) {
       rect(tx - 1, ty, 3, 3, '#8a6238'); rect(tx + 3, ty + 1, 2, 2, '#8a6238');
     };
     palm(122); palm(150); palm(455); palm(470);
+    // sun-glints twinkling across the lagoon
+    for (let k = 0; k < 16; k++) { const gx = (k * 97 + 23) % W, gy = WATERY + 6 + (k * 53) % 50; if (Math.sin(tNow * 3 + k * 1.7) > 0.55) rect(gx, gy, 2, 1, '#eaffff'); }
+    // a couple of gulls drifting over the water
+    for (let g = 0; g < 2; g++) {
+      const gx = ((tNow * (11 + g * 5) + g * 250) % (W + 40)) - 20, gy = 52 + g * 16 + Math.sin(tNow * 0.8 + g) * 3, fw = Math.sin(tNow * 5 + g) > 0 ? 0 : -1;
+      rect((gx - 3) | 0, (gy + fw) | 0, 3, 1, '#3a4c56'); rect((gx + 1) | 0, (gy + fw) | 0, 3, 1, '#3a4c56'); rect(gx | 0, gy | 0, 1, 1, '#3a4c56');
+    }
   } else {
     // cattail reeds in the corners (clear of the sidebar)
     const reedAt = (x0, hh, k) => {
@@ -639,44 +646,51 @@ function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
   rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
 }
 
-// Merle the manatee shopkeep: big, round, beloved
+// Merle the manatee shopkeep: big, round, beloved - polished sea-cow
 function drawVendor(x, y) {
   const bob = Math.round(Math.sin(tNow * 1.3) * 1.5);
   const b = y + bob;
-  // great big egg of a body
-  fillCircle(x + 23, b + 31, 22, '#6f7e8e');
-  fillCircle(x + 23, b + 30, 21, '#9aaab8');
-  fillCircle(x + 20, b + 27, 17, '#a8b8c4');
-  // pale belly
-  fillCircle(x + 23, b + 36, 13, '#c4d0d8');
-  fillCircle(x + 23, b + 34, 11, '#d0dce2');
-  // park vest, straining at the sides
-  rect(x + 4, b + 18, 11, 26, '#4c6a30');
-  rect(x + 31, b + 18, 11, 26, '#4c6a30');
-  rect(x + 5, b + 19, 4, 24, '#5f8440');
-  rect(x + 37, b + 19, 4, 24, '#5f8440');
-  rect(x + 6, b + 23, 5, 4, C.gold); // ranger badge
-  rect(x + 7, b + 24, 2, 2, '#fff6c8');
-  // head sits right on the body, no neck to speak of
-  fillCircle(x + 23, b + 8, 14, '#6f7e8e');
-  fillCircle(x + 23, b + 7, 13, '#9aaab8');
-  fillCircle(x + 21, b + 5, 10, '#a8b8c4');
-  // droopy whiskered snout
-  rr(x + 13, b + 8, 20, 12, 5, '#aabac8');
-  rr(x + 15, b + 14, 16, 6, 3, '#b8c8d4');
-  rect(x + 18, b + 11, 2, 3, '#6a7a88'); rect(x + 26, b + 11, 2, 3, '#6a7a88'); // nostrils
-  rect(x + 12, b + 16, 3, 1, '#7a8a98'); rect(x + 31, b + 16, 3, 1, '#7a8a98'); // whiskers
-  rect(x + 13, b + 18, 2, 1, '#7a8a98'); rect(x + 31, b + 18, 2, 1, '#7a8a98');
-  rect(x + 20, b + 19, 6, 1, '#8a98a8'); // gentle smile
-  // small kind tracking eyes
-  critterEye(x + 12, b + 1, 6, 6, '#9aaab8', '#f8f4dc', '#2a2018', 7.0);
-  critterEye(x + 28, b + 1, 6, 6, '#9aaab8', '#f8f4dc', '#2a2018', 7.4);
-  // chunky waving flipper
+  const G1 = '#586878', G2 = '#7c8b99', G3 = '#9fb1bd', BELLY = '#c4d2da', SNOUT = '#8a99a5';
+  // soft ground shadow
+  ctx.save(); ctx.globalAlpha = 0.22; fillCircle(x + 23, b + 55, 25, '#000'); ctx.restore();
+  // ---- big rounded body, layered for volume ----
+  fillCircle(x + 23, b + 34, 24, G1);
+  fillCircle(x + 23, b + 33, 22, G2);
+  fillCircle(x + 19, b + 29, 17, G3);            // upper-left light
+  fillCircle(x + 23, b + 41, 15, BELLY);          // pale belly
+  fillCircle(x + 23, b + 39, 12, '#d8e4ea');
+  // skin folds + algae freckles (a swamp sea-cow)
+  ctx.save(); ctx.globalAlpha = 0.28; rect(x + 9, b + 45, 28, 1, G1); rect(x + 12, b + 49, 22, 1, G1); ctx.restore();
+  rect(x + 34, b + 25, 3, 2, '#6f9a4a'); rect(x + 7, b + 37, 2, 2, '#6f9a4a'); rect(x + 37, b + 41, 2, 2, '#7ab055');
+  // ---- park vest ----
+  rr(x + 2, b + 20, 13, 27, 3, '#3d5824'); rr(x + 31, b + 20, 13, 27, 3, '#3d5824');
+  rect(x + 5, b + 21, 4, 25, '#557a34'); rect(x + 37, b + 21, 4, 25, '#557a34');
+  rr(x + 6, b + 24, 6, 4, 1, C.gold); rect(x + 7, b + 25, 2, 2, '#fff6c8'); // ranger badge
+  // ---- head blends into the body (no neck) ----
+  fillCircle(x + 23, b + 10, 15, G1);
+  fillCircle(x + 23, b + 9, 14, G2);
+  fillCircle(x + 20, b + 6, 10, G3);
+  ctx.save(); ctx.globalAlpha = 0.25; rect(x + 12, b + 4, 9, 2, G1); rect(x + 25, b + 4, 9, 2, G1); ctx.restore(); // brow
+  // ---- muzzle: big prehensile-lipped nose ----
+  rr(x + 13, b + 9, 20, 13, 6, SNOUT);
+  rr(x + 14, b + 15, 18, 7, 4, '#a8b7c3');        // lower lip pad
+  rect(x + 18, b + 11, 3, 4, '#4c5b67'); rect(x + 25, b + 11, 3, 4, '#4c5b67'); // nostrils
+  // bristle whiskers
+  ctx.save(); ctx.globalAlpha = 0.7;
+  rect(x + 9, b + 16, 5, 1, '#cbd5dd'); rect(x + 9, b + 18, 5, 1, '#cbd5dd'); rect(x + 10, b + 20, 4, 1, '#cbd5dd');
+  rect(x + 32, b + 16, 5, 1, '#cbd5dd'); rect(x + 32, b + 18, 5, 1, '#cbd5dd'); rect(x + 32, b + 20, 4, 1, '#cbd5dd');
+  ctx.restore();
+  rect(x + 19, b + 19, 8, 1, '#5c6b77');           // gentle smile
+  // ---- kind tracking eyes ----
+  critterEye(x + 13, b + 3, 6, 6, G2, '#f8f4dc', '#2a2018', 7.0);
+  critterEye(x + 28, b + 3, 6, 6, G2, '#f8f4dc', '#2a2018', 7.4);
+  ctx.save(); ctx.globalAlpha = 0.3; rect(x + 13, b + 2, 6, 1, G1); rect(x + 28, b + 2, 6, 1, G1); ctx.restore(); // sleepy lids
+  // ---- flippers with little nails ----
   const wave = Math.sin(tNow * 3) > 0.3 ? -5 : 0;
-  rr(x - 8, b + 22 + wave, 15, 9, 4, '#6f7e8e');
-  rr(x - 7, b + 23 + wave, 13, 7, 4, '#9aaab8');
-  // other flipper resting on the counter
-  rr(x + 38, b + 38, 13, 8, 4, '#8a98a8');
+  rr(x - 10, b + 24 + wave, 17, 11, 5, G1); rr(x - 9, b + 25 + wave, 15, 9, 4, G2);
+  rect(x - 6, b + 33 + wave, 2, 3, '#4c5b67'); rect(x - 2, b + 33 + wave, 2, 3, '#4c5b67'); rect(x + 2, b + 33 + wave, 2, 3, '#4c5b67');
+  rr(x + 39, b + 39, 15, 10, 5, G1); rr(x + 40, b + 40, 13, 8, 4, G2);
+  rect(x + 44, b + 46, 2, 2, '#4c5b67'); rect(x + 47, b + 46, 2, 2, '#4c5b67'); rect(x + 50, b + 46, 2, 2, '#4c5b67');
 }
 
 // a dentist tool as a REAL tool: hanging on a leather shop tag
@@ -911,12 +925,15 @@ const SHARK_STYLES = {
 // sizeMul scales the whole maw (body follows); teeth adds mouth slots.
 const MUTATIONS = {
   diamond: { name: 'DIAMOND', col: '#9fe8ff', rar: 4, tint: { a: '#8fd6ea', b: '#5fa8c8', c: '#cbf4ff', sclera: '#eafcff' }, flav: 'A hide of living crystal.' },
-  dwarf: { name: 'DWARF', col: '#a8e078', rar: 2, sizeMul: 0.72, flav: 'Tiny, grumpy, adorable.' },
-  extra: { name: 'EXTRA-TOOTHED', col: '#f0d060', rar: 3, teeth: 4, flav: 'Simply too many teeth.' },
-  mega: { name: 'MEGA', col: '#ff9048', rar: 4, sizeMul: 1.26, flav: 'A jaw that blots the sun.' },
+  dwarf: { name: 'DWARF', col: '#a8e078', rar: 2, sizeMul: 0.72, tint: { a: '#8fd85e', b: '#5fa838', c: '#c0f088', d: '#3a7a24' }, flav: 'Tiny, grumpy, adorable.' },
+  extra: { name: 'EXTRA-TOOTHED', col: '#e8d060', rar: 3, teeth: 4, tint: { a: '#c8b24a', b: '#94802c', c: '#e8d878', d: '#5e5018' }, flav: 'Simply too many teeth.' },
+  mega: { name: 'MEGA', col: '#ff9048', rar: 4, sizeMul: 1.26, tint: { a: '#3e5e30', b: '#26401c', c: '#5e8a44', d: '#14260e' }, flav: 'A jaw that blots the sun.' },
   alien: { name: 'ALIEN', col: '#9cff8c', rar: 5, tint: { a: '#5fbf52', b: '#3a8a3a', c: '#a8ff9c', d: '#245a24', sclera: '#0c0c14' }, flav: 'Not from this swamp.' },
+  spotted: { name: 'SPOTTED', col: '#d8a850', rar: 2, tint: { a: '#c69a4e', b: '#94702e', c: '#e8c878', d: '#5e461e' }, flav: 'Freckled snout to tail.' },
+  striped: { name: 'STRIPED', col: '#e88038', rar: 3, tint: { a: '#c86a2e', b: '#94481c', c: '#e89a52', d: '#5e2e10' }, flav: 'Warpaint from the bog.' },
+  albino: { name: 'ALBINO', col: '#f4ece6', rar: 4, tint: { a: '#e8dcd4', b: '#c0b0a6', c: '#f6efe9', d: '#8a7a70', maw: '#e88898', mawD: '#c06878', sclera: '#ffe8e8', redEye: true, paleMaw: true }, flav: 'Pale as moonlit water.' },
 };
-const MUT_ORDER = ['diamond', 'dwarf', 'extra', 'mega', 'alien'];
+const MUT_ORDER = ['diamond', 'dwarf', 'extra', 'mega', 'alien', 'spotted', 'striped', 'albino'];
 const mutSizeMul = () => (G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].sizeMul) || 1;
 // the round-0 "small" node is a lil baby gator (smaller body + mouth, see mouthLayout)
 function lilGator() { return G.state !== 'menu' && G.round === 0 && G.nodeType === 'small'; }
@@ -1885,9 +1902,9 @@ function startFight(node) {
   if (has('foreverglades')) gainMoney(2);
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
   G.numbUsed = false; G.greedyCount = 0; G.seashellUsed = false;
-  // roll a rare MUTATION on this croc/shark - Professor Manta pays for photos
+  // roll a MUTATION on this croc/shark - Professor Manta pays for photos (common now)
   const canMut = G.summer || node.type !== 'boss';
-  G.mut = (canMut && rnd() < 0.4) ? choice(MUT_ORDER) : null;
+  G.mut = (canMut && rnd() < 0.55) ? choice(MUT_ORDER) : null;
   if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
@@ -1948,10 +1965,10 @@ function closeEvent() {
 function mouthSizeFor() {
   let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0) + (bossIs('king') ? 2 : 0)
     + (G.ranger === 'scout' ? 1 : 0) + (has('cypressroot') ? 1 : 0);
-  if (lilGator()) size = Math.min(size, 12); // the lil gator shows off a fuller set now
   if (G.mut === 'extra') size += 4;           // EXTRA-TOOTHED mutation: crammed maw
   if (G.mut === 'mega') size += 2;
   if (G.mut === 'dwarf') size = Math.min(size, 8);
+  if (lilGator()) size = Math.min(size, 12);  // cap the lil gator AFTER mutations so it never overcrowds
   return Math.max(6, Math.min(size, G.deck.length));
 }
 
@@ -2714,7 +2731,7 @@ function toggleXrayMode() {
 const SIDEBAR = { x: 2, y: 2, w: 110, h: 266 };
 function mouthLayout() {
   // the lil gator has a smaller, re-centered mouth (body geometry follows the maw)
-  const maw = lilGator() ? { x: 210, y: 128, w: 176, h: 66 } : { x: 186, y: 112, w: 216, h: 92 };
+  const maw = lilGator() ? { x: 204, y: 122, w: 188, h: 82 } : { x: 186, y: 112, w: 216, h: 92 };
   // MEGA / DWARF mutations scale the whole maw about its center; body follows
   const m = mutSizeMul();
   if (m !== 1) {
@@ -3176,6 +3193,18 @@ function drawCroc(closeT, opts) {
       fillCircle(acx + ox + 1, ey - 20, 3, '#c8ff9c');
     });
     rr(acx - 5, ey + 2, 11, 9, 3, '#0c0c14'); rr(acx - 3, ey + 3, 7, 6, 2, '#9cff8c'); rect(acx - 1, ey + 4, 2, 4, '#0c0c14');
+  } else if (st.mut === 'spotted') {
+    ctx.save(); ctx.globalAlpha = 0.55;
+    for (let k = 0; k < 16; k++) {
+      const sx = bodyX + 12 + (k * 61) % (bodyW - 24), sy = jy + 6 + (k * 43) % 44;
+      fillCircle(sx, sy, 2 + (k % 2), st.d);
+    }
+    ctx.restore();
+  } else if (st.mut === 'striped') {
+    ctx.save(); ctx.globalAlpha = 0.5;
+    const n = 7, span = bodyW - 36;
+    for (let k = 0; k < n; k++) { const sx = bodyX + 18 + Math.round(k * span / (n - 1)); rect(sx, jy + 2, 4, 52, st.d); rect(sx + 1, jy + 2, 1, 52, '#00000033'); }
+    ctx.restore();
   }
 }
 
@@ -4762,28 +4791,52 @@ function drawTicket(x, y) {
 // a tiny mutation portrait chip for the photo album
 function drawMutChip(cx, cy, k) {
   const mu = MUTATIONS[k];
-  rr(cx - 11, cy - 6, 22, 13, 3, '#2e6322'); rr(cx - 10, cy - 5, 20, 11, 3, mu.col);
-  rect(cx - 6, cy - 2, 3, 3, '#101018'); rect(cx + 3, cy - 2, 3, 3, '#101018');
+  rr(cx - 11, cy - 6, 22, 13, 3, '#00000055'); rr(cx - 10, cy - 5, 20, 11, 3, mu.col);
+  const eye = k === 'albino' ? '#c81818' : '#101018';
+  rect(cx - 6, cy - 2, 3, 3, eye); rect(cx + 3, cy - 2, 3, 3, eye);
   for (let t = 0; t < 4; t++) rect(cx - 8 + t * 5, cy + 4, 2, 3, '#f4f0dc');
   if (k === 'diamond') rect(cx - 1, cy - 6, 2, 2, '#ffffff');
   if (k === 'alien') { rect(cx - 6, cy - 10, 1, 4, mu.col); rect(cx + 5, cy - 10, 1, 4, mu.col); rect(cx - 6, cy - 11, 1, 1, '#c8ff9c'); rect(cx + 5, cy - 11, 1, 1, '#c8ff9c'); }
   if (k === 'mega') rect(cx - 10, cy - 7, 20, 2, '#00000055');
+  if (k === 'spotted') { rect(cx - 8, cy - 4, 2, 2, mu.tint.d); rect(cx + 6, cy - 3, 2, 2, mu.tint.d); rect(cx - 2, cy + 1, 2, 2, mu.tint.d); rect(cx + 4, cy + 1, 2, 2, mu.tint.d); }
+  if (k === 'striped') { for (let s = 0; s < 4; s++) rect(cx - 8 + s * 5, cy - 5, 1, 9, mu.tint.d); }
 }
-// Professor Manta: a bespectacled manta-ray marine biologist
+// Professor Manta: a bespectacled manta-ray marine biologist (polished top-view)
 function drawManta(x, y) {
-  const b = y + Math.round(Math.sin(tNow * 1.4) * 2), flap = Math.sin(tNow * 2.2) * 3;
-  rr(x - 30, b + 8 - flap, 26, 14, 6, '#2f4a6a'); rr(x + 30, b + 8 - flap, 26, 14, 6, '#2f4a6a'); // wings
-  rr(x - 26, b + 9 - flap, 22, 10, 5, '#3f6a94'); rr(x + 30, b + 9 - flap, 22, 10, 5, '#3f6a94');
-  rr(x - 18, b, 46, 30, 10, '#26405c'); rr(x - 16, b + 2, 42, 26, 9, '#3a5c82');           // body
-  fillCircle(x + 5, b + 21, 10, '#c8d8e8');                                                 // pale underside
-  rect(x - 8, b - 6, 4, 8, '#3a5c82'); rect(x + 10, b - 6, 4, 8, '#3a5c82');               // cephalic horns
-  rect(x + 22, b + 26, 12, 2, '#26405c'); rect(x + 32, b + 24, 8, 2, '#26405c');            // tail
-  critterEye(x - 6, b + 5, 6, 6, '#3a5c82', '#f8f4dc', '#1a2028', 3.0);
-  critterEye(x + 8, b + 5, 6, 6, '#3a5c82', '#f8f4dc', '#1a2028', 3.4);
-  // gold professor spectacles
-  rect(x - 7, b + 4, 8, 1, '#ffd54a'); rect(x + 7, b + 4, 8, 1, '#ffd54a');
-  rect(x - 7, b + 4, 1, 8, '#ffd54a'); rect(x + 1, b + 4, 1, 8, '#ffd54a'); rect(x + 7, b + 4, 1, 8, '#ffd54a'); rect(x + 15, b + 4, 1, 8, '#ffd54a');
-  rect(x - 7, b + 11, 8, 1, '#ffd54a'); rect(x + 7, b + 11, 8, 1, '#ffd54a'); rect(x + 1, b + 7, 6, 1, '#ffd54a');
+  const b = y + Math.round(Math.sin(tNow * 1.4) * 2), fl = Math.sin(tNow * 1.9);
+  const D1 = '#1f3448', D2 = '#31506d', D3 = '#4c7392', PALE = '#c8dcec';
+  // soft shadow
+  ctx.save(); ctx.globalAlpha = 0.2; fillCircle(x, b + 40, 32, '#000'); ctx.restore();
+  // ---- broad pectoral wings: columns that sweep up + taper toward the tips ----
+  for (let s = 1; s <= 36; s++) {
+    const t = s / 36;
+    const topY = b + 10 - Math.pow(t, 1.25) * (28 + fl * 6);   // graceful upward wing-beat
+    const h = Math.max(2, Math.round(28 * (1 - t * 0.9)));
+    const col = s < 5 ? D3 : (s < 24 ? D2 : D1);
+    rect((x - 5 - s) | 0, topY | 0, 3, h, col);                // left wing
+    rect((x + 2 + s) | 0, topY | 0, 3, h, col);                // right wing
+    if (s < 20) rect((x - 5 - s) | 0, (topY + h - 2) | 0, 3, 2, D1); // trailing-edge shade
+    if (s < 20) rect((x + 2 + s) | 0, (topY + h - 2) | 0, 3, 2, D1);
+  }
+  // ---- central body (raised diamond) ----
+  fillCircle(x, b + 15, 14, D1); fillCircle(x, b + 14, 12, D2); fillCircle(x - 3, b + 11, 8, D3);
+  fillCircle(x + 1, b + 21, 8, '#5f83a0');                       // pale underside gradient
+  // gill hint on the back
+  ctx.save(); ctx.globalAlpha = 0.35; rect(x - 6, b + 16, 12, 1, D1); rect(x - 5, b + 19, 10, 1, D1); ctx.restore();
+  // ---- tail ----
+  for (let s = 0; s < 16; s++) rect(x - 1, (b + 30 + s) | 0, 2, 1, s < 4 ? D2 : D1);
+  // ---- head + cephalic horns curling forward ----
+  rr(x - 10, b - 2, 20, 13, 6, D2); rr(x - 9, b - 1, 18, 11, 5, D3);
+  rect(x - 9, b - 7, 3, 7, D2); rect(x - 10, b - 2, 2, 4, D2);   // left horn
+  rect(x + 6, b - 7, 3, 7, D2); rect(x + 8, b - 2, 2, 4, D2);    // right horn
+  // ---- kind eyes + round gold professor spectacles ----
+  critterEye(x - 8, b + 1, 6, 6, D2, '#f8f4dc', '#141c24', 3.0);
+  critterEye(x + 2, b + 1, 6, 6, D2, '#f8f4dc', '#141c24', 3.4);
+  ring(x - 5, b + 4, 4, '#ffd54a', 1); ring(x + 5, b + 4, 4, '#ffd54a', 1); // round lens rings
+  rect(x, b + 3, 2, 1, '#ffd54a');                              // bridge
+  rect(x - 12, b + 3, 3, 1, '#ffd54a'); rect(x + 10, b + 3, 3, 1, '#ffd54a'); // temples
+  // tiny cheek blush + smile
+  rect(x - 4, b + 8, 9, 1, '#20303e');
 }
 
 function drawSummer(dt) {
@@ -4793,17 +4846,17 @@ function drawSummer(dt) {
   drawTextCSh('SUMMER EVENT', W / 2, 8, '#ffe6a0', 3);
   drawTextC('PROFESSOR MANTA COLLECTS PHOTOS OF RARE MUTATIONS', W / 2, 30, '#0a3a4a', 1);
 
-  // ---- photo album: full-width strip of 5 mutation slots ----
+  // ---- photo album: full-width strip of all mutation slots ----
   const caught = meta.summer.caught || {};
-  const nCaught = MUT_ORDER.filter(k => caught[k]).length;
+  const nCaught = MUT_ORDER.filter(k => caught[k]).length, nTot = MUT_ORDER.length;
   panel(40, 44, 400, 84, { face: '#0e2a34ee', edge: '#3aa0c0' });
-  drawTextCSh('MUTATION ALBUM   ' + nCaught + '/5', W / 2, 50, '#bfe8ff', 1);
+  drawTextCSh('MUTATION ALBUM   ' + nCaught + '/' + nTot, W / 2, 50, '#bfe8ff', 1);
   MUT_ORDER.forEach((k, i) => {
-    const bx = 75 + i * 73, by = 64, got = !!caught[k], mu = MUTATIONS[k];
-    rr(bx, by, 46, 56, 3, got ? mu.col : '#0a1a20'); rr(bx + 2, by + 2, 42, 52, 2, '#08303c');
-    if (got) { drawMutChip(bx + 23, by + 24, k); drawTextC(mu.name.slice(0, 8), bx + 23, by + 46, '#eafcff', 1); }
-    else { drawTextC('?', bx + 23, by + 18, '#2a5560', 2); drawTextC('FIND ME', bx + 23, by + 46, '#3a6570', 1); }
-    hit(bx, by, 46, 56, { id: 'album' + k, tip: got ? (mu.name + ' MUTATION|PHOTOGRAPHED!|' + mu.flav) : ('??? MUTATION|Spot it in a fight and CAPTURE it') });
+    const bx = 44 + i * 50, by = 62, got = !!caught[k], mu = MUTATIONS[k];
+    rr(bx, by, 45, 58, 3, got ? mu.col : '#0a1a20'); rr(bx + 2, by + 2, 41, 54, 2, '#08303c');
+    if (got) { drawMutChip(bx + 22, by + 24, k); drawTextC(mu.name.slice(0, 8), bx + 22, by + 47, '#eafcff', 1); }
+    else { drawTextC('?', bx + 22, by + 18, '#2a5560', 2); drawTextC('FIND ME', bx + 22, by + 47, '#3a6570', 1); }
+    hit(bx, by, 45, 58, { id: 'album' + k, tip: got ? (mu.name + ' MUTATION|PHOTOGRAPHED!|' + mu.flav) : ('??? MUTATION|Spot it in a fight and CAPTURE it') });
   });
   drawTextC('SPOT A MUTATION IN A FIGHT, THEN TAP  CAPTURE  TO LOG IT', W / 2, 132, '#0a3a4a', 1);
 
@@ -4820,7 +4873,7 @@ function drawSummer(dt) {
     if (done && !claimed) button(334, qy - 4, 90, 14, 'CLAIM +' + reward, '#e8a020', '#98650e', onClaim, { id: claimId });
     else if (claimed) drawText('CLAIMED', 366, qy, C.green, 1);
   };
-  sQuest(172, 'PHOTO ALL 5 MUTATIONS  (' + nCaught + '/5)', nCaught >= 5, !!q.photo, 3, 'claimphoto',
+  sQuest(172, 'PHOTO ALL ' + nTot + ' MUTATIONS  (' + nCaught + '/' + nTot + ')', nCaught >= nTot, !!q.photo, 3, 'claimphoto',
     () => { addTix(3, 'ALBUM COMPLETE!'); meta.summer.q.photo = true; saveMeta(); sfx.ach(); });
   sQuest(190, 'BEAT 8 ANTES - WIN ANY RUN', !!meta.summer.won, !!q.win, 2, 'claimwin',
     () => { addTix(2, 'CHAMPION!'); meta.summer.q.win = true; saveMeta(); sfx.ach(); });
@@ -4837,18 +4890,32 @@ function drawSummer(dt) {
   button(8, 244, 74, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'summerback' });
 }
 
+// the summer shopkeep: a cool beach duck in aviators + a lei
 function drawDuckVendor(x, y) {
   const b = y + Math.round(Math.sin(tNow * 1.3) * 1.5);
-  fillCircle(x + 23, b + 32, 21, '#d8a038'); fillCircle(x + 23, b + 31, 20, '#f0c85a'); fillCircle(x + 20, b + 28, 15, '#f8d874');
-  fillCircle(x + 23, b + 37, 12, '#fbe8a8');
-  rect(x + 4, b + 20, 10, 24, '#2c9a8a'); rect(x + 32, b + 20, 10, 24, '#2c9a8a');
-  rect(x + 6, b + 24, 3, 3, '#ff6a8a'); rect(x + 34, b + 30, 3, 3, '#ff6a8a'); rect(x + 8, b + 34, 3, 3, '#ff6a8a');
-  fillCircle(x + 23, b + 9, 13, '#f0c85a'); fillCircle(x + 21, b + 7, 10, '#f8d874');
-  rect(x + 30, b + 8, 12, 5, '#ff9838'); rect(x + 30, b + 12, 10, 3, '#e8842a'); rect(x + 40, b + 9, 2, 3, '#ff9838'); // bill
-  rect(x + 14, b + 5, 18, 5, '#1a1a22'); rect(x + 15, b + 6, 7, 3, '#3a5566'); rect(x + 24, b + 6, 7, 3, '#3a5566'); // shades
-  rect(x + 12, b + 2, 22, 3, '#ff6a8a'); rect(x + 10, b + 4, 26, 2, '#ff6a8a'); // sun visor
+  ctx.save(); ctx.globalAlpha = 0.22; fillCircle(x + 23, b + 54, 24, '#000'); ctx.restore();
+  // ---- body (layered) + pale belly ----
+  fillCircle(x + 23, b + 33, 22, '#c8901f'); fillCircle(x + 23, b + 32, 21, '#eec24e'); fillCircle(x + 19, b + 28, 16, '#f8d874');
+  fillCircle(x + 23, b + 40, 14, '#fbe8a8'); fillCircle(x + 23, b + 38, 11, '#fff2cf');
+  // ---- hawaiian vest (teal + pink flowers) ----
+  rr(x + 2, b + 20, 13, 27, 3, '#1f8577'); rr(x + 31, b + 20, 13, 27, 3, '#1f8577');
+  rect(x + 5, b + 21, 4, 25, '#2fb0a0'); rect(x + 37, b + 21, 4, 25, '#2fb0a0');
+  [[6, 26], [9, 34], [35, 29], [38, 39]].forEach(([fx, fy]) => { rect(x + fx, b + fy, 2, 2, '#ff6a8a'); rect(x + fx - 1, b + fy, 1, 1, '#ffd0dc'); });
+  // ---- flower lei ----
+  [[12, 18], [16, 19], [20, 20], [26, 20], [30, 19], [34, 18]].forEach(([lx, ly], i) => fillCircle(x + lx, b + ly, 2, i % 2 ? '#ff6a8a' : '#ffffff'));
+  // ---- head ----
+  fillCircle(x + 23, b + 9, 13, '#eec24e'); fillCircle(x + 21, b + 6, 10, '#f8d874'); fillCircle(x + 19, b + 5, 6, '#fce89a');
+  // ---- bill ----
+  rr(x + 29, b + 8, 13, 5, 2, '#ff9838'); rr(x + 29, b + 12, 11, 3, 1, '#e8842a'); rect(x + 30, b + 9, 8, 1, '#ffbf6a');
+  // ---- aviator sunglasses ----
+  rr(x + 13, b + 4, 19, 6, 2, '#14141c'); rr(x + 14, b + 5, 7, 4, 1, '#3a6a8a'); rr(x + 23, b + 5, 7, 4, 1, '#3a6a8a');
+  rect(x + 15, b + 6, 2, 1, '#8fd0e8'); rect(x + 24, b + 6, 2, 1, '#8fd0e8'); rect(x + 20, b + 6, 3, 1, '#14141c');
+  // ---- pink sun visor ----
+  rr(x + 11, b + 1, 24, 3, 1, '#ff6a8a'); rr(x + 9, b + 3, 28, 2, 1, '#ff85a0'); rect(x + 20, b, 6, 1, '#ff6a8a');
+  // ---- wings ----
   const wave = Math.sin(tNow * 3) > 0.3 ? -5 : 0;
-  rr(x - 6, b + 22 + wave, 14, 9, 4, '#e8b84a'); rr(x + 40, b + 38, 12, 7, 4, '#e8b84a');
+  rr(x - 7, b + 22 + wave, 15, 10, 4, '#c8901f'); rr(x - 6, b + 23 + wave, 13, 8, 4, '#eec24e');
+  rr(x + 40, b + 39, 13, 8, 4, '#c8901f'); rr(x + 41, b + 40, 11, 6, 4, '#eec24e');
 }
 
 function drawHow() {
