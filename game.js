@@ -956,8 +956,26 @@ const MUTATIONS = {
   spotted: { name: 'SPOTTED', col: '#d8a850', rar: 2, tint: { a: '#c69a4e', b: '#94702e', c: '#e8c878', d: '#5e461e' }, flav: 'Freckled snout to tail.' },
   striped: { name: 'STRIPED', col: '#e88038', rar: 3, tint: { a: '#c86a2e', b: '#94481c', c: '#e89a52', d: '#5e2e10' }, flav: 'Warpaint from the bog.' },
   albino: { name: 'ALBINO', col: '#f4ece6', rar: 4, tint: { a: '#e8dcd4', b: '#c0b0a6', c: '#f6efe9', d: '#8a7a70', maw: '#e88898', mawD: '#c06878', sclera: '#ffe8e8', redEye: true, paleMaw: true }, flav: 'Pale as moonlit water.' },
+  // ---- SHOP-AFFECTING mutations: beating one of these salts the next shop's
+  // badges with a special EDITION (and a little discount). Swamp-run only.
+  gilded: { name: 'GILDED', col: '#ffcf4a', rar: 3, tint: { a: '#d8a838', b: '#a8791a', c: '#ffe08a', d: '#6e4e10', sclera: '#fff4d0' }, flav: 'Dipped in swamp gold.', shop: { ed: 'golden', disc: 0.85, note: 'GOLDEN badges next shop!' } },
+  glacial: { name: 'GLACIAL', col: '#bfefff', rar: 4, tint: { a: '#a8dcf0', b: '#6fb0d0', c: '#e6faff', d: '#3a7088', sclera: '#eafcff' }, flav: 'Frozen since the ice age.', shop: { ed: 'diamond', disc: 0.9, note: 'DIAMOND badges next shop!' } },
+  corroded: { name: 'CORRODED', col: '#c07038', rar: 2, tint: { a: '#9a5e2e', b: '#6e401c', c: '#c88a4e', d: '#3e240e' }, flav: 'Rust never sleeps.', shop: { ed: 'rusty', disc: 0.7, note: 'RUSTY badges, 30% off!' } },
 };
 const MUT_ORDER = ['diamond', 'dwarf', 'extra', 'mega', 'alien', 'spotted', 'striped', 'albino'];
+// shop mutations roll on swamp crocs only; kept out of MUT_ORDER so the summer
+// photo album / Professor Manta collectibles stay the 8 above.
+const SHOP_MUTS = ['gilded', 'glacial', 'corroded'];
+// BADGE EDITIONS - a badge can carry one of these finishes on top of its normal
+// effect (Balatro-style). golden pays $ every round; diamond adds an X-MULT at
+// bank; rusty is worn + cheap but dumps flat TEETH at bank.
+const EDITIONS = {
+  golden: { name: 'GOLDEN', col: '#ffcf4a', edge: '#8a5e10', gem: '#fff0b0', tag: '+$4/RND', desc: 'Earns +$4 at the end of every round', dp: 3, dm: 0.82 },
+  diamond: { name: 'DIAMOND', col: '#8fe8ff', edge: '#2f6f90', gem: '#e6faff', tag: 'X1.5 MULT', desc: 'X1.5 MULT every time you bank', dp: 5, dm: 1 },
+  rusty: { name: 'RUSTY', col: '#c07038', edge: '#4e2410', gem: '#e8b070', tag: '+40 TEETH', desc: '+40 TEETH at bank, but worn and cheap', dp: -2, dm: 0.6 },
+};
+const EDITION_KEYS = ['golden', 'diamond', 'rusty'];
+const edOf = c => (c && c.ed && EDITIONS[c.ed]) ? c.ed : null;
 const mutSizeMul = () => (G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].sizeMul) || 1;
 // the round-0 "small" node is a lil baby gator (smaller body + mouth, see mouthLayout)
 function lilGator() { return G.state !== 'menu' && G.round === 0 && G.nodeType === 'small'; }
@@ -1970,7 +1988,10 @@ function startFight(node) {
   G.xrayUsedRound = 0; G.seq = null;
   // roll a MUTATION on this croc/shark - Professor Manta pays for photos (common now)
   const canMut = G.summer || node.type !== 'boss';
-  G.mut = (canMut && rnd() < 0.55) ? choice(MUT_ORDER) : null;
+  // swamp crocs can also roll a SHOP mutation (gilded/glacial/corroded); summer
+  // keeps its 8 photo-album mutations so Manta's collection is unaffected.
+  const mutPool = G.summer ? MUT_ORDER : MUT_ORDER.concat(SHOP_MUTS);
+  G.mut = (canMut && rnd() < 0.55) ? choice(mutPool) : null;
   if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
@@ -2299,6 +2320,8 @@ function bankSteps(sweep) {
   if (has('millionfang')) addT('millionfang', 'MILLION FANG', G.deck.length);
   if (has('trophy')) addT('trophy', 'TROPHY', 8 * (G.bossKills || 0));
   if (sweep && has('starfish')) addT('starfish', 'STARFISH', 3 * clicks);
+  // ---- RUSTY edition badges dump flat TEETH ----
+  G.charms.forEach(c => { if (edOf(c) === 'rusty') addT(c.id, c.name.split(' ')[0] + ' RUSTY', 40); });
   // ---- flat MULT ----
   if (has('palmfrond')) addM('palmfrond', 'PALM FROND', 2 * Math.floor(clicks / 3));
   if (has('yardstick')) addM('yardstick', 'YARDSTICK', G.ante);
@@ -2324,6 +2347,8 @@ function bankSteps(sweep) {
   if (has('hourhand') && G.roundBanks === 0) xM('hourhand', 'HOUR HAND', 2);
   if (has('anchorjaw') && G.round === 1) xM('anchorjaw', 'ANCHOR', 1.5);
   if (has('jurassic') && G.deck.filter(x => x.type === 'amber').length >= 5) xM('jurassic', 'T-REX', 5);
+  // ---- DIAMOND edition badges each grant an X1.5 ----
+  G.charms.forEach(c => { if (edOf(c) === 'diamond') xM(c.id, c.name.split(' ')[0] + ' DIAMOND', 1.5); });
   if (sweep) xM(has('collector') ? 'collector' : null, 'SWEEP', has('collector') ? 2 : (G.ranger === 'frog' ? 1.75 : 1.25));
   // ---- cash payouts ride along the sequence ----
   if (has('canteen') && clicks <= 3) cash('canteen', 'CANTEEN', 3);
@@ -2429,7 +2454,8 @@ function roundWon() {
   const interest = (has('hoard') ? Math.floor(G.money / 4) : Math.min(cap, Math.floor(G.money / 5)))
     + (has('snailshell') ? 2 : 0);
   const fairy = has('fairy') ? 2 : 0;
-  G.cash = { base, perBite, interest, fairy, cap, total: base + perBite + interest + fairy };
+  const golden = 4 * G.charms.filter(c => edOf(c) === 'golden').length; // GOLDEN badges
+  G.cash = { base, perBite, interest, fairy, golden, cap, total: base + perBite + interest + fairy + golden };
   G.state = 'roundend';
   G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
   if (G.round === 2) { unlock('boss'); quest('boss1q', 1); G.bossKills = (G.bossKills || 0) + 1; }
@@ -2461,6 +2487,12 @@ function cashOut() {
 function enterShop() {
   G.shopsVisited = (G.shopsVisited || 0) + 1; // STAMP BOOK keeps count
   G.rerollCost = meta.perks.coupon ? 0 : (has('tacklecharm') ? 3 : 4);
+  // a shop-mutation croc (gilded/glacial/corroded) salts THIS shop with its
+  // matching badge edition + a discount; consumed once, swamp runs only.
+  const smut = (!G.summer && G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].shop) ? MUTATIONS[G.mut].shop : null;
+  G.shopEd = smut ? smut.ed : null;
+  G.shopDisc = smut ? (smut.disc || 1) : 1;
+  if (smut) toasts.push({ name: MUTATIONS[G.mut].name + ' HOARD', sub: smut.note, t: 0 });
   rollShop();
   stockPacks();
   rollCosmetics();
@@ -2477,13 +2509,26 @@ function weightedCharm(pool) {
   return pool[pool.length - 1];
 }
 
+// give a shop badge an EDITION: forced by a shop-mutation, else a rare surprise.
+// returns a fresh item carrying a def COPY so the master CHARMS list is untouched.
+function editionItem(def) {
+  let ed = G.shopEd || null;
+  if (!ed && rnd() < 0.12) ed = choice(EDITION_KEYS); // occasional wild edition
+  let price = def.cost;
+  let cdef = def;
+  if (ed && EDITIONS[ed]) {
+    cdef = Object.assign({}, def, { ed });
+    price = Math.max(1, Math.round((def.cost + EDITIONS[ed].dp) * (G.shopDisc || 1)));
+  }
+  return { kind: 'charm', def: cdef, price, sold: false, ed };
+}
 function rollShop() {
   const items = [];
   let cpool = CHARMS.filter(c => !has(c.id) && cardUnlocked(c));
   for (let k = 0; k < 2 && cpool.length; k++) {
     const def = weightedCharm(cpool);
     cpool = cpool.filter(c => c !== def);
-    items.push({ kind: 'charm', def, price: def.cost, sold: false });
+    items.push(editionItem(def));
   }
   const cdef = choice(CONS.filter(cardUnlocked));
   items.push({ kind: 'cons', def: cdef, price: cdef.cost, sold: false });
@@ -3444,8 +3489,11 @@ function drawBadgeFace(x, y, def, o) {
   o = o || {};
   x |= 0; y |= 0;
   const trex = def.id === 'jurassic' && trexActive();
-  const rim = trex ? '#ffd54a' : RAR_COL[def.rar || 0];
+  const ed = def.ed && EDITIONS[def.ed]; // GOLDEN / DIAMOND / RUSTY finish
+  const rim = trex ? '#ffd54a' : ed ? ed.col : RAR_COL[def.rar || 0];
   const cx2 = x + 15, cy2 = y + 15;
+  // edition aura: a soft pulsing halo in the finish colour
+  if (ed) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 4 + cx2) * 0.12; fillCircle(cx2, cy2, 17, ed.col); ctx.restore(); }
   // ribbon tails
   rect(x + 7, y + 26, 6, 12, '#8a2a16');
   rect(x + 17, y + 26, 6, 12, '#8a2a16');
@@ -3474,6 +3522,19 @@ function drawBadgeFace(x, y, def, o) {
     const sh = (tNow * 3 | 0) % 3;
     rect(cx2 - 10 + sh * 8, cy2 - 12, 1, 2, '#bffff8');
     if (Math.sin(tNow * 5) > 0.6) rect(cx2 + 7, cy2 + 6, 1, 1, '#ffffff');
+  }
+  if (ed) { // edition finish: inner ring + a little gem badge on the ribbon
+    ctx.save(); ctx.globalAlpha = 0.9;
+    for (let a = 0; a < 12; a++) { const ang = a / 12 * Math.PI * 2; rect(cx2 + Math.cos(ang) * 13 - 1, cy2 + Math.sin(ang) * 13 - 1, 1, 1, ed.edge); }
+    ctx.restore();
+    // finish-specific shimmer
+    if (def.ed === 'diamond') { const sh = (tNow * 4 | 0) % 4; ctx.save(); ctx.globalAlpha = 0.7; rect(cx2 - 12 + sh * 6, cy2 - 10 + sh * 4, 2, 2, '#eaffff'); ctx.restore(); }
+    else if (def.ed === 'golden') { if (Math.sin(tNow * 6 + cx2) > 0.5) rect(cx2 + 6 - (tNow * 8 | 0) % 12, cy2 - 8, 1, 1, '#fff6c8'); }
+    else { rect(cx2 - 5, cy2 + 5, 1, 1, '#5e2e12'); rect(cx2 + 4, cy2 - 4, 1, 1, '#5e2e12'); } // rusty flecks
+    // edition gem set into the base ribbon
+    fillCircle(cx2, y + 34, 4, ed.edge);
+    fillCircle(cx2, y + 34, 3, ed.col);
+    rect(cx2 - 1, y + 32, 1, 1, ed.gem);
   }
   if (o.price !== undefined) {
     rr(x - 3, y - 5, 20, 9, 2, '#00000088');
@@ -3732,7 +3793,7 @@ function drawTopBar(inShop) {
       const def = G.charms[i];
       const o = {
         id: 'charm' + i + def.id,
-        tip: def.name + '|CLICK FOR DETAILS' + (inShop ? '|DRAG TO THE BARREL TO SELL' : ''),
+        tip: (def.ed && EDITIONS[def.ed] ? EDITIONS[def.ed].name + ' ' : '') + def.name + '|CLICK FOR DETAILS' + (inShop ? '|DRAG TO THE BARREL TO SELL' : ''),
         click: () => { G.inspect = { kind: 'charm', def, idx: i }; },
       };
       if (inShop) { o.dragKind = 'charm'; o.dragIdx = i; }
@@ -3780,7 +3841,8 @@ function drawPlay() {
   drawTopBar(false);
   if (G.summer) drawCrabs();
   // Professor Manta's camera: photograph an un-logged mutation for tickets
-  if (G.mut && meta.summer && !meta.summer.caught[G.mut]) {
+  // (shop mutations aren't album subjects, so no camera on them)
+  if (G.mut && !SHOP_MUTS.includes(G.mut) && meta.summer && !meta.summer.caught[G.mut]) {
     button(284, 44, 96, 20, 'CAPTURE', '#2a8ad0', '#164a80', capturePhoto,
       { id: 'capture', sc: 1, tip: 'PHOTOGRAPH THIS ' + MUTATIONS[G.mut].name + '|Log it for Professor Manta' });
     ICONS.mg_cam(288, 46);
@@ -4369,6 +4431,7 @@ function drawRoundEnd() {
   if (G.cash.perBite > 0) line('UNUSED BITES', G.cash.perBite, C.green);
   if (G.cash.interest > 0) line('INTEREST (MAX $5)', G.cash.interest, C.blue);
   if (G.cash.fairy > 0) line('TOOTH FAIRY', G.cash.fairy, C.purple);
+  if (G.cash.golden > 0) line('GOLDEN BADGES', G.cash.golden, '#ffcf4a');
   y += 4;
   drawText('TOTAL', px + 24, y, C.white, 1);
   drawText('$' + G.cash.total, px + pw - 24 - textW('$' + G.cash.total, 1), y, C.gold, 1);
@@ -6742,6 +6805,11 @@ function drawInspect() {
   drawText(sub, tx, py + 26, def.picks ? '#7fd0c0' : kind === 'cons' ? C.purple : RAR_COL[def.rar || 0], 1);
   let y = py + 40;
   y = drawSmallWrapped(def.desc, tx, y, pw - 110, C.white) + 4;
+  // edition finish line (golden / diamond / rusty), highlighted in its colour
+  if (kind === 'charm' && def.ed && EDITIONS[def.ed]) {
+    const e = EDITIONS[def.ed];
+    y = drawSmallWrapped(e.name + ' EDITION: ' + e.desc, tx, y, pw - 110, e.col) + 4;
+  }
   if (def.flav) y = drawSmallWrapped("'" + def.flav + "'", tx, y, pw - 110, '#6f8a90') + 6;
 
   if (isShop) {
