@@ -177,7 +177,7 @@ function trackNow() {
   if (typeof G === 'undefined') return TRACKS.menu;
   if (G.paused) return null;
   switch (G.state) {
-    case 'menu': case 'ranger': case 'how': case 'skins': case 'summer': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
+    case 'menu': case 'ranger': case 'how': case 'skins': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
     case 'intro': return TRACKS.boss;
     case 'map': case 'event': return TRACKS.map;
     case 'shop': case 'bench': return TRACKS.shop;
@@ -1774,13 +1774,11 @@ function addRP(n, label) {
   if (label) toasts.push({ name: label, sub: '+' + n + ' SCOUT COOKIES', t: 0 });
   saveMeta();
 }
-let questToastT = -9; // throttle live progress pings
 function completeQuest(p) {
   meta.qb.done = (meta.qb.done || 0) + 1;
   meta.qb.posts = meta.qb.posts.filter(x => x !== p);
   fillBoard();
-  addRP(p.rp, 'QUEST DONE: ' + p.name);
-  if (p.tix) addTix(p.tix, p.name);
+  addRP(p.rp + (p.tix ? p.tix * 10 : 0), 'QUEST DONE: ' + p.name);
   sfx.ach();
 }
 function quest(id, n) {
@@ -1791,10 +1789,7 @@ function quest(id, n) {
     p.prog = Math.min(p.goal, p.prog + n);
     changed = true;
     if (p.prog >= p.goal) completeQuest(p);
-    else if (tNow - questToastT > 8 && p.prog / p.goal >= 0.5) {
-      questToastT = tNow;
-      toasts.push({ name: p.name, sub: 'QUEST ' + p.prog + '/' + p.goal, t: 0 });
-    }
+    // (no mid-progress pings - the board shows live progress, keep play quiet)
   });
   if (changed) saveMeta();
 }
@@ -1859,7 +1854,7 @@ function saveBest() { try { localStorage.setItem('bitedown_best', '' + best); } 
 
 const has = id => G.charms.some(c => c.id === id);
 // summer runs spend HERMIT CRABS (CR) instead of dollars
-const curLabel = n => G.summer ? (fmt(n) + ' CR') : ('$' + fmt(n));
+const curLabel = n => '$' + fmt(n); // one currency, coast to swamp
 const rangerUnlocked = k => !RANGERS[k].ach || !!meta.ach[RANGERS[k].ach];
 const bossIs = id => !!(G.boss && G.round === 2 && G.boss.id === id);
 const xraysBlocked = () => bossIs('murky');
@@ -1988,10 +1983,9 @@ function startFight(node) {
   G.xrayUsedRound = 0; G.seq = null;
   // roll a MUTATION on this croc/shark - Professor Manta pays for photos (common now)
   const canMut = G.summer || node.type !== 'boss';
-  // swamp crocs can also roll a SHOP mutation (gilded/glacial/corroded); summer
-  // keeps its 8 photo-album mutations so Manta's collection is unaffected.
-  const mutPool = G.summer ? MUT_ORDER : MUT_ORDER.concat(SHOP_MUTS);
-  G.mut = (canMut && rnd() < 0.55) ? choice(mutPool) : null;
+  // crocs and sharks can also roll a SHOP mutation (gilded/glacial/corroded);
+  // those aren't photo-album subjects, so Manta's collection is unaffected.
+  G.mut = (canMut && rnd() < 0.55) ? choice(MUT_ORDER.concat(SHOP_MUTS)) : null;
   if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
@@ -2007,7 +2001,13 @@ function startFight(node) {
 }
 
 function afterShop() {
-  if (G.map.stage >= 3) { G.ante++; genMap(); }
+  if (G.map.stage >= 3) {
+    G.ante++;
+    // after the first ante the trail simply reaches the coast: the rest of the
+    // run plays on the Maldives beach (sharks, crabs) - no menu, no gate.
+    if (G.ante > 1 && !G.summer) G.summer = true;
+    genMap();
+  }
   G.state = 'map';
 }
 
@@ -2032,7 +2032,7 @@ function finishGame(grade, pay, cookies, lines) {
 function collectEvent() {
   const ev = G.event; if (!ev || ev.phase !== 'done') return;
   gainMoney(ev.pay);
-  if (has('duckcall')) { gainMoney(3); toasts.push({ name: 'DUCK CALL', sub: '+$3 BONUS', t: 0 }); }
+  if (has('duckcall')) { gainMoney(3); float(60, 150, 'DUCK CALL +$3', C.gold, 1, 1.2); }
   addRP(3 + ev.cookies + (has('dragonfly') ? 2 : 0), 'FIELD EXPERIENCE');
   quest('event1', 1);
   sfx.buy();
@@ -2420,7 +2420,7 @@ function finishBank(q) {
   float(60, 96, '+' + fmt(val), C.gold, 2, 1.4);
   burst(60, 100, C.gold, 14, 80);
   addRipple(180 + rnd() * 200, 254, false);
-  if (val >= 500) shake = Math.min(6, 2 + val / 800);
+  if (val >= 1200) shake = Math.min(3, 1 + val / 2500); // gentler: only huge banks rumble
   sfx.bank();
   endBite();
 }
@@ -2472,11 +2472,7 @@ function cashOut() {
     unlock('win');
     quest('run1', 1);
     addRP(30, 'RUN WON');
-    // first win opens the MALDIVES summer stage
-    if (!meta.summer.won || !meta.summer.unlocked) {
-      meta.summer.won = true; meta.summer.unlocked = true;
-      toasts.push({ name: 'MALDIVES UNLOCKED!', sub: 'SUMMER STAGE OPEN - SEE THE SUMMER MENU', t: 0 });
-    }
+    meta.summer.won = true; meta.summer.unlocked = true; // legacy save fields
     saveMeta();
     G.state = 'win';
     return;
@@ -2488,11 +2484,10 @@ function enterShop() {
   G.shopsVisited = (G.shopsVisited || 0) + 1; // STAMP BOOK keeps count
   G.rerollCost = meta.perks.coupon ? 0 : (has('tacklecharm') ? 3 : 4);
   // a shop-mutation croc (gilded/glacial/corroded) salts THIS shop with its
-  // matching badge edition + a discount; consumed once, swamp runs only.
-  const smut = (!G.summer && G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].shop) ? MUTATIONS[G.mut].shop : null;
+  // matching badge edition + a discount; consumed once.
+  const smut = (G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].shop) ? MUTATIONS[G.mut].shop : null;
   G.shopEd = smut ? smut.ed : null;
   G.shopDisc = smut ? (smut.disc || 1) : 1;
-  if (smut) toasts.push({ name: MUTATIONS[G.mut].name + ' HOARD', sub: smut.note, t: 0 });
   rollShop();
   stockPacks();
   rollCosmetics();
@@ -2582,8 +2577,6 @@ function buyCosmetic(c) {
   else { meta.hatOwn[c.k] = true; meta.hat = c.k; }
   saveMeta();
   quest('buy4', 1);
-  const nm = c.kind === 'glove' ? GLOVES[c.k].name : HATS[c.k].name;
-  toasts.push({ name: 'NEW LOOK: ' + nm, sub: 'EQUIPPED - ' + RAR_NAME[c.rar], t: 0 });
   sfx.buy();
   burst(mx, my, RAR_COL[c.rar], 12, 70);
 }
@@ -2835,11 +2828,9 @@ function pickPack(i) {
   const o = p.options[i]; if (!o || o.taken) return;
   if (o.tooth) {
     G.deck.push(mkTooth(o.tooth));
-    toasts.push({ name: TOOTH_DEFS[o.tooth].name, sub: 'ADDED TO YOUR DECK', t: 0 });
   } else {
     if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
     G.cons.push(o.tool);
-    toasts.push({ name: o.tool.name, sub: 'ADDED TO YOUR CARDS', t: 0 });
   }
   o.taken = true;
   p.picksLeft--;
@@ -3759,7 +3750,7 @@ function drawSidebar() {
 
   panel(x, y, w, 18, { face: '#26321e', edge: '#5a7a3a' });
   drawText(curLabel(G.money), x + 6, y + 5, C.gold, 2);
-  drawTextC(G.summer ? 'CRABS' : 'MONEY', x + w - 22, y + 7, '#9ab87a', 1);
+  drawTextC('MONEY', x + w - 22, y + 7, '#9ab87a', 1);
   y += 23;
 
   const deckOk = G.state === 'play' || G.state === 'shop' || G.state === 'swap';
@@ -4790,7 +4781,6 @@ function drawWin() {
   st('BEST BANK', fmt(G.stats.bestBank));
   st('MONEY EARNED', '$' + G.stats.moneyEarned);
   drawTextCSh('+30 SCOUT COOKIES', W / 2, 168, C.green, 1);
-  if (!G.summer) drawTextCSh('MALDIVES SUMMER STAGE UNLOCKED!', W / 2, 178, '#7fe0f0', 1);
   const eg = Math.sin(tNow * 3) * 0.5 + 0.5; // the endless door glows: the run does not have to end
   ctx.save(); ctx.globalAlpha = 0.25 + eg * 0.3; rr(W / 2 - 79, 186, 158, 30, 5, '#c07dff'); ctx.restore();
   button(W / 2 - 75, 188, 150, 26, 'ENDLESS MODE >', '#7a4fd0', '#4a2a8a', () => { enterShop(); },
@@ -4842,18 +4832,16 @@ function drawMenu() {
   button(W / 2 - 82, 190, 164, 38, 'NEW RUN', '#d94f30', '#8a2a16', startRun, { id: 'start', sc: 2 });
   const UBTN = [
     ['SKINS', '#2c6b58', '#184234', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
-    ['SUMMER', '#2a8ad0', '#164a80', () => { G.state = 'summer'; sfx.click(2); }, 'summerbtn', (meta.summer.tix || 0) + ' TIX'],
     ['GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
     ['SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, 'setbtn', null],
     ['CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, 'credbtn', null],
   ];
   UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
-    const bx = 102 + i * 56;
+    const bx = 130 + i * 56;
     button(bx, 238, 52, 22, label, c1, c2, cb, {
-      id, sub, subCol: id === 'skinsbtn' ? '#8fe8c8' : id === 'summerbtn' ? '#ffe6a0' : C.gold,
+      id, sub, subCol: id === 'skinsbtn' ? '#8fe8c8' : C.gold,
       tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|hats + gloves, equip and show off'
-        : id === 'summerbtn' ? 'SUMMER EVENT|Professor Manta + the Maldives stage|Photograph rare mutations for tickets'
-          : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
+        : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
     });
   });
 }
@@ -5067,17 +5055,9 @@ function capturePhoto() {
   burst(W / 2 + 40, 120, '#ffffff', 16, 80);
   sfx.ach();
 }
-function addTix(n, label) {
-  meta.summer.tix = (meta.summer.tix || 0) + n; saveMeta();
-  if (label) toasts.push({ name: label, sub: '+' + n + ' SUMMER TICKET' + (n > 1 ? 'S' : ''), t: 0 });
-}
-function startSummerRun() { startTransition(() => { newRun(meta.ranger); G.summer = true; G.state = 'map'; }); sfx.whoosh(); }
+// summer tickets retired with the summer menu: they quietly pay out as cookies
+function addTix(n) { meta.rp = (meta.rp || 0) + n * 10; saveMeta(); }
 
-function drawTicket(x, y) {
-  rr(x, y, 16, 10, 2, '#e89a2a'); rr(x + 1, y + 1, 14, 8, 2, '#ffd66a');
-  rect(x + 8, y, 1, 10, '#e89a2a'); fillCircle(x + 4, y + 5, 2, '#ff8a3a');
-  rect(x + 10, y + 3, 4, 1, '#c97a1a'); rect(x + 10, y + 6, 4, 1, '#c97a1a');
-}
 // a tiny mutation portrait chip for the photo album
 function drawMutChip(cx, cy, k) {
   const mu = MUTATIONS[k];
@@ -5127,65 +5107,6 @@ function drawManta(x, y) {
   rect(x - 12, b + 3, 3, 1, '#ffd54a'); rect(x + 10, b + 3, 3, 1, '#ffd54a'); // temples
   // tiny cheek blush + smile
   rect(x - 4, b + 8, 9, 1, '#20303e');
-}
-
-function drawSummer(dt) {
-  const th = THEMES.maldives;
-  drawSceneBack(th); drawSceneFront(th);
-  overlayDim(0.28);
-  drawTextCSh('SUMMER EVENT', W / 2, 8, '#ffe6a0', 3);
-  drawTextC('PROFESSOR MANTA COLLECTS PHOTOS OF RARE MUTATIONS', W / 2, 30, '#0a3a4a', 1);
-
-  // ---- photo album: full-width strip of all mutation slots ----
-  const caught = meta.summer.caught || {};
-  const nCaught = MUT_ORDER.filter(k => caught[k]).length, nTot = MUT_ORDER.length;
-  panel(40, 44, 400, 84, { face: '#0e2a34ee', edge: '#3aa0c0' });
-  drawTextCSh('MUTATION ALBUM   ' + nCaught + '/' + nTot, W / 2, 50, '#bfe8ff', 1);
-  MUT_ORDER.forEach((k, i) => {
-    const bx = 44 + i * 50, by = 62, got = !!caught[k], mu = MUTATIONS[k];
-    rr(bx, by, 45, 58, 3, got ? mu.col : '#0a1a20'); rr(bx + 2, by + 2, 41, 54, 2, '#08303c');
-    if (got) { drawMutChip(bx + 22, by + 24, k); drawTextC(mu.name.slice(0, 8), bx + 22, by + 47, '#eafcff', 1); }
-    else { drawTextC('?', bx + 22, by + 18, '#2a5560', 2); drawTextC('FIND ME', bx + 22, by + 47, '#3a6570', 1); }
-    hit(bx, by, 45, 58, { id: 'album' + k, tip: got ? (mu.name + ' MUTATION|PHOTOGRAPHED!|' + mu.flav) : ('??? MUTATION|Spot it in a fight and CAPTURE it') });
-  });
-  drawTextC('SPOT A MUTATION IN A FIGHT, THEN TAP  CAPTURE  TO LOG IT', W / 2, 132, '#0a3a4a', 1);
-
-  // ---- Professor Manta (bottom-left flavor) ----
-  drawManta(46, 182);
-
-  // ---- tickets + summer quests ----
-  panel(98, 146, 334, 62, { face: '#0e2a34f2', edge: '#3aa0c0' });
-  drawTicket(108, 152); drawText('SUMMER TICKETS: ' + (meta.summer.tix || 0), 130, 154, '#ffd66a', 1);
-  const q = meta.summer.q || {};
-  const sQuest = (qy, name, done, claimed, reward, claimId, onClaim) => {
-    rect(110, qy + 1, 5, 5, done ? C.green : '#3a6570');
-    drawText(name, 120, qy, done ? '#bfe8ff' : '#9ab8c0', 1);
-    if (done && !claimed) button(334, qy - 4, 90, 14, 'CLAIM +' + reward, '#e8a020', '#98650e', onClaim, { id: claimId });
-    else if (claimed) drawText('CLAIMED', 366, qy, C.green, 1);
-  };
-  sQuest(172, 'PHOTO ALL ' + nTot + ' MUTATIONS  (' + nCaught + '/' + nTot + ')', nCaught >= nTot, !!q.photo, 3, 'claimphoto',
-    () => { addTix(3, 'ALBUM COMPLETE!'); meta.summer.q.photo = true; saveMeta(); sfx.ach(); });
-  sQuest(190, 'BEAT 8 ANTES - WIN ANY RUN', !!meta.summer.won, !!q.win, 2, 'claimwin',
-    () => { addTix(2, 'CHAMPION!'); meta.summer.q.win = true; saveMeta(); sfx.ach(); });
-
-  // ---- ticket exchange: trade summer tickets for cookies ----
-  if ((meta.summer.tix || 0) > 0) {
-    button(340, 152, 86, 14, 'TRADE 1 > 15CK', '#2a8ad0', '#164a80',
-      () => { if ((meta.summer.tix || 0) > 0) { meta.summer.tix--; addRP(15, 'TICKET EXCHANGE'); sfx.buy(); } },
-      { id: 'tixtrade', tip: 'TICKET EXCHANGE|Trade 1 SUMMER TICKET|for 15 SCOUT COOKIES' });
-  }
-
-  // ---- the Maldives stage: unlocked by your FIRST WIN (beat all 8 antes) ----
-  if (!meta.summer.unlocked && meta.summer.won) { meta.summer.unlocked = true; saveMeta(); }
-  if (!meta.summer.unlocked) {
-    button(140, 214, 200, 18, 'WIN A RUN TO UNLOCK', '#2a3f48', '#16262c', () => { sfx.error(); },
-      { id: 'unlockmal', disabled: true, tip: 'MALDIVES STAGE|Beat all 8 ANTES in any run|to open the summer stage!' });
-    drawTextC('BEAT ALL 8 ANTES IN ANY RUN TO OPEN THE BEACH', W / 2, 236, '#0a3a4a', 1);
-  } else {
-    button(140, 214, 200, 18, 'PLAY MALDIVES STAGE  >', '#2c8a6b', '#184a34', startSummerRun,
-      { id: 'playmal', tip: 'BEACH RUN|Sharks, hermit-crab cash, bright Maldives stage' });
-  }
-  button(8, 244, 74, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'summerback' });
 }
 
 // the summer shopkeep: a cool beach duck in aviators + a lei
@@ -5706,10 +5627,9 @@ function drawPassScreen(dt) {
     // quest icon + name
     (ICONS[p.ico] || ICONS.star)(px + 4, py + 3);
     drawText(p.name, px + 20, py + 4, PAPER.pen, 1);
-    // reward line: cookies (+ summer tickets)
+    // reward line: cookies (ticket quests fold their bonus into the total)
     ICONS.cookie(px + 20, py + 12);
-    drawText('+' + p.rp, px + 34, py + 15, C.goldD, 1);
-    if (p.tix) { drawTicket(px + 54, py + 13); drawText('+' + p.tix, px + 72, py + 15, '#c97a1a', 1); }
+    drawText('+' + (p.rp + (p.tix ? p.tix * 10 : 0)), px + 34, py + 15, C.goldD, 1);
     // right side: ACCEPT or live progress + abandon
     if (!p.on) {
       const bx = px + pw - 52, by = py + 7, full = nActive >= 3;
@@ -5718,7 +5638,7 @@ function drawPassScreen(dt) {
       drawTextC(full ? 'FULL' : 'ACCEPT', bx + 23, by + 4, full ? '#b8b8a8' : '#fff', 1);
       hit(bx, by, 46, 13, {
         id: 'qaccept' + p.id, cursor: true,
-        tip: full ? 'BOARD FULL|Finish or drop an active quest first' : ('ACCEPT QUEST|' + p.name + '|+' + p.rp + ' COOKIES' + (p.tix ? ' +' + p.tix + ' TICKET' : '')),
+        tip: full ? 'BOARD FULL|Finish or drop an active quest first' : ('ACCEPT QUEST|' + p.name + '|+' + (p.rp + (p.tix ? p.tix * 10 : 0)) + ' COOKIES'),
         cb: () => { if (nActive >= 3) { sfx.error(); } else { p.on = true; saveMeta(); sfx.pin(); } },
       });
     } else {
@@ -6836,9 +6756,9 @@ function drawInspect() {
 // ------------------------------------------------------------ toasts ------
 function drawToasts(dt) {
   toasts.forEach(t => t.t += dt);
-  toasts = toasts.filter(t => t.t < 3.4);
-  toasts.slice(0, 4).forEach((t, i) => {
-    const slide = t.t < 0.3 ? easeOut(t.t / 0.3) : t.t > 3.0 ? 1 - easeIn((t.t - 3.0) / 0.4) : 1;
+  toasts = toasts.filter(t => t.t < 2.6);
+  toasts.slice(0, 2).forEach((t, i) => { // at most two quiet cards, gone quickly
+    const slide = t.t < 0.3 ? easeOut(t.t / 0.3) : t.t > 2.2 ? 1 - easeIn((t.t - 2.2) / 0.4) : 1;
     const y = -30 + slide * 34 + i * 30;
     const g = GLOVES[t.glove];
     const sub = t.sub || (g ? 'UNLOCKED: ' + g.name : null);
@@ -6997,7 +6917,6 @@ function frame(ms) {
     case 'menu': drawMenu(); break;
     case 'how': drawHow(); break;
     case 'skins': drawSkins(); break;
-    case 'summer': drawSummer(dt); break;
     case 'tutorial': drawTutorial(dt); break;
     case 'ranger': drawRangerSelect(); break;
     case 'intro': drawIntro(dt); break;
@@ -7052,7 +6971,7 @@ requestAnimationFrame(frame);
 // -------------------------------------------- pause, settings, credits ----
 function togglePause() {
   if (G.overlay) { G.overlay = null; return; }
-  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'summer' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
+  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
   G.paused = !G.paused;
   sfx.pause();
 }
