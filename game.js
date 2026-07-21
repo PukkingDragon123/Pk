@@ -1699,31 +1699,21 @@ const NPCS = {
   doc: { name: 'DOC MUDBUG', who: 'the crawfish dentist', col: '#e08898', line: 'Open wide! Not you, ranger. The gator.' },
 };
 const NPC_ORDER = ['granny', 'crow', 'doc'];
-// -------- QUEST BOARD: 5 postings pinned up, accept up to 3 at a time -----
-// completing a post pays cookies (and sometimes SUMMER TICKETS), then a fresh
-// posting is pinned in its place. Progress events route through quest(id, n).
+// -------- QUEST BOARD: 3 simple postings pinned up, accept up to 2 at a time -
+// completing a post pays cookies, then a fresh posting is pinned in its place.
+// Progress events route through quest(id, n). Kept short + plain on purpose.
 const BOARD_POOL = [
-  { id: 'press30', name: 'PRESS 40 TEETH', goal: 40, rp: 15, ico: 'tooth' },
-  { id: 'bank8', name: 'BANK 10 BITES', goal: 10, rp: 15, ico: 'coin' },
+  { id: 'press30', name: 'PRESS 40 TEETH', goal: 40, rp: 20, ico: 'tooth' },
+  { id: 'bank8', name: 'BANK 10 BITES', goal: 10, rp: 20, ico: 'coin' },
   { id: 'sweep1', name: 'PULL A CLEAN SWEEP', goal: 1, rp: 20, ico: 'star' },
-  { id: 'boss1q', name: 'DEFEAT A BOSS', goal: 1, rp: 20, ico: 'skull' },
-  { id: 'xray8', name: 'X-RAY 12 TEETH', goal: 12, rp: 15, ico: 'eye' },
-  { id: 'defuse2', name: 'DEFUSE 2 SNAPPERS', goal: 2, rp: 20, ico: 'syringe' },
-  { id: 'buy4', name: 'BUY 5 SHOP ITEMS', goal: 5, rp: 15, ico: 'money' },
-  { id: 'money25', name: 'HOLD $25 AT ONCE', goal: 1, rp: 15, ico: 'coin' },
-  { id: 'ante3q', name: 'REACH ANTE 3', goal: 1, rp: 15, ico: 'compass' },
-  { id: 'special5', name: 'PRESS 6 SPECIAL TEETH', goal: 6, rp: 15, ico: 'gem' },
-  { id: 'run1', name: 'WIN A RUN', goal: 1, rp: 40, tix: 1, ico: 'crown' },
-  { id: 'event1', name: 'PLAY 2 MINI-GAMES', goal: 2, rp: 15, ico: 'star' },
-  { id: 'gold1', name: 'BEAT A GOLDEN GATOR', goal: 1, rp: 20, ico: 'crown' },
-  { id: 'tool1', name: 'USE A DENTIST TOOL', goal: 1, rp: 10, ico: 'drill' },
-  { id: 'pack1', name: 'OPEN 2 SNACK PACKS', goal: 2, rp: 15, ico: 'candy' },
-  { id: 'photo1', name: 'PHOTOGRAPH A MUTATION', goal: 1, rp: 20, tix: 1, ico: 'mg_cam' },
-  { id: 'photo2', name: 'PHOTOGRAPH 2 MUTATIONS', goal: 2, rp: 30, tix: 1, ico: 'mg_cam' },
-  { id: 'photo_spotted', name: 'PHOTO A SPOTTED CROC', goal: 1, rp: 25, tix: 1, ico: 'mg_cam' },
-  { id: 'photo_albino', name: 'PHOTO AN ALBINO CROC', goal: 1, rp: 30, tix: 1, ico: 'mg_cam' },
-  { id: 'crab5', name: 'CATCH 4 HERMIT CRABS', goal: 4, rp: 20, tix: 1, ico: 'crabq' },
+  { id: 'boss1q', name: 'DEFEAT A BOSS', goal: 1, rp: 25, ico: 'skull' },
+  { id: 'xray8', name: 'X-RAY 12 TEETH', goal: 12, rp: 20, ico: 'eye' },
+  { id: 'buy4', name: 'BUY 5 SHOP ITEMS', goal: 5, rp: 20, ico: 'money' },
+  { id: 'ante3q', name: 'REACH ANTE 3', goal: 1, rp: 20, ico: 'compass' },
+  { id: 'gold1', name: 'BEAT A GOLDEN GATOR', goal: 1, rp: 25, ico: 'crown' },
+  { id: 'run1', name: 'WIN A RUN', goal: 1, rp: 50, ico: 'crown' },
 ];
+const BOARD_SIZE = 3, QUEST_MAX = 2; // fewer notes, simpler cap
 // the shopkeeper
 const VENDOR = {
   name: 'MERLE', who: 'the manatee shopkeep',
@@ -1755,18 +1745,23 @@ function todayStr() {
   const d = new Date();
   return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
 }
-// pin fresh postings until the board holds 5 (no duplicate quest ids)
+// pin fresh postings until the board holds BOARD_SIZE (no duplicate quest ids)
 function fillBoard() {
   const qb = meta.qb;
   let guard = 40;
-  while (qb.posts.length < 5 && guard-- > 0) {
+  while (qb.posts.length < BOARD_SIZE && guard-- > 0) {
     const def = choice(BOARD_POOL.filter(d => !qb.posts.some(p => p.id === d.id)));
     if (!def) break;
-    qb.posts.push({ id: def.id, name: def.name, goal: def.goal, rp: def.rp, tix: def.tix || 0, ico: def.ico, npc: choice(NPC_ORDER), on: false, prog: 0 });
+    qb.posts.push({ id: def.id, name: def.name, goal: def.goal, rp: def.rp, ico: def.ico, npc: choice(NPC_ORDER), on: false, prog: 0 });
   }
 }
 function ensureDaily() {
-  if (!meta.qb || !meta.qb.posts) { meta.qb = { posts: [], done: 0 }; fillBoard(); }
+  if (!meta.qb || !meta.qb.posts) { meta.qb = { posts: [], done: 0 }; fillBoard(); return; }
+  // migrate older/larger boards: drop retired quests, shrink to BOARD_SIZE
+  const valid = meta.qb.posts.filter(p => BOARD_POOL.some(d => d.id === p.id));
+  const active = valid.filter(p => p.on), rest = valid.filter(p => !p.on);
+  meta.qb.posts = active.concat(rest).slice(0, BOARD_SIZE);
+  fillBoard();
 }
 const activeQuests = () => (meta.qb && meta.qb.posts || []).filter(p => p.on);
 function addRP(n, label) {
@@ -1778,7 +1773,7 @@ function completeQuest(p) {
   meta.qb.done = (meta.qb.done || 0) + 1;
   meta.qb.posts = meta.qb.posts.filter(x => x !== p);
   fillBoard();
-  addRP(p.rp + (p.tix ? p.tix * 10 : 0), 'QUEST DONE: ' + p.name);
+  addRP(p.rp, 'QUEST DONE: ' + p.name);
   sfx.ach();
 }
 function quest(id, n) {
@@ -4854,7 +4849,6 @@ function startRun() { if (!meta.tutDone) startTutorial(); else { G.state = 'rang
 function drawCharacter(cx, cy) {
   const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
   const g = GLOVES[gid];
-  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   const yy = cy + Math.round(Math.sin(tNow * 1.5) * 1);
   // shadow
   ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, yy + 52, 20, '#000'); ctx.restore();
@@ -4864,9 +4858,8 @@ function drawCharacter(cx, cy) {
   rect(cx - 5, yy + 16, 10, 32, '#e8e0c8');
   rect(cx - 15, yy + 18, 5, 28, '#3a5a44'); rect(cx + 10, yy + 18, 5, 28, '#3a5a44');
   rect(cx - 1, yy + 20, 2, 24, '#b8a068'); rect(cx - 11, yy + 22, 4, 3, C.gold); rect(cx - 10, yy + 23, 1, 1, '#fff6c8');
-  // head (chosen ranger) + hat worn on top
+  // head (chosen ranger) - hats are worn on the map traveler now, not here
   drawRangerFace(cx - 14, yy - 16, meta.ranger || 'scout');
-  if (hatKey !== 'none') drawHatArt(cx, yy - 14, hatKey, 2);
   // raised gloved fist (mirrors drawHand's grab shape, static)
   const hx = cx + 23, hy = yy + 16;
   rect(cx + 12, yy + 18, 12, 4, '#2c4436'); rect(cx + 12, yy + 18, 12, 1, '#3a5a44');
@@ -4875,73 +4868,54 @@ function drawCharacter(cx, cy) {
   rr(hx - 8, hy + 3, 4, 6, 2, g.skin);
   drawGloveDeco(hx, hy, 0, gid, g, true);
   rr(hx - 7, hy + 10, 16, 5, 1, '#20140c'); rr(hx - 6, hy + 10, 14, 4, 1, g.cuff);
-  // signature effects (glove on the fist, hat above the head)
+  // signature glove effect on the fist
   ctx.save();
   const gf = GLOVE_FX[gid]; if (gf) gf(hx, hy, 9, true);
-  const hf = HAT_FX[hatKey]; if (hf) hf(cx, yy - 14, false);
   ctx.globalAlpha = 1; ctx.restore();
 }
 
 // --------------------------------------------------- SKINS (cosmetics) -----
-// a cool FLOATING display stand: a hovering glass slab with a bob + thrusters
-function floatStand(sx, sy0, accent, title, order, cur, isOpen, art, tipFor, equip) {
-  const bob = Math.round(Math.sin(tNow * 1.6 + sx * 0.05) * 3);
-  const sw = 152, sh = 150, sy = sy0 + bob;
-  // shadow cast on the floor + hover glow
-  ctx.save(); ctx.globalAlpha = 0.22; fillCircle(sx + sw / 2, sy0 + sh + 26, 50, '#000'); ctx.restore();
-  ctx.save(); ctx.globalAlpha = 0.14; rr(sx - 6, sy - 6, sw + 12, sh + 12, 12, accent); ctx.restore();
-  // anti-grav thruster sparkles beneath the slab
-  for (let k = 0; k < 6; k++) { const px = sx + 12 + k * 26, a = (tNow * 1.6 + k * 0.4) % 1; ctx.save(); ctx.globalAlpha = 1 - a; rect(px, (sy + sh + 2 + a * 12) | 0, 2, 3, accent); ctx.restore(); }
-  // floating glass slab
-  rr(sx, sy + 5, sw, sh, 8, '#00000066');
-  rr(sx, sy, sw, sh, 8, '#15303c'); rr(sx + 2, sy + 2, sw - 4, sh - 4, 7, '#0b1c26');
-  rect(sx + 8, sy + 5, sw - 16, 2, accent); rr(sx + 4, sy + 4, sw - 8, 3, 2, accent + '55');
-  // hovering title plaque
-  panel(sx + 22, sy - 17, sw - 44, 15, { face: '#0e1c24', edge: accent, r: 3 });
-  drawTextCSh(title, sx + sw / 2, sy - 13, '#ffffff', 1);
-  // item grid
-  const cols = 5, cw = 27, ch2 = 29, gx0 = sx + (sw - cols * cw) / 2 + 3, gy0 = sy + 14;
+// a simple horizontal picker row of item icons; click to equip, ? when locked.
+function skinRow(y, order, cur, isOpen, drawIco, tipFor, equip, rarOf) {
+  const n = order.length, cw = (W - 24) / n, s = Math.min(24, cw - 2);
   order.forEach((k, i) => {
-    const gx = gx0 + (i % cols) * cw, gy = gy0 + Math.floor(i / cols) * ch2;
-    const open = isOpen(k), on = cur() === k, rar = (order === GLOVE_ORDER ? GLOVE_RAR[k] : HATS[k].rar) || 0;
-    rr(gx, gy, 23, 25, 3, on ? C.gold : (open ? RAR_COL[rar] : '#0d161b'));
-    rr(gx + 1, gy + 1, 21, 23, 2, open ? '#22343e' : '#141c22');
-    if (open) art(gx + 12, gy + 13, k); else drawTextC('?', gx + 12, gy + 8, '#41565e', 1);
-    if (on) rect(gx + 8, gy + 21, 7, 2, C.gold);
-    hit(gx, gy, 23, 25, { id: title + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
+    const gx = Math.round(12 + i * cw), gy = y, on = cur() === k, open = isOpen(k);
+    rr(gx, gy, s, s, 2, on ? C.gold : (open ? RAR_COL[rarOf(k)] : '#2a3a42'));
+    rr(gx + 1, gy + 1, s - 2, s - 2, 2, open ? '#1a2830' : '#101820');
+    if (open) drawIco(gx + (s >> 1), gy + (s >> 1), k); else drawTextC('?', gx + (s >> 1), gy + (s >> 1) - 4, '#41565e', 1);
+    if (on) rect(gx + (s >> 1) - 3, gy + s - 3, 6, 2, C.gold);
+    hit(gx, gy, s, s, { id: 'skin' + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
   });
-  const owned = order.filter(isOpen).length;
-  drawTextC(owned + '/' + order.length + ' OWNED', sx + sw / 2, sy + sh - 11, '#6a8a94', 1);
 }
 function drawSkins() {
   const th = THEMES.shop;
   drawSceneBack(th); drawSceneFront(th);
   overlayDim(0.6);
   drawTextCSh('SKINS', W / 2, 8, C.gold, 3);
-  drawTextC('CLICK A FLOATING STAND TO EQUIP', W / 2, 30, '#c8b8a0', 1);
 
-  // ---- center: your dentist hovering on an anti-grav disc ----
-  const cx = W / 2, cyH = 100, disc = Math.round(Math.sin(tNow * 1.5) * 2);
-  ctx.save(); ctx.globalAlpha = 0.25; fillCircle(cx, cyH + 66, 30, '#000'); ctx.restore();
-  ctx.save(); ctx.globalAlpha = 0.5; rr(cx - 30, cyH + 56 + disc, 60, 8, 4, '#3aa0c0'); ctx.restore();
-  rr(cx - 28, cyH + 55 + disc, 56, 6, 3, '#7fe0f0'); rect(cx - 24, cyH + 56 + disc, 48, 1, '#d8f8ff');
+  // ---- just the character sprite, plain, centered up top ----
+  const cx = W / 2, cyH = 52;
+  ctx.save(); ctx.globalAlpha = 0.28; fillCircle(cx, cyH + 56, 24, '#000'); ctx.restore();
   drawCharacter(cx, cyH);
   const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HAND';
-  const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'BARE HEAD';
-  drawTextCSh(hname, cx, cyH + 74, '#e0d0b0', 1);
-  drawTextCSh(gname, cx, cyH + 84, '#e0d0b0', 1);
+  drawTextCSh(gname, cx, cyH + 66, '#e0d0b0', 1);
 
-  // ---- separate floating GLOVE (left) + HAT (right) stands ----
-  floatStand(10, 66, '#7fd4e8', 'GLOVE STAND', GLOVE_ORDER, () => meta.glove, gloveUnlocked,
-    (mx2, my2, k) => { ctx.save(); ctx.translate(mx2 - 6, my2 - 6); ICONS.glove(0, 0, GLOVES[k].skin); ctx.restore(); },
-    (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + '|' + GLOVES[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
-    k => { meta.glove = k; });
-  floatStand(318, 66, '#ffb0d0', 'HAT STAND', HAT_ORDER, () => meta.hat, hatUnlocked,
-    (mx2, my2, k) => { if (HATS[k].ico === 'none') rect(mx2 - 4, my2 - 1, 8, 2, '#54707a'); else drawHatArt(mx2, my2 + 5, k, 1); },
-    (k, open, on) => open ? (HATS[k].name + '|' + HATS[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
-    k => { meta.hat = k; });
+  // ---- simple GLOVES row ----
+  drawText('GLOVES', 14, 122, '#c8b8a0', 1);
+  skinRow(132, GLOVE_ORDER, () => meta.glove, gloveUnlocked,
+    (ix, iy, k) => ICONS.glove(ix - 6, iy - 6, GLOVES[k].skin),
+    (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
+    k => { meta.glove = k; }, k => GLOVE_RAR[k] || 0);
 
-  button(W / 2 - 45, 244, 90, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
+  // ---- simple HATS row (worn on the map traveler) ----
+  drawText('HATS', 14, 168, '#c8b8a0', 1);
+  drawText('(shown on the map)', 52, 168, '#6a8a94', 1);
+  skinRow(178, HAT_ORDER, () => meta.hat, hatUnlocked,
+    (ix, iy, k) => { if (HATS[k].ico === 'none') rect(ix - 4, iy, 8, 2, '#54707a'); else drawHatArt(ix, iy + 6, k, 1); },
+    (k, open, on) => open ? (HATS[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
+    k => { meta.hat = k; }, k => HATS[k].rar || 0);
+
+  button(W / 2 - 45, 232, 90, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
 }
 
 // ------------------------------------------------- interactive tutorial ----
@@ -5321,7 +5295,7 @@ function drawMap() {
     drawText('VISIT THE', 74, 80, '#8a9a9a', 1);
     drawText('QUEST BOARD!', 74, 90, '#8a9a9a', 1);
   }
-  actQ.slice(0, 3).forEach((p, i) => {
+  actQ.slice(0, QUEST_MAX).forEach((p, i) => {
     const qy = 65 + i * 15;
     rect(72, qy, 5, 5, NPCS[p.npc] ? NPCS[p.npc].col : C.gold);
     drawText(p.name.slice(0, 12), 81, qy - 1, '#b8c8c8', 1);
@@ -5329,7 +5303,7 @@ function drawMap() {
     const pr = clamp(p.prog / p.goal, 0, 1);
     if (pr > 0) rect(81, qy + 6, Math.floor(60 * pr), 3, C.gold);
     drawText(p.prog + '/' + p.goal, 144, qy + 3, C.dim, 1);
-    hit(70, qy - 2, 96, 14, { id: 'qtrack' + p.id, tip: p.name + '|' + p.prog + '/' + p.goal + '  (+' + p.rp + ' COOKIES' + (p.tix ? ' +TIX' : '') + ')' });
+    hit(70, qy - 2, 96, 14, { id: 'qtrack' + p.id, tip: p.name + '|' + p.prog + '/' + p.goal + '  (+' + p.rp + ' COOKIES)' });
   });
   // fog of the next ante on the right
   for (let k = 0; k < 5; k++) {
@@ -5450,6 +5424,9 @@ function drawMap() {
   rr(bpos.x - 12, bpos.y + bob, 24, 7, 3, '#5a3a1e');
   rr(bpos.x - 9, bpos.y - 2 + bob, 18, 4, 2, '#7a5230');
   drawRangerFace(bpos.x - 14 + lean, bpos.y - 26 + bob, G.ranger);
+  // the equipped cosmetic HAT rides on the traveler's head
+  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
+  if (hatKey !== 'none') drawHatArt(bpos.x + lean, bpos.y - 20 + bob, hatKey, 1);
   drawTextC(G.boat ? '. . .' : 'PICK YOUR NEXT STOP', W / 2, 234, C.dim, 1);
 }
 function nodeTip(node) {
@@ -5614,7 +5591,7 @@ function drawPassScreen(dt) {
   drawTextCSh('QUEST BOARD', 352, sy + 5, C.gold, 1, WOOD.ink);
   ensureDaily();
   const nActive = activeQuests().length;
-  drawTextC('PIN UP TO 3 - ' + nActive + '/3 ACTIVE', 352, sy + 14, '#d8b878', 1);
+  drawTextC('PIN UP TO ' + QUEST_MAX + ' - ' + nActive + '/' + QUEST_MAX + ' ACTIVE', 352, sy + 14, '#d8b878', 1);
   meta.qb.posts.forEach((p, i) => {
     const tilt = i % 2 ? 1 : -1;
     const px = 251, py = 70 + i * 30, pw = 200, ph = 27;
@@ -5629,17 +5606,17 @@ function drawPassScreen(dt) {
     drawText(p.name, px + 20, py + 4, PAPER.pen, 1);
     // reward line: cookies (ticket quests fold their bonus into the total)
     ICONS.cookie(px + 20, py + 12);
-    drawText('+' + (p.rp + (p.tix ? p.tix * 10 : 0)), px + 34, py + 15, C.goldD, 1);
+    drawText('+' + p.rp, px + 34, py + 15, C.goldD, 1);
     // right side: ACCEPT or live progress + abandon
     if (!p.on) {
-      const bx = px + pw - 52, by = py + 7, full = nActive >= 3;
+      const bx = px + pw - 52, by = py + 7, full = nActive >= QUEST_MAX;
       rr(bx, by + 1, 46, 14, 2, '#00000066');
       rr(bx, by, 46, 13, 2, full ? '#5a5a4a' : '#2c8a5b'); rr(bx, by, 46, 5, 2, full ? '#6a6a58' : '#3aa86e');
       drawTextC(full ? 'FULL' : 'ACCEPT', bx + 23, by + 4, full ? '#b8b8a8' : '#fff', 1);
       hit(bx, by, 46, 13, {
         id: 'qaccept' + p.id, cursor: true,
-        tip: full ? 'BOARD FULL|Finish or drop an active quest first' : ('ACCEPT QUEST|' + p.name + '|+' + (p.rp + (p.tix ? p.tix * 10 : 0)) + ' COOKIES'),
-        cb: () => { if (nActive >= 3) { sfx.error(); } else { p.on = true; saveMeta(); sfx.pin(); } },
+        tip: full ? 'BOARD FULL|Finish or drop an active quest first' : ('ACCEPT QUEST|' + p.name + '|+' + p.rp + ' COOKIES'),
+        cb: () => { if (nActive >= QUEST_MAX) { sfx.error(); } else { p.on = true; saveMeta(); sfx.pin(); } },
       });
     } else {
       const bx = px + pw - 78, by = py + 9, pr = clamp(p.prog / p.goal, 0, 1);
@@ -5653,7 +5630,7 @@ function drawPassScreen(dt) {
     }
     // push-pin: gold-ish green when accepted
     pushPin(px + pw / 2, py, p.on ? PINS[0] : PINS[(i + 1) % PINS.length], 0.5 + 0.5 * Math.sin(tNow * 3 + i * 1.7));
-    hit(px, py, pw - 56, ph, { id: 'qnote' + p.id, tip: p.name + '|POSTED BY ' + npc.name + '|+' + p.rp + ' COOKIES' + (p.tix ? ' AND +' + p.tix + ' SUMMER TICKET' : '') });
+    hit(px, py, pw - 56, ph, { id: 'qnote' + p.id, tip: p.name + '|POSTED BY ' + npc.name + '|+' + p.rp + ' COOKIES' });
   });
 
   drawTextC('EARN COOKIES: QUESTS, ACHIEVEMENTS +25, EVENTS +3, ANTES +2', W / 2, 236, '#54707a', 1);
