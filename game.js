@@ -782,9 +782,9 @@ function drawRangerFace(x, y, key) {
     rr(hx, hy, hw, 8, 2, '#5a4028');
     rect(hx, hy + 5, hw, 2, band);
   };
-  if (key === 'scout') { // heron: blue-grey, long yellow beak
-    hat(x + 5, y, 18, '#63d66a');
+  if (key === 'scout') { // heron: blue-grey, long yellow beak (bare head: cosmetic hats sit here)
     rr(x + 5, y + 9, 18, 14, 3, '#9fb2c8');
+    rr(x + 6, y + 7, 16, 4, 2, '#8aa0b8'); // small crown so hats have a head to rest on
     rect(x + 6, y + 9, 16, 2, '#00000022');
     critterEye(x + 7, y + 12, 6, 7, '#9fb2c8', '#f8f4dc', '#1b1408', 0);
     critterEye(x + 15, y + 12, 6, 7, '#9fb2c8', '#f8f4dc', '#1b1408', 0.4);
@@ -4887,35 +4887,64 @@ function skinRow(y, order, cur, isOpen, drawIco, tipFor, equip, rarOf) {
     hit(gx, gy, s, s, { id: 'skin' + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
   });
 }
+// just the CHARACTER'S HEAD (the ranger you last played), no body, with the
+// equipped cosmetic hat sitting on the crown. Drawn scaled inside a transform.
+function drawCharHead(cx, cy, sc) {
+  const key = RANGERS[meta.ranger] ? meta.ranger : 'scout';
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(sc, sc);
+  drawRangerFace(-14, -6, key);
+  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
+  if (hatKey !== 'none') drawHatArt(0, 3, hatKey, 1);
+  ctx.restore();
+}
 function drawSkins() {
   const th = THEMES.shop;
   drawSceneBack(th); drawSceneFront(th);
-  overlayDim(0.6);
-  drawTextCSh('SKINS', W / 2, 8, C.gold, 3);
+  overlayDim(0.72);
+  drawTextCSh('DRESSING ROOM', W / 2, 8, C.gold, 2);
+  const rkey = RANGERS[meta.ranger] ? meta.ranger : 'scout';
+  const R = RANGERS[rkey];
 
-  // ---- just the character sprite, plain, centered up top ----
-  const cx = W / 2, cyH = 52;
-  ctx.save(); ctx.globalAlpha = 0.28; fillCircle(cx, cyH + 56, 24, '#000'); ctx.restore();
-  drawCharacter(cx, cyH);
-  const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HAND';
-  drawTextCSh(gname, cx, cyH + 66, '#e0d0b0', 1);
+  // ---- framed portrait: a lit vanity mirror showing just your character head ----
+  const cx = W / 2, fy = 30, fw = 128, fh = 92, fx = cx - fw / 2;
+  // vanity bulbs around the top of the frame
+  for (let k = 0; k < 7; k++) { const bx = fx + 14 + k * 16, on = ((tNow * 2 + k) | 0) % 5 !== 0; fillCircle(bx, fy - 3, 3, on ? '#ffe9a0' : '#6a5a3a'); if (on) { ctx.save(); ctx.globalAlpha = 0.16; fillCircle(bx, fy - 3, 7, '#ffe9a0'); ctx.restore(); } }
+  // ornate gold frame + mirror glass with a soft radial sheen
+  rr(fx - 4, fy + 3, fw + 8, fh + 6, 6, '#00000077');
+  rr(fx - 3, fy, fw + 6, fh, 6, '#c9941a'); rr(fx - 1, fy + 2, fw + 2, fh - 4, 5, '#ffd76a');
+  rr(fx + 3, fy + 3, fw - 6, fh - 6, 4, '#1b2a33');
+  const grd = ctx.createRadialGradient(cx, fy + fh / 2, 4, cx, fy + fh / 2, fh);
+  grd.addColorStop(0, '#2f4a56'); grd.addColorStop(1, '#12202a');
+  ctx.save(); ctx.fillStyle = grd; ctx.fillRect(fx + 3, fy + 3, fw - 6, fh - 6); ctx.restore();
+  rect(fx + 8, fy + 7, 3, fh - 16, '#ffffff12'); // glass streak
+  // pedestal shadow + the character head, scaled up, no body
+  ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, fy + fh - 10, 22, '#000'); ctx.restore();
+  drawCharHead(cx, fy + fh / 2 + 8, 2.4);
+  // name plaque
+  const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HANDS';
+  const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'NO HAT';
+  panel(cx - 74, fy + fh + 6, 148, 15, { face: '#2a1f14', edge: '#7a5a30', r: 3 });
+  drawTextCSh(R.name + '  -  ' + R.animal, cx, fy + fh + 10, '#ffe6b0', 1);
 
-  // ---- simple GLOVES row ----
-  drawText('GLOVES', 14, 122, '#c8b8a0', 1);
-  skinRow(132, GLOVE_ORDER, () => meta.glove, gloveUnlocked,
+  // ---- GLOVES row ----
+  drawText('GLOVES', 14, 150, '#c8b8a0', 1);
+  drawText(gname, 66, 150, '#8aa0a8', 1);
+  skinRow(160, GLOVE_ORDER, () => meta.glove, gloveUnlocked,
     (ix, iy, k) => ICONS.glove(ix - 6, iy - 6, GLOVES[k].skin),
     (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
     k => { meta.glove = k; }, k => GLOVE_RAR[k] || 0);
 
-  // ---- simple HATS row (worn on the map traveler) ----
-  drawText('HATS', 14, 168, '#c8b8a0', 1);
-  drawText('(shown on the map)', 52, 168, '#6a8a94', 1);
-  skinRow(178, HAT_ORDER, () => meta.hat, hatUnlocked,
+  // ---- HATS row (worn on the character + the map traveler) ----
+  drawText('HATS', 14, 194, '#c8b8a0', 1);
+  drawText(hname, 50, 194, '#8aa0a8', 1);
+  skinRow(204, HAT_ORDER, () => meta.hat, hatUnlocked,
     (ix, iy, k) => { if (HATS[k].ico === 'none') rect(ix - 4, iy, 8, 2, '#54707a'); else drawHatArt(ix, iy + 6, k, 1); },
     (k, open, on) => open ? (HATS[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
     k => { meta.hat = k; }, k => HATS[k].rar || 0);
 
-  button(W / 2 - 45, 232, 90, 20, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
+  button(W / 2 - 45, 234, 90, 18, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
 }
 
 // ------------------------------------------------- interactive tutorial ----
