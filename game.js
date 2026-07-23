@@ -984,20 +984,27 @@ const mutSizeMul = () => (G.mut && MUTATIONS[G.mut] && MUTATIONS[G.mut].sizeMul)
 // the round-0 "small" node is a lil baby gator (smaller body + mouth, see mouthLayout)
 function lilGator() { return G.state !== 'menu' && G.round === 0 && G.nodeType === 'small'; }
 function baseCrocStyle() {
-  if (G.summer && G.state !== 'menu') { // the title mascot is always the swamp gator
+  if (G.state === 'menu') { // the title mascot cycles through random variants
+    const ml = G.menuLook;
+    if (ml && ml.nodeType === 'gold') return CROC_STYLES.gold;
+    if (ml && ml.round === 1) return CROC_STYLES.big;
+    return CROC_STYLES.small;
+  }
+  if (G.summer) { // the summer stage is sharks
     if (G.round === 2) return SHARK_STYLES.mega;
     if (G.round === 1) return SHARK_STYLES.tiger;
     return SHARK_STYLES.reef;
   }
-  if (G.state !== 'menu' && G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
-  if (G.state !== 'menu' && G.nodeType === 'gold') return CROC_STYLES.gold;
-  if (G.state !== 'menu' && G.round === 1) return CROC_STYLES.big;
+  if (G.round === 2 && G.boss) return CROC_STYLES[G.boss.id] || CROC_STYLES.big;
+  if (G.nodeType === 'gold') return CROC_STYLES.gold;
+  if (G.round === 1) return CROC_STYLES.big;
   if (lilGator()) return CROC_STYLES.lilgator;
   return CROC_STYLES.small;
 }
 function crocStyle() {
   const base = baseCrocStyle();
-  if (G.state !== 'menu' && G.mut && MUTATIONS[G.mut]) return Object.assign({}, base, MUTATIONS[G.mut].tint || {}, { mut: G.mut });
+  const mut = G.state === 'menu' ? (G.menuLook && G.menuLook.mut) : G.mut;
+  if (mut && MUTATIONS[mut]) return Object.assign({}, base, MUTATIONS[mut].tint || {}, { mut });
   return Object.assign({}, base, { mut: null });
 }
 
@@ -3200,7 +3207,7 @@ function drawCroc(closeT, opts) {
       pressedTint: s.pressed, outline,
       xray: scanning, xraySnap: scanning && xrayShowsSnap(i), xrayT: scanning ? G.xanim.t : 0,
     });
-    if (!s.pressed && !scanning) {
+    if (!s.pressed && !scanning && G.state !== 'menu') {
       const hideVal = bossIs('cotton');
       const vs = hideVal ? '?' : '' + s.t.base;
       const vy = sl.up ? ty + th - 7 : ty + 2;
@@ -4850,9 +4857,28 @@ function drawRustySign(cx, py, dy) {
   ctx.restore();
 }
 
+// pick a fresh title-mascot look: a random croc variant + a full mouth of teeth
+function rollMenuLook() {
+  const bases = [{ round: 0, nodeType: 'small' }, { round: 1, nodeType: 'big' }, { round: 0, nodeType: 'gold' }];
+  const look = Object.assign({}, choice(bases));
+  // tint/deco variants only (skip mega/dwarf so the mouth geometry stays put)
+  look.mut = choice([null, null, null, 'diamond', 'spotted', 'striped', 'albino', 'alien', 'extra', 'gilded', 'glacial', 'corroded']);
+  const gems = ['gold', 'ruby', 'sapph', 'emerald', 'amber', 'diamond', 'steel'];
+  const n = 12 + ri(0, 2) + (look.mut === 'extra' ? 3 : 0); // a full set of teeth
+  const teeth = [];
+  for (let i = 0; i < n; i++) {
+    const tp = rnd() < 0.62 ? 'plain' : choice(gems);
+    const base = tp === 'plain' ? ri(1, 9) : (TOOTH_DEFS[tp] ? TOOTH_DEFS[tp].base : 5);
+    teeth.push({ t: { type: tp, base }, pressed: false, gone: false, pop: 0, revealed: null, snap: false });
+  }
+  look.teeth = teeth;
+  G.menuLook = look;
+}
 function drawMenu(dt) {
   if (G.summer) { G.summer = false; } // a summer run is over once we're back at the title
-  G.mut = null; G.mouth = []; // plain gator + a clean maw so the mouth reads as a button
+  G.mut = null;
+  if (!G.menuLook) { rollMenuLook(); G.menuRolled = false; }
+  G.mouth = G.menuLook.teeth; // a full mouth of teeth (random variant)
   const th = THEMES.night;
   drawSceneBack(th);
   // a distant airboat crosses the far water now and then
@@ -4862,21 +4888,31 @@ function drawMenu(dt) {
     ctx.save(); ctx.translate(ax, 205); ctx.scale(0.45, 0.45); drawAirboat(0, 0, true, undefined); ctx.restore();
   }
   const chomp = Math.max(0, Math.sin(tNow * 1.4)) * 0.9;
+  // while the jaws are shut, quietly swap in a new random variant + teeth
+  if (chomp > 0.8 && !G.menuRolled) { rollMenuLook(); G.menuRolled = true; G.mouth = G.menuLook.teeth; }
+  if (chomp < 0.2) G.menuRolled = false;
   drawCroc(chomp);
   drawSceneFront(th);
 
-  // ===== PLAY BUTTON = the gator's open mouth =====
+  // ===== PLAY BUTTON = the gator's open mouth (HIDDEN when the mouth shuts) =====
   const maw = mouthLayout().maw;
   const mcx = maw.x + maw.w / 2, mcy = maw.y + maw.h - 22;
-  const hov = mx >= maw.x && mx < maw.x + maw.w && my >= maw.y - 4 && my < maw.y + maw.h;
-  const gl = 0.35 + Math.sin(tNow * 3) * 0.2 + (hov ? 0.3 : 0);
-  ctx.save(); ctx.globalAlpha = gl * 0.6; rr(mcx - 54, mcy - 13, 108, 28, 6, '#ffcf3a'); ctx.restore();
-  rr(mcx - 50, mcy - 11, 100, 24, 5, '#3a1008');
-  rr(mcx - 48, mcy - 10, 96, 21, 5, hov ? '#f0662e' : '#c83a16');
-  rect(mcx - 46, mcy - 9, 92, 2, '#ff9a5a');
-  drawTextCSh('NEW RUN', mcx, mcy - 6, '#fff2d0', 2, '#5a1408');
-  drawTextC('PRESS TO BITE DOWN', mcx, mcy + 5, '#ffd9a0', 1);
-  hit(maw.x, maw.y - 4, maw.w, maw.h + 4, { id: 'start', cursor: true, tip: 'NEW RUN|Climb 8 antes of hungry gators', cb: startRun });
+  const open = chomp < 0.45;                      // jaws open enough to press
+  const vis = clamp((0.55 - chomp) / 0.22, 0, 1); // fade the button as they close
+  if (vis > 0.02) {
+    ctx.save(); ctx.globalAlpha = vis;
+    const hov = open && mx >= maw.x && mx < maw.x + maw.w && my >= maw.y - 4 && my < maw.y + maw.h;
+    const gl = 0.35 + Math.sin(tNow * 3) * 0.2 + (hov ? 0.3 : 0);
+    ctx.save(); ctx.globalAlpha = vis * gl * 0.6; rr(mcx - 54, mcy - 13, 108, 28, 6, '#ffcf3a'); ctx.restore();
+    rr(mcx - 50, mcy - 11, 100, 24, 5, '#3a1008');
+    rr(mcx - 48, mcy - 10, 96, 21, 5, hov ? '#f0662e' : '#c83a16');
+    rect(mcx - 46, mcy - 9, 92, 2, '#ff9a5a');
+    drawTextCSh('NEW RUN', mcx, mcy - 6, '#fff2d0', 2, '#5a1408');
+    drawTextC('PRESS TO BITE DOWN', mcx, mcy + 5, '#ffd9a0', 1);
+    ctx.restore();
+  }
+  // only clickable while the mouth is open - shut jaws hide the button
+  if (open) hit(maw.x, maw.y - 4, maw.w, maw.h + 4, { id: 'start', cursor: true, tip: 'NEW RUN|Press while the jaws are OPEN!', cb: startRun });
 
   // ===== rusty title sign - the croc's snout physically shoves it UP =====
   // the snout top mirrors drawCroc's jaw: highest (small y) when the mouth is
