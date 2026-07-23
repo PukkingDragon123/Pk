@@ -1978,9 +1978,10 @@ function startFight(node) {
   G.xrayUsedRound = 0; G.seq = null;
   // roll a MUTATION on this croc/shark - Professor Manta pays for photos (common now)
   const canMut = G.summer || node.type !== 'boss';
-  // crocs and sharks can also roll a SHOP mutation (gilded/glacial/corroded);
-  // those aren't photo-album subjects, so Manta's collection is unaffected.
-  G.mut = (canMut && rnd() < 0.55) ? choice(MUT_ORDER.concat(SHOP_MUTS)) : null;
+  // crocs and sharks can also roll a SHOP mutation (gilded/glacial/corroded),
+  // but only rarely - special editions should feel special.
+  const mutPool = MUT_ORDER.concat(rnd() < 0.3 ? SHOP_MUTS : []);
+  G.mut = (canMut && rnd() < 0.55) ? choice(mutPool) : null;
   if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
@@ -2017,18 +2018,31 @@ function startEvent() {
   G.state = 'event';
 }
 
+// tighten a freshly-initialised mini-game so events are a real challenge:
+// less time on the clock, fewer attempts, and stingier per-game knobs.
+function hardenEvent(game, s) {
+  if (typeof s.timer === 'number' && game !== 'cook') s.timer = Math.max(8, Math.round(s.timer * 0.68));
+  if (typeof s.casts === 'number') s.casts = Math.max(3, s.casts - 2);   // fish
+  if (typeof s.throws === 'number') s.throws = Math.max(4, s.throws - 2); // feed
+  if (typeof s.shots === 'number') s.shots = Math.max(4, s.shots - 2);    // birdy
+  if (game === 'cook') s.heat = 0.5;              // starts closer to burning
+  if (typeof s.rate === 'number') s.rate = s.rate * 0.7; // burger patties cook faster
+}
 // a mini-game reports its result here; rewards are paid on CONTINUE
 function finishGame(grade, pay, cookies, lines) {
   const ev = G.event; if (!ev || ev.phase === 'done') return;
   ev.phase = 'done'; ev.t = 0;
-  ev.grade = grade; ev.pay = pay; ev.cookies = cookies; ev.lines = lines || [];
+  // events pay lean now: half the old money, half the bonus cookies
+  ev.grade = grade; ev.pay = Math.max(1, Math.round(pay * 0.5)); ev.cookies = Math.floor(cookies * 0.5);
+  // rewrite any "+$N" money lines to match the leaner payout
+  ev.lines = (lines || []).map(l => l.replace(/\+\$\d+/g, '+$' + ev.pay));
   sfx.win();
 }
 function collectEvent() {
   const ev = G.event; if (!ev || ev.phase !== 'done') return;
   gainMoney(ev.pay);
   if (has('duckcall')) { gainMoney(3); float(60, 150, 'DUCK CALL +$3', C.gold, 1, 1.2); }
-  addRP(3 + ev.cookies + (has('dragonfly') ? 2 : 0), 'FIELD EXPERIENCE');
+  addRP(1 + ev.cookies + (has('dragonfly') ? 2 : 0), 'FIELD EXPERIENCE');
   quest('event1', 1);
   sfx.buy();
   closeEvent();
@@ -2503,7 +2517,7 @@ function weightedCharm(pool) {
 // returns a fresh item carrying a def COPY so the master CHARMS list is untouched.
 function editionItem(def) {
   let ed = G.shopEd || null;
-  if (!ed && rnd() < 0.12) ed = choice(EDITION_KEYS); // occasional wild edition
+  if (!ed && rnd() < 0.04) ed = choice(EDITION_KEYS); // rare wild edition (mostly from mutations)
   let price = def.cost;
   let cdef = def;
   if (ed && EDITIONS[ed]) {
@@ -4784,8 +4798,55 @@ function drawWin() {
 }
 
 // ------------------------------------------------------------ menu --------
-function drawMenu() {
-  if (G.summer) { G.summer = false; G.mut = null; } // a summer run is over once we're back at the title
+// old, rusted, half-broken title sign hung from chains - one chain snapped so
+// it lists and swings. Rendered inside a rotate transform about its pivot.
+function drawRustySign(cx, py, a) {
+  ctx.save();
+  ctx.translate(cx, py);
+  ctx.rotate(a);
+  const bw = 236, bh = 44, bx = -bw / 2, by = 18;
+  // --- support chains from the pivot beam down to the board corners ---
+  // left chain intact (4 rusty links); right chain SNAPPED (2 links + a gap)
+  for (let k = 0; k < 4; k++) { rr(-88 + (k % 2), k * 5, 5, 5, 2, '#2a2018'); rr(-87 + (k % 2), k * 5 + 1, 3, 3, 1, '#6a5238'); }
+  for (let k = 0; k < 2; k++) { rr(88 - (k % 2), k * 5, 5, 5, 2, '#2a2018'); rr(89 - (k % 2), k * 5 + 1, 3, 3, 1, '#6a5238'); }
+  rect(90, 11, 2, 5, '#8a4a20'); // dangling broken link stub
+  // --- the plate: dark rim + rusted iron face ---
+  rr(bx + 2, by + 4, bw, bh, 3, '#00000080');
+  rr(bx, by, bw, bh, 3, '#241810');
+  rr(bx + 2, by + 2, bw - 4, bh - 4, 3, '#7a5230');
+  rect(bx + 4, by + 3, bw - 8, 2, '#9a6a3e'); // top light lip
+  rect(bx + 4, by + bh - 5, bw - 8, 2, '#3a2614'); // bottom shade
+  // --- rust patches + grime speckle ---
+  ctx.save(); ctx.globalAlpha = 0.55;
+  for (let k = 0; k < 26; k++) { const rx = bx + 8 + (k * 53) % (bw - 16), ry = by + 6 + (k * 37) % (bh - 12); rect(rx, ry, 2 + (k % 3), 2, k % 2 ? '#8a3e1a' : '#a85a2a'); }
+  ctx.restore();
+  // --- cracks across the metal ---
+  rect(bx + 60, by + 6, 1, 18, '#241810'); rect(bx + 61, by + 12, 10, 1, '#241810');
+  rect(bx + 150, by + 20, 1, 16, '#241810'); rect(bx + 140, by + 22, 12, 1, '#241810');
+  // --- broken/chipped bottom-right corner ---
+  rr(bx + bw - 20, by + bh - 12, 22, 14, 2, '#1a120a');
+  rect(bx + bw - 16, by + bh - 8, 4, 3, '#3a2614'); rect(bx + bw - 10, by + bh - 5, 3, 3, '#3a2614');
+  // --- rivets (bottom-right one popped out) ---
+  [[bx + 8, by + 7], [bx + bw - 10, by + 7], [bx + 8, by + bh - 9]].forEach(([rx, ry]) => { fillCircle(rx, ry, 2, '#3a2a18'); rect(rx - 1, ry - 1, 1, 1, '#c8a060'); });
+  fillCircle(bx + bw - 10, by + bh - 9, 2, '#160f08'); // empty rivet hole
+  // --- weathered title text (rust-eaten) ---
+  drawTextCSh('BITE', -60, by + 9, '#d8a838', 5, '#2a1a0c');
+  drawTextCSh('DOWN', 64, by + 9, '#4f9a44', 5, '#2a1a0c');
+  ctx.save(); ctx.globalAlpha = 0.4; for (let k = 0; k < 10; k++) rect(-104 + (k * 41) % 208, by + 12 + (k * 17) % 18, 2, 2, '#3a2614'); ctx.restore();
+  // --- crooked tagline plank, hanging by a single bolt on the left ---
+  ctx.save();
+  ctx.translate(bx + 30, by + bh + 2); ctx.rotate(0.08);
+  rr(0, 0, 184, 13, 2, '#3a2614'); rr(1, 1, 182, 11, 2, '#5a3a20');
+  rect(3, 2, 178, 1, '#7a5230'); rect(60, 2, 1, 9, '#2a1810'); // split crack
+  drawTextC('A RUST-YOUR-LUCK DENTAL ROGUELIKE', 92, 3, '#c8b090', 1);
+  fillCircle(4, 6, 2, '#2a1c10'); rect(3, 5, 1, 1, '#c8a060'); // the one bolt
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawMenu(dt) {
+  if (G.summer) { G.summer = false; } // a summer run is over once we're back at the title
+  G.mut = null; G.mouth = []; // plain gator + a clean maw so the mouth reads as a button
   const th = THEMES.night;
   drawSceneBack(th);
   // a distant airboat crosses the far water now and then
@@ -4798,46 +4859,57 @@ function drawMenu() {
   drawCroc(chomp);
   drawSceneFront(th);
 
-  // hanging trading-post sign: carved logo on swaying ropes
-  const sway = Math.sin(tNow * 1.1) * 2;
-  const sx0 = W / 2 - 122 + sway;
-  rect(W / 2 - 78 + sway * 0.4, 0, 2, 13, '#8a7a58'); rect(W / 2 + 76 + sway * 0.4, 0, 2, 13, '#8a7a58');
-  panel(sx0, 12, 244, 44, { face: '#5f4228', edge: '#8a6a3a', r: 3 });
-  rect(sx0 + 6, 16, 232, 1, '#4a332088');
-  rect(sx0 + 6, 51, 232, 2, '#3a2818');
-  [[4, 16], [236, 16], [4, 48], [236, 48]].forEach(([nx, ny]) => { rect(sx0 + nx, ny, 3, 3, '#3a2818'); rect(sx0 + nx, ny, 1, 1, '#c8b060'); });
-  drawTextCSh('BITE', W / 2 - 60 + sway, 21, C.gold, 5, '#2a1a0c');
-  drawTextCSh('DOWN', W / 2 + 64 + sway, 21, '#63d66a', 5, '#2a1a0c');
-  // tagline plank swings a touch more
-  panel(W / 2 - 94 + sway * 1.5, 60, 188, 14, { face: '#4a3320', edge: '#6a4a2a', r: 2 });
-  drawTextC('A PUSH-YOUR-LUCK DENTAL ROGUELIKE', W / 2 + sway * 1.5, 64, '#e8d8b0', 1);
+  // ===== PLAY BUTTON = the gator's open mouth =====
+  const maw = mouthLayout().maw;
+  const mcx = maw.x + maw.w / 2, mcy = maw.y + maw.h - 22;
+  const hov = mx >= maw.x && mx < maw.x + maw.w && my >= maw.y - 4 && my < maw.y + maw.h;
+  const gl = 0.35 + Math.sin(tNow * 3) * 0.2 + (hov ? 0.3 : 0);
+  ctx.save(); ctx.globalAlpha = gl * 0.6; rr(mcx - 54, mcy - 13, 108, 28, 6, '#ffcf3a'); ctx.restore();
+  rr(mcx - 50, mcy - 11, 100, 24, 5, '#3a1008');
+  rr(mcx - 48, mcy - 10, 96, 21, 5, hov ? '#f0662e' : '#c83a16');
+  rect(mcx - 46, mcy - 9, 92, 2, '#ff9a5a');
+  drawTextCSh('NEW RUN', mcx, mcy - 6, '#fff2d0', 2, '#5a1408');
+  drawTextC('PRESS TO BITE DOWN', mcx, mcy + 5, '#ffd9a0', 1);
+  hit(maw.x, maw.y - 4, maw.w, maw.h + 4, { id: 'start', cursor: true, tip: 'NEW RUN|Climb 8 antes of hungry gators', cb: startRun });
 
-  // little carved tooth emblems on the sign corners
-  [sx0 + 12, sx0 + 224].forEach(tx => { rr(tx, 40, 8, 11, 2, '#e8dcc0'); rect(tx + 2, 49, 2, 2, '#c8b89a'); rect(tx + 4, 49, 2, 2, '#c8b89a'); rect(tx + 2, 42, 1, 3, '#fff6e0'); });
+  // ===== rusty, half-broken title sign with pendulum physics =====
+  if (!G.sign) G.sign = { a: 0.05, v: 0, prev: chomp };
+  const sg = G.sign;
+  sg.v += (-9 * sg.a - 1.5 * sg.v) * dt;   // spring back toward level + damping
+  sg.a += sg.v * dt;
+  sg.a = clamp(sg.a, -0.32, 0.32);         // it never quite tears free
+  // when the jaw snaps wide open the snout flicks up and BONKS the sign
+  if (sg.prev > 0.06 && chomp <= 0.06) {
+    sg.v += 2.6 + Math.sin(tNow * 2.3) * 0.7;
+    burst(W / 2 + Math.sin(tNow) * 30, 62, '#c8a060', 7, 60);
+  }
+  sg.prev = chomp;
+  drawRustySign(W / 2, 6, sg.a);
 
-  // quests / cookies / best (top-left, above the glove rack)
+  // ===== weathered info + utility row =====
   ensureDaily();
   drawTextSh('QUESTS DONE: ' + ((meta.qb && meta.qb.done) || 0), 10, 150, C.dim, 1);
-  hit(8, 146, 90, 12, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall|Accept up to 3 quests', cb: () => { G.state = 'pass'; sfx.click(2); } });
+  hit(8, 146, 90, 12, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall|Accept up to 2 quests', cb: () => { G.state = 'pass'; sfx.click(2); } });
   ICONS.cookie(8, 160);
   drawTextSh(fmt(meta.rp || 0) + ' COOKIES', 24, 163, C.gold, 1);
   if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 178, '#8fa6a8', 1);
 
-  // ===== bottom: big PLAY + a compact utility row (no board) =====
-  button(W / 2 - 82, 190, 164, 38, 'NEW RUN', '#d94f30', '#8a2a16', startRun, { id: 'start', sc: 2 });
+  // rusted utility buttons (weathered browns) along the bottom
   const UBTN = [
-    ['SKINS', '#2c6b58', '#184234', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
-    ['GACHA', '#7a4fd0', '#4a2a8a', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
-    ['SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, 'setbtn', null],
-    ['CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, 'credbtn', null],
+    ['SKINS', '#6a4a30', '#3a2614', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
+    ['GACHA', '#5e4a6a', '#332844', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
+    ['SETTINGS', '#4a4438', '#28241c', () => { G.overlay = 'settings'; }, 'setbtn', null],
+    ['CREDITS', '#4a4438', '#28241c', () => { G.overlay = 'credits'; }, 'credbtn', null],
   ];
   UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
     const bx = 130 + i * 56;
-    button(bx, 238, 52, 22, label, c1, c2, cb, {
-      id, sub, subCol: id === 'skinsbtn' ? '#8fe8c8' : C.gold,
+    button(bx, 240, 52, 22, label, c1, c2, cb, {
+      id, sub, subCol: id === 'skinsbtn' ? '#c8b090' : '#c8a860',
       tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|hats + gloves, equip and show off'
         : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
     });
+    // a couple of rivets to sell the rusted metal
+    rect(bx + 3, 243, 1, 1, '#c8a060'); rect(bx + 48, 243, 1, 1, '#c8a060');
   });
 }
 // first NEW RUN runs the tutorial once, then goes to ranger select
@@ -6022,7 +6094,7 @@ const GAMES = {
     update(s, dt) {
       s.timer -= dt;
       s.wob += dt;
-      s.heat -= (0.16 + Math.sin(s.wob * 1.7) * 0.05) * dt;
+      s.heat -= (0.24 + Math.sin(s.wob * 1.7) * 0.06) * dt;
       s.heat = clamp(s.heat, 0, 1);
       if (s.heat >= 0.45 && s.heat <= 0.75) s.inZone += dt;
       if (s.timer <= 0) this.done(s);
@@ -6625,7 +6697,9 @@ function drawEvent(dt) {
     drawTextCSh(def.name, cxp, cyp + 34, C.gold, 2, '#2a1a0c');
     def.how.forEach((ln, i) => drawTextCSh(ln, W / 2, 200 + i * 11, i ? C.dim : C.white, 1));
     button(W / 2 - 55, 228, 110, 24, 'START >', '#d94f30', '#8a2a16', () => {
-      ev.phase = 'play'; ev.s = {}; game.init(ev.s); sfx.whoosh();
+      ev.phase = 'play'; ev.s = {}; game.init(ev.s);
+      hardenEvent(ev.game, ev.s); // events run a lot tighter now
+      sfx.whoosh();
     }, { id: 'evstart' });
   } else if (ev.phase === 'play') {
     game.update(ev.s, dt);
@@ -6920,7 +6994,7 @@ function frame(ms) {
 
   if (G.state === 'map') updateBoat(dt);
   switch (G.state) {
-    case 'menu': drawMenu(); break;
+    case 'menu': drawMenu(dt); break;
     case 'how': drawHow(); break;
     case 'skins': drawSkins(); break;
     case 'tutorial': drawTutorial(dt); break;
