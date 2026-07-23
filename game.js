@@ -8,8 +8,12 @@
    ========================================================================== */
 
 // ------------------------------------------------------------ canvas ------
-const W = 480, H = 270;
+// Logical play-field stays 480x270, but the backing store is SUPERSAMPLED by
+// RS so curves, rotations, gradients and text render at much higher resolution
+// (the whole scene is drawn with a base ctx.scale(RS) each frame).
+const W = 480, H = 270, RS = 3;
 const canvas = document.getElementById('game');
+canvas.width = W * RS; canvas.height = H * RS;
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 canvas.style.cursor = 'none'; // we draw our own pixel hand
@@ -4535,7 +4539,7 @@ function drawIntro(dt) {
       mx = _mx; my = _my; G.round = _r;
       const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
       const o = oc.getContext('2d'); o.imageSmoothingEnabled = false;
-      o.drawImage(canvas, 0, 0);
+      o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W, H); // downscale the supersampled backing
       o.globalCompositeOperation = 'source-atop';
       o.globalAlpha = 0.86; o.fillStyle = '#081018'; o.fillRect(0, 0, W, H);
       cut.crocShot = oc;
@@ -4651,7 +4655,8 @@ function ensureBossShot() {
   drawCroc(0.42, { angry: true });
   mx = _mx; my = _my;
   const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
-  const o = oc.getContext('2d'); o.imageSmoothingEnabled = false; o.drawImage(canvas, 0, 0);
+  const o = oc.getContext('2d'); o.imageSmoothingEnabled = false;
+  o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W, H); // downscale the supersampled backing
   bossShot = { key, c: oc };
   return oc;
 }
@@ -4798,18 +4803,19 @@ function drawWin() {
 }
 
 // ------------------------------------------------------------ menu --------
-// old, rusted, half-broken title sign hung from chains - one chain snapped so
-// it lists and swings. Rendered inside a rotate transform about its pivot.
-function drawRustySign(cx, py, a) {
+// old, rusted, half-broken title sign hung from chains. dy = vertical push
+// (negative = shoved up by the croc's snout). No swaying - it rides straight up
+// on the head, then drops back and bounces on its chains.
+function drawRustySign(cx, py, dy) {
   ctx.save();
-  ctx.translate(cx, py);
-  ctx.rotate(a);
+  ctx.translate(cx, py + dy);
   const bw = 236, bh = 44, bx = -bw / 2, by = 18;
   // --- support chains from the pivot beam down to the board corners ---
-  // left chain intact (4 rusty links); right chain SNAPPED (2 links + a gap)
-  for (let k = 0; k < 4; k++) { rr(-88 + (k % 2), k * 5, 5, 5, 2, '#2a2018'); rr(-87 + (k % 2), k * 5 + 1, 3, 3, 1, '#6a5238'); }
-  for (let k = 0; k < 2; k++) { rr(88 - (k % 2), k * 5, 5, 5, 2, '#2a2018'); rr(89 - (k % 2), k * 5 + 1, 3, 3, 1, '#6a5238'); }
-  rect(90, 11, 2, 5, '#8a4a20'); // dangling broken link stub
+  // chains stretch as the board rides up (more links show when dy is negative)
+  const links = clamp(4 + Math.round(-dy / 4), 4, 9);
+  for (let k = 0; k < links; k++) { const ly = k * (by / links); rr(-88, ly, 5, 4, 2, '#2a2018'); rr(-87, ly + 1, 3, 2, 1, '#6a5238'); }
+  for (let k = 0; k < Math.min(2, links); k++) { const ly = k * (by / links); rr(88, ly, 5, 4, 2, '#2a2018'); rr(89, ly + 1, 3, 2, 1, '#6a5238'); }
+  rect(90, Math.min(11, by - 5), 2, 5, '#8a4a20'); // dangling broken link stub (right chain snapped)
   // --- the plate: dark rim + rusted iron face ---
   rr(bx + 2, by + 4, bw, bh, 3, '#00000080');
   rr(bx, by, bw, bh, 3, '#241810');
@@ -4872,19 +4878,25 @@ function drawMenu(dt) {
   drawTextC('PRESS TO BITE DOWN', mcx, mcy + 5, '#ffd9a0', 1);
   hit(maw.x, maw.y - 4, maw.w, maw.h + 4, { id: 'start', cursor: true, tip: 'NEW RUN|Climb 8 antes of hungry gators', cb: startRun });
 
-  // ===== rusty, half-broken title sign with pendulum physics =====
-  if (!G.sign) G.sign = { a: 0.05, v: 0, prev: chomp };
+  // ===== rusty title sign - the croc's snout physically shoves it UP =====
+  // the snout top mirrors drawCroc's jaw: highest (small y) when the mouth is
+  // wide open, so an open chomp drives the sign upward, then it drops + bounces.
+  const breathe = Math.sin(tNow * 1.6) * 1;
+  const snoutTop = maw.y - 58 + chomp * (maw.h - 26) + breathe;
+  const signBottom = 66;                       // sign's resting bottom edge (screen y)
+  if (!G.sign) G.sign = { dy: 0, vy: 0, psn: snoutTop };
   const sg = G.sign;
-  sg.v += (-9 * sg.a - 1.5 * sg.v) * dt;   // spring back toward level + damping
-  sg.a += sg.v * dt;
-  sg.a = clamp(sg.a, -0.32, 0.32);         // it never quite tears free
-  // when the jaw snaps wide open the snout flicks up and BONKS the sign
-  if (sg.prev > 0.06 && chomp <= 0.06) {
-    sg.v += 2.6 + Math.sin(tNow * 2.3) * 0.7;
-    burst(W / 2 + Math.sin(tNow) * 30, 62, '#c8a060', 7, 60);
-  }
-  sg.prev = chomp;
-  drawRustySign(W / 2, 6, sg.a);
+  const headVy = (snoutTop - sg.psn) / Math.max(dt, 0.001); // snout's vertical speed
+  sg.psn = snoutTop;
+  // hang physics: a springy chain pulls the board back down to rest (dy=0)
+  sg.vy += (-52 * sg.dy - 8.5 * sg.vy) * dt;
+  sg.dy += sg.vy * dt;
+  // hard contact: the snout cannot pass through the board - it lifts it
+  const contactDy = snoutTop - signBottom;     // negative => board shoved up
+  if (contactDy < sg.dy) { sg.dy = contactDy; if (headVy < sg.vy) sg.vy = headVy; }
+  sg.dy = clamp(sg.dy, -26, 7);                // rides up hard, tiny droop on the drop
+  if (sg.dy < -4 && Math.sin(tNow * 12) > 0.6) burst(W / 2 + Math.sin(tNow) * 40, signBottom + sg.dy, '#c8a060', 3, 40);
+  drawRustySign(W / 2, 6, sg.dy);
 
   // ===== weathered info + utility row =====
   ensureDaily();
@@ -6972,6 +6984,9 @@ function frame(ms) {
   tLast = t;
   if (G.paused) dt = 0; // the world freezes
   tNow += dt;
+
+  // base supersample transform: everything below draws in logical 480x270 space
+  ctx.setTransform(RS, 0, 0, RS, 0, 0);
 
   hits = [];
   updateFx(dt);
