@@ -1940,7 +1940,16 @@ function genMap() {
       if (!n.mods.includes(other)) n.mods.push(other);
     }
   });
-  G.map = { stages: [s0, s1, [mk('boss')]], stage: 0, picked: [] };
+  const boss = mk('boss');
+  // pre-roll each fightable node's MUTATION now, so the map can show the variant
+  // (bosses only mutate on the ocean stage). startFight reuses node.mut.
+  [...s0, ...s1, boss].forEach(n => {
+    if (n.type === 'event') { n.mut = null; return; }
+    const canMut = G.summer || n.type !== 'boss';
+    const pool = MUT_ORDER.concat(rnd() < 0.3 ? SHOP_MUTS : []);
+    n.mut = (canMut && rnd() < 0.5) ? choice(pool) : null;
+  });
+  G.map = { stages: [s0, s1, [boss]], stage: 0, picked: [] };
   G.boat = null;
 }
 const nodeModOn = id => (G.nodeMods || []).includes(id);
@@ -1987,12 +1996,13 @@ function startFight(node) {
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
   G.numbUsed = false; G.greedyCount = 0; G.seashellUsed = false;
   G.xrayUsedRound = 0; G.seq = null;
-  // roll a MUTATION on this croc/shark - Professor Manta pays for photos (common now)
-  const canMut = G.summer || node.type !== 'boss';
-  // crocs and sharks can also roll a SHOP mutation (gilded/glacial/corroded),
-  // but only rarely - special editions should feel special.
-  const mutPool = MUT_ORDER.concat(rnd() < 0.3 ? SHOP_MUTS : []);
-  G.mut = (canMut && rnd() < 0.55) ? choice(mutPool) : null;
+  // the MUTATION was pre-rolled on the map node so it can be shown there; reuse
+  // it (fall back to a fresh roll if this fight was launched without a node).
+  if (node && node.mut !== undefined) G.mut = node.mut;
+  else {
+    const canMut = G.summer || node.type !== 'boss';
+    G.mut = (canMut && rnd() < 0.5) ? choice(MUT_ORDER.concat(rnd() < 0.3 ? SHOP_MUTS : [])) : null;
+  }
   if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
@@ -2010,9 +2020,8 @@ function startFight(node) {
 function afterShop() {
   if (G.map.stage >= 3) {
     G.ante++;
-    // after the first ante the trail simply reaches the coast: the rest of the
-    // run plays on the Maldives beach (sharks, crabs) - no menu, no gate.
-    if (G.ante > 1 && !G.summer) G.summer = true;
+    // the swamp stays a swamp all 8 antes - the OCEAN only opens after a win,
+    // when you choose SET SAIL (which sets G.summer). No sharks before that.
     genMap();
   }
   G.state = 'map';
@@ -4802,11 +4811,13 @@ function drawWin() {
   st('BEST BANK', fmt(G.stats.bestBank));
   st('MONEY EARNED', '$' + G.stats.moneyEarned);
   drawTextCSh('+30 SCOUT COOKIES', W / 2, 168, C.green, 1);
-  const eg = Math.sin(tNow * 3) * 0.5 + 0.5; // the endless door glows: the run does not have to end
-  ctx.save(); ctx.globalAlpha = 0.25 + eg * 0.3; rr(W / 2 - 79, 186, 158, 30, 5, '#c07dff'); ctx.restore();
-  button(W / 2 - 75, 188, 150, 26, 'ENDLESS MODE >', '#7a4fd0', '#4a2a8a', () => { enterShop(); },
-    { id: 'endless', sub: 'KEEP CLIMBING', subCol: '#e0c8ff', tip: 'ENDLESS MODE|The antes never stop growing.|How far can you push it?' });
-  button(W / 2 - 55, 222, 110, 20, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'newrun2' });
+  drawTextCSh('THE OCEAN OPENS. SAIL ON, OR CALL IT?', W / 2, 180, '#7fe0f0', 1);
+  // SET SAIL: cross into the endless OCEAN level (this is the only way to sharks)
+  const eg = Math.sin(tNow * 3) * 0.5 + 0.5;
+  ctx.save(); ctx.globalAlpha = 0.25 + eg * 0.3; rr(W / 2 - 84, 188, 168, 26, 5, '#2fb0d0'); ctx.restore();
+  button(W / 2 - 80, 189, 160, 24, 'SET SAIL  >', '#2c8aa8', '#164a60', () => { G.summer = true; startTransition(enterShop); sfx.whoosh(); },
+    { id: 'setsail', sub: 'INTO THE OCEAN - ENDLESS', subCol: '#bfeeff', tip: 'SET SAIL|Cross into the endless OCEAN: sharks,|hermit-crab cash, ever-growing antes.' });
+  button(W / 2 - 55, 220, 110, 20, 'QUIT', '#d94f30', '#8a2a16', () => { G.summer = false; G.state = 'menu'; }, { id: 'winquit', tip: 'QUIT|Bank the win and return to the title.' });
 }
 
 // ------------------------------------------------------------ menu --------
@@ -5399,19 +5410,36 @@ function nodePos(stage, k, count) {
   const ys = count === 1 ? [150] : count === 2 ? [104, 190] : [84, 148, 206];
   return { x: xs[stage], y: ys[k] };
 }
-function drawMiniGator(x, y, type) {
+function drawMiniGator(x, y, type, mut) {
   const cols = { small: ['#6cbe4c', '#4a9636'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
-  const [a, b] = cols[type] || cols.small;
+  let [a, b] = cols[type] || cols.small;
+  const mu = mut && MUTATIONS[mut];
+  if (mu && mu.tint) { a = mu.tint.a || a; b = mu.tint.b || b; } // variant hide colour
+  let sclera = '#f8f4dc', pupil = '#1b1408';
+  if (mut === 'albino') pupil = '#c81818';
+  if (mut === 'alien') { sclera = '#0c0c14'; pupil = '#9cff8c'; }
   rr(x, y + 4, 22, 9, 3, a);
   rr(x + 1, y + 10, 20, 4, 2, b);
   [[x + 3], [x + 13]].forEach(([ex]) => {
     rr(ex, y, 7, 7, 2, a);
-    rect(ex + 2, y + 2, 3, 3, '#f8f4dc');
-    rect(ex + 3, y + 3, 1, 2, '#1b1408');
+    rect(ex + 2, y + 2, 3, 3, sclera);
+    rect(ex + 3, y + 3, 1, 2, pupil);
   });
-  if (type === 'small') { rect(x + 5, y + 2, 2, 2, '#4a9636'); rect(x + 15, y + 2, 2, 2, '#4a9636'); rect(x + 3, y + 8, 2, 1, '#9ce85c'); rect(x + 17, y + 8, 2, 1, '#9ce85c'); } // lil gator snout scutes + nostrils
-  if (type === 'gold') { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 16, y + 2, 1, 1, '#fff6c8'); }
+  if (type === 'small' && !mu) { rect(x + 5, y + 2, 2, 2, '#4a9636'); rect(x + 15, y + 2, 2, 2, '#4a9636'); rect(x + 3, y + 8, 2, 1, '#9ce85c'); rect(x + 17, y + 8, 2, 1, '#9ce85c'); }
+  if (type === 'gold' && !mu) { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 16, y + 2, 1, 1, '#fff6c8'); }
   if (type === 'boss') { rect(x + 2, y - 2, 3, 3, C.red); rect(x + 9, y - 3, 3, 4, C.red); rect(x + 16, y - 2, 3, 3, C.red); }
+  // ---- MUTATION custom marker: a per-variant snout pattern + a floating gem ----
+  if (mu) {
+    if (mut === 'spotted') { rect(x + 6, y + 6, 2, 2, b); rect(x + 13, y + 7, 2, 2, b); rect(x + 9, y + 10, 2, 2, b); }
+    else if (mut === 'striped') { rect(x + 6, y + 5, 1, 6, b); rect(x + 11, y + 5, 1, 6, b); rect(x + 16, y + 5, 1, 6, b); }
+    else if (mut === 'diamond') { rect(x + 4, y + 6, 1, 1, '#eafcff'); rect(x + 18, y + 8, 1, 1, '#eafcff'); }
+    else if (mut === 'extra') { rect(x + 6, y + 12, 1, 3, '#fff'); rect(x + 10, y + 12, 1, 3, '#fff'); rect(x + 14, y + 12, 1, 3, '#fff'); }
+    else if (mut === 'corroded') { rect(x + 7, y + 6, 2, 1, '#3e240e'); rect(x + 13, y + 8, 2, 1, '#3e240e'); }
+    // the "custom icon": a little faceted gem in the mutation colour above the head
+    const gx = x + 11, gy = y - 5;
+    rect(gx - 2, gy, 4, 1, mu.col); rect(gx - 1, gy - 1, 2, 1, mu.col); rect(gx - 1, gy + 1, 2, 1, mu.col); rect(gx, gy + 2, 1, 1, mu.col);
+    rect(gx - 1, gy, 1, 1, '#ffffffcc');
+  }
 }
 function drawMap() {
   const th = themeNow();
@@ -5519,13 +5547,21 @@ function drawMap() {
       rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, passed && !visited ? '#101c1e' : '#16302a');
       rr(p.x - 20, p.y - 12 - pulse, 40, 28, 4, visited ? '#26321e' : reachable ? '#1e3c34' : '#14262a');
       if (reachable) rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, '#ffc84300');
+      // a MUTATION node gets a pulsing halo in its variant colour (like gold's shine)
+      const mu = node.mut && MUTATIONS[node.mut];
+      if (mu) {
+        ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 4 + p.x) * 0.14;
+        rr(p.x - 24, p.y - 16 - pulse, 48, 36, 5, mu.col); ctx.restore();
+      }
       // node art
       if (node.type === 'event') {
         drawTextC('?', p.x, p.y - 8 - pulse, C.purple, 2);
       } else {
-        drawMiniGator(p.x - 11, p.y - 10 - pulse, node.type);
+        drawMiniGator(p.x - 11, p.y - 10 - pulse, node.type, node.mut);
       }
-      drawTextC(node.type === 'boss' ? 'BOSS' : node.type.toUpperCase(), p.x, p.y + 8 - pulse, visited ? C.green : reachable ? d.col : '#41565e', 1);
+      // variant name banner above the island, else the plain node type below
+      if (mu) drawTextCSh(mu.name, p.x, p.y - 26 - pulse, mu.col, 1, '#0a1215');
+      drawTextC(node.type === 'boss' ? 'BOSS' : node.type.toUpperCase(), p.x, p.y + 8 - pulse, visited ? C.green : mu ? mu.col : reachable ? d.col : '#41565e', 1);
       (node.mods || []).forEach((m, mi) => {
         const md = NODE_MODS[m];
         const n2 = node.mods.length;
@@ -5582,7 +5618,9 @@ function nodeTip(node) {
   const d = NODE_DEFS[node.type];
   if (node.type === 'event') return 'SWAMP EVENT|Something is waiting in the reeds...|No fight. No shop. A choice.';
   const base = G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.7, G.ante - 8);
-  let t = d.name + '|TARGET: ' + fmt(Math.round(base * d.mult)) + '|REWARD: $' + (d.reward + Math.floor(G.ante / 3) + ((node.mods || []).includes('richwater') ? 4 : 0));
+  const mu = node.mut && MUTATIONS[node.mut];
+  let t = (mu ? mu.name + ' ' : '') + d.name + '|TARGET: ' + fmt(Math.round(base * d.mult)) + '|REWARD: $' + (d.reward + Math.floor(G.ante / 3) + ((node.mods || []).includes('richwater') ? 4 : 0));
+  if (mu) t += '|' + MUTATIONS[node.mut].flav;
   (node.mods || []).forEach(m => {
     const md = NODE_MODS[m];
     t += '|' + (md.bad ? '! ' : '+ ') + md.name + ': ' + md.desc;
