@@ -181,7 +181,7 @@ function trackNow() {
   if (typeof G === 'undefined') return TRACKS.menu;
   if (G.paused) return null;
   switch (G.state) {
-    case 'menu': case 'ranger': case 'how': case 'skins': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
+    case 'menu': case 'ranger': case 'how': case 'skins': case 'index': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
     case 'intro': return TRACKS.boss;
     case 'map': case 'event': return TRACKS.map;
     case 'shop': case 'bench': return TRACKS.shop;
@@ -967,6 +967,36 @@ const MUTATIONS = {
   corroded: { name: 'CORRODED', col: '#c07038', rar: 2, tint: { a: '#9a5e2e', b: '#6e401c', c: '#c88a4e', d: '#3e240e' }, flav: 'Rust never sleeps.', shop: { ed: 'rusty', disc: 0.7, note: 'RUSTY badges, 30% off!' } },
 };
 const MUT_ORDER = ['diamond', 'dwarf', 'extra', 'mega', 'alien', 'spotted', 'striped', 'albino'];
+// ---- SPECIAL CROC ABILITIES + how rare each variant is ---------------------
+// tier drives the roll weight: 0 common ... 4 SUPER RARE. Each variant now
+// actually changes the fight, and Merle explains it when you meet one.
+const MUT_ABIL = {
+  spotted: { tier: 0, tag: 'KEEN EYES', name: 'KEEN EYES', desc: '+1 X-RAY for this round' },
+  dwarf: { tier: 0, tag: 'TINY TERROR', name: 'TINY TERROR', desc: '2 fewer teeth, but every bite starts at +6 MULT' },
+  extra: { tier: 1, tag: 'OVERCROWDED', name: 'OVERCROWDED', desc: '4 extra teeth crammed into the maw' },
+  striped: { tier: 1, tag: 'WARPAINT', name: 'WARPAINT', desc: 'The MULT chain grows +1 EXTRA on every press' },
+  corroded: { tier: 1, tag: 'RUST HOARD', name: 'RUST HOARD', desc: 'Next shop stocks RUSTY badges, 30% off' },
+  diamond: { tier: 2, tag: 'HARD ENAMEL', name: 'CRYSTAL ENAMEL', desc: 'Every tooth is worth +2 TEETH' },
+  mega: { tier: 2, tag: 'COLOSSAL', name: 'COLOSSAL', desc: 'Target +25%, but the cash reward DOUBLES' },
+  gilded: { tier: 2, tag: 'GOLD HOARD', name: 'GILDED HOARD', desc: 'Next shop stocks GOLDEN badges' },
+  albino: { tier: 3, tag: 'PALE OMEN', name: 'PALE OMEN', desc: 'The first SNAPPER you press is defused' },
+  glacial: { tier: 3, tag: 'DEEP FREEZE', name: 'DEEP FREEZE', desc: 'Next shop stocks DIAMOND badges' },
+  alien: { tier: 4, tag: 'OTHERWORLDLY', name: 'NOT OF THIS SWAMP', desc: 'X2 MULT on every bank!' },
+};
+const MUT_TIER_NAME = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'SUPER RARE'];
+const MUT_TIER_COL = ['#9ab8a8', '#7fd4e8', '#c8a8f8', '#ffb060', '#ff6a9a'];
+const MUT_TIER_W = [100, 40, 12, 3.4, 0.7]; // super rares are a genuine event
+const mutIs = id => G.mut === id;
+const mutTier = id => (MUT_ABIL[id] ? MUT_ABIL[id].tier : 0);
+// weighted pick across every variant this stage allows (null = plain croc)
+function rollMutation(allowShop) {
+  if (rnd() >= 0.42) return null; // most crocs are just crocs
+  const pool = MUT_ORDER.concat(allowShop ? SHOP_MUTS : []);
+  const wts = pool.map(k => MUT_TIER_W[mutTier(k)] || 1);
+  let r = rnd() * wts.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < pool.length; i++) { r -= wts[i]; if (r <= 0) return pool[i]; }
+  return pool[0];
+}
 // shop mutations roll on swamp crocs only; kept out of MUT_ORDER so the summer
 // photo album / Professor Manta collectibles stay the 8 above.
 const SHOP_MUTS = ['gilded', 'glacial', 'corroded'];
@@ -1276,6 +1306,88 @@ const HATS = {
 };
 const HAT_ORDER = ['none', 'straw', 'cap', 'bandana', 'ranger', 'cowboy', 'top', 'wizard', 'crown', 'pirate', 'halo', 'party', 'flame'];
 const hatUnlocked = k => HATS[k].free || !!meta.hatOwn[k] || (HATS[k].ach ? !!meta.ach[HATS[k].ach] : false);
+
+// ------------------------------------------- GEAR (worn on the face) --------
+// The third cosmetic slot: dentist eyewear + face kit. Shows on your character
+// portrait in the DRESSING ROOM and on the traveler crossing the map.
+const GEAR = {
+  none: { name: 'NO GEAR', rar: 0, free: true, flav: 'Bare-faced and brave.' },
+  specs: { name: 'READING SPECS', rar: 0, free: true, col: '#c8d4dc', flav: 'For the small print on charms.' },
+  shades: { name: 'BOG SHADES', rar: 1, shop: true, col: '#20242a', flav: 'The swamp got too bright.' },
+  goggles: { name: 'DIVE GOGGLES', rar: 1, shop: true, col: '#3a9ad0', flav: 'Fogs up immediately.' },
+  mask: { name: 'SURGICAL MASK', rar: 1, shop: true, col: '#bfe8f5', flav: 'Very professional. Very minty.' },
+  monocle: { name: 'GATOR MONOCLE', rar: 2, shop: true, col: '#ffd54a', flav: 'One eye of pure class.' },
+  eyepatch: { name: 'CORSAIR PATCH', rar: 2, shop: true, col: '#1c1c22', flav: 'Depth perception is a luxury.' },
+  snorkel: { name: 'SNORKEL RIG', rar: 2, gacha: true, col: '#ff8a3a', flav: 'Breathe easy down there.' },
+  visor: { name: 'WELDING VISOR', rar: 3, shop: true, col: '#4a6a2a', flav: 'For the really stubborn plaque.' },
+  nightvis: { name: 'NIGHT SIGHT', rar: 4, gacha: true, col: '#4ef0c8', flav: 'The bog has no secrets now.' },
+  starlens: { name: 'STARLIGHT LENS', rar: 5, gacha: true, col: '#c8a8f8', flav: 'You can see next Tuesday.' },
+};
+const GEAR_ORDER = ['none', 'specs', 'shades', 'goggles', 'mask', 'monocle', 'eyepatch', 'snorkel', 'visor', 'nightvis', 'starlens'];
+const gearUnlocked = k => GEAR[k].free || !!meta.gearOwn[k];
+// face gear drawn centered on cx with the eye line at `ey`, integer scale sc
+function drawGearArt(cx, ey, key, sc) {
+  sc = sc || 1;
+  const g = GEAR[key]; if (!g || key === 'none') return;
+  const col = g.col || '#c8d4dc';
+  const R = (dx, dy, w, h, c) => rect((cx + dx * sc) | 0, (ey + dy * sc) | 0, Math.max(1, w * sc) | 0, Math.max(1, h * sc) | 0, c);
+  const LENS = '#8fd6ea88', DK = '#00000066';
+  switch (key) {
+    case 'specs': // thin round wire frames
+      R(-9, 0, 7, 6, DK); R(2, 0, 7, 6, DK);
+      R(-8, 1, 5, 4, LENS); R(3, 1, 5, 4, LENS);
+      R(-2, 2, 4, 1, col); R(-11, 1, 2, 1, col); R(9, 1, 2, 1, col);
+      break;
+    case 'shades': // wraparound dark lenses
+      R(-10, 0, 20, 6, '#0c0c10');
+      R(-9, 1, 8, 4, col); R(1, 1, 8, 4, col);
+      R(-8, 1, 3, 1, '#ffffff55'); R(2, 1, 3, 1, '#ffffff33');
+      break;
+    case 'goggles': // rubber strap + twin round lenses
+      R(-12, 0, 24, 7, '#1a2830'); R(-12, 1, 24, 1, col);
+      R(-9, 1, 7, 5, '#0e1c22'); R(2, 1, 7, 5, '#0e1c22');
+      R(-8, 2, 5, 3, LENS); R(3, 2, 5, 3, LENS);
+      R(-7, 2, 2, 1, '#ffffff88'); R(4, 2, 2, 1, '#ffffff66');
+      break;
+    case 'mask': // pleated mask over the snout with ear loops
+      R(-8, 4, 16, 8, '#8ab8c8'); R(-7, 5, 14, 6, col);
+      R(-7, 7, 14, 1, '#9fc8d8'); R(-7, 9, 14, 1, '#9fc8d8');
+      R(-10, 5, 2, 1, '#7a9aa8'); R(8, 5, 2, 1, '#7a9aa8');
+      break;
+    case 'monocle': // single lens, chain dangling
+      R(2, -1, 8, 8, '#8a6510'); R(3, 0, 6, 6, LENS);
+      R(4, 1, 2, 1, '#ffffffaa'); R(2, -1, 8, 1, col);
+      R(10, 4, 1, 3, col); R(11, 7, 1, 3, col);
+      break;
+    case 'eyepatch': // patch on one eye + strap across
+      R(-11, 1, 22, 1, '#2a2a30');
+      R(-10, -1, 9, 8, '#0c0c10'); R(-9, 0, 7, 6, col);
+      R(-7, 1, 2, 2, '#3a3a44');
+      break;
+    case 'snorkel': // mask plus an upright tube
+      R(-10, 0, 20, 7, '#1a2830'); R(-9, 1, 18, 5, LENS);
+      R(-8, 2, 4, 1, '#ffffff88');
+      R(9, -8, 3, 10, col); R(9, -9, 5, 2, col); R(12, -8, 2, 3, '#c85a1a');
+      break;
+    case 'visor': // flip-down welding plate
+      R(-11, -3, 22, 4, '#2a3a18'); R(-11, -2, 22, 2, col);
+      R(-10, 1, 20, 7, '#1e2a12'); R(-8, 2, 16, 5, '#0a1408');
+      R(-6, 3, 12, 3, '#2a5a2a'); R(-5, 3, 4, 1, '#6aff8a');
+      break;
+    case 'nightvis': // twin scope barrels on a headband
+      R(-12, -1, 24, 3, '#14201c'); R(-12, -1, 24, 1, '#2a4a40');
+      R(-9, 1, 7, 7, '#0c1a16'); R(1, 1, 7, 7, '#0c1a16');
+      R(-8, 2, 5, 5, col); R(2, 2, 5, 5, col);
+      R(-7, 3, 2, 2, '#c8ffe8'); R(3, 3, 2, 2, '#c8ffe8');
+      R(-9, 8, 7, 1, '#08120e'); R(1, 8, 7, 1, '#08120e');
+      break;
+    case 'starlens': // arcane monocle ring with orbiting sparks
+      R(1, -2, 10, 10, '#4a2a70'); R(2, -1, 8, 8, '#1a1030');
+      R(3, 0, 6, 6, col); R(4, 1, 2, 2, '#ffffff');
+      { const a = tNow * 2.4; R(1 + Math.cos(a) * 8, 2 + Math.sin(a) * 8, 1, 1, '#fff6c8'); R(1 + Math.cos(a + 2.1) * 8, 2 + Math.sin(a + 2.1) * 8, 1, 1, '#8fe8ff'); }
+      break;
+  }
+}
 
 // Draws a hat centered at cx with its brim sitting on baseline `by`, scaled by
 // integer sc. dy is measured UP from the baseline (negative = higher).
@@ -1666,6 +1778,7 @@ function gachaPool() {
   });
   GLOVE_ORDER.forEach(k => { if (GLOVES[k].gacha && !meta.gachaOwn[k]) p.push({ kind: 'glove', k, rar: 2 }); });
   HAT_ORDER.forEach(k => { if (HATS[k].gacha && !meta.hatOwn[k]) p.push({ kind: 'hat', k, rar: 3 }); });
+  GEAR_ORDER.forEach(k => { if (GEAR[k].gacha && !meta.gearOwn[k]) p.push({ kind: 'gear', k, rar: 3 }); });
   Object.keys(PERKS).forEach(k => { if (!meta.perks[k]) p.push({ kind: 'perk', k, rar: 3 }); });
   return p;
 }
@@ -1691,6 +1804,7 @@ function gachaAward(prize) {
   if (prize.kind === 'card') { meta.unlocked[prize.def.id] = true; toasts.push({ name: prize.def.name + ' UNLOCKED!', sub: 'NOW IN YOUR SHOP POOL', t: 0 }); }
   else if (prize.kind === 'glove') { meta.gachaOwn[prize.k] = true; toasts.push({ name: GLOVES[prize.k].name + '!', sub: 'NEW GLOVE ON THE MENU RACK', t: 0 }); }
   else if (prize.kind === 'hat') { meta.hatOwn[prize.k] = true; toasts.push({ name: HATS[prize.k].name + '!', sub: 'NEW HAT ON THE MENU RACK', t: 0 }); }
+  else if (prize.kind === 'gear') { meta.gearOwn[prize.k] = true; toasts.push({ name: GEAR[prize.k].name + '!', sub: 'NEW GEAR IN THE DRESSING ROOM', t: 0 }); }
   else if (prize.kind === 'perk') { meta.perks[prize.k] = true; toasts.push({ name: PERKS[prize.k].name + '!', sub: 'PERMANENT UPGRADE ACTIVE', t: 0 }); }
   else { meta.rp = (meta.rp || 0) + 15; toasts.push({ name: 'COOKIE JAR!', sub: '+15 COOKIES BACK', t: 0 }); }
   saveMeta();
@@ -1700,8 +1814,9 @@ const gachaPrizeInfo = z =>
   z.kind === 'card' ? { name: z.def.name, desc: z.def.desc, rar: z.rar }
     : z.kind === 'glove' ? { name: GLOVES[z.k].name, desc: 'GLOVE SKIN - ' + GLOVES[z.k].flav, rar: 2 }
       : z.kind === 'hat' ? { name: HATS[z.k].name, desc: 'HAT - ' + HATS[z.k].flav, rar: 3 }
-        : z.kind === 'perk' ? { name: PERKS[z.k].name, desc: PERKS[z.k].desc, rar: 3 }
-          : { name: 'COOKIE JAR', desc: 'You own everything! +15 cookies back.', rar: 1 };
+        : z.kind === 'gear' ? { name: GEAR[z.k].name, desc: 'FACE GEAR - ' + GEAR[z.k].flav, rar: GEAR[z.k].rar || 3 }
+          : z.kind === 'perk' ? { name: PERKS[z.k].name, desc: PERKS[z.k].desc, rar: 3 }
+            : { name: 'COOKIE JAR', desc: 'You own everything! +15 cookies back.', rar: 1 };
 
 // three quest-giver NPCs, each with a PERMANENT quest chain (not daily)
 const NPCS = {
@@ -1749,8 +1864,49 @@ if (!meta.perks) meta.perks = {};
 if (!meta.summer) meta.summer = { caught: {}, tix: 0, q: {}, unlocked: false, won: false };
 if (!meta.set) meta.set = { mus: 2, sfx: 2, shake: 1, crt: 1 };
 if (!meta.chains) meta.chains = { granny: { step: 0, prog: 0 }, crow: { step: 0, prog: 0 }, doc: { step: 0, prog: 0 } };
+if (!meta.gearOwn) meta.gearOwn = {};
+if (!meta.gear) meta.gear = 'none';
+// CROC INDEX: every variant / boss you have met, and which finds you cashed in
+if (!meta.index) meta.index = { seen: {}, claimed: {} };
 function saveMeta() { try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
 let toasts = []; // {name, sub, glove, t}
+
+// ---- CROC INDEX ------------------------------------------------------------
+// log a sighting; a brand-new find is worth SCOUT COOKIES at the index screen
+function indexSee(key) {
+  if (!meta.index.seen[key]) {
+    meta.index.seen[key] = true;
+    saveMeta();
+    toasts.push({ name: 'NEW INDEX ENTRY!', sub: 'CLAIM COOKIES IN THE CROC INDEX', t: 0 });
+  }
+}
+const indexBounty = key => key.startsWith('boss_') ? 15 : 10;
+
+// ---- MERLE the manatee pops in to explain a special croc's ability ---------
+let merle = null; // {name, txt, t}
+function sayMerle(name, txt) { merle = { name, txt, t: 0 }; }
+function drawMerleTalk(dt) {
+  if (!merle) return;
+  merle.t += dt;
+  if (merle.t > 8.5) { merle = null; return; }
+  const slide = merle.t < 0.35 ? easeOut(merle.t / 0.35) : merle.t > 8 ? 1 - easeIn((merle.t - 8) / 0.5) : 1;
+  const bx = 118, by = lerp(H + 10, 172, slide), bw = 202, bh = 58;
+  ctx.save();
+  ctx.globalAlpha = 0.35; rr(bx + 2, by + 3, bw, bh, 4, '#000'); ctx.restore();
+  panel(bx, by, bw, bh, { face: '#12262ef6', edge: '#5cb0ac', r: 4 });
+  // Merle bobbing in the corner of the bubble
+  const bob = Math.round(Math.sin(merle.t * 3.2) * 2);
+  ctx.save(); ctx.translate(bx + 4, by + 8 + bob); ctx.scale(0.62, 0.62); drawVendor(0, 0); ctx.restore();
+  // speech tail + name plate
+  rect(bx + 40, by + 12, 4, 3, '#5cb0ac');
+  drawText('MERLE', bx + 46, by + 5, '#7fd4e8', 1);
+  drawText(merle.name, bx + 46, by + 15, '#ffe6b0', 1);
+  // typewriter body text, wrapped
+  const shown = merle.txt.slice(0, Math.floor(merle.t * 42));
+  drawSmallWrapped(shown, bx + 46, by + 27, bw - 54, C.white);
+  if (merle.t > 0.6 && (tNow % 1) < 0.6) drawText('TAP', bx + bw - 22, by + bh - 10, '#5d7a86', 1);
+  hit(bx, by, bw, bh, { id: 'merletalk', cursor: true, cb: () => { merle = null; } });
+}
 
 function todayStr() {
   const d = new Date();
@@ -1947,8 +2103,7 @@ function genMap() {
   [...s0, ...s1, boss].forEach(n => {
     if (n.type === 'event') { n.mut = null; return; }
     const canMut = G.summer || n.type !== 'boss';
-    const pool = MUT_ORDER.concat(rnd() < 0.3 ? SHOP_MUTS : []);
-    n.mut = (canMut && rnd() < 0.5) ? choice(pool) : null;
+    n.mut = canMut ? rollMutation(true) : null;
   });
   G.map = { stages: [s0, s1, [boss]], stage: 0, picked: [] };
   G.boat = null;
@@ -1978,8 +2133,9 @@ function startFight(node) {
   if (G.summer) G.nodeName = node.type === 'boss' ? 'MEGALODON' : node.type === 'small' ? 'REEF SHARK' : 'TIGER SHARK';
   G.round = node.type === 'boss' ? 2 : node.type === 'small' ? 0 : 1;
   G.boss = node.type === 'boss' ? (G.ante === 8 ? FINAL_BOSS : G.bossOrder[(G.ante - 1) % G.bossOrder.length]) : null;
+  const megaJaw = (node.mut === 'mega'); // COLOSSAL: harder target, double payout
   G.target = Math.round((G.ante <= 8 ? ANTE_BASE[G.ante - 1] : ANTE_BASE[7] * Math.pow(1.7, G.ante - 8)) * NODE_DEFS[node.type].mult
-    * (has('gumbo') ? 0.92 : 1));
+    * (has('gumbo') ? 0.92 : 1) * (megaJaw ? 1.25 : 1));
   G.score = 0; G.dispScore = 0;
   if (nodeModOn('toll')) { G.money = Math.max(0, G.money - 3); float(60, 190, 'TOLL -$3', C.red, 1, 1.4); }
   G.bites = Math.max(1, 3 + (has('chewtoy') ? 1 : 0) + (has('moonshine') ? 1 : 0)
@@ -1991,7 +2147,8 @@ function startFight(node) {
   G.xrays = 3 + (has('license') ? 1 : 0) + (has('moonshine') ? 1 : 0) + (has('foreverglades') ? 1 : 0)
     + (has('mosquitonet') ? 1 : 0) + (has('fireflyjar') && node.type === 'boss' ? 2 : 0)
     + (has('heronfeather') && node.type === 'small' ? 1 : 0)
-    - (nodeModOn('foggy') ? 1 : 0) + G.eventBuffs.xrays;
+    - (nodeModOn('foggy') ? 1 : 0) + G.eventBuffs.xrays
+    + (node.mut === 'spotted' ? 1 : 0); // KEEN EYES
   G.xrays = Math.max(0, G.xrays);
   if (has('foreverglades')) gainMoney(2);
   if (bossIs('apexpred')) G.xrays = Math.min(G.xrays, 1);
@@ -2000,11 +2157,14 @@ function startFight(node) {
   // the MUTATION was pre-rolled on the map node so it can be shown there; reuse
   // it (fall back to a fresh roll if this fight was launched without a node).
   if (node && node.mut !== undefined) G.mut = node.mut;
-  else {
-    const canMut = G.summer || node.type !== 'boss';
-    G.mut = (canMut && rnd() < 0.5) ? choice(MUT_ORDER.concat(rnd() < 0.3 ? SHOP_MUTS : [])) : null;
-  }
+  else G.mut = (G.summer || node.type !== 'boss') ? rollMutation(true) : null;
   if (G.mut) G.nodeName = MUTATIONS[G.mut].name + ' ' + G.nodeName; // Manta wants this photo
+  G.mutDefused = false; // ALBINO's free defuse, once per round
+  if (G.mut) { // log it in the CROC INDEX and let Merle explain the ability
+    indexSee('mut_' + G.mut);
+    if (MUT_ABIL[G.mut]) sayMerle(MUTATIONS[G.mut].name + ' ' + (G.summer ? 'SHARK' : 'CROC'), MUT_ABIL[G.mut].name + ': ' + MUT_ABIL[G.mut].desc);
+  }
+  if (G.boss) indexSee('boss_' + G.boss.id);
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
   G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
   G.denturesUsed = false; G.feastTimes = [];
@@ -2014,7 +2174,7 @@ function startFight(node) {
   if (G.ante >= 3) { unlock('ante3'); quest('ante3q', 1); }
   newMouth();
   G.eventBuffs = { bites: 0, xrays: 0, mult: 0, snapNext: 0 };
-  if (G.boss) { G.state = 'bossintro'; G.biStart = tNow; sfx.boss(); }
+  if (G.boss) { G.state = 'bosscut'; G.bcut = { t: 0 }; sfx.boss(); }
   else { G.state = 'play'; }
 }
 
@@ -2082,9 +2242,9 @@ function closeEvent() {
 function mouthSizeFor() {
   let size = 10 + (has('braces') ? 2 : 0) + (bossIs('tender') ? -2 : 0) + (bossIs('king') ? 2 : 0)
     + (G.ranger === 'scout' ? 1 : 0) + (has('cypressroot') ? 1 : 0);
-  if (G.mut === 'extra') size += 4;           // EXTRA-TOOTHED mutation: crammed maw
+  if (G.mut === 'extra') size += 4;           // OVERCROWDED: crammed maw
   if (G.mut === 'mega') size += 2;
-  if (G.mut === 'dwarf') size = Math.min(size, 8);
+  if (G.mut === 'dwarf') size = Math.min(size - 2, 8); // TINY TERROR: fewer teeth
   if (lilGator()) size = Math.min(size, 12);  // cap the lil gator AFTER mutations so it never overcrowds
   return Math.max(6, Math.min(size, G.deck.length));
 }
@@ -2111,6 +2271,7 @@ function newMouth() {
   if (has('mirror')) G.pool.mult += 2 * G.mouth.filter(s => s.t.type !== 'plain').length;
   if (has('venom')) G.pool.mult += Math.floor(G.roundPressed / 2);
   if (G.ranger === 'snail') G.pool.mult += 3;
+  if (mutIs('dwarf')) G.pool.mult += 6; // TINY TERROR: small maw, furious start
   if (G.roundBuffMult) G.pool.mult += G.roundBuffMult;
   if (has('compound') && G.compoundMult > 0) G.pool.mult += G.compoundMult;
   if (has('suncharm')) G.pool.mult += G.xrays; // SUN CHARM: bank your unused sight
@@ -2192,6 +2353,7 @@ function pressTooth(i) {
     let defused = null;
     if (G.novocaine) { defused = 'NOVOCAINE!'; G.novocaine = false; }
     else if (has('numb') && !G.numbUsed) { defused = 'NUMBED!'; G.numbUsed = true; }
+    else if (mutIs('albino') && !G.mutDefused) { defused = 'PALE OMEN!'; G.mutDefused = true; }
     else if (has('loose') && rnd() < 1 / 3) { defused = 'POPPED OUT!'; }
     if (defused) {
       s.gone = true; s.revealed = 'snap';
@@ -2239,6 +2401,8 @@ function pressTooth(i) {
     if (has('gemcutter') && GEM_TEETH.includes(s.t.type)) { add += 6; popCharm('gemcutter'); }
     if (has('lighthouse') && s.revealed === 'safe') { add += 3; popCharm('lighthouse'); }
     if (has('tinfang') && s.t.type === 'plain') add *= 2;
+    if (mutIs('diamond')) add += 2;  // CRYSTAL ENAMEL: richer teeth
+    if (mutIs('striped')) mgain += 1; // WARPAINT: the chain climbs faster
     let steel = false;
     if (s.t.type === 'fossil') mgain = 0; // the chain does not grow on fossils
     if (!diet) {
@@ -2377,6 +2541,7 @@ function bankSteps(sweep) {
   if (has('hourhand') && G.roundBanks === 0) xM('hourhand', 'HOUR HAND', 2);
   if (has('anchorjaw') && G.round === 1) xM('anchorjaw', 'ANCHOR', 1.5);
   if (has('jurassic') && G.deck.filter(x => x.type === 'amber').length >= 5) xM('jurassic', 'T-REX', 5);
+  if (mutIs('alien')) xM(null, 'ALIEN CROC', 2); // NOT OF THIS SWAMP
   // ---- DIAMOND edition badges each grant an X1.5 ----
   G.charms.forEach(c => { if (edOf(c) === 'diamond') xM(c.id, c.name.split(' ')[0] + ' DIAMOND', 1.5); });
   if (sweep) xM(has('collector') ? 'collector' : null, 'SWEEP', has('collector') ? 2 : (G.ranger === 'frog' ? 1.75 : 1.25));
@@ -2476,8 +2641,9 @@ function endBite() {
 }
 
 function roundWon() {
-  const base = (NODE_DEFS[G.nodeType].reward || 4) + Math.floor(G.ante / 3) + (nodeModOn('richwater') ? 4 : 0)
+  let base = (NODE_DEFS[G.nodeType].reward || 4) + Math.floor(G.ante / 3) + (nodeModOn('richwater') ? 4 : 0)
     + (has('goldgrill') && G.nodeType === 'gold' ? 5 : 0);
+  if (mutIs('mega')) base *= 2; // COLOSSAL: tougher target, double payout
   if (has('rangerpin') && G.round === 2) addRP(3, 'RANGER PIN');
   const perBite = G.bites; // unused bites, $1 each
   const cap = G.ranger === 'trader' ? 8 : 5;
@@ -2580,6 +2746,11 @@ function cosmeticPool() {
     if (!HATS[k].shop || hatUnlocked(k)) return;
     pool.push({ kind: 'hat', k, rar: HATS[k].rar || 0 });
   });
+  // shop-flagged face GEAR
+  GEAR_ORDER.forEach(k => {
+    if (!GEAR[k].shop || gearUnlocked(k)) return;
+    pool.push({ kind: 'gear', k, rar: GEAR[k].rar || 0 });
+  });
   return pool;
 }
 function weightedCosmetic(pool) {
@@ -2604,6 +2775,7 @@ function buyCosmetic(c) {
   G.money -= c.price;
   c.sold = true;
   if (c.kind === 'glove') { meta.gachaOwn[c.k] = true; meta.glove = c.k; }
+  else if (c.kind === 'gear') { meta.gearOwn[c.k] = true; meta.gear = c.k; }
   else { meta.hatOwn[c.k] = true; meta.hat = c.k; }
   saveMeta();
   quest('buy4', 1);
@@ -3959,7 +4131,9 @@ function drawSnap() {
 // ------------------------------------------------------------ shop --------
 // preview a cosmetic (glove or hat) centered at (cx,cy) for the boutique/racks
 function drawCosmeticArt(cx, cy, kind, k) {
-  if (kind === 'hat') {
+  if (kind === 'gear') {
+    drawGearArt(cx, cy - 4, k, 2);
+  } else if (kind === 'hat') {
     if (HATS[k].ico === 'none') { ICONS.skull(cx - 6, cy - 6); return; }
     drawHatArt(cx, cy + 9, k, 2);
   } else {
@@ -4019,7 +4193,10 @@ function drawCosmeticStand(X, Y, Wc) {
     }
     drawCosmeticArt(cx, cy, c.kind, c.k);
     // name / rarity / price
-    const tx = X + 48, nm = (c.kind === 'glove' ? GLOVES[c.k].name : HATS[c.k].name);
+    const cdefs = { glove: GLOVES, hat: HATS, gear: GEAR };
+    const cdef = (cdefs[c.kind] || HATS)[c.k];
+    const kindLbl = c.kind === 'glove' ? 'GLOVE' : c.kind === 'gear' ? 'GEAR' : 'HAT';
+    const tx = X + 48, nm = cdef.name;
     if (nm.length > 10 && nm.includes(' ')) {
       const cut = nm.lastIndexOf(' ');
       drawText(nm.slice(0, cut), tx, sy + 6, C.white, 1);
@@ -4029,11 +4206,11 @@ function drawCosmeticStand(X, Y, Wc) {
     const afford = G.money >= c.price;
     rr(tx, sy + 33, 30, 9, 2, afford ? '#3a2c10' : '#2a1a1a');
     drawText('$' + c.price, tx + 3, sy + 34, afford ? C.gold : C.red, 1);
-    if (hov) drawTextC(c.kind === 'glove' ? 'GLOVE' : 'HAT', X + Wc - 24, sy + 34, rc, 1);
+    if (hov) drawTextC(kindLbl, X + Wc - 24, sy + 34, rc, 1);
     hit(X + 6, sy, Wc - 12, 44, {
       id: 'cos' + i, cursor: true, cb: () => buyCosmetic(c),
-      tip: nm + '|' + RAR_NAME[c.rar] + ' ' + (c.kind === 'glove' ? 'GLOVE' : 'HAT') + '|'
-        + (c.kind === 'glove' ? GLOVES[c.k].flav : HATS[c.k].flav) + '|$' + c.price + ' - CLICK TO WEAR IT',
+      tip: nm + '|' + RAR_NAME[c.rar] + ' ' + kindLbl + '|'
+        + cdef.flav + '|$' + c.price + ' - CLICK TO WEAR IT',
     });
   });
 }
@@ -4679,6 +4856,87 @@ function ensureBossShot() {
   bossShot = { key, c: oc };
   return oc;
 }
+// ---------- BOSS CINEMATIC: a scary cold-open before the VS splash ---------
+// black water -> eyes rise -> lightning reveal -> the jaws LUNGE at you.
+function drawBossCut(dt) {
+  const shot = ensureBossShot();      // grab the real styled boss sprite first
+  const c = G.bcut; if (!c) { G.state = 'bossintro'; G.biStart = tNow; return; }
+  c.t += dt;
+  const t = c.t;
+  const done = () => { G.bcut = null; G.state = 'bossintro'; G.biStart = tNow; };
+
+  // ---- dead-black swamp night + crawling mist ----
+  for (let i = 0; i < 6; i++) rect(0, i * 45, W, 46, ['#03070a', '#04090d', '#050c11', '#060f14', '#071216', '#081518'][i]);
+  ctx.save(); ctx.globalAlpha = 0.06;
+  for (let k = 0; k < 7; k++) { const my2 = 60 + k * 26, off = (tNow * (6 + k * 2)) % (W + 120); rect(off - 120, my2, 120, 9, '#8fb8c0'); }
+  ctx.restore();
+  // distant lightning behind the treeline
+  const bolt = Math.sin(t * 7.3) > 0.985 || (t > 2.0 && t < 2.16);
+  if (bolt) { ctx.save(); ctx.globalAlpha = 0.16; rect(0, 0, W, 150, '#cfe8f0'); ctx.restore(); }
+  for (let x2 = 0; x2 < W; x2 += 7) { const h1 = 26 + ((Math.sin(x2 * 0.11) * 12) | 0) + ((x2 * 7) % 9); rect(x2, 150 - h1, 7, h1, bolt ? '#0d1a1e' : '#060e11'); }
+  rect(0, 150, W, H - 150, '#040b0e'); // black water
+
+  // ---- ripples spreading from where it lurks ----
+  const cx2 = W / 2 + 20;
+  for (let k = 0; k < 4; k++) {
+    const rp = ((t * 0.55 + k * 0.25) % 1);
+    ctx.save(); ctx.globalAlpha = (1 - rp) * 0.4;
+    const rw = 24 + rp * 150;
+    rect(cx2 - rw / 2, 196 + k * 5 - rp * 6, rw, 1, '#2a6a72');
+    ctx.restore();
+  }
+
+  // ---- beat 1: two eyes rise out of the black ----
+  if (t > 0.55) {
+    const rise = easeOut(clamp((t - 0.55) / 1.15, 0, 1));
+    const ey = lerp(206, 150, rise);
+    const glow = 0.35 + rise * 0.5 + Math.sin(t * 9) * 0.08;
+    [[cx2 - 34, 0], [cx2 + 26, 1]].forEach(([ex]) => {
+      ctx.save(); ctx.globalAlpha = glow * 0.5; fillCircle(ex + 4, ey + 3, 11, '#c81818'); ctx.restore();
+      rr(ex, ey, 9, 7, 2, '#1a0a0a');
+      rect(ex + 2, ey + 2, 5, 4, '#ff2a2a');
+      rect(ex + 3, ey + 3, 2, 2, '#fff2c8');
+    });
+    if (rise > 0.4) { // a slick brow breaks the surface
+      ctx.save(); ctx.globalAlpha = 0.9 * rise;
+      rr(cx2 - 52, ey + 8, 104, 10, 4, '#0d1a14'); rr(cx2 - 46, ey + 9, 92, 5, 3, '#16281c');
+      ctx.restore();
+    }
+  }
+
+  // ---- beat 2: lightning reveals the whole silhouette ----
+  if (t > 1.9 && t < 2.9) {
+    const f = clamp((t - 1.9) / 0.16, 0, 1) * (t > 2.5 ? clamp((2.9 - t) / 0.4, 0, 1) : 1);
+    ctx.save(); ctx.globalAlpha = 0.55 * f;
+    ctx.drawImage(shot, 120, 0, 340, 250, 74, 26, 340, 250);
+    ctx.globalAlpha = 0.5 * f; rect(0, 0, W, H, '#0a1a20');
+    ctx.restore();
+    if (t < 2.05 && shake < 2) shake = 3;
+  }
+
+  // ---- beat 3: the jaws LUNGE straight at the camera ----
+  if (t > 2.85) {
+    const f = easeIn(clamp((t - 2.85) / 0.85, 0, 1));
+    const sc = lerp(0.65, 2.4, f);
+    const w2 = 340 * sc, h2 = 250 * sc;
+    ctx.save();
+    ctx.globalAlpha = clamp(0.5 + f, 0, 1);
+    ctx.drawImage(shot, 120, 0, 340, 250, W / 2 - w2 / 2, 150 - h2 * 0.55, w2, h2);
+    ctx.restore();
+    if (f > 0.55 && shake < 4) shake = 5 + f * 4;
+    if (f > 0.8) { ctx.save(); ctx.globalAlpha = (f - 0.8) / 0.2 * 0.8; rect(0, 0, W, H, '#7a0e14'); ctx.restore(); }
+  }
+
+  // ---- captions ----
+  if (t < 1.9) { ctx.save(); ctx.globalAlpha = clamp(t / 0.6, 0, 1) * (t > 1.5 ? (1.9 - t) / 0.4 : 1); drawTextCSh('SOMETHING STIRS IN THE DARK...', W / 2, 224, '#7a9aa4', 1); ctx.restore(); }
+  else if (t < 2.85) { ctx.save(); ctx.globalAlpha = 0.9; drawTextCSh('IT IS ALREADY AWAKE.', W / 2, 224, '#d86a6a', 1); ctx.restore(); }
+
+  if (t >= 3.95) { done(); return; }
+  // skippable
+  drawTextC('TAP TO SKIP', W / 2, 254, '#3a5560', 1);
+  hit(0, 0, W, H, { id: 'bcutskip', cb: done, cursor: true });
+}
+
 function drawBossIntro() {
   // ---------- Binding-of-Isaac style VS splash ----------
   const shot = ensureBossShot(); // capture the real croc before painting the splash
@@ -4957,18 +5215,22 @@ function drawMenu(dt) {
   if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 178, '#8fa6a8', 1);
 
   // rusted utility buttons (weathered browns) along the bottom
+  const idxAll = indexEntries();
+  const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
   const UBTN = [
     ['SKINS', '#6a4a30', '#3a2614', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
+    ['INDEX', '#3a5e5a', '#1e3634', () => { G.state = 'index'; sfx.click(2); }, 'idxbtn', idxNew ? '+' + idxNew + ' NEW' : (idxAll.filter(e => meta.index.seen[e.key]).length + '/' + idxAll.length)],
     ['GACHA', '#5e4a6a', '#332844', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
     ['SETTINGS', '#4a4438', '#28241c', () => { G.overlay = 'settings'; }, 'setbtn', null],
     ['CREDITS', '#4a4438', '#28241c', () => { G.overlay = 'credits'; }, 'credbtn', null],
   ];
   UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
-    const bx = 130 + i * 56;
+    const bx = 102 + i * 56;
     button(bx, 240, 52, 22, label, c1, c2, cb, {
-      id, sub, subCol: id === 'skinsbtn' ? '#c8b090' : '#c8a860',
-      tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|hats + gloves, equip and show off'
-        : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
+      id, sub, subCol: id === 'skinsbtn' ? '#c8b090' : id === 'idxbtn' ? (idxNew ? C.gold : '#8fd4c8') : '#c8a860',
+      tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|gloves, hats + face gear'
+        : id === 'idxbtn' ? 'CROC INDEX|Every variant and boss you have met|Claim SCOUT COOKIES for new finds'
+          : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
     });
     // a couple of rivets to sell the rusted metal
     rect(bx + 3, 243, 1, 1, '#c8a060'); rect(bx + 48, 243, 1, 1, '#c8a060');
@@ -5029,10 +5291,93 @@ function drawCharHead(cx, cy, sc) {
   ctx.translate(cx, cy);
   ctx.scale(sc, sc);
   drawRangerFace(-14, -6, key);
+  const gearKey = (meta.gear && gearUnlocked(meta.gear)) ? meta.gear : 'none';
+  if (gearKey !== 'none') drawGearArt(0, 5, gearKey, 1); // face gear sits on the eye line
   const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   if (hatKey !== 'none') drawHatArt(0, 3, hatKey, 1);
   ctx.restore();
 }
+// --------------------------------------------------------- CROC INDEX ------
+// A field journal of every variant and boss you have met. Each fresh sighting
+// can be cashed in for SCOUT COOKIES, plus a bounty for filling the book.
+function indexEntries() {
+  const list = [];
+  MUT_ORDER.concat(SHOP_MUTS).forEach(k => {
+    const a = MUT_ABIL[k] || { tier: 0, name: '?', desc: '' };
+    list.push({ key: 'mut_' + k, mut: k, name: MUTATIONS[k].name, col: MUTATIONS[k].col, tier: a.tier, abil: a.name, tag: a.tag || a.name, desc: a.desc, flav: MUTATIONS[k].flav });
+  });
+  BOSSES.forEach(b => list.push({ key: 'boss_' + b.id, boss: b.id, name: b.name, col: '#ff8a8a', tier: 3, abil: 'BOSS RULE', tag: 'BOSS RULE', desc: b.desc, flav: BOSS_QUIPS[b.id] || 'It is very hungry.' }));
+  return list;
+}
+function drawIndex() {
+  const th = THEMES.night;
+  drawSceneBack(th); drawSceneFront(th);
+  overlayDim(0.76);
+  const all = indexEntries();
+  const seenN = all.filter(e => meta.index.seen[e.key]).length;
+  const owed = all.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]);
+  const owedCk = owed.reduce((a, e) => a + indexBounty(e.key), 0);
+  drawTextCSh('CROC INDEX', W / 2, 6, C.gold, 2);
+  drawTextC('LOGGED ' + seenN + ' / ' + all.length + '  -  MEET THEM IN THE WILD TO FILL THE BOOK', W / 2, 22, '#8aa0a8', 1);
+  // cookie balance + CLAIM ALL
+  panel(8, 4, 96, 16, { face: '#26321e', edge: '#5a7a3a' });
+  ICONS.cookie(12, 8); drawText(fmt(meta.rp || 0) + ' CK', 26, 10, C.gold, 1);
+  if (owed.length) {
+    button(W - 116, 4, 108, 16, 'CLAIM +' + owedCk + ' CK', '#e8a020', '#98650e', () => {
+      owed.forEach(e => { meta.index.claimed[e.key] = true; });
+      addRP(owedCk, 'INDEX BOUNTY');
+      if (seenN >= all.length && !meta.index.done) { meta.index.done = true; addRP(60, 'INDEX COMPLETE!'); }
+      saveMeta(); sfx.ach();
+    }, { id: 'idxclaim', tip: 'INDEX BOUNTY|' + owed.length + ' new find(s) to cash in|Complete the book for +60 bonus' });
+  } else drawTextC(seenN >= all.length ? 'BOOK COMPLETE!' : 'NO NEW FINDS', W - 62, 9, seenN >= all.length ? C.green : '#54707a', 1);
+
+  // ---- tabs: special variants / boss roster ----
+  if (!G.idxTab) G.idxTab = 'mut';
+  [['mut', 'SPECIAL CROCS'], ['boss', 'BOSS ROSTER']].forEach(([k, lbl], i) => {
+    const tx = 96 + i * 148, on = G.idxTab === k;
+    rr(tx, 30, 140, 15, 2, on ? C.gold : '#2a3a42');
+    rr(tx + 1, 31, 138, 13, 2, on ? '#3a4a22' : '#16222a');
+    drawTextC(lbl, tx + 70, 34, on ? C.gold : '#7a8a92', 1);
+    hit(tx, 30, 140, 15, { id: 'idxtab' + k, cursor: true, cb: () => { G.idxTab = k; sfx.click(2); } });
+  });
+  const page = all.filter(e => G.idxTab === 'boss' ? e.boss : e.mut);
+
+  // ---- grid of journal cards ----
+  const cols = 6, cw = 78, ch = 62, gx0 = 8, gy0 = 50;
+  page.forEach((e, i) => {
+    const x = gx0 + (i % cols) * cw, y = gy0 + Math.floor(i / cols) * ch;
+    const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
+    const tierLbl = e.boss ? 'BOSS' : MUT_TIER_NAME[e.tier];
+    const tierCol = e.boss ? '#ff8a8a' : MUT_TIER_COL[e.tier];
+    rr(x + 1, y + 2, cw - 6, ch - 6, 3, '#00000066');
+    rr(x, y, cw - 6, ch - 6, 3, got ? (fresh ? C.gold : e.col) : '#243038');
+    rr(x + 1, y + 1, cw - 8, ch - 8, 2, got ? '#16242c' : '#101a20');
+    if (got) {
+      if (e.boss) { // a snarling red boss head chip
+        const bx = x + 34, by2 = y + 16;
+        rr(bx - 12, by2 - 7, 24, 14, 3, '#00000055'); rr(bx - 11, by2 - 6, 22, 12, 3, '#8a3030');
+        rect(bx - 7, by2 - 3, 3, 3, C.red); rect(bx + 4, by2 - 3, 3, 3, C.red);
+        for (let t = 0; t < 5; t++) rect(bx - 9 + t * 4, by2 + 3, 2, 4, '#f4f0dc');
+        rect(bx - 10, by2 - 9, 3, 3, C.redD); rect(bx + 7, by2 - 9, 3, 3, C.redD);
+      } else drawMutChip(x + 34, y + 16, e.mut);
+      drawTextC(e.name.slice(0, 12), x + 35, y + 28, '#eafcff', 1);
+      drawTextC(tierLbl, x + 35, y + 38, tierCol, 1);
+      drawTextC(e.tag, x + 35, y + 48, '#8aa0a8', 1);
+      if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.3; drawTextC('NEW', x + cw - 18, y + 3, C.gold, 1); ctx.restore(); }
+    } else {
+      drawTextC('?', x + 35, y + 12, '#2f4048', 2);
+      drawTextC('NOT MET', x + 35, y + 34, '#2f4048', 1);
+      drawTextC('+' + indexBounty(e.key) + ' CK', x + 35, y + 46, '#2f4048', 1);
+    }
+    hit(x, y, cw - 6, ch - 6, {
+      id: 'idx' + e.key, cursor: true,
+      tip: got ? (e.name + '|' + tierLbl + '|' + e.abil + ': ' + e.desc + "|'" + e.flav + "'" + (fresh ? '|+' + indexBounty(e.key) + ' COOKIES TO CLAIM' : '|CLAIMED'))
+        : ('??? UNKNOWN|Meet it on the trail to log it|Worth +' + indexBounty(e.key) + ' COOKIES'),
+    });
+  });
+  button(W / 2 - 45, 248, 90, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'idxback' });
+}
+
 function drawSkins() {
   const th = THEMES.shop;
   drawSceneBack(th); drawSceneFront(th);
@@ -5042,7 +5387,7 @@ function drawSkins() {
   const R = RANGERS[rkey];
 
   // ---- framed portrait: a lit vanity mirror showing just your character head ----
-  const cx = W / 2, fy = 30, fw = 128, fh = 92, fx = cx - fw / 2;
+  const cx = W / 2, fy = 26, fw = 118, fh = 80, fx = cx - fw / 2;
   // vanity bulbs around the top of the frame
   for (let k = 0; k < 7; k++) { const bx = fx + 14 + k * 16, on = ((tNow * 2 + k) | 0) % 5 !== 0; fillCircle(bx, fy - 3, 3, on ? '#ffe9a0' : '#6a5a3a'); if (on) { ctx.save(); ctx.globalAlpha = 0.16; fillCircle(bx, fy - 3, 7, '#ffe9a0'); ctx.restore(); } }
   // ornate gold frame + mirror glass with a soft radial sheen
@@ -5055,30 +5400,39 @@ function drawSkins() {
   rect(fx + 8, fy + 7, 3, fh - 16, '#ffffff12'); // glass streak
   // pedestal shadow + the character head, scaled up, no body
   ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, fy + fh - 10, 22, '#000'); ctx.restore();
-  drawCharHead(cx, fy + fh / 2 + 8, 2.4);
+  drawCharHead(cx, fy + fh / 2 + 6, 2.1);
   // name plaque
   const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HANDS';
   const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'NO HAT';
-  panel(cx - 74, fy + fh + 6, 148, 15, { face: '#2a1f14', edge: '#7a5a30', r: 3 });
-  drawTextCSh(R.name + '  -  ' + R.animal, cx, fy + fh + 10, '#ffe6b0', 1);
+  const rname = (meta.gear && gearUnlocked(meta.gear)) ? GEAR[meta.gear].name : 'NO GEAR';
+  panel(cx - 74, fy + fh + 4, 148, 13, { face: '#2a1f14', edge: '#7a5a30', r: 3 });
+  drawTextCSh(R.name + '  -  ' + R.animal, cx, fy + fh + 7, '#ffe6b0', 1);
 
   // ---- GLOVES row ----
-  drawText('GLOVES', 14, 150, '#c8b8a0', 1);
-  drawText(gname, 66, 150, '#8aa0a8', 1);
-  skinRow(160, GLOVE_ORDER, () => meta.glove, gloveUnlocked,
+  drawText('GLOVES', 14, 126, '#c8b8a0', 1);
+  drawText(gname, 66, 126, '#8aa0a8', 1);
+  skinRow(135, GLOVE_ORDER, () => meta.glove, gloveUnlocked,
     (ix, iy, k) => ICONS.glove(ix - 6, iy - 6, GLOVES[k].skin),
     (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
     k => { meta.glove = k; }, k => GLOVE_RAR[k] || 0);
 
   // ---- HATS row (worn on the character + the map traveler) ----
-  drawText('HATS', 14, 194, '#c8b8a0', 1);
-  drawText(hname, 50, 194, '#8aa0a8', 1);
-  skinRow(204, HAT_ORDER, () => meta.hat, hatUnlocked,
+  drawText('HATS', 14, 166, '#c8b8a0', 1);
+  drawText(hname, 50, 166, '#8aa0a8', 1);
+  skinRow(175, HAT_ORDER, () => meta.hat, hatUnlocked,
     (ix, iy, k) => { if (HATS[k].ico === 'none') rect(ix - 4, iy, 8, 2, '#54707a'); else drawHatArt(ix, iy + 6, k, 1); },
     (k, open, on) => open ? (HATS[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
     k => { meta.hat = k; }, k => HATS[k].rar || 0);
 
-  button(W / 2 - 45, 234, 90, 18, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
+  // ---- GEAR row (face kit: goggles, visors, lenses) ----
+  drawText('GEAR', 14, 206, '#c8b8a0', 1);
+  drawText(rname, 46, 206, '#8aa0a8', 1);
+  skinRow(215, GEAR_ORDER, () => meta.gear, gearUnlocked,
+    (ix, iy, k) => { if (k === 'none') rect(ix - 4, iy, 8, 2, '#54707a'); else drawGearArt(ix, iy - 1, k, 1); },
+    (k, open, on) => open ? (GEAR[k].name + '|' + GEAR[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GEAR[k].name + '|' + (GEAR[k].gacha ? 'WIN IT IN THE GACHA-PON' : 'BUY AT THE SHOP CLOSET')),
+    k => { meta.gear = k; }, k => GEAR[k].rar || 0);
+
+  button(W / 2 - 45, 246, 90, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
 }
 
 // ------------------------------------------------- interactive tutorial ----
@@ -5630,7 +5984,9 @@ function drawMap() {
   rr(bpos.x - 12, bpos.y + bob, 24, 7, 3, '#5a3a1e');
   rr(bpos.x - 9, bpos.y - 2 + bob, 18, 4, 2, '#7a5230');
   drawRangerFace(bpos.x - 14 + lean, bpos.y - 26 + bob, G.ranger);
-  // the equipped cosmetic HAT rides on the traveler's head
+  // the equipped cosmetic GEAR + HAT ride on the traveler
+  const gearKey = (meta.gear && gearUnlocked(meta.gear)) ? meta.gear : 'none';
+  if (gearKey !== 'none') drawGearArt(bpos.x + lean, bpos.y - 18 + bob, gearKey, 1);
   const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
   if (hatKey !== 'none') drawHatArt(bpos.x + lean, bpos.y - 20 + bob, hatKey, 1);
   drawTextC(G.boat ? '. . .' : 'PICK YOUR NEXT STOP', W / 2, 234, C.dim, 1);
@@ -5913,6 +6269,7 @@ function drawGachaShowcase() {
   exchangeItems().forEach(d => all.push({ name: d.name, desc: d.desc, ico: d.ico, rar: d.tier <= 5 ? 0 : d.tier <= 10 ? 1 : 2, owned: !!meta.unlocked[d.id], kind: CHARMS.includes(d) ? 'BADGE' : TOOLS.includes(d) ? 'TOOL' : 'CARD' }));
   GLOVE_ORDER.forEach(k => { if (GLOVES[k].gacha) all.push({ name: GLOVES[k].name, desc: 'GLOVE SKIN - ' + GLOVES[k].flav, ico: 'glove', skin: GLOVES[k].skin, rar: 2, owned: !!meta.gachaOwn[k], kind: 'GLOVE' }); });
   HAT_ORDER.forEach(k => { if (HATS[k].gacha) all.push({ name: HATS[k].name, desc: 'HAT - ' + HATS[k].flav, ico: 'hat', hatKey: k, rar: 3, owned: !!meta.hatOwn[k], kind: 'HAT' }); });
+  GEAR_ORDER.forEach(k => { if (GEAR[k].gacha) all.push({ name: GEAR[k].name, desc: 'GEAR - ' + GEAR[k].flav, ico: 'gear', gearKey: k, rar: GEAR[k].rar || 3, owned: !!meta.gearOwn[k], kind: 'GEAR' }); });
   Object.keys(PERKS).forEach(k => all.push({ name: PERKS[k].name, desc: PERKS[k].desc, ico: PERKS[k].ico, rar: 3, owned: !!meta.perks[k], kind: 'PERK' }));
   const owned = all.filter(a => a.owned).length;
   const px = 28, py = 12, pw = 424, ph = 246;
@@ -5933,6 +6290,7 @@ function drawGachaShowcase() {
     ctx.save(); if (!a.owned) ctx.globalAlpha = 0.35;
     if (a.ico === 'glove') ICONS.glove(x + 13, y + 6, a.skin);
     else if (a.ico === 'hat') drawHatArt(x + 19, y + 16, a.hatKey, 1);
+    else if (a.ico === 'gear') drawGearArt(x + 19, y + 10, a.gearKey, 1);
     else (ICONS[a.ico] || ICONS.star)(x + 13, y + 6);
     ctx.restore();
     if (a.owned) { rect(x + cw - 14, y + 3, 6, 6, C.green); drawText('+', x + cw - 13, y + 4, '#0d161b', 1); }
@@ -7121,7 +7479,9 @@ function frame(ms) {
     case 'snap': drawSnap(); break;
     case 'roundend': drawRoundEnd(); break;
     case 'shop': drawShop(); break;
+    case 'bosscut': drawBossCut(dt); break;
     case 'bossintro': drawBossIntro(); break;
+    case 'index': drawIndex(); break;
     case 'gameover': drawGameOver(); break;
     case 'win': drawWin(); break;
   }
@@ -7152,6 +7512,9 @@ function frame(ms) {
     else drawPauseOverlay();
   }
 
+  // Merle's ability briefing rides above the fight, but nowhere else
+  if (G.state === 'play' || G.state === 'swap') drawMerleTalk(dt);
+  else if (G.state !== 'snap' && G.state !== 'bosscut' && G.state !== 'bossintro') merle = null;
   drawToasts(dt);
   drawTooltip();
   drawDraggedCard();
@@ -7163,7 +7526,7 @@ requestAnimationFrame(frame);
 // -------------------------------------------- pause, settings, credits ----
 function togglePause() {
   if (G.overlay) { G.overlay = null; return; }
-  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
+  if (G.state === 'menu' || G.state === 'how' || G.state === 'skins' || G.state === 'index' || G.state === 'tutorial' || G.state === 'ranger' || G.state === 'pass') return;
   G.paused = !G.paused;
   sfx.pause();
 }
