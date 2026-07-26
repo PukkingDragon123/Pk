@@ -985,12 +985,13 @@ const MUT_ABIL = {
 };
 const MUT_TIER_NAME = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'SUPER RARE'];
 const MUT_TIER_COL = ['#9ab8a8', '#7fd4e8', '#c8a8f8', '#ffb060', '#ff6a9a'];
-const MUT_TIER_W = [100, 40, 12, 3.4, 0.7]; // super rares are a genuine event
+const MUT_TIER_W = [100, 26, 6, 1.2, 0.18]; // super rares are a genuine event
 const mutIs = id => G.mut === id;
 const mutTier = id => (MUT_ABIL[id] ? MUT_ABIL[id].tier : 0);
-// weighted pick across every variant this stage allows (null = plain croc)
+// weighted pick across every variant this stage allows (null = plain croc).
+// Special crocs are RARE: the vast majority of the swamp is plain gators.
 function rollMutation(allowShop) {
-  if (rnd() >= 0.42) return null; // most crocs are just crocs
+  if (rnd() >= 0.14) return null; // ~86% of crocs are just crocs
   const pool = MUT_ORDER.concat(allowShop ? SHOP_MUTS : []);
   const wts = pool.map(k => MUT_TIER_W[mutTier(k)] || 1);
   let r = rnd() * wts.reduce((a, b) => a + b, 0);
@@ -1873,14 +1874,15 @@ let toasts = []; // {name, sub, glove, t}
 
 // ---- CROC INDEX ------------------------------------------------------------
 // log a sighting; a brand-new find is worth SCOUT COOKIES at the index screen
-function indexSee(key) {
+function indexSee(key, quiet) {
   if (!meta.index.seen[key]) {
     meta.index.seen[key] = true;
     saveMeta();
-    toasts.push({ name: 'NEW INDEX ENTRY!', sub: 'CLAIM COOKIES IN THE CROC INDEX', t: 0 });
+    if (!quiet) toasts.push({ name: 'NEW INDEX ENTRY!', sub: 'CLAIM COOKIES IN THE INDEX', t: 0 });
   }
 }
-const indexBounty = key => key.startsWith('boss_') ? 15 : 10;
+const indexBounty = key => key.startsWith('boss_') ? 15 : key.startsWith('mut_') ? 10
+  : key.startsWith('tooth_') ? 5 : 3;
 
 // ---- MERLE the manatee pops in to explain a special croc's ability ---------
 let merle = null; // {name, txt, t}
@@ -2026,6 +2028,7 @@ const snapCountFor = () => {
 };
 
 function mkTooth(type, base) {
+  indexSee('tooth_' + type, true); // log the tooth type in the INDEX (quietly)
   return { id: uid(), type, base: base !== undefined ? base : TOOTH_DEFS[type].base };
 }
 
@@ -2798,6 +2801,7 @@ function buyItem(it) {
   if (it.kind === 'charm') {
     if (G.charms.length >= 5) { sfx.error(); float(mx, my - 10, 'CHARM SLOTS FULL', C.red, 1); return; }
     G.charms.push(it.def);
+    indexSee('charm_' + it.def.id, true);
     flyers.push({ x: mx, y: my, tx: 120 + (G.charms.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#3e8cd0' });
   } else if (it.kind === 'cons' || it.kind === 'tool') {
     if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
@@ -5118,23 +5122,27 @@ function drawRustySign(cx, py, dy) {
   drawTextCSh('BITE', -60, by + 9, '#d8a838', 5, '#2a1a0c');
   drawTextCSh('DOWN', 64, by + 9, '#4f9a44', 5, '#2a1a0c');
   ctx.save(); ctx.globalAlpha = 0.4; for (let k = 0; k < 10; k++) rect(-104 + (k * 41) % 208, by + 12 + (k * 17) % 18, 2, 2, '#3a2614'); ctx.restore();
-  // --- crooked tagline plank, hanging by a single bolt on the left ---
-  ctx.save();
-  ctx.translate(bx + 30, by + bh + 2); ctx.rotate(0.08);
-  rr(0, 0, 184, 13, 2, '#3a2614'); rr(1, 1, 182, 11, 2, '#5a3a20');
-  rect(3, 2, 178, 1, '#7a5230'); rect(60, 2, 1, 9, '#2a1810'); // split crack
-  drawTextC('A RUST-YOUR-LUCK DENTAL ROGUELIKE', 92, 3, '#c8b090', 1);
-  fillCircle(4, 6, 2, '#2a1c10'); rect(3, 5, 1, 1, '#c8a060'); // the one bolt
-  ctx.restore();
+  // --- tagline plank: hangs LEVEL from two short links under the sign ---
+  const pw2 = 190, px2 = -pw2 / 2, py2 = by + bh + 5;
+  rect(px2 + 18, py2 - 4, 2, 4, '#2a2018'); rect(px2 + pw2 - 20, py2 - 4, 2, 4, '#2a2018');
+  rr(px2 + 1, py2 + 2, pw2, 13, 2, '#00000066');
+  rr(px2, py2, pw2, 13, 2, '#3a2614'); rr(px2 + 1, py2 + 1, pw2 - 2, 11, 2, '#5a3a20');
+  rect(px2 + 3, py2 + 2, pw2 - 6, 1, '#7a5230');
+  rect(px2 + 62, py2 + 2, 1, 9, '#2a1810'); // weathered split
+  drawTextC('A RUST-YOUR-LUCK DENTAL ROGUELIKE', 0, py2 + 3, '#c8b090', 1);
+  [px2 + 5, px2 + pw2 - 6].forEach(bx2 => { fillCircle(bx2, py2 + 6, 2, '#2a1c10'); rect(bx2 - 1, py2 + 5, 1, 1, '#c8a060'); });
   ctx.restore();
 }
 
 // pick a fresh title-mascot look: a random croc variant + a full mouth of teeth
+// Rolled ONCE per page load, so the title mascot is the same gator for the
+// whole session (reload for a new one). A special variant is a rare treat.
 function rollMenuLook() {
   const bases = [{ round: 0, nodeType: 'small' }, { round: 1, nodeType: 'big' }, { round: 0, nodeType: 'gold' }];
   const look = Object.assign({}, choice(bases));
   // tint/deco variants only (skip mega/dwarf so the mouth geometry stays put)
-  look.mut = choice([null, null, null, 'diamond', 'spotted', 'striped', 'albino', 'alien', 'extra', 'gilded', 'glacial', 'corroded']);
+  const showable = ['diamond', 'spotted', 'striped', 'albino', 'alien', 'extra', 'gilded', 'glacial', 'corroded'];
+  look.mut = rnd() < 0.12 ? choice(showable) : null; // usually just a plain gator
   const gems = ['gold', 'ruby', 'sapph', 'emerald', 'amber', 'diamond', 'steel'];
   const n = 12 + ri(0, 2) + (look.mut === 'extra' ? 3 : 0); // a full set of teeth
   const teeth = [];
@@ -5149,7 +5157,7 @@ function rollMenuLook() {
 function drawMenu(dt) {
   if (G.summer) { G.summer = false; } // a summer run is over once we're back at the title
   G.mut = null;
-  if (!G.menuLook) { rollMenuLook(); G.menuRolled = false; }
+  if (!G.menuLook) rollMenuLook(); // once per page load only - never mid-session
   G.mouth = G.menuLook.teeth; // a full mouth of teeth (random variant)
   const th = THEMES.night;
   drawSceneBack(th);
@@ -5160,9 +5168,6 @@ function drawMenu(dt) {
     ctx.save(); ctx.translate(ax, 205); ctx.scale(0.45, 0.45); drawAirboat(0, 0, true, undefined); ctx.restore();
   }
   const chomp = Math.max(0, Math.sin(tNow * 1.4)) * 0.9;
-  // while the jaws are shut, quietly swap in a new random variant + teeth
-  if (chomp > 0.8 && !G.menuRolled) { rollMenuLook(); G.menuRolled = true; G.mouth = G.menuLook.teeth; }
-  if (chomp < 0.2) G.menuRolled = false;
   drawCroc(chomp);
   drawSceneFront(th);
 
@@ -5297,11 +5302,13 @@ function drawCharHead(cx, cy, sc) {
   if (hatKey !== 'none') drawHatArt(0, 3, hatKey, 1);
   ctx.restore();
 }
-// --------------------------------------------------------- CROC INDEX ------
-// A field journal of every variant and boss you have met. Each fresh sighting
-// can be cashed in for SCOUT COOKIES, plus a bounty for filling the book.
+// ------------------------------------------------------------- INDEX -------
+// A field journal of every croc variant, boss, badge and tooth you have met.
+// Each fresh find can be cashed in for SCOUT COOKIES, plus a completion bonus.
 function indexEntries() {
   const list = [];
+  CHARMS.forEach(c => list.push({ key: 'charm_' + c.id, charm: c, name: c.name, col: RAR_COL[c.rar || 0], tier: c.rar || 0, abil: c.desc, tag: c.desc, flav: c.flav }));
+  Object.keys(TOOTH_DEFS).forEach(k => { const d = TOOTH_DEFS[k]; list.push({ key: 'tooth_' + k, tooth: k, name: d.name, col: RAR_COL[d.rar || 0], tier: d.rar || 0, abil: d.desc, tag: d.desc, flav: d.flav }); });
   MUT_ORDER.concat(SHOP_MUTS).forEach(k => {
     const a = MUT_ABIL[k] || { tier: 0, name: '?', desc: '' };
     list.push({ key: 'mut_' + k, mut: k, name: MUTATIONS[k].name, col: MUTATIONS[k].col, tier: a.tier, abil: a.name, tag: a.tag || a.name, desc: a.desc, flav: MUTATIONS[k].flav });
@@ -5312,70 +5319,95 @@ function indexEntries() {
 function drawIndex() {
   const th = THEMES.night;
   drawSceneBack(th); drawSceneFront(th);
-  overlayDim(0.76);
+  overlayDim(0.78);
   const all = indexEntries();
   const seenN = all.filter(e => meta.index.seen[e.key]).length;
   const owed = all.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]);
   const owedCk = owed.reduce((a, e) => a + indexBounty(e.key), 0);
-  drawTextCSh('CROC INDEX', W / 2, 6, C.gold, 2);
-  drawTextC('LOGGED ' + seenN + ' / ' + all.length + '  -  MEET THEM IN THE WILD TO FILL THE BOOK', W / 2, 22, '#8aa0a8', 1);
-  // cookie balance + CLAIM ALL
-  panel(8, 4, 96, 16, { face: '#26321e', edge: '#5a7a3a' });
-  ICONS.cookie(12, 8); drawText(fmt(meta.rp || 0) + ' CK', 26, 10, C.gold, 1);
+  drawTextCSh('SWAMP INDEX', W / 2, 5, C.gold, 2);
+  drawTextC('LOGGED ' + seenN + ' / ' + all.length + '  -  FIND THEM IN PLAY TO FILL THE BOOK', W / 2, 20, '#8aa0a8', 1);
+  panel(6, 3, 88, 15, { face: '#26321e', edge: '#5a7a3a' });
+  ICONS.cookie(10, 6); drawText(fmt(meta.rp || 0) + ' CK', 24, 8, C.gold, 1);
   if (owed.length) {
-    button(W - 116, 4, 108, 16, 'CLAIM +' + owedCk + ' CK', '#e8a020', '#98650e', () => {
+    button(W - 112, 3, 106, 15, 'CLAIM +' + owedCk + ' CK', '#e8a020', '#98650e', () => {
       owed.forEach(e => { meta.index.claimed[e.key] = true; });
       addRP(owedCk, 'INDEX BOUNTY');
       if (seenN >= all.length && !meta.index.done) { meta.index.done = true; addRP(60, 'INDEX COMPLETE!'); }
       saveMeta(); sfx.ach();
-    }, { id: 'idxclaim', tip: 'INDEX BOUNTY|' + owed.length + ' new find(s) to cash in|Complete the book for +60 bonus' });
-  } else drawTextC(seenN >= all.length ? 'BOOK COMPLETE!' : 'NO NEW FINDS', W - 62, 9, seenN >= all.length ? C.green : '#54707a', 1);
+    }, { id: 'idxclaim', tip: 'INDEX BOUNTY|' + owed.length + ' new find(s) to cash in|Fill the book for a +60 bonus' });
+  } else drawTextC(seenN >= all.length ? 'BOOK COMPLETE!' : 'NO NEW FINDS', W - 58, 7, seenN >= all.length ? C.green : '#54707a', 1);
 
-  // ---- tabs: special variants / boss roster ----
+  // ---- four tabs, each with its own live count ----
   if (!G.idxTab) G.idxTab = 'mut';
-  [['mut', 'SPECIAL CROCS'], ['boss', 'BOSS ROSTER']].forEach(([k, lbl], i) => {
-    const tx = 96 + i * 148, on = G.idxTab === k;
-    rr(tx, 30, 140, 15, 2, on ? C.gold : '#2a3a42');
-    rr(tx + 1, 31, 138, 13, 2, on ? '#3a4a22' : '#16222a');
-    drawTextC(lbl, tx + 70, 34, on ? C.gold : '#7a8a92', 1);
-    hit(tx, 30, 140, 15, { id: 'idxtab' + k, cursor: true, cb: () => { G.idxTab = k; sfx.click(2); } });
+  const TABS = [['mut', 'CROCS', e => e.mut], ['boss', 'BOSSES', e => e.boss], ['charm', 'BADGES', e => e.charm], ['tooth', 'TEETH', e => e.tooth]];
+  TABS.forEach(([k, lbl, sel], i) => {
+    const tw = 108, tx = 12 + i * (tw + 6), on = G.idxTab === k;
+    const grp = all.filter(sel), got = grp.filter(e => meta.index.seen[e.key]).length;
+    const fresh = grp.some(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]);
+    rr(tx, 26, tw, 16, 2, on ? C.gold : '#2a3a42');
+    rr(tx + 1, 27, tw - 2, 14, 2, on ? '#3a4a22' : '#16222a');
+    drawTextC(lbl + '  ' + got + '/' + grp.length, tx + tw / 2, 31, on ? C.gold : '#7a8a92', 1);
+    if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.35; rect(tx + tw - 6, 29, 3, 3, C.gold); ctx.restore(); }
+    hit(tx, 26, tw, 16, { id: 'idxtab' + k, cursor: true, cb: () => { G.idxTab = k; sfx.click(2); } });
   });
-  const page = all.filter(e => G.idxTab === 'boss' ? e.boss : e.mut);
+  const sel = (TABS.find(t => t[0] === G.idxTab) || TABS[0])[2];
+  const page = all.filter(sel);
 
-  // ---- grid of journal cards ----
-  const cols = 6, cw = 78, ch = 62, gx0 = 8, gy0 = 50;
-  page.forEach((e, i) => {
-    const x = gx0 + (i % cols) * cw, y = gy0 + Math.floor(i / cols) * ch;
-    const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
-    const tierLbl = e.boss ? 'BOSS' : MUT_TIER_NAME[e.tier];
-    const tierCol = e.boss ? '#ff8a8a' : MUT_TIER_COL[e.tier];
-    rr(x + 1, y + 2, cw - 6, ch - 6, 3, '#00000066');
-    rr(x, y, cw - 6, ch - 6, 3, got ? (fresh ? C.gold : e.col) : '#243038');
-    rr(x + 1, y + 1, cw - 8, ch - 8, 2, got ? '#16242c' : '#101a20');
-    if (got) {
-      if (e.boss) { // a snarling red boss head chip
-        const bx = x + 34, by2 = y + 16;
-        rr(bx - 12, by2 - 7, 24, 14, 3, '#00000055'); rr(bx - 11, by2 - 6, 22, 12, 3, '#8a3030');
-        rect(bx - 7, by2 - 3, 3, 3, C.red); rect(bx + 4, by2 - 3, 3, 3, C.red);
-        for (let t = 0; t < 5; t++) rect(bx - 9 + t * 4, by2 + 3, 2, 4, '#f4f0dc');
-        rect(bx - 10, by2 - 9, 3, 3, C.redD); rect(bx + 7, by2 - 9, 3, 3, C.redD);
-      } else drawMutChip(x + 34, y + 16, e.mut);
-      drawTextC(e.name.slice(0, 12), x + 35, y + 28, '#eafcff', 1);
-      drawTextC(tierLbl, x + 35, y + 38, tierCol, 1);
-      drawTextC(e.tag, x + 35, y + 48, '#8aa0a8', 1);
-      if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.3; drawTextC('NEW', x + cw - 18, y + 3, C.gold, 1); ctx.restore(); }
-    } else {
-      drawTextC('?', x + 35, y + 12, '#2f4048', 2);
-      drawTextC('NOT MET', x + 35, y + 34, '#2f4048', 1);
-      drawTextC('+' + indexBounty(e.key) + ' CK', x + 35, y + 46, '#2f4048', 1);
-    }
-    hit(x, y, cw - 6, ch - 6, {
-      id: 'idx' + e.key, cursor: true,
-      tip: got ? (e.name + '|' + tierLbl + '|' + e.abil + ': ' + e.desc + "|'" + e.flav + "'" + (fresh ? '|+' + indexBounty(e.key) + ' COOKIES TO CLAIM' : '|CLAIMED'))
-        : ('??? UNKNOWN|Meet it on the trail to log it|Worth +' + indexBounty(e.key) + ' COOKIES'),
+  const tipFor = (e, got, fresh, tierLbl) => got
+    ? (e.name + '|' + tierLbl + '|' + e.abil + (e.flav ? "|'" + e.flav + "'" : '') + (fresh ? '|+' + indexBounty(e.key) + ' COOKIES TO CLAIM' : '|CLAIMED'))
+    : ('??? UNDISCOVERED|' + (e.charm ? 'Own this badge to log it' : e.tooth ? 'Add this tooth to your deck to log it' : 'Meet it on the trail to log it') + '|Worth +' + indexBounty(e.key) + ' COOKIES');
+
+  if (G.idxTab === 'charm' || G.idxTab === 'tooth') {
+    // ---- compact collection grid (98 badges / 20 teeth) ----
+    const isT = G.idxTab === 'tooth';
+    const cols = isT ? 10 : 14, cell = isT ? 44 : 33, chh = isT ? 60 : 30;
+    const gx0 = (W - cols * cell) / 2, gy0 = 50;
+    page.forEach((e, i) => {
+      const x = gx0 + (i % cols) * cell, y = gy0 + Math.floor(i / cols) * chh;
+      const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
+      const cw = cell - 5, ch2 = chh - 5;
+      rr(x, y, cw, ch2, 2, got ? (fresh ? C.gold : e.col) : '#243038');
+      rr(x + 1, y + 1, cw - 2, ch2 - 2, 2, got ? '#16242c' : '#0f181e');
+      if (got) {
+        if (isT) drawTooth(x + 7, y + 6, cw - 14, ch2 - 22, true, e.tooth, {});
+        else { ctx.save(); ctx.globalAlpha = 1; (ICONS[e.charm.ico] || ICONS.star)(x + cw / 2 - 6, y + 4); ctx.restore(); }
+        drawTextC(e.name.split(' ')[0].slice(0, isT ? 7 : 5), x + cw / 2, y + ch2 - 9, '#9fb8c0', 1);
+        if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.35; rect(x + cw - 4, y + 2, 3, 3, C.gold); ctx.restore(); }
+      } else drawTextC('?', x + cw / 2, y + ch2 / 2 - 4, '#2f4048', 1);
+      hit(x, y, cw, ch2, { id: 'idx' + e.key, cursor: true, tip: tipFor(e, got, fresh, RAR_NAME[e.tier] || 'COMMON') });
     });
-  });
-  button(W / 2 - 45, 248, 90, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'idxback' });
+  } else {
+    // ---- detailed journal cards (crocs + bosses) ----
+    const cols = 6, cw = 78, ch = 60, gx0 = 8, gy0 = 48;
+    page.forEach((e, i) => {
+      const x = gx0 + (i % cols) * cw, y = gy0 + Math.floor(i / cols) * ch;
+      const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
+      const tierLbl = e.boss ? 'BOSS' : MUT_TIER_NAME[e.tier];
+      const tierCol = e.boss ? '#ff8a8a' : MUT_TIER_COL[e.tier];
+      rr(x + 1, y + 2, cw - 6, ch - 6, 3, '#00000066');
+      rr(x, y, cw - 6, ch - 6, 3, got ? (fresh ? C.gold : e.col) : '#243038');
+      rr(x + 1, y + 1, cw - 8, ch - 8, 2, got ? '#16242c' : '#101a20');
+      if (got) {
+        if (e.boss) {
+          const bx = x + 34, by2 = y + 15;
+          rr(bx - 12, by2 - 7, 24, 14, 3, '#00000055'); rr(bx - 11, by2 - 6, 22, 12, 3, '#8a3030');
+          rect(bx - 7, by2 - 3, 3, 3, C.red); rect(bx + 4, by2 - 3, 3, 3, C.red);
+          for (let t = 0; t < 5; t++) rect(bx - 9 + t * 4, by2 + 3, 2, 4, '#f4f0dc');
+          rect(bx - 10, by2 - 9, 3, 3, C.redD); rect(bx + 7, by2 - 9, 3, 3, C.redD);
+        } else drawMutChip(x + 34, y + 15, e.mut);
+        drawTextC(e.name.slice(0, 12), x + 35, y + 26, '#eafcff', 1);
+        drawTextC(tierLbl, x + 35, y + 36, tierCol, 1);
+        drawTextC(e.tag.slice(0, 13), x + 35, y + 46, '#8aa0a8', 1);
+        if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.3; drawTextC('NEW', x + cw - 18, y + 3, C.gold, 1); ctx.restore(); }
+      } else {
+        drawTextC('?', x + 35, y + 11, '#2f4048', 2);
+        drawTextC('NOT MET', x + 35, y + 32, '#2f4048', 1);
+        drawTextC('+' + indexBounty(e.key) + ' CK', x + 35, y + 44, '#2f4048', 1);
+      }
+      hit(x, y, cw - 6, ch - 6, { id: 'idx' + e.key, cursor: true, tip: tipFor(e, got, fresh, tierLbl) });
+    });
+  }
+  button(W / 2 - 45, 250, 90, 15, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'idxback' });
 }
 
 function drawSkins() {
