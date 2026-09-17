@@ -49,6 +49,15 @@ const ri = (a, b) => a + Math.floor(rnd() * (b - a + 1));
 const choice = a => a[Math.floor(rnd() * a.length)];
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const lerp = (a, b, t) => a + (b - a) * t;
+// blend two #rrggbb colours; used for the lake's depth gradient
+function mixHex(a, b, t) {
+  t = clamp(t, 0, 1);
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const r = Math.round(lerp((pa >> 16) & 255, (pb >> 16) & 255, t));
+  const g = Math.round(lerp((pa >> 8) & 255, (pb >> 8) & 255, t));
+  const bl = Math.round(lerp(pa & 255, pb & 255, t));
+  return '#' + ((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1);
+}
 const easeOut = t => 1 - (1 - t) * (1 - t);
 const easeIn = t => t * t * t;
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -672,6 +681,186 @@ function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
   const pw = Math.max(2, (ew / 3) | 0), ph2 = Math.max(3, (eh / 2) | 0);
   rect(ex + ew / 2 - pw / 2 + dx, ey + eh / 2 - ph2 / 2 + dy, pw, ph2, pupilCol || '#1b1408');
   rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
+}
+
+// ---------------------------------------------------- BOBBLE CHARACTERS ----
+// Cute chibi rangers: an oversized wobbling head on a small springy body with
+// real facial expressions. Drawn in a ~40x52 box whose FEET rest on `gy`.
+// Pass `sc` to scale. Expressions: happy | calm | wow | worry | mad | sleepy.
+const BOBBLE = {
+  scout: { skin: '#a8bcd2', skinD: '#7f95ad', skinL: '#c8d8e8', shirt: '#2c4436', shirtD: '#1b2c22', shirtL: '#3d5c49', accent: '#63d66a', beak: '#e8c04a', beakD: '#bd8f18' },
+  medic: { skin: '#bcbcc6', skinD: '#8d8d97', skinL: '#dedee6', shirt: '#25464f', shirtD: '#152c33', shirtL: '#35606b', accent: '#7fd4e8', ear: '#e8a0b0' },
+  trader: { skin: '#968d80', skinD: '#6a6258', skinL: '#b6aea0', shirt: '#4a3a24', shirtD: '#2c2214', shirtL: '#634e31', accent: '#ffc843', mask: '#3a342c' },
+  frog: { skin: '#84cf56', skinD: '#5a9a3c', skinL: '#aaea7c', shirt: '#38562a', shirtD: '#213619', shirtL: '#4c7239', accent: '#d94f30' },
+  snail: { skin: '#e6d7b8', skinD: '#bca98a', skinL: '#f8eeda', shirt: '#6a5a8a', shirtD: '#403354', shirtL: '#8878a8', accent: '#c8a878' },
+};
+// eyes + brows + mouth, drawn about the head centre (0,0) in head-local space
+function bobbleFace(p, expr, phase, look, opt) {
+  opt = opt || {};
+  const EY = -1, EX = 6;           // eye line / spacing
+  const dark = '#20140c';
+  const pupil = (ox) => {          // a tracking pupil with a highlight
+    const dx = clamp(look.x, -1, 1), dy = clamp(look.y, -1, 1);
+    rect(ox - 1 + dx, EY + dy, 2, 3, dark);
+    rect(ox - 1 + dx, EY + dy, 1, 1, '#ffffff');
+  };
+  const blink = ((tNow + phase) % 4.3) > 4.12;
+  if (expr === 'happy' || blink) {                 // ^  ^  closed smiling eyes
+    [-EX, EX].forEach(ox => {
+      rect(ox - 3, EY + 1, 2, 1, dark); rect(ox - 1, EY, 2, 1, dark); rect(ox + 1, EY + 1, 2, 1, dark);
+    });
+  } else if (expr === 'wow') {                     // big surprised saucers
+    [-EX, EX].forEach(ox => {
+      fillCircle(ox, EY + 1, 4, dark); fillCircle(ox, EY + 1, 3, '#f8f4dc');
+      pupil(ox);
+    });
+  } else if (expr === 'mad') {                     // narrowed + angry brows
+    [-EX, EX].forEach((ox, i) => {
+      rr(ox - 3, EY, 6, 4, 1, '#f8f4dc'); rect(ox - 3, EY, 6, 1, dark);
+      rect(ox - 1, EY + 1, 2, 3, dark);
+      rect(ox - 3 + (i ? 2 : 0), EY - 3, 4, 2, dark); // slanted brow
+    });
+  } else if (expr === 'worry') {                   // small eyes, raised inner brows
+    [-EX, EX].forEach((ox, i) => {
+      rr(ox - 2, EY, 5, 5, 2, '#f8f4dc'); pupil(ox);
+      rect(ox - 3 + (i ? 1 : 0), EY - 4, 4, 1, dark);
+    });
+  } else if (expr === 'sleepy') {
+    [-EX, EX].forEach(ox => { rect(ox - 3, EY + 1, 6, 1, dark); rect(ox - 3, EY + 2, 2, 1, dark); });
+  } else {                                          // calm: round open eyes
+    [-EX, EX].forEach(ox => {
+      rr(ox - 3, EY - 1, 6, 6, 2, dark); rr(ox - 2, EY, 4, 4, 1, '#f8f4dc');
+      pupil(ox);
+    });
+  }
+  // ---- mouth (beaked rangers draw their own snout instead) ----
+  const my2 = 6;
+  if (opt.noMouth) { /* beak/snout takes over */ }
+  else if (opt.wide) {                                  // bullfrog's ear-to-ear grin
+    rect(-7, my2, 14, 1, dark); rect(-8, my2 - 1, 1, 1, dark); rect(7, my2 - 1, 1, 1, dark);
+    if (expr === 'happy' || expr === 'wow') { rr(-6, my2 + 1, 12, 3, 1, '#c85a6a'); rect(-5, my2 + 1, 10, 1, '#f8f4dc'); }
+  }
+  else if (expr === 'wow') { rr(-2, my2 - 1, 5, 5, 2, '#5a2430'); rect(-1, my2, 3, 2, '#d0607a'); }
+  else if (expr === 'mad') { rect(-3, my2 + 1, 7, 1, dark); rect(-3, my2, 2, 1, dark); rect(2, my2, 2, 1, dark); }
+  else if (expr === 'worry') { rect(-2, my2 + 1, 5, 1, dark); rect(-3, my2, 1, 1, dark); rect(3, my2, 1, 1, dark); }
+  else if (expr === 'sleepy') { rr(-1, my2, 3, 3, 1, '#5a2430'); }
+  else { rect(-3, my2, 1, 1, dark); rect(-2, my2 + 1, 5, 1, dark); rect(3, my2, 1, 1, dark); } // smile
+  // rosy cheeks on the sunny moods
+  if (expr === 'happy' || expr === 'wow' || expr === 'calm') {
+    ctx.save(); ctx.globalAlpha = 0.5;
+    rect(-EX - 4, my2 - 2, 3, 2, '#f08a9a'); rect(EX + 2, my2 - 2, 3, 2, '#f08a9a');
+    ctx.restore();
+  }
+}
+// the head only (used for portraits + the body below)
+function bobbleHead(key, expr, phase, look) {
+  const p = BOBBLE[key] || BOBBLE.scout;
+  const OL = '#20140c';
+  // ---- ears / crests / stalks behind the skull ----
+  if (key === 'medic') {
+    [[-10, -10], [10, -10]].forEach(([ex, ey]) => { fillCircle(ex, ey, 6, OL); fillCircle(ex, ey, 5, p.skinD); fillCircle(ex, ey + 1, 3, p.ear); });
+  }
+  if (key === 'trader') {
+    [[-10, -11], [10, -11]].forEach(([ex, ey]) => { rr(ex - 5, ey - 4, 10, 9, 4, OL); rr(ex - 4, ey - 3, 8, 7, 3, p.skinD); rr(ex - 2, ey - 1, 4, 4, 2, '#4a443c'); });
+  }
+  if (key === 'frog') {
+    [[-9, -11], [9, -11]].forEach(([ex, ey]) => { fillCircle(ex, ey, 7, OL); fillCircle(ex, ey, 6, p.skin); fillCircle(ex, ey - 1, 4, p.skinL); });
+  }
+  if (key === 'snail') {
+    rect(-8, -19, 2, 11, p.skinD); rect(6, -21, 2, 13, p.skinD);
+    [[-7, -20], [7, -22]].forEach(([ex, ey]) => { fillCircle(ex, ey, 4, OL); fillCircle(ex, ey, 3, p.skinL); rect(ex - 1, ey - 1, 2, 2, OL); rect(ex - 1, ey - 1, 1, 1, '#fff'); });
+  }
+  // ---- skull: a wide dome over a narrower jaw = soft egg, not a box ----
+  rr(-13, -13, 26, 19, 9, OL);          // dome outline
+  rr(-11, -1, 22, 13, 8, OL);           // jaw outline
+  rr(-12, -12, 24, 17, 8, p.skin);
+  rr(-10, 0, 20, 11, 7, p.skin);
+  rr(-11, -11, 22, 9, 7, p.skinL);      // lit crown
+  rect(-9, 8, 18, 3, p.skinD);          // shaded chin
+  ctx.save(); ctx.globalAlpha = 0.5; rect(-12, -3, 3, 6, p.skinD); rect(9, -3, 3, 6, p.skinD); ctx.restore(); // temple shading
+  if (key === 'trader') rect(-12, -5, 24, 7, p.mask);   // bandit mask
+  if (key === 'medic') rr(-6, 1, 12, 8, 4, '#e8e8ee');  // pale muzzle
+  bobbleFace(p, expr, phase, look, { noMouth: key === 'scout', wide: key === 'frog' });
+  // ---- beaks / snouts in front of the face ----
+  if (key === 'scout') {
+    rect(-4, 4, 13, 4, OL); rect(-3, 4, 12, 3, p.beak); rect(-3, 6, 11, 1, p.beakD);
+    rect(9, 5, 3, 2, p.beakD); rect(-3, 4, 7, 1, '#f8dc84');
+    if (expr === 'happy' || expr === 'wow') rect(-3, 7, 9, 1, '#c8801a'); // open beak
+  }
+  if (key === 'medic') { rect(-2, 4, 5, 3, '#e88898'); rect(-1, 4, 3, 1, '#f8b0c0'); rect(-1, 7, 2, 1, '#8a6a72'); }
+  if (key === 'trader') { rect(-2, 3, 5, 3, '#2e2820'); rect(-1, 3, 2, 1, '#57504a'); }
+  if (key === 'frog') { rect(-5, 1, 2, 1, p.skinD); rect(3, 1, 2, 1, p.skinD); } // nostrils
+  // ---- scarf / bandana knotted under the jaw ----
+  rr(-12, 11, 24, 5, 2, OL);
+  rr(-11, 11, 22, 4, 2, p.accent);
+  rect(-9, 12, 18, 1, '#ffffff38');
+  rect(-3, 14, 5, 3, p.accent); rect(-2, 15, 3, 1, '#00000033'); // knot tail
+  if (key === 'medic') { rect(-2, 12, 4, 2, C.red); rect(-1, 11, 2, 4, C.red); } // medic cross
+}
+// full chibi: bobbing head, springy body, stubby limbs.
+// o = { sc, expr, act, flip, t, hat, gear, glove }
+function drawBobble(cx, gy, key, o) {
+  o = o || {};
+  const p = BOBBLE[key] || BOBBLE.scout;
+  const sc = o.sc || 1, act = o.act || 'idle', expr = o.expr || 'calm';
+  const t = (o.t !== undefined ? o.t : tNow) + (o.phase || 0);
+  // springy motion: body squashes, head lags behind it (that is the bobble)
+  const hop = act === 'cheer' ? Math.abs(Math.sin(t * 4)) * 5 : Math.sin(t * 2.6) * 1.2;
+  const squash = 1 + Math.sin(t * 2.6 + 0.5) * 0.06;
+  const tilt = Math.sin(t * 1.9) * 0.07 + (act === 'row' ? Math.sin(t * 3.4) * 0.05 : 0);
+  const look = { x: clamp((mx - cx) / 60, -1, 1), y: clamp((my - (gy - 34 * sc)) / 60, -1, 1) };
+  ctx.save();
+  ctx.translate(cx, gy);
+  ctx.scale(o.flip ? -sc : sc, sc);
+  // ---- ground shadow (squashes opposite the hop) ----
+  ctx.save(); ctx.globalAlpha = 0.28; fillCircle(0, -1, 13 - hop * 0.6, '#000'); ctx.restore();
+  // ---- legs + boots ----
+  const stride = act === 'walk' ? Math.sin(t * 7) * 3 : 0;
+  [[-5, stride], [4, -stride]].forEach(([lx, s]) => {
+    rr(lx, -9 + hop * 0.3, 5, 7, 2, p.shirtD);
+    rr(lx - 1, -3 + s * 0.3, 7, 4, 2, '#20140c');
+    rr(lx - 1, -4 + s * 0.3, 7, 3, 2, '#54463a');
+  });
+  // ---- torso: little vest over a rounded belly ----
+  const by = -24 + hop;
+  ctx.save();
+  ctx.translate(0, by + 8); ctx.scale(1 / squash, squash); ctx.translate(0, -(by + 8));
+  rr(-10, by, 20, 17, 6, '#20140c');
+  rr(-9, by + 1, 18, 15, 5, p.shirt);
+  rr(-8, by + 2, 16, 6, 4, p.shirtL);
+  rr(-4, by + 3, 8, 13, 3, '#e8e0c8');           // shirt front
+  rect(-1, by + 4, 1, 11, '#c8c0a8');
+  rect(-9, by + 10, 18, 3, p.shirtD);            // belt
+  rect(-2, by + 10, 4, 3, C.gold); rect(-1, by + 11, 1, 1, '#fff6c8');
+  // ---- arms ----
+  const g = GLOVES[(o.glove && gloveUnlocked(o.glove)) ? o.glove : 'bare'] || GLOVES.bare;
+  const armPose = (side) => {
+    if (act === 'cheer') return { ax: side * 11, ay: by - 4 + Math.sin(t * 8 + side) * 2, rot: side * 0.9 };
+    if (act === 'row') return { ax: side * 10, ay: by + 4 + Math.sin(t * 3.4 + (side > 0 ? 0 : 0.2)) * 3, rot: side * (0.3 + Math.sin(t * 3.4) * 0.4) };
+    return { ax: side * 10, ay: by + 5 + Math.sin(t * 2.6 + side) * 1, rot: side * 0.18 };
+  };
+  [-1, 1].forEach(side => {
+    const a = armPose(side);
+    ctx.save(); ctx.translate(a.ax, a.ay); ctx.rotate(a.rot);
+    rr(-2, -1, 4, 8, 2, p.shirtD);
+    rr(-3, 5, 6, 5, 2, '#20140c'); rr(-2, 6, 4, 4, 2, g.skin);   // gloved mitt
+    ctx.restore();
+  });
+  // ---- head on a springy neck ----
+  const hy = by - 13;
+  ctx.save();
+  ctx.translate(0, hy); ctx.rotate(tilt);
+  bobbleHead(key, expr, o.phase || 0, look);
+  // cosmetics ride the head
+  const gk = o.gear && gearUnlocked(o.gear) ? o.gear : 'none';
+  if (gk !== 'none') drawGearArt(0, -1, gk, 1);
+  const hk = o.hat && hatUnlocked(o.hat) ? o.hat : 'none';
+  if (hk !== 'none') drawHatArt(0, -9, hk, 1);
+  ctx.restore();
+  // snail sage carries her shell
+  if (key === 'snail') { fillCircle(9, by + 6, 9, '#a87848'); fillCircle(9, by + 6, 7, '#c8a878'); fillCircle(10, by + 5, 4, '#a87848'); rect(9, by + 4, 2, 2, '#7a5430'); }
+  ctx.restore();
+  ctx.restore();
 }
 
 // Merle the manatee shopkeep: big, round, beloved - polished sea-cow
@@ -2044,6 +2233,39 @@ function burst(x, y, col, n, spd) {
     parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 40, g: 220, t: 0, life: 0.5 + rnd() * 0.5, col, sz: ri(1, 3) });
   }
 }
+// ---------------------------------------------------------- CARTOON FX -----
+// Chunky Saturday-morning effects: spinning stars, popping rings, dust puffs,
+// confetti ribbons and speed lines. All ride the same `parts` list.
+function fxStars(x, y, col, n, spd) {
+  for (let i = 0; i < (n || 5); i++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 2.4, s = (spd || 80) * (0.5 + rnd());
+    parts.push({ kind: 'star', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 300, t: 0, life: 0.5 + rnd() * 0.4, col: col || '#ffe089', sz: ri(3, 5), spin: (rnd() - 0.5) * 14 });
+  }
+}
+function fxRing(x, y, col, r0, r1, life) {
+  parts.push({ kind: 'ring', x, y, vx: 0, vy: 0, g: 0, t: 0, life: life || 0.34, col: col || '#fff6c8', r0: r0 || 3, r1: r1 || 20 });
+}
+function fxPuff(x, y, n, col) {
+  for (let i = 0; i < (n || 4); i++) {
+    const a = Math.PI + (rnd() - 0.5) * 2.6;
+    parts.push({ kind: 'puff', x: x + (rnd() - 0.5) * 8, y, vx: Math.cos(a) * 26 * (0.4 + rnd()), vy: -14 - rnd() * 18, g: -12, t: 0, life: 0.45 + rnd() * 0.35, col: col || '#cfe0d8', sz: ri(3, 6) });
+  }
+}
+function fxConfetti(x, y, n) {
+  const cols = ['#ff8ab0', '#7fd4e8', '#ffe089', '#a8e86a', '#c8a8f8', '#ff9a5a'];
+  for (let i = 0; i < (n || 14); i++) {
+    const a = -Math.PI / 2 + (rnd() - 0.5) * 2.2, s = 70 + rnd() * 90;
+    parts.push({ kind: 'ribbon', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 190, t: 0, life: 0.9 + rnd() * 0.7, col: choice(cols), sz: ri(2, 3), spin: (rnd() - 0.5) * 16 });
+  }
+}
+function fxLines(x, y, col, n, spread) {
+  for (let i = 0; i < (n || 6); i++) {
+    const a = rnd() * Math.PI * 2, s = (spread || 90) * (0.6 + rnd());
+    parts.push({ kind: 'line', x: x + Math.cos(a) * 8, y: y + Math.sin(a) * 8, vx: Math.cos(a) * s, vy: Math.sin(a) * s, g: 0, t: 0, life: 0.22 + rnd() * 0.12, col: col || '#ffffff', sz: ri(4, 8), ang: a });
+  }
+}
+// one loud cartoon impact: ring + stars + a couple of speed lines
+function fxPop(x, y, col) { fxRing(x, y, col, 3, 18); fxStars(x, y, col, 4, 70); fxLines(x, y, col + '88', 4, 70); }
 
 // ------------------------------------------------------------ run flow ----
 function newRun(rangerKey) {
@@ -2471,6 +2693,7 @@ function pressTooth(i) {
   float(p.x - 8, p.y - 12, '+' + r1.add, C.blue, 1);
   if (r1.mgain > 0) float(p.x + 10, p.y - 6, '+' + r1.mgain, C.red, 1);
   burst(p.x, p.y, '#fef9e6', 5, 40);
+  fxRing(p.x, p.y, '#fff6c8', 2, 11, 0.26); fxPuff(p.x, p.y + 6, 2, '#e8e0c8');
   sfx.click(G.pool.clicks);
   if (bossIs('restless') && G.pool.clicks % 3 === 0) relocateSnaps();
   checkSweep();
@@ -2483,6 +2706,7 @@ function checkSweep() {
       float(W / 2 + 50, 96, 'CLEAN SWEEP!', C.gold, 2, 1.6);
       sfx.sweep();
       burst(W / 2 + 50, 130, C.gold, 20, 90);
+      fxConfetti(W / 2 + 50, 120, 20); fxRing(W / 2 + 50, 128, '#fff6c8', 4, 40, 0.5);
       G.runSweeps++;
       quest('sweep1', 1);
       if (G.runSweeps >= 3) unlock('sweep3');
@@ -2617,6 +2841,8 @@ function finishBank(q) {
   G.lastBitePresses = G.pool.clicks;
   float(60, 96, '+' + fmt(val), C.gold, 2, 1.4);
   burst(60, 100, C.gold, 14, 80);
+  fxPop(60, 100, '#ffd54a');
+  if (val >= 400) fxConfetti(60, 96, 16);
   addRipple(180 + rnd() * 200, 254, false);
   if (val >= 1200) shake = Math.min(3, 1 + val / 2500); // gentler: only huge banks rumble
   sfx.bank();
@@ -2629,6 +2855,7 @@ function startSnap(i) {
   G.state = 'snap'; G.snapT = 0; G.snapIdx = i;
   G.deckOpen = false; G.drag = null; G.inspect = null;
   if (has('insurance')) { gainMoney(5); float(60, 150, 'INSURANCE +$5', C.gold, 1, 1.4); popCharm('insurance'); }
+  { const sp = toothScreenPos(i); fxRing(sp.x, sp.y, '#ff5a4a', 4, 34, 0.4); fxStars(sp.x, sp.y, '#ff8a6a', 7, 110); fxLines(sp.x, sp.y, '#ffffffaa', 8, 120); }
   sfx.snap();
 }
 
@@ -2784,6 +3011,7 @@ function buyCosmetic(c) {
   quest('buy4', 1);
   sfx.buy();
   burst(mx, my, RAR_COL[c.rar], 12, 70);
+  fxPop(mx, my, RAR_COL[c.rar]); fxStars(mx, my, '#ffffff', 4, 60);
 }
 function buyPack(p) {
   if (!p || p.sold) return;
@@ -2816,6 +3044,7 @@ function buyItem(it) {
   quest('buy4', 1);
   sfx.buy();
   burst(mx, my, C.gold, 8, 60);
+  fxPop(mx, my, '#ffd54a');
 }
 
 function sellCharm(i) {
@@ -3445,11 +3674,43 @@ function drawCroc(closeT, opts) {
   ctx.save(); ctx.globalAlpha = 0.35;
   for (let k = 0; k < 9; k++) rect(bodyX + 12 + (k * 47) % (bodyW - 24), jy + 26 + (k * 31) % 22, 2, 2, st.d);
   ctx.restore();
+  // ---- fine scale texture: a staggered micro-grid of scutes on the snout ----
+  ctx.save(); ctx.globalAlpha = 0.32;
+  for (let ry = 0; ry < 7; ry++) {
+    const sy2 = jy + 8 + ry * 7, off = (ry % 2) * 5;
+    for (let sx2 = bodyX + 8 + off; sx2 < bodyX + bodyW - 8; sx2 += 10) {
+      rect(sx2, sy2, 5, 3, st.d);          // scute plate
+      rect(sx2, sy2 - 1, 5, 1, st.c);      // lit top edge
+      rect(sx2 + 1, sy2 + 1, 3, 1, st.b);  // inner shadow
+    }
+  }
+  ctx.restore();
+  // ---- rim light along the top of the skull ----
+  ctx.save(); ctx.globalAlpha = 0.3;
+  rect(bodyX + 4, jy + 1, bodyW - 8, 1, '#eafcff');
+  rect(bodyX - 2, jy + 6, 3, 34, '#eafcff'); rect(bodyX + bodyW - 1, jy + 6, 3, 34, '#eafcff');
+  ctx.restore();
   // wet sheen sweeping the hide
   const shx = bodyX + ((tNow * 22) % (bodyW + 60)) - 30;
   ctx.save(); ctx.globalAlpha = 0.08;
   rect(shx, jy + 4, 4, 50, '#eafcff'); rect(shx + 8, jy + 4, 2, 50, '#eafcff');
   ctx.restore();
+  // ---- drool strings + drips hanging off the upper lip ----
+  if (G.state === 'play') {
+    ctx.save(); ctx.globalAlpha = 0.72;
+    [0.18, 0.5, 0.84].forEach((f, i) => {
+      const dx2 = (maw.x + maw.w * f) | 0;
+      const len = 3 + ((Math.sin(tNow * 0.9 + i * 2.1) + 1) * 2.5);
+      rect(dx2, maw.y + jawDrop + 2, 2, len, '#bfe4f2');
+      rect(dx2, maw.y + jawDrop + 2, 1, len, '#eafcff');
+      rr(dx2 - 1, maw.y + jawDrop + 1 + len, 4, 4, 2, '#dff2fa');   // hanging bead
+      const dp = (tNow * 0.55 + i * 0.4) % 1;                        // one drips free
+      ctx.save(); ctx.globalAlpha = 0.5 * (1 - dp);
+      rr(dx2 - 1, maw.y + jawDrop + 6 + len + dp * 20, 2, 3, 1, '#dff2fa');
+      ctx.restore();
+    });
+    ctx.restore();
+  }
   if (st.ridge) { rect(bodyX + 10, jy + 3, bodyW - 20, 2, st.b); rect(bodyX + 30, jy + 6, bodyW - 60, 1, st.b); }
   if (st.scars) {
     [[bodyX + 30, jy + 18], [bodyX + bodyW - 60, jy + 26]].forEach(([sx, sy]) => {
@@ -3790,9 +4051,45 @@ function drawCardAnim(x, y, def, kind, idx, o) {
   }
   const ph = (def.id || '').length * 1.37 + idx * 2.1;
   const hov = mx >= x - 2 && mx < x + 32 && my >= y - 6 && my < y + 44;
-  const bob = hov ? -4 : Math.round(Math.sin(tNow * 1.8 + ph) * 2);
+  const bob = hov ? -5 : Math.round(Math.sin(tNow * 1.8 + ph) * 2);
+  const rar = def.rar || 0;
+  // ---- cartoon presentation: pop + squash on hover, lazy wobble at rest ----
+  const pop = hov ? 1.14 + Math.sin(tNow * 11) * 0.03 : 1;
+  const tilt = hov ? Math.sin(tNow * 8 + ph) * 0.06 : Math.sin(tNow * 1.3 + ph) * 0.022;
+  const cxm = x + 15, cym = y + bob + 21;
+  ctx.save();
+  ctx.translate(cxm, cym); ctx.rotate(tilt); ctx.scale(pop, pop > 1 ? pop * 0.96 : 1); ctx.translate(-cxm, -cym);
+  if (hov) { // warm glow pad behind the card
+    ctx.save(); ctx.globalAlpha = 0.28 + Math.sin(tNow * 8) * 0.1;
+    rr(x - 4, y + bob - 4, 38, 50, 5, '#ffe8a0'); ctx.restore();
+  }
   drawCardFace(x, y + bob, def, kind, o);
-  if (hov) { ctx.globalAlpha = 0.35; rr(x - 1, y + bob - 1, 32, 44, 2, '#ffe8a0'); ctx.globalAlpha = 1; drawCardFace(x, y + bob, def, kind, o); }
+  // ---- gloss sweep travelling across the face ----
+  const sweep = (tNow * 0.5 + idx * 0.31 + ph * 0.07) % 2.6;
+  if (sweep < 0.5) {
+    const k = sweep / 0.5;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x + 1, y + bob + 1, 28, 40); ctx.clip();
+    ctx.globalAlpha = 0.34 * (1 - Math.abs(k - 0.5) * 2);
+    const gx2 = x - 18 + k * 56;
+    for (let ry = 0; ry < 42; ry += 2) rect(gx2 + ry * 0.55, y + bob + ry, 5, 2, '#ffffff');
+    ctx.restore();
+  }
+  ctx.restore();
+  // ---- rarity twinkles orbiting the good stuff ----
+  if (rar >= 3) {
+    for (let s = 0; s < (rar >= 5 ? 3 : 2); s++) {
+      const a = tNow * 1.5 + s * 2.3 + ph;
+      const sx2 = x + 15 + Math.cos(a) * 19, sy2 = y + bob + 20 + Math.sin(a) * 25;
+      const tw = Math.sin(tNow * 6 + s * 2);
+      if (tw > -0.2) {
+        ctx.save(); ctx.globalAlpha = 0.45 + tw * 0.45;
+        const c2 = RAR_COL[rar];
+        rect(sx2 - 2, sy2, 5, 1, c2); rect(sx2, sy2 - 2, 1, 5, c2); rect(sx2, sy2, 1, 1, '#ffffff');
+        ctx.restore();
+      }
+    }
+  }
   const meta2 = { id: o.id || (kind + idx + (def.id || '')), cursor: true, tip: o.tip };
   if (o.dragKind !== undefined) { meta2.dragKind = o.dragKind; meta2.dragIdx = o.dragIdx; }
   if (o.click) meta2.click = o.click;
@@ -4262,6 +4559,17 @@ function drawShop() {
   rect(150, 10, 200, 1, RAMP.steel[0]);
   ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 5) * 0.012; rect(150, 11, 200, 22, '#fff7d8');
   ctx.globalAlpha = 0.05; rect(150, 11, 200, 40, '#fff7d8'); ctx.restore();
+  // dust motes drifting lazily through the shop light
+  ctx.save();
+  for (let d = 0; d < 22; d++) {
+    const per = 9 + (d % 5) * 3.5;
+    const f = ((tNow / per) + d * 0.137) % 1;
+    const dx = 152 + ((d * 71) % 196) + Math.sin(tNow * 0.7 + d) * 7;
+    const dy = 12 + f * 190;
+    ctx.globalAlpha = (0.30 - f * 0.22) * (0.5 + 0.5 * Math.sin(tNow * 3 + d));
+    rect(dx, dy, 1, 1, '#fff7d8');
+  }
+  ctx.restore();
   // hanging lantern (warm left accent, kept)
   rect(146, 0, 2, 22, '#241708');
   rr(141, 22, 12, 14, 3, '#2a2018'); rect(144, 25, 6, 8, '#ffd54a'); rect(145, 26, 2, 3, '#fff6c8');
@@ -4376,6 +4684,15 @@ function drawShop() {
       tip: it.def.name + '|CLICK FOR DETAILS',
       click: () => { G.inspect = { kind: 'shop', item: it }; },
     });
+    // a spinning cartoon starburst on anything you can actually afford cheaply
+    if (!it.sold && afford && it.price <= 6) {
+      const sx2 = x + 40, sy2 = y + 6, spin = tNow * 1.6;
+      ctx.save(); ctx.translate(sx2, sy2); ctx.rotate(spin);
+      for (let s = 0; s < 8; s++) { const a = s / 8 * Math.PI * 2; rect(Math.cos(a) * 7 - 1, Math.sin(a) * 7 - 1, 3, 3, '#ff5a4a'); }
+      ctx.restore();
+      fillCircle(sx2, sy2, 7, '#ff5a4a'); fillCircle(sx2, sy2 - 1, 6, '#ff8a6a');
+      drawTextC('!', sx2, sy2 - 3, '#fff6c8', 1);
+    }
     const label = it.kind === 'charm' ? 'BADGE' : it.kind === 'tool' ? 'TOOL' : 'CARD';
     drawTextC(label, x + 22, y + 50, it.kind === 'tool' ? '#7fd0c0' : C.dim, 1);
     const nm = it.def.name;
@@ -4778,8 +5095,7 @@ function drawIntro(dt) {
     rr(30, 236 + rb, 70, 8, 3, '#3c464e');
     rect(34, 233 + rb, 62, 4, '#5a646c');
     fillCircle(42, 224 + rb, 10, '#1a242c'); fillCircle(42, 224 + rb, 8, '#0c141a'); // dark fan cage
-    rr(58, 208 + rb, 16, 26, 4, '#0e161c'); // body silhouette
-    drawRangerFace(52, 182 + rb, G.ranger); // face catches the lantern light
+    drawBobble(66, 236 + rb, G.ranger, { sc: 1, expr: 'calm', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
     rect(74, 210 + rb, 12, 2, '#0c1216');   // arm out
     rect(86, 202 + rb, 2, 8, '#4a3320');
     rr(83, 196 + rb, 8, 8, 2, '#2a2018');
@@ -4923,12 +5239,37 @@ function drawBossCut(dt) {
     const f = easeIn(clamp((t - 2.85) / 0.85, 0, 1));
     const sc = lerp(0.65, 2.4, f);
     const w2 = 340 * sc, h2 = 250 * sc;
+    // radial speed lines rushing past as it closes in
+    ctx.save(); ctx.globalAlpha = 0.35 * f;
+    for (let s = 0; s < 18; s++) {
+      const a = s / 18 * Math.PI * 2 + tNow * 0.8, r0 = 60 + f * 90, r1 = r0 + 40 + f * 70;
+      const x0 = W / 2 + Math.cos(a) * r0, y0 = 140 + Math.sin(a) * r0;
+      const x1 = W / 2 + Math.cos(a) * r1, y1 = 140 + Math.sin(a) * r1;
+      for (let q = 0; q < 5; q++) rect(lerp(x0, x1, q / 5), lerp(y0, y1, q / 5), 2, 2, '#ffffff');
+    }
+    ctx.restore();
     ctx.save();
     ctx.globalAlpha = clamp(0.5 + f, 0, 1);
     ctx.drawImage(shot, 120, 0, 340, 250, W / 2 - w2 / 2, 150 - h2 * 0.55, w2, h2);
     ctx.restore();
     if (f > 0.55 && shake < 4) shake = 5 + f * 4;
-    if (f > 0.8) { ctx.save(); ctx.globalAlpha = (f - 0.8) / 0.2 * 0.8; rect(0, 0, W, H, '#7a0e14'); ctx.restore(); }
+    if (f > 0.62 && !c.roared) { c.roared = true; fxRing(W / 2, 140, '#ff6a4a', 10, 180, 0.5); fxStars(W / 2, 140, '#ffd54a', 10, 150); }
+    if (f > 0.8) {
+      const k = (f - 0.8) / 0.2;
+      ctx.save(); ctx.globalAlpha = k * 0.8; rect(0, 0, W, H, '#7a0e14'); ctx.restore();
+      // jagged "cracked screen" streaks at the moment of impact
+      ctx.save(); ctx.globalAlpha = k;
+      [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx2, sy2], i) => {
+        let px2 = W / 2, py2 = 140;
+        for (let seg = 0; seg < 7; seg++) {
+          const nx = px2 + sx2 * (14 + seg * 5) + Math.sin(seg * 2.1 + i) * 9;
+          const ny = py2 + sy2 * (10 + seg * 4) + Math.cos(seg * 1.7 + i) * 7;
+          for (let q = 0; q < 6; q++) rect(lerp(px2, nx, q / 6), lerp(py2, ny, q / 6), 2, 2, '#ffe8d0');
+          px2 = nx; py2 = ny;
+        }
+      });
+      ctx.restore();
+    }
   }
 
   // ---- captions ----
@@ -4979,13 +5320,9 @@ function drawBossIntro() {
   const R = RANGERS[G.ranger] || RANGERS.scout;
   // portrait: ranger at 3x on a plate
   panel(22, 48, 118, 118, { face: '#10262cee', edge: '#5cb0ac', r: 4 });
-  ctx.save(); ctx.translate(40, 62); ctx.scale(3, 3); drawRangerFace(0, 0, G.ranger); ctx.restore();
-  // gloved fist + forceps under the portrait
-  const g = GLOVES[meta.glove] || GLOVES.bare;
-  rr(96, 128, 30, 22, 6, g.skin); rr(98, 144, 26, 8, 3, g.shade);
-  rect(100, 124, 6, 8, g.skin); rect(108, 122, 6, 10, g.skin); rect(116, 124, 6, 8, g.skin);
-  rect(96, 150, 30, 5, g.cuff);
-  for (let i = 0; i <= 8; i++) { rect(124 + i, 118 - i, 2, 2, '#5cb0ac'); rect(132 - i, 118 - i, 2, 2, '#5cb0ac'); }
+  drawBobble(81, 160, G.ranger, { sc: 1.95, expr: 'mad', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  // crossed forceps behind the ranger, like a crest
+  for (let i = 0; i <= 10; i++) { rect(118 + i, 66 - i, 2, 2, '#5cb0ac'); rect(128 - i, 66 - i, 2, 2, '#5cb0ac'); }
   drawTextCSh('RANGER ' + R.name, 81, 172, '#7fd4e8', 1);
   drawTextCSh('THE DENTIST', 81, 184, C.white, 2);
   ctx.restore();
@@ -5432,7 +5769,7 @@ function drawSkins() {
   rect(fx + 8, fy + 7, 3, fh - 16, '#ffffff12'); // glass streak
   // pedestal shadow + the character head, scaled up, no body
   ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, fy + fh - 10, 22, '#000'); ctx.restore();
-  drawCharHead(cx, fy + fh / 2 + 6, 2.1);
+  drawBobble(cx, fy + fh - 7, rkey, { sc: 1.0, expr: 'happy', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
   // name plaque
   const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HANDS';
   const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'NO HAT';
@@ -5737,9 +6074,8 @@ function drawRangerSelect() {
   rr(fx, fy, 90, 90, 2, '#10181e');
   ctx.save(); ctx.globalAlpha = 0.18 + Math.sin(tNow * 2) * 0.05; fillCircle(fx + 45, fy + 45, 40, focusOpen ? r.col : '#2c3a44'); ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.rect(fx, fy, 90, 90); ctx.clip();
-  ctx.translate(fx + 3, fy + 5); ctx.scale(3, 3);
   if (!focusOpen) ctx.globalAlpha = 0.3;
-  drawRangerFace(0, 0, rangerFocus);
+  drawBobble(fx + 45, fy + 86, rangerFocus, { sc: 1.6, expr: focusOpen ? 'happy' : 'sleepy', act: focusOpen ? 'cheer' : 'idle' });
   ctx.restore();
   rect(fx + 41, fy - 7, 8, 8, '#c23a4a'); rect(fx + 43, fy - 5, 3, 3, '#e86a6a'); // pin
   drawTextC(focusOpen ? r.animal : '? ? ?', fx + 45, fy + 94, '#8a7a58', 1);
@@ -5845,6 +6181,141 @@ function drawMiniGator(x, y, type, mut) {
     rect(gx - 1, gy, 1, 1, '#ffffffcc');
   }
 }
+// ------------------------------------------------------------- THE LAKE ----
+// A full pixel-art lake the trail crosses: layered depth bands, a glitter
+// path, drifting mist, lily pads, reed beds, cruising fish and a live shore.
+const LAKE = { x: 64, y: 44, w: 382, h: 186 };
+function lakePal() {
+  return G.summer
+    ? { deep: '#0a3446', mid: '#11566a', shal: '#1d8298', foam: '#9ff0ff', glint: '#d6fbff', lily: '#2fa07c', lilyD: '#1c6f56', bank: '#c8b078', bankD: '#8f7a48', tree: '#0d4256', reed: '#3aa88a' }
+    : { deep: '#0a1f27', mid: '#13394a', shal: '#1e5c6e', foam: '#6fc0cc', glint: '#a8ecff', lily: '#3a8040', lilyD: '#24542a', bank: '#33462c', bankD: '#1d2e18', tree: '#0b2018', reed: '#5c9448' };
+}
+function drawLake() {
+  const L = LAKE, P = lakePal();
+  ctx.save();
+  ctx.beginPath(); ctx.rect(L.x, L.y, L.w, L.h); ctx.clip();
+  // ---- far bank + treeline silhouette along the top ----
+  rect(L.x, L.y, L.w, 16, G.summer ? '#1b6f86' : '#0b1f26');
+  for (let x = L.x; x < L.x + L.w; x += 5) {
+    const h = 6 + ((Math.sin(x * 0.17) * 4) | 0) + ((x * 7) % 5);
+    rect(x, L.y + 16 - h, 5, h, P.tree);
+    if ((x / 5 | 0) % 4 === 0) { rect(x + 1, L.y + 12 - h, 3, 4, P.tree); rect(x + 2, L.y + 9 - h, 1, 4, P.tree); }
+  }
+  rect(L.x, L.y + 15, L.w, 2, G.summer ? '#0e4a5c' : '#071418');
+  // ---- water: depth bands, lightest in the shallows nearest the viewer ----
+  const bands = 9, top = L.y + 17, wh = L.h - 17;
+  for (let i = 0; i < bands; i++) {
+    const f = i / (bands - 1);
+    const col = f < 0.5 ? mixHex(P.deep, P.mid, f * 2) : mixHex(P.mid, P.shal, (f - 0.5) * 2);
+    rect(L.x, top + Math.floor(wh * i / bands), L.w, Math.ceil(wh / bands) + 1, col);
+  }
+  // ---- moon/sun glitter column ----
+  const gx = L.x + L.w * 0.72;
+  for (let i = 0; i < 26; i++) {
+    const yy = top + 4 + i * 6, spread = 4 + i * 1.6;
+    const off = Math.sin(tNow * 1.1 + i * 0.9) * spread;
+    ctx.save(); ctx.globalAlpha = 0.10 + 0.14 * Math.abs(Math.sin(tNow * 1.6 + i));
+    rect(gx + off - 5, yy, 11, 1, P.glint);
+    ctx.restore();
+  }
+  // ---- scrolling wave dashes ----
+  for (let r = 0; r < 12; r++) {
+    const yy = top + 8 + r * 13;
+    ctx.save(); ctx.globalAlpha = 0.22 + (r / 12) * 0.2;
+    for (let d = 0; d < 9; d++) {
+      const sp = 7 + r * 1.6;
+      const xx = L.x + ((d * 47 + r * 19 + tNow * sp) % (L.w + 40)) - 20;
+      rect(xx, yy + Math.sin(tNow * 1.3 + d + r) * 1, 7 + (r % 3) * 2, 1, P.foam);
+    }
+    ctx.restore();
+  }
+  // ---- drifting mist ribbons ----
+  ctx.save(); ctx.globalAlpha = 0.07;
+  for (let m = 0; m < 5; m++) {
+    const yy = top + 10 + m * 32, xx = L.x + ((tNow * (5 + m * 3)) % (L.w + 160)) - 140;
+    rr(xx, yy, 120, 7, 3, '#cfe8f0'); rr(xx + 30, yy + 4, 70, 4, 2, '#cfe8f0');
+  }
+  ctx.restore();
+  // ---- fish shadows cruising under the surface ----
+  for (let f = 0; f < 5; f++) {
+    const per = 11 + f * 2.6, ph = (tNow / per + f * 0.31) % 1;
+    const dir = f % 2 ? 1 : -1;
+    const fx2 = dir > 0 ? L.x - 20 + ph * (L.w + 40) : L.x + L.w + 20 - ph * (L.w + 40);
+    const fy2 = top + 26 + ((f * 37) % (wh - 50)) + Math.sin(tNow * 1.4 + f) * 3;
+    ctx.save(); ctx.globalAlpha = 0.3;
+    rr(fx2, fy2, 9, 3, 1, '#06121a');
+    rect(fx2 + (dir > 0 ? -3 : 9), fy2, 3, 3, '#06121a');       // tail
+    ctx.globalAlpha = 0.16; rect(fx2 + 2, fy2 - 2, 4, 1, P.foam); // surface wake
+    ctx.restore();
+  }
+  // ---- lily pads hugging the left and right margins ----
+  const pads = [[14, 30], [30, 78], [12, 124], [34, 168], [20, 200], [352, 36], [370, 92], [344, 148], [362, 192], [336, 214], [58, 212], [300, 218]];
+  pads.forEach(([px2, py2], i) => {
+    const x = L.x + px2, y = top + (py2 % (wh - 6)) + Math.sin(tNow * 1.1 + i * 1.7) * 1.2;
+    const r = 6 + (i % 3);
+    ctx.save(); ctx.globalAlpha = 0.35; fillCircle(x + 1, y + 2, r, '#04101a'); ctx.restore();
+    fillCircle(x, y, r, P.lilyD); fillCircle(x, y - 1, r - 1, P.lily);
+    rect(x, y - 1, r, 2, P.lilyD);                                   // notch
+    rect(x - r + 2, y - 2, 3, 1, '#ffffff22');
+    if (i % 3 === 0) { fillCircle(x + 2, y - 3, 2, '#f8e0ec'); rect(x + 1, y - 4, 2, 1, '#ffd54a'); } // flower
+  });
+  // ---- reed beds along the bottom shoreline ----
+  rect(L.x, L.y + L.h - 10, L.w, 10, P.bankD);
+  rect(L.x, L.y + L.h - 12, L.w, 3, P.bank);
+  for (let x = L.x; x < L.x + L.w; x += 6) {
+    const sway = Math.sin(tNow * 1.5 + x * 0.09) * 1.5;
+    const h = 8 + ((x * 13) % 9);
+    rect(x + 1, L.y + L.h - 12 - h, 1, h, P.reed);
+    rect(x + 1 + sway, L.y + L.h - 12 - h - 3, 1, 3, P.reed);
+    if ((x / 6 | 0) % 5 === 0) rect(x + 1 + sway, L.y + L.h - 12 - h - 6, 2, 3, '#6a5a2a'); // cattail
+  }
+  // ---- foam line where water meets the bank ----
+  ctx.save(); ctx.globalAlpha = 0.4;
+  for (let x = L.x; x < L.x + L.w; x += 4) rect(x, L.y + L.h - 13 + Math.sin(tNow * 2 + x * 0.2) * 1, 3, 1, P.foam);
+  ctx.restore();
+  ctx.restore();
+}
+// A proper little rowboat: hull, ribs, oars mid-stroke, wake and the ranger.
+function drawRowBoat(x, y, lean, moving) {
+  const stroke = moving ? Math.sin(tNow * 4.6) : Math.sin(tNow * 1.2) * 0.25;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(lean * 0.02);
+  // ---- wake / ripples trailing the stern ----
+  ctx.save(); ctx.globalAlpha = moving ? 0.45 : 0.22;
+  for (let k = 1; k <= 3; k++) {
+    const sp = 12 + k * 7;
+    rect(-sp - 8, 3 - k, 9 - k, 1, '#7fc8d8'); rect(-sp - 8, 3 + k, 9 - k, 1, '#7fc8d8');
+  }
+  ctx.restore();
+  // ---- oars (behind the hull on the far side, in front on the near) ----
+  const oarA = stroke * 0.55;
+  [[-1, -6], [1, 6]].forEach(([side, ox]) => {
+    ctx.save(); ctx.translate(ox, -3); ctx.rotate(oarA * side);
+    rect(0, -1, 17 * (side > 0 ? 1 : -1), 2, '#6a4a28');
+    rr(side > 0 ? 15 : -20, -3, 6, 6, 2, '#8a6438');                  // blade
+    rect(side > 0 ? 16 : -19, -2, 4, 1, '#a8804a');
+    ctx.restore();
+    // splash where the blade bites the water
+    if (moving && Math.abs(stroke) > 0.86) { ctx.save(); ctx.globalAlpha = 0.5; fillCircle(ox + side * 18, 1, 3, '#bfeaf5'); ctx.restore(); }
+  });
+  // ---- hull: dark keel, warm planks, bright gunwale ----
+  rr(-15, -4, 30, 11, 4, '#2e1d10');
+  rr(-14, -4, 28, 9, 4, '#7a5230');
+  rr(-13, -3, 26, 4, 3, '#9a6a3e');
+  rect(-12, 1, 24, 1, '#5e3c20');
+  rect(-12, 3, 24, 2, '#4a2f18');
+  [-8, -2, 4, 9].forEach(rx => rect(rx, -3, 1, 7, '#5e3c20'));        // ribs
+  rr(-15, -6, 30, 3, 2, '#b08050');                                    // gunwale rail
+  rect(-14, -6, 28, 1, '#d2a26a');
+  rect(14, -5, 3, 2, '#b08050'); rect(-17, -5, 3, 2, '#b08050');       // bow + stern tips
+  // ---- a little lantern on the bow ----
+  rect(11, -12, 1, 6, '#3a2818');
+  rr(9, -16, 5, 5, 2, '#2a2018'); rect(10, -15, 3, 3, '#ffd54a');
+  ctx.save(); ctx.globalAlpha = 0.13 + Math.sin(tNow * 5) * 0.04; fillCircle(11, -14, 14, '#ffb848'); ctx.restore();
+  ctx.restore();
+}
+
 function drawMap() {
   const th = themeNow();
   drawSceneBack(th);
@@ -5852,20 +6323,20 @@ function drawMap() {
   overlayDim(0.35);
   drawTextCSh(G.summer ? 'THE OPEN OCEAN' : 'THE SWAMP TRAIL', W / 2, 10, G.summer ? '#7fe0f0' : C.gold, 3);
   drawTextCSh(G.summer ? 'ANTE ' + G.ante + ' - ENDLESS SEAS' : 'ANTE ' + G.ante + (G.ante <= 8 ? ' OF 8' : ' - ENDLESS'), W / 2, 34, C.white, 1);
-  panel(64, 48, 382, 178, { face: '#101c1eee', edge: '#3a5a50' });
+  drawLake();
+  rr(LAKE.x - 2, LAKE.y - 2, LAKE.w + 4, LAKE.h + 4, 4, '#00000000');
+  // thin frame so the lake reads as a chart window
+  rect(LAKE.x, LAKE.y, LAKE.w, 1, '#3a5a50'); rect(LAKE.x, LAKE.y + LAKE.h - 1, LAKE.w, 1, '#3a5a50');
+  rect(LAKE.x, LAKE.y, 1, LAKE.h, '#3a5a50'); rect(LAKE.x + LAKE.w - 1, LAKE.y, 1, LAKE.h, '#3a5a50');
   // money + ranger chip
-  panel(66, 26, 74, 18, { face: '#26321e', edge: '#5a7a3a' });
-  drawText(curLabel(G.money), 74, 31, C.gold, 1);
-  drawRangerFace(112, 22, G.ranger);
-  // winding channel
-  for (let x = 76; x < 434; x += 4) {
-    const yc = 148 + Math.sin(x * 0.03) * 26;
-    rect(x, yc - 13, 4, 30, '#0d2830');
-    if ((x / 4 | 0) % 5 === 0) rect(x, yc + Math.sin(tNow * 1.2 + x * 0.1) * 3, 3, 1, '#1e4a52');
-  }
-  // start dock
-  rr(84, 138, 26, 22, 3, '#4a3320');
-  drawTextC('DOCK', 97, 164, C.dim, 1);
+  panel(66, 24, 74, 18, { face: '#26321e', edge: '#5a7a3a' });
+  ICONS.coin(72, 28);
+  drawText(curLabel(G.money), 88, 29, C.gold, 1);
+  // the wooden launch dock the trail starts from
+  rr(78, 136, 34, 6, 2, '#3a2818'); rr(79, 135, 32, 5, 2, '#6a4a28');
+  for (let k = 0; k < 4; k++) rect(82 + k * 8, 135, 1, 5, '#4a3320');
+  rect(84, 141, 3, 12, '#3a2818'); rect(104, 141, 3, 12, '#3a2818');
+  drawTextC('DOCK', 95, 156, '#7a8a84', 1);
   // live quest tracker (top-left corner of the chart): your 3 accepted posts
   ensureDaily();
   panel(68, 52, 100, 60, { face: '#10181ecc', edge: '#3a5a50', r: 2 });
@@ -6013,9 +6484,11 @@ function drawMap() {
     }
     ctx.restore();
   }
-  rr(bpos.x - 12, bpos.y + bob, 24, 7, 3, '#5a3a1e');
-  rr(bpos.x - 9, bpos.y - 2 + bob, 18, 4, 2, '#7a5230');
-  drawRangerFace(bpos.x - 14 + lean, bpos.y - 26 + bob, G.ranger);
+  drawRowBoat(bpos.x, bpos.y + bob, lean, !!G.boat);
+  drawBobble(bpos.x + lean * 0.4, bpos.y - 4 + bob, G.ranger, {
+    sc: 0.5, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle',
+    hat: meta.hat, gear: meta.gear, glove: meta.glove,
+  });
   // the equipped cosmetic GEAR + HAT ride on the traveler
   const gearKey = (meta.gear && gearUnlocked(meta.gear)) ? meta.gear : 'none';
   if (gearKey !== 'none') drawGearArt(bpos.x + lean, bpos.y - 18 + bob, gearKey, 1);
@@ -6437,9 +6910,7 @@ function drawCampfire(cx, cy, heat) {
 }
 function drawRangerSitting(x, y) {
   // little seated ranger, back view-ish
-  rr(x, y + 8, 18, 14, 4, '#2c4436');
-  drawRangerFace(x - 3, y - 18, G.ranger);
-  rect(x + 2, y + 20, 5, 4, '#1c2a20'); rect(x + 11, y + 20, 5, 4, '#1c2a20');
+  drawBobble(x + 9, y + 24, G.ranger, { sc: 0.8, expr: 'happy', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
 }
 const GAMES = {
   // ------------------------------------------------ 1. fishing -------------
@@ -7450,8 +7921,34 @@ function drawFx() {
     }
   });
   parts.forEach(p => {
-    ctx.globalAlpha = clamp(1 - p.t / p.life, 0, 1);
-    rect(p.x, p.y, p.sz, p.sz, p.col);
+    const k = clamp(1 - p.t / p.life, 0, 1);
+    ctx.globalAlpha = k;
+    if (p.kind === 'star') {                       // chunky 4-point spinner
+      const s = p.sz * (0.6 + k * 0.6), a = (p.spin || 0) * p.t;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(a);
+      rect(-s, -1, s * 2, 2, p.col); rect(-1, -s, 2, s * 2, p.col);
+      rect(-1, -1, 2, 2, '#ffffff');
+      ctx.restore();
+    } else if (p.kind === 'ring') {                // popping impact ring
+      const r = lerp(p.r0, p.r1, 1 - k);
+      ctx.save(); ctx.globalAlpha = k * 0.85;
+      for (let a = 0; a < 12; a++) { const an = a / 12 * Math.PI * 2; rect(p.x + Math.cos(an) * r - 1, p.y + Math.sin(an) * r - 1, 2, 2, p.col); }
+      ctx.restore();
+    } else if (p.kind === 'puff') {                // soft expanding dust
+      const r = p.sz * (1.4 - k * 0.5);
+      ctx.save(); ctx.globalAlpha = k * 0.55;
+      fillCircle(p.x, p.y, r, p.col); fillCircle(p.x - r * 0.3, p.y - r * 0.3, r * 0.5, '#ffffff44');
+      ctx.restore();
+    } else if (p.kind === 'ribbon') {              // tumbling confetti
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate((p.spin || 0) * p.t);
+      rect(-p.sz, -1, p.sz * 2, 2, p.col);
+      ctx.restore();
+    } else if (p.kind === 'line') {                // cartoon speed line
+      const dx = Math.cos(p.ang) * p.sz, dy = Math.sin(p.ang) * p.sz;
+      ctx.save(); ctx.globalAlpha = k * 0.8;
+      for (let s = 0; s < 3; s++) rect(p.x + dx * s / 3, p.y + dy * s / 3, 2, 1, p.col);
+      ctx.restore();
+    } else rect(p.x, p.y, p.sz, p.sz, p.col);
   });
   ctx.globalAlpha = 1;
   floats.forEach(f => {
