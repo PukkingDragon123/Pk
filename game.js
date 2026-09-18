@@ -236,7 +236,17 @@ function musicTick() {
 
 // ------------------------------------------------------------ primitives --
 function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w | 0, h | 0); }
-const RCUT = { 1: [1], 2: [2, 1], 3: [3, 1, 1], 4: [4, 2, 1, 1] };
+// corner cut tables for rr(): inset per scanline, built from a circle so that
+// big radii actually round instead of falling back to a square.
+const RCUT = (() => {
+  const t = {};
+  for (let r = 1; r <= 20; r++) {
+    const a = [];
+    for (let i = 0; i < r; i++) a.push(Math.ceil(r - Math.sqrt(r * r - (r - i) * (r - i))));
+    t[r] = a;
+  }
+  return t;
+})();
 function rr(x, y, w, h, r, c) {
   x |= 0; y |= 0; w |= 0; h |= 0;
   r = Math.min(r, Math.floor(h / 2), Math.floor(w / 2));
@@ -724,12 +734,14 @@ function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
 //  happy | calm | wow | worry | mad | sleepy | smug | sad | love | grit
 // ==========================================================================
 const BOB = {
-  scout: { // great blue heron: slate feathers, long sunrise beak, wispy crest
-    sk: ['#161110', '#5d7286', '#8399ae', '#a9bfd4', '#d2e4f4'],
+  scout: { // river otter: warm brown pelt, cream bib, round little ears
+    sk: ['#231208', '#6a4222', '#8c5c33', '#ac7a49', '#cfa370'],
     cl: ['#0d1811', '#1c3122', '#2d4a34', '#3f6748', '#5b8a62'],
-    ac: '#63d66a', acD: '#2c7a3c', iris: '#d8a020',
-    bk: ['#6d4a0c', '#a87a14', '#dcb032', '#ffe089'],
-    crest: 1, beak: 1,
+    ac: '#63d66a', acD: '#2c7a3c', iris: '#6b3d18',
+    muz: ['#b99a72', '#e2cba6', '#f8ecd6'],
+    ear: ['#3d2210', '#7a4c28', '#a87a52'],
+    nose: ['#2a1508', '#54301a', '#8a5a38'],
+    otter: 1, whisk: 1, tail: ['#3d2210', '#7a4c28', '#9c6a40'],
   },
   medic: { // opossum: ash fur, rose ears, white muzzle
     sk: ['#17131a', '#767683', '#9d9dab', '#c2c2d2', '#e9e9f4'],
@@ -737,15 +749,18 @@ const BOB = {
     ac: '#7fd4e8', acD: '#2c7c92', iris: '#9a5364',
     ear: ['#8a5666', '#c87a90', '#f0a8bc'],
     muz: ['#c5c5d2', '#e4e4ee', '#fbfbff'],
-    cross: 1, whisk: 1, snout: 1,
+    nose: ['#7d4450', '#c07a8a', '#eba8b8'],
+    cross: 1, whisk: 1, roundear: 1,
   },
   trader: { // raccoon: dusty pelt, bandit mask, gold tooth
     sk: ['#15120d', '#665e51', '#8a8171', '#aca392', '#cfc6b2'],
     cl: ['#160e06', '#2b1c10', '#42301b', '#5a4527', '#7b6038'],
     ac: '#ffc843', acD: '#a8760f', iris: '#c08a2a',
     mask: ['#120f0d', '#221d18', '#332c24'],
-    ear: ['#4a443c', '#6a6258', '#8a8276'],
-    gold: 1, snout: 1,
+    ear: ['#3a342c', '#6a6258', '#8a8276'],
+    muz: ['#b0a896', '#d4ccb8', '#efe8d4'],
+    nose: ['#181410', '#3a342c', '#6a6258'],
+    gold: 1, roundear: 1,
   },
   frog: { // bullfrog: swamp green, eyes riding high on the skull
     sk: ['#111f0c', '#478230', '#68a744', '#8bc95e', '#b4e688'],
@@ -753,7 +768,7 @@ const BOB = {
     ac: '#d94f30', acD: '#8a2a16', iris: '#f0c040',
     wide: 1, topeyes: 1,
   },
-  snail: { // snail sage: cream shell-dweller on swaying eye stalks
+  snail: { // snail sage: cream shell-dweller, two little eye nubs
     sk: ['#1a1510', '#b6a284', '#d5c2a0', '#ecdcbe', '#fcf2e0'],
     cl: ['#181222', '#302848', '#493c68', '#665688', '#8b7bac'],
     ac: '#c8a878', acD: '#8a6a44', iris: '#6a5a8c',
@@ -762,8 +777,8 @@ const BOB = {
   },
 };
 const BOOT = ['#150e06', '#33230f', '#4d3a1e', '#6c542f', '#8f7343'];
-// head silhouette: half-widths per scanline, y = -13 .. +9
-const HEADSPAN = [4, 7, 9, 10, 11, 12, 12, 12, 12, 12, 12, 12, 12, 11, 11, 11, 10, 10, 9, 8, 7, 6, 4];
+// head silhouette: a round cranium that tapers to a small chin, y = -14 .. +9
+const HEADSPAN = [7, 8, 10, 10, 11, 12, 12, 12, 13, 13, 13, 13, 13, 13, 12, 12, 12, 11, 10, 10, 8, 7, 5, 3];
 
 // A shaded blob from a half-width table.  Tone bands are concentric ellipses
 // around the key-light point, so the terminator curves like a real sphere
@@ -796,41 +811,42 @@ function bobShape(spans, y0, ramp, o) {
     run(0.40, ramp[4], 0);
   }
   if (!o.norim) { // cool bounce light licking the shaded edge
-    ctx.save(); ctx.globalAlpha = 0.6;
+    ctx.save(); ctx.globalAlpha = 0.55;
     const rim = mixHex(ramp[1], '#a8cdf0', 0.62);
     for (let i = (n * 0.22) | 0; i < n - (n * 0.2 | 0); i++) rect(ox + spans[i] - 1, y0 + i, 1, 1, rim);
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.35;
     for (let i = n - 5; i < n - 1; i++) rect(ox - spans[i], y0 + i, Math.min(4, spans[i]), 1, mixHex(ramp[1], '#ffe3b0', 0.4));
     ctx.restore();
   }
 }
 
 // ----------------------------------------------------------- the face -----
-// eyes with irises and catchlights, real brows, mouths with teeth and tongue
+// Big low-set eyes, a small mouth and soft brows: the baby proportions that
+// make a face read as cute rather than odd.
 function bobFace(p, expr, phase, look, opt) {
   opt = opt || {};
-  const OL = p.sk[0], EX = opt.topeyes ? 9 : 6, EY = opt.topeyes ? -11 : -2;
+  const OL = p.sk[0], EX = opt.topeyes ? 9 : 6, EY = opt.topeyes ? -11 : -1;
   const lx = clamp(look.x, -1, 1), ly = clamp(look.y, -1, 1);
   // three-stage blink: lids fall fast, hang shut a beat, snap back up
-  const bt = (tNow + phase * 1.7) % 4.3;
+  const bt = (tNow + phase * 1.7) % 5.2;
   let lid = 0;
-  if (bt > 4.02) { const k = (bt - 4.02) / 0.28; lid = k < 0.38 ? k / 0.38 : k < 0.66 ? 1 : Math.max(0, (1 - k) / 0.34); }
+  if (bt > 4.94) { const k = (bt - 4.94) / 0.26; lid = k < 0.38 ? k / 0.38 : k < 0.66 ? 1 : Math.max(0, (1 - k) / 0.34); }
   const shut = expr === 'happy' || expr === 'love' || expr === 'sleepy';
 
   const openEye = (ox, ew, eh) => {
     const ey = EY - (eh >> 1);
-    rr(ox - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 3, OL);
-    rr(ox - (ew >> 1), ey, ew, eh, 2, '#fbf7e8');
-    ctx.save(); ctx.globalAlpha = 0.3; rect(ox - (ew >> 1), ey, ew, 1, '#7f93a8'); ctx.restore();
-    const dx = Math.round(lx * (ew / 5)), dy = Math.round(ly * (eh / 5));
-    const iw = Math.max(3, (ew * 0.66) | 0), ih = Math.max(3, (eh * 0.82) | 0);
-    const ix = ox - (iw >> 1) + dx, iy = ey + ((eh - ih) >> 1) + dy;
-    rr(ix, iy, iw, ih, 1, p.iris);
-    rect(ix, iy + ih - 2, iw, 1, mixHex(p.iris, '#ffffff', 0.4)); // iris bounce
-    rect(ix + ((iw - 2) >> 1), iy + 1, 2, ih - 2, OL);            // pupil
-    rect(ix, iy, 2, 2, '#ffffff');                                 // catchlight
-    rect(ix + iw - 1, iy + ih - 2, 1, 1, '#ffffffaa');
-    if (lid > 0) { // lid sweeping down over the eye
+    rr(ox - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 4, OL);
+    rr(ox - (ew >> 1), ey, ew, eh, 3, '#fbf7e8');
+    ctx.save(); ctx.globalAlpha = 0.28; rect(ox - (ew >> 1) + 1, ey, ew - 2, 2, '#8a9cae'); ctx.restore();
+    const dx = Math.round(lx * (ew / 6)), dy = Math.round(ly * (eh / 6));
+    const iw = Math.max(5, (ew * 0.72) | 0), ih = Math.max(5, (eh * 0.78) | 0);
+    const ix = ox - (iw >> 1) + dx, iy = ey + ((eh - ih) >> 1) + dy + 1;
+    rr(ix, iy, iw, ih, 2, p.iris);
+    rect(ix + 1, iy + ih - 2, iw - 2, 1, mixHex(p.iris, '#ffffff', 0.45));
+    rr(ix + 1, iy + 1, iw - 2, ih - 2, 2, '#1c1208');          // big soft pupil
+    rect(ix + 1, iy + 1, 3, 3, '#ffffff');                      // catchlight
+    rect(ix + iw - 3, iy + ih - 3, 2, 2, '#ffffff99');          // bounce spark
+    if (lid > 0) {
       const h = Math.round(lid * (eh + 2));
       if (h > 0) { rect(ox - (ew >> 1) - 1, ey - 1, ew + 2, h, p.sk[2]); rect(ox - (ew >> 1) - 1, ey - 1 + h, ew + 2, 1, OL); }
     }
@@ -838,71 +854,71 @@ function bobFace(p, expr, phase, look, opt) {
   const smileEye = (ox) => { // happy '^' arc with a lash tick
     rect(ox - 4, EY + 1, 2, 1, OL); rect(ox - 2, EY - 1, 2, 1, OL);
     rect(ox, EY - 1, 2, 1, OL); rect(ox + 2, EY + 1, 2, 1, OL);
-    rect(ox + 3, EY + 2, 1, 1, OL);
+    rect(ox - 4, EY + 2, 1, 1, OL); rect(ox + 3, EY + 2, 1, 1, OL);
   };
-  const brow = (ox, dy, ang, col) => { for (let k = 0; k < 7; k++) rect(ox - 4 + k, EY - 7 + dy + Math.round((k - 3) * ang), 1, 2, col || OL); };
+  const brow = (ox, dy, ang) => { for (let k = 0; k < 6; k++) rect(ox - 3 + k, EY - 8 + dy + Math.round((k - 2.5) * ang), 1, 2, OL); };
 
   if (expr === 'wow') {
-    [-EX, EX].forEach(ox => openEye(ox, 9, 10));
-    brow(-EX, -3, 0); brow(EX, -3, 0);
+    [-EX, EX].forEach(ox => openEye(ox, 10, 12));
+    brow(-EX, -2, 0); brow(EX, -2, 0);
   } else if (expr === 'mad' || expr === 'grit') {
-    [-EX, EX].forEach((ox, i) => { openEye(ox, 8, 6); brow(ox, 1, i ? -0.55 : 0.55, OL); });
-    if (expr === 'mad') { // anger vein ticking on the temple
-      const a = 0.6 + Math.sin(tNow * 9) * 0.4; ctx.save(); ctx.globalAlpha = a;
-      rect(EX + 5, EY - 9, 3, 1, '#e2483c'); rect(EX + 6, EY - 10, 1, 3, '#e2483c'); ctx.restore();
+    [-EX, EX].forEach((ox, i) => { openEye(ox, 9, 7); brow(ox, 3, i ? -0.5 : 0.5); });
+    if (expr === 'mad') {
+      const a = 0.6 + Math.sin(tNow * 8) * 0.4; ctx.save(); ctx.globalAlpha = a;
+      rect(EX + 6, EY - 8, 3, 1, '#e2483c'); rect(EX + 7, EY - 9, 1, 3, '#e2483c'); ctx.restore();
     }
   } else if (expr === 'worry' || expr === 'sad') {
-    [-EX, EX].forEach((ox, i) => { openEye(ox, 7, 8); brow(ox, -2, i ? 0.45 : -0.45, OL); });
-    const sw = (tNow * 1.3 + phase) % 2.4;  // a bead of sweat rolling down
-    if (sw < 1) { const yy = EY + 1 + sw * 9; ctx.save(); ctx.globalAlpha = 1 - sw * 0.5; rr(EX + 7, yy, 3, 4, 1, '#8fd8f0'); rect(EX + 7, yy + 1, 1, 1, '#eafaff'); ctx.restore(); }
+    [-EX, EX].forEach((ox, i) => { openEye(ox, 8, 10); brow(ox, -1, i ? 0.4 : -0.4); });
+    const sw = (tNow * 1.1 + phase) % 3.2;
+    if (sw < 1) { const yy = EY + 1 + sw * 9; ctx.save(); ctx.globalAlpha = 1 - sw * 0.5; rr(EX + 8, yy, 3, 4, 1, '#8fd8f0'); rect(EX + 8, yy + 1, 1, 1, '#eafaff'); ctx.restore(); }
   } else if (expr === 'sleepy') {
-    [-EX, EX].forEach(ox => { rect(ox - 4, EY + 1, 8, 1, OL); rect(ox - 4, EY + 2, 3, 1, OL); rect(ox + 2, EY + 2, 2, 1, OL); });
-    const zz = (tNow * 0.7 + phase) % 3;    // drifting Z
-    if (zz < 2) { ctx.save(); ctx.globalAlpha = 0.85 - zz * 0.4; drawText('z', EX + 7 + zz * 2, EY - 8 - zz * 5, '#cfe8f0', 1); ctx.restore(); }
+    [-EX, EX].forEach(ox => { rect(ox - 4, EY + 1, 9, 1, OL); rect(ox - 4, EY + 2, 3, 1, OL); rect(ox + 3, EY + 2, 2, 1, OL); });
+    const zz = (tNow * 0.6 + phase) % 3.4;
+    if (zz < 2.2) { ctx.save(); ctx.globalAlpha = 0.85 - zz * 0.34; drawText('z', EX + 8 + zz * 2, EY - 9 - zz * 5, '#cfe8f0', 1); ctx.restore(); }
   } else if (expr === 'smug') {
-    [-EX, EX].forEach((ox, i) => { rect(ox - 4, EY, 8, 1, OL); rect(ox - 3 + (i ? 2 : 0), EY + 1, 5, 1, OL); brow(ox, 0, i ? -0.3 : 0.3, OL); });
+    [-EX, EX].forEach((ox, i) => { rect(ox - 4, EY, 9, 1, OL); rect(ox - 3 + (i ? 2 : 0), EY + 1, 5, 1, OL); brow(ox, 1, i ? -0.28 : 0.28); });
   } else if (expr === 'love') {
-    [-EX, EX].forEach(ox => { // heart eyes
-      const s = 1 + Math.sin(tNow * 7 + ox) * 0.12;
+    [-EX, EX].forEach(ox => {
+      const s = 1 + Math.sin(tNow * 5 + ox) * 0.08;
       ctx.save(); ctx.translate(ox, EY); ctx.scale(s, s);
-      rect(-4, -3, 3, 3, '#e2486a'); rect(1, -3, 3, 3, '#e2486a'); rect(-4, 0, 8, 2, '#e2486a');
-      rect(-3, 2, 6, 1, '#e2486a'); rect(-1, 3, 2, 1, '#e2486a'); rect(-3, -2, 1, 1, '#ffb0c4');
+      rect(-5, -4, 4, 4, '#e2486a'); rect(1, -4, 4, 4, '#e2486a'); rect(-5, 0, 10, 2, '#e2486a');
+      rect(-4, 2, 8, 1, '#e2486a'); rect(-2, 3, 4, 1, '#e2486a'); rect(0, 4, 1, 1, '#e2486a');
+      rect(-4, -3, 2, 2, '#ffb0c4');
       ctx.restore();
     });
   } else if (expr === 'happy' || (lid >= 1 && shut)) {
     [-EX, EX].forEach(smileEye);
   } else {
-    [-EX, EX].forEach(ox => openEye(ox, 8, 9));
-    brow(-EX, 0, 0.12); brow(EX, 0, -0.12);
+    [-EX, EX].forEach(ox => openEye(ox, 9, 11));
   }
 
-  // ---- mouth: beaked and snouted rangers draw their own instead ----
+  // ---- mouth: small and low, right under the muzzle ----
   const MY = opt.topeyes ? 3 : 6;
-  if (opt.noMouth) { /* beak handles it */ }
-  else if (opt.wide) {                                     // bullfrog grin, ear to ear
+  if (opt.wide) {                                          // bullfrog grin, ear to ear
     rect(-9, MY, 18, 1, OL); rect(-10, MY - 1, 1, 2, OL); rect(9, MY - 1, 1, 2, OL);
     if (expr === 'happy' || expr === 'wow' || expr === 'love') {
       rr(-8, MY + 1, 16, 4, 2, '#6d2434'); rect(-7, MY + 1, 14, 1, '#f6f2e0');
-      rr(-4, MY + 3, 8, 2, 1, '#d2607e'); // tongue
+      rr(-4, MY + 3, 8, 2, 1, '#d2607e');
     } else rect(-8, MY + 1, 16, 1, p.sk[1]);
   }
-  else if (expr === 'wow') { rr(-3, MY - 1, 7, 7, 3, '#5d2430'); rr(-2, MY + 2, 5, 3, 2, '#d2607e'); rect(-2, MY, 5, 1, '#f6f2e0'); }
+  else if (expr === 'wow') { rr(-2, MY, 5, 5, 2, '#5d2430'); rr(-1, MY + 2, 3, 2, 1, '#d2607e'); }
   else if (expr === 'mad' || expr === 'grit') {
-    rr(-5, MY, 11, 5, 1, '#4a1c26'); rect(-4, MY, 9, 2, '#f6f2e0');
-    for (let k = 0; k < 4; k++) rect(-3 + k * 3, MY, 1, 2, '#b8b2a0'); rect(-4, MY + 3, 9, 1, '#d2607e');
+    rr(-4, MY, 9, 4, 1, '#4a1c26'); rect(-3, MY, 7, 2, '#f6f2e0');
+    for (let k = 0; k < 3; k++) rect(-2 + k * 3, MY, 1, 2, '#b8b2a0');
   }
-  else if (expr === 'worry' || expr === 'sad') { rect(-3, MY + 2, 7, 1, OL); rect(-4, MY + 1, 1, 1, OL); rect(4, MY + 1, 1, 1, OL); }
-  else if (expr === 'sleepy') { rr(-2, MY, 4, 4, 2, '#5d2430'); rect(-1, MY + 1, 2, 1, '#d2607e'); }
-  else if (expr === 'smug') { rect(-4, MY + 1, 6, 1, OL); rect(2, MY, 2, 1, OL); rect(4, MY - 1, 1, 1, OL); }
-  else { // easy smile with a hint of teeth
-    rect(-4, MY + 1, 9, 1, OL); rect(-5, MY, 1, 1, OL); rect(5, MY, 1, 1, OL);
-    if (expr === 'happy' || expr === 'love') { rr(-4, MY + 2, 9, 3, 1, '#5d2430'); rect(-3, MY + 2, 7, 1, '#f6f2e0'); }
+  else if (expr === 'worry' || expr === 'sad') { rect(-2, MY + 2, 5, 1, OL); rect(-3, MY + 1, 1, 1, OL); rect(3, MY + 1, 1, 1, OL); }
+  else if (expr === 'sleepy') { rr(-1, MY, 3, 3, 1, '#5d2430'); }
+  else if (expr === 'smug') { rect(-3, MY + 1, 5, 1, OL); rect(2, MY, 2, 1, OL); }
+  else {   // a little w-shaped critter smile
+    rect(-4, MY, 1, 1, OL); rect(-3, MY + 1, 3, 1, OL);
+    rect(0, MY, 1, 1, OL); rect(1, MY + 1, 3, 1, OL); rect(4, MY, 1, 1, OL);
+    if (expr === 'happy' || expr === 'love') { rr(-3, MY + 2, 7, 3, 2, '#5d2430'); rect(-2, MY + 2, 5, 1, '#f6f2e0'); }
   }
-  if (p.gold && expr !== 'sleepy') rect(3, MY + 1, 1, 2, '#ffd54a'); // trader's gold tooth
+  if (p.gold && expr !== 'sleepy') rect(3, MY + 1, 1, 2, '#ffd54a');
   // rosy cheeks on the sunny moods
-  if (expr === 'happy' || expr === 'wow' || expr === 'calm' || expr === 'love') {
-    ctx.save(); ctx.globalAlpha = 0.45;
-    [-1, 1].forEach(s => { rect(s * (EX + 3) - 1, MY - 3, 4, 2, '#ef7f94'); rect(s * (EX + 3), MY - 4, 2, 1, '#ef7f94'); });
+  if (expr !== 'mad' && expr !== 'grit' && expr !== 'sad') {
+    ctx.save(); ctx.globalAlpha = 0.4;
+    [-1, 1].forEach(s => { rect(s * (EX + 4) - 2, MY - 2, 5, 2, '#ef7f94'); rect(s * (EX + 4) - 1, MY - 3, 3, 1, '#ef7f94'); });
     ctx.restore();
   }
 }
@@ -911,19 +927,19 @@ function bobFace(p, expr, phase, look, opt) {
 function bobHead(key, expr, phase, look, lean) {
   const p = BOB[key] || BOB.scout, OL = p.sk[0];
   lean = lean || 0;
-  // ---- plumes / ears / stalks BEHIND the skull ----
-  if (key === 'scout' && p.crest) {          // two swept head plumes
-    [0, 1].forEach(k => {
-      const wig = Math.sin(tNow * 2.6 + k * 1.1 + phase) * 2 - lean * 10;
-      for (let s = 0; s < 9; s++) {
-        const f = s / 8;
-        rect(4 + k * 2 + f * 9 + wig * f, -12 - k * 2 - f * 7 + f * f * 4, 2, 2, s < 3 ? p.sk[1] : s < 6 ? p.sk[2] : p.sk[3]);
-      }
+  // ---- ears / stalks BEHIND the skull ----
+  if (p.otter) {   // small round otter ears set high on the sides
+    [-1, 1].forEach(s => {
+      const tw = Math.round(Math.sin(tNow * 1.6 + s * 2 + phase) * 0.7);
+      fillCircle(s * 11, -11 + tw, 6, OL);
+      fillCircle(s * 11, -11 + tw, 5, p.ear[1]);
+      fillCircle(s * 11 - s, -11 + tw, 3, p.ear[0]);
+      fillCircle(s * 11 - s * 2, -12 + tw, 2, p.ear[2]);
     });
   }
   if (key === 'medic') {
     [-1, 1].forEach(s => {
-      const tw = Math.round(Math.sin(tNow * 2.1 + s * 2 + phase) * 1.2);
+      const tw = Math.round(Math.sin(tNow * 1.5 + s * 2 + phase) * 0.8);
       fillCircle(s * 10, -10 + tw, 7, OL); fillCircle(s * 10, -10 + tw, 6, p.sk[2]);
       fillCircle(s * 10 - s * 2, -11 + tw, 4, p.sk[3]);
       fillCircle(s * 10 - s, -10 + tw, 4, p.ear[1]); fillCircle(s * 10 - s, -11 + tw, 2, p.ear[2]);
@@ -931,22 +947,22 @@ function bobHead(key, expr, phase, look, lean) {
   }
   if (key === 'trader') {
     [-1, 1].forEach(s => {
-      const tw = Math.round(Math.sin(tNow * 1.8 + s + phase) * 1);
-      rr(s * 10 - 5, -16 + tw, 10, 10, 4, OL); rr(s * 10 - 4, -15 + tw, 8, 8, 3, p.ear[1]);
-      rect(s * 10 - 4, -15 + tw, 5, 2, p.ear[2]);
-      rr(s * 10 - 2, -12 + tw, 4, 4, 2, p.ear[0]);
+      const tw = Math.round(Math.sin(tNow * 1.3 + s + phase) * 0.7);
+      fillCircle(s * 11, -12 + tw, 7, OL); fillCircle(s * 11, -12 + tw, 6, p.ear[2]);
+      fillCircle(s * 11 - s, -12 + tw, 4, p.ear[0]);
+      rect(s * 11 - 3, -15 + tw, 6, 1, p.sk[3]);
     });
   }
-  if (key === 'frog') {   // eye turrets riding high on the skull
+  if (key === 'frog') {
     [-1, 1].forEach(s => { fillCircle(s * 9, -11, 8, OL); fillCircle(s * 9, -11, 7, p.sk[2]); fillCircle(s * 9 - s * 2, -13, 4, p.sk[3]); fillCircle(s * 9 - s * 3, -14, 2, p.sk[4]); });
   }
-  if (key === 'snail') {  // eye stalks that sway a beat behind the head
+  if (key === 'snail') {  // two short nubs, barely moving
     [-1, 1].forEach(s => {
-      const sw = Math.sin(tNow * 1.7 + s * 1.4 + phase) * 2 - lean * 8;
-      for (let k = 0; k <= 12; k++) {
-        const f = k / 12, sx2 = s * 5 + s * f * 3 + sw * f;
-        rect(sx2 - 2, -9 - k, 4, 1, OL);
-        rect(sx2 - 1, -9 - k, 2, 1, k > 6 ? p.sk[3] : p.sk[2]);
+      const sw = Math.sin(tNow * 1.1 + s * 1.4 + phase) * 1;
+      for (let k = 0; k <= 8; k++) {
+        const f = k / 8, sx2 = s * 6 + s * f * 2 + sw * f;
+        rect(sx2 - 2, -14 - k, 4, 1, OL);
+        rect(sx2 - 1, -14 - k, 2, 1, k > 4 ? p.sk[3] : p.sk[2]);
       }
       const tx = s * 8 + sw, ty = -24;
       fillCircle(tx, ty, 4, OL); fillCircle(tx, ty, 3, p.sk[4]);
@@ -955,49 +971,51 @@ function bobHead(key, expr, phase, look, lean) {
     });
   }
   // ---- skull ----
-  bobShape(HEADSPAN, -13, p.sk);
-  if (key === 'trader') { // bandit mask, feathered at its edges
-    rect(-12, -6, 24, 7, p.mask[1]); rect(-12, -6, 24, 1, p.mask[2]);
-    rect(-11, 1, 22, 1, p.mask[0]);
+  bobShape(HEADSPAN, -14, p.sk);
+  if (key === 'trader') {
+    rect(-12, -6, 24, 8, p.mask[1]); rect(-12, -6, 24, 1, p.mask[2]);
+    rect(-11, 2, 22, 1, p.mask[0]);
     for (let k = -5; k < 6; k += 2) rect(k * 2, -7, 2, 1, p.mask[1]);
   }
-  if (p.muz) { rr(-7, 1, 14, 8, 4, p.muz[0]); rr(-6, 1, 12, 6, 3, p.muz[1]); rect(-5, 2, 9, 2, p.muz[2]); }
+  if (p.otter) {   // cream bib running up the throat into the muzzle
+    rr(-9, 1, 18, 11, 5, p.muz[0]);
+    rr(-8, 1, 16, 9, 4, p.muz[1]);
+    rect(-7, 2, 12, 2, p.muz[2]);
+    ctx.save(); ctx.globalAlpha = 0.35; rect(-12, -4, 6, 4, p.muz[0]); rect(6, -4, 6, 4, p.muz[0]); ctx.restore();
+  } else if (p.muz) { rr(-7, 2, 14, 8, 4, p.muz[0]); rr(-6, 2, 12, 6, 3, p.muz[1]); rect(-5, 3, 9, 2, p.muz[2]); }
   if (key === 'frog') { ctx.save(); ctx.globalAlpha = 0.4; rect(-11, 2, 22, 5, p.sk[4]); ctx.restore(); }
-  bobFace(p, expr, phase, look, { noMouth: !!p.beak, wide: !!p.wide, topeyes: !!p.topeyes, gold: !!p.gold });
-  // ---- beaks / snouts IN FRONT of the face ----
-  if (key === 'scout') {
-    const open = (expr === 'happy' || expr === 'wow' || expr === 'love') ? 2 : 0;
-    rect(-4, 2, 15, 5 + open, p.bk[0]);          // outline
-    rect(-3, 2, 14, 3, p.bk[2]);                  // upper mandible
-    rect(-3, 2, 10, 1, p.bk[3]);
-    rect(-3, 5, 13, 1, p.bk[1]);
-    if (open) { rect(-3, 6, 11, 2, '#7d3038'); rect(-2, 6, 8, 1, '#b8505c'); rect(-3, 8, 10, 1, p.bk[1]); }
-    rect(10, 3, 3, 2, p.bk[1]); rect(-3, 3, 2, 1, p.bk[3]);
-    rect(0, 3, 1, 1, p.bk[0]);
+  bobFace(p, expr, phase, look, { wide: !!p.wide, topeyes: !!p.topeyes, gold: !!p.gold });
+  // ---- little button noses IN FRONT of the face ----
+  if (p.nose) {
+    const ny = p.otter ? 3 : 4;
+    rr(-3, ny, 7, 4, 2, p.nose[0]);
+    rr(-3, ny, 6, 3, 2, p.nose[1]);
+    rect(-2, ny, 3, 1, p.nose[2]);
+    rect(0, ny + 4, 1, 2, p.sk[1]);        // philtrum
   }
-  if (key === 'medic') { rr(-3, 4, 6, 4, 2, p.ear[0]); rr(-2, 4, 4, 2, 1, p.ear[2]); rect(-1, 8, 2, 1, p.sk[1]); }
-  if (key === 'trader') { rr(-3, 3, 6, 4, 2, p.mask[0]); rect(-2, 3, 3, 1, p.sk[2]); }
   if (key === 'frog') { rect(-5, -2, 2, 1, p.sk[1]); rect(3, -2, 2, 1, p.sk[1]); }
   if (p.whisk) {
-    ctx.save(); ctx.globalAlpha = 0.55;
-    [-1, 1].forEach(s => { rect(s === 1 ? 7 : -12, 4, 5, 1, '#e4e4ee'); rect(s === 1 ? 7 : -11, 6, 4, 1, '#e4e4ee'); });
+    ctx.save(); ctx.globalAlpha = 0.5;
+    const wc = p.otter ? '#f0e2c8' : '#e4e4ee';
+    [0, 1].forEach(k => { rect(-13, 4 + k * 3, 5, 1, wc); rect(9, 4 + k * 3, 5, 1, wc); });
     ctx.restore();
   }
-  // ---- neckerchief knotted under the jaw, trailing after the head ----
-  const trail = Math.round(clamp(-lean * 14, -3, 3));
-  rr(-9, 9, 18, 5, 2, OL);
-  rr(-8, 9, 16, 4, 2, p.ac);
-  rect(-7, 10, 14, 1, '#ffffff4a');
-  rect(-7, 12, 14, 1, p.acD);
-  rect(-3, 13, 6, 1, OL); rect(-2, 13, 4, 1, p.acD);      // V under the throat
-  rr(-3 + trail, 12, 5, 5, 2, OL); rr(-3 + trail, 12, 4, 4, 2, p.ac);
-  rect(-2 + trail, 13, 2, 1, '#ffffff55'); rect(-2 + trail, 16, 2, 2, p.acD);
+  // ---- neckerchief, small and tucked under the chin ----
+  const trail = Math.round(clamp(-lean * 12, -2, 2));
+  rr(-8, 9, 16, 5, 2, OL);
+  rr(-7, 9, 14, 4, 2, p.ac);
+  rect(-6, 10, 12, 1, '#ffffff4a');
+  rect(-6, 12, 12, 1, p.acD);
+  rr(-2 + trail, 12, 5, 4, 2, OL); rr(-2 + trail, 12, 4, 3, 2, p.ac);
+  rect(-1 + trail, 13, 2, 1, '#ffffff55');
   if (p.cross) { rect(-2, 9, 4, 2, C.red); rect(-1, 8, 2, 4, C.red); rect(-1, 8, 1, 1, '#ff8a7a'); }
 }
 
 // ----------------------------------------------------------- full body ----
-// o = { sc, expr, act, flip, t, phase, hat, gear, glove, mute }
+// o = { sc, expr, act, flip, t, phase, hat, gear, glove }
 // acts: idle | walk | row | cheer | point | wave | think
+// The motion is deliberately gentle - a slow breath, a soft weight shift and
+// the faintest head lag.  Only `cheer` really leaves the ground.
 function drawBobble(cx, gy, key, o) {
   o = o || {};
   const p = BOB[key] || BOB.scout, OL = p.sk[0];
@@ -1006,29 +1024,28 @@ function drawBobble(cx, gy, key, o) {
 
   // ---------------- rig -------------------------------------------------
   let hop = 0, sq = 1, lean = 0, stride = 0, dust = 0;
-  const breathe = Math.sin(t * 1.9) * 0.5;
+  const breathe = Math.sin(t * 1.3);
   if (act === 'cheer') {
-    const k = (t * 0.95) % 1;
-    if (k < 0.16) { hop = -1.5 * (k / 0.16); sq = 1 - 0.16 * (k / 0.16); }          // crouch
-    else if (k < 0.72) { const a = (k - 0.16) / 0.56; hop = Math.sin(a * Math.PI) * 11; sq = 1 + 0.12 * Math.sin(a * Math.PI); }
-    else { const a = (k - 0.72) / 0.28; hop = -2 * Math.sin(a * Math.PI); sq = 1 - 0.18 * Math.sin(a * Math.PI); dust = a < 0.2 ? 1 : 0; }
+    const k = (t * 0.8) % 1;
+    if (k < 0.18) { hop = -1 * (k / 0.18); sq = 1 - 0.09 * (k / 0.18); }
+    else if (k < 0.74) { const a = (k - 0.18) / 0.56; hop = Math.sin(a * Math.PI) * 7; sq = 1 + 0.06 * Math.sin(a * Math.PI); }
+    else { const a = (k - 0.74) / 0.26; hop = -1 * Math.sin(a * Math.PI); sq = 1 - 0.09 * Math.sin(a * Math.PI); dust = a < 0.2 ? 1 : 0; }
   } else if (act === 'walk') {
-    const c = t * 7.2;
-    stride = Math.sin(c) * 4;
-    hop = Math.abs(Math.sin(c)) * 2.2 + breathe * 0.4;
-    sq = 1 - Math.abs(Math.cos(c)) * 0.05;
-    lean = 0.05;
+    const c = t * 5.4;
+    stride = Math.sin(c) * 3;
+    hop = Math.abs(Math.sin(c)) * 1.1 + breathe * 0.2;
+    sq = 1 - Math.abs(Math.cos(c)) * 0.025;
+    lean = 0.03;
   } else if (act === 'row') {
-    const s = Math.sin(t * 2.8);
-    hop = s * 1.2; lean = s * 0.13; sq = 1 + s * 0.04;
+    const s = Math.sin(t * 2.2);
+    hop = s * 0.7; lean = s * 0.07; sq = 1 + s * 0.02;
   } else {
-    hop = breathe * 1.4 + Math.max(0, Math.sin(t * 1.55)) ** 8 * 3; // idle breath + rare bounce
-    sq = 1 + Math.sin(t * 1.9 + 0.7) * 0.045;
-    lean = Math.sin(t * 0.75) * 0.05;
+    hop = breathe * 0.7;                       // just breathing
+    sq = 1 + Math.sin(t * 1.3 + 0.7) * 0.02;
+    lean = Math.sin(t * 0.55) * 0.025;         // slow weight shift
   }
-  // head lags the torso (that IS the bobble), then overshoots back
-  const tilt = lean * 0.9 + Math.sin(t * 1.55 - 0.5) * 0.05 - (act === 'cheer' ? Math.sin(t * 5.97) * 0.07 : 0);
-  const look = { x: clamp((mx - cx) / 70, -1, 1), y: clamp((my - (gy - 38 * sc)) / 70, -1, 1) };
+  const tilt = lean * 0.7 + Math.sin(t * 1.1 - 0.5) * 0.018;
+  const look = { x: clamp((mx - cx) / 80, -1, 1), y: clamp((my - (gy - 38 * sc)) / 80, -1, 1) };
 
   ctx.save();
   ctx.translate(cx | 0, gy | 0);
@@ -1038,83 +1055,87 @@ function drawBobble(cx, gy, key, o) {
   ctx.save(); ctx.globalAlpha = 0.32 - hop * 0.014;
   ctx.translate(0, -1); ctx.scale(1, 0.3); fillCircle(0, 0, 12 - hop * 0.4, '#000');
   ctx.restore();
-  if (dust) { for (let d = 0; d < 5; d++) { const a = -0.3 + d * 0.22; ctx.save(); ctx.globalAlpha = 0.35; fillCircle(Math.cos(a) * 14, -2 - Math.abs(Math.sin(a)) * 3, 2, '#c8bda0'); ctx.restore(); } }
+  if (dust) { for (let d = 0; d < 5; d++) { const a = -0.3 + d * 0.22; ctx.save(); ctx.globalAlpha = 0.3; fillCircle(Math.cos(a) * 13, -2 - Math.abs(Math.sin(a)) * 3, 2, '#c8bda0'); ctx.restore(); } }
+
+  // ---------------- the otter's thick tail, behind everything -----------
+  if (p.tail) {
+    const sw = Math.sin(t * 1.1) * 1.6;
+    [[10, -15, 5], [15, -13 + sw * 0.3, 4], [19, -10 + sw * 0.7, 3], [22, -7 + sw, 2]].forEach(([tx, ty, tr], i) => {
+      const yy2 = ty + hop * 0.3;
+      fillCircle(tx, yy2, tr + 1, p.tail[0]);
+      fillCircle(tx, yy2, tr, i > 1 ? p.tail[2] : p.tail[1]);
+      if (i < 2) fillCircle(tx - 1, yy2 - 1, Math.max(1, tr - 2), p.sk[3]);
+    });
+  }
 
   // ---------------- legs + boots ----------------------------------------
-  const legY = -13 + hop * 0.32;
+  const legY = -13 + hop * 0.3;
   [[-5, stride], [4, -stride]].forEach(([lx, s], i) => {
-    const lift = act === 'walk' ? Math.max(0, s) * 0.42 : 0;
-    // thigh with a knee highlight
+    const lift = act === 'walk' ? Math.max(0, s) * 0.4 : 0;
     rr(lx - 1, legY - lift, 7, 10, 3, OL);
     rr(lx, legY - lift, 5, 9, 2, p.cl[2]);
     rect(lx, legY - lift, 3, 5, p.cl[3]);
     rect(lx, legY - lift + 1, 2, 2, p.cl[4]);
     rect(lx + 4, legY - lift + 1, 1, 7, p.cl[1]);
-    // boot: sole, upper, cuff, lace eyelets
-    const by2 = -5 + s * 0.28 - lift;
+    const by2 = -5 + s * 0.26 - lift;
     rr(lx - 3, by2, 10, 6, 2, BOOT[0]);
     rr(lx - 2, by2, 8, 5, 2, BOOT[2]);
     rect(lx - 2, by2, 6, 2, BOOT[3]);
     rect(lx - 2, by2, 3, 1, BOOT[4]);
-    rect(lx - 3, by2 + 4, 10, 2, BOOT[1]);          // sole
+    rect(lx - 3, by2 + 4, 10, 2, BOOT[1]);
     rect(lx - 3, by2 + 5, 10, 1, BOOT[0]);
-    rect(lx - 1, by2 + 1, 1, 1, '#d8c890'); rect(lx + 2, by2 + 2, 1, 1, '#d8c890'); // eyelets
+    rect(lx - 1, by2 + 1, 1, 1, '#d8c890'); rect(lx + 2, by2 + 2, 1, 1, '#d8c890');
     rect(lx + 5, by2 + 1, 1, 3, BOOT[1]);
   });
 
   // ---------------- torso -----------------------------------------------
   const by = -29 + hop;
   ctx.save();
-  ctx.translate(0, by + 9); ctx.scale(1 / sq, sq); ctx.translate(0, -(by + 9)); ctx.rotate(lean * 0.35);
-  // body block
-  rr(-10, by, 21, 18, 6, OL);
-  rr(-9, by + 1, 19, 16, 5, p.cl[2]);
-  rr(-9, by + 1, 12, 8, 4, p.cl[3]);                    // key light on the chest
+  ctx.translate(0, by + 9); ctx.scale(1 / sq, sq); ctx.translate(0, -(by + 9)); ctx.rotate(lean * 0.3);
+  rr(-10, by, 21, 18, 7, OL);
+  rr(-9, by + 1, 19, 16, 6, p.cl[2]);
+  rr(-9, by + 1, 12, 8, 5, p.cl[3]);
   rr(-8, by + 1, 7, 4, 3, p.cl[4]);
-  rect(4, by + 3, 6, 13, p.cl[1]);                       // shade side
+  rect(4, by + 3, 6, 13, p.cl[1]);
   ctx.save(); ctx.globalAlpha = 0.5; rect(9, by + 5, 1, 9, mixHex(p.cl[1], '#a8cdf0', 0.6)); ctx.restore();
-  // shirt placket with buttons + a chest pocket
-  rr(-5, by + 3, 10, 14, 2, '#0f120e');
-  rr(-4, by + 3, 9, 13, 2, '#e6dfc6');
+  rr(-5, by + 3, 10, 14, 3, '#0f120e');
+  rr(-4, by + 3, 9, 13, 3, '#e6dfc6');
   rect(-4, by + 3, 9, 1, '#f8f4e4');
   rect(0, by + 4, 1, 12, '#bdb59c');
   [4, 8, 12].forEach(k => { rect(-2, by + k, 2, 1, '#9a9280'); rect(-2, by + k, 1, 1, '#fffdf2'); });
-  rr(-4, by + 9, 5, 4, 1, '#d8d0b6'); rect(-4, by + 9, 5, 1, '#f2ecd8'); // pocket flap
-  // collar wings
+  rr(-4, by + 9, 5, 4, 1, '#d8d0b6'); rect(-4, by + 9, 5, 1, '#f2ecd8');
   rect(-6, by + 2, 4, 3, '#cfc8ae'); rect(3, by + 2, 4, 3, '#b7b096');
   rect(-6, by + 2, 4, 1, '#f2ecd8');
-  // belt + buckle
   rect(-10, by + 12, 21, 3, BOOT[1]);
   rect(-10, by + 12, 21, 1, BOOT[2]);
   rect(-10, by + 14, 21, 1, BOOT[0]);
   rect(-2, by + 11, 5, 5, '#8a6510'); rect(-2, by + 11, 5, 4, C.gold);
   rect(-1, by + 12, 2, 2, '#8a6510'); rect(-1, by + 12, 1, 1, '#fff6c8');
-  // shoulder badge
   rr(5, by + 3, 5, 5, 2, p.acD); rr(5, by + 3, 4, 4, 2, p.ac); rect(6, by + 4, 1, 1, '#ffffff99');
 
   // ---------------- arms ------------------------------------------------
   const g = GLOVES[(o.glove && gloveUnlocked(o.glove)) ? o.glove : 'bare'] || GLOVES.bare;
   const pose = (side) => {
-    if (act === 'cheer') return { x: side * 11, y: by - 3 + Math.sin(t * 8 + side) * 2, r: side * (1.9 + Math.sin(t * 8) * 0.2) };
-    if (act === 'row') return { x: side * 10, y: by + 4 + Math.sin(t * 2.8) * 3, r: side * (0.35 + Math.sin(t * 2.8) * 0.5) };
-    if (act === 'walk') return { x: side * 10, y: by + 5, r: side * 0.2 + Math.sin(t * 7.2) * 0.55 * side };
-    if (act === 'wave' && side > 0) return { x: 11, y: by - 2, r: 2.2 + Math.sin(t * 9) * 0.45 };
-    if (act === 'point' && side > 0) return { x: 12, y: by + 2, r: 1.15 };
-    if (act === 'think' && side > 0) return { x: 7, y: by - 6, r: -0.5 };
-    return { x: side * 10, y: by + 5 + Math.sin(t * 1.9 + side) * 1.1, r: side * (0.16 + Math.sin(t * 1.9 + side) * 0.06) };
+    if (act === 'cheer') return { x: side * 11, y: by - 2 + Math.sin(t * 5) * 1.5, r: side * (1.7 + Math.sin(t * 5) * 0.14) };
+    if (act === 'row') return { x: side * 10, y: by + 5 + Math.sin(t * 2.2) * 2, r: side * (0.3 + Math.sin(t * 2.2) * 0.34) };
+    if (act === 'walk') return { x: side * 10, y: by + 6, r: side * 0.18 + Math.sin(t * 5.4) * 0.34 * side };
+    if (act === 'wave' && side > 0) return { x: 11, y: by - 1, r: 2.1 + Math.sin(t * 6) * 0.3 };
+    if (act === 'point' && side > 0) return { x: 12, y: by + 3, r: 1.1 };
+    if (act === 'think' && side > 0) return { x: 7, y: by - 5, r: -0.5 };
+    return { x: side * 10, y: by + 6 + Math.sin(t * 1.3 + side) * 0.6, r: side * (0.14 + Math.sin(t * 1.3 + side) * 0.03) };
   };
   [-1, 1].forEach(side => {
     const a = pose(side);
     ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.r);
-    rr(-3, -2, 6, 10, 3, OL);                 // sleeve
+    rr(-3, -2, 6, 10, 3, OL);
     rr(-2, -1, 4, 8, 2, p.cl[2]);
     rect(-2, -1, 2, 5, p.cl[3]);
-    rect(-2, 5, 4, 2, p.cl[1]);                // cuff
-    rr(-4, 6, 8, 7, 3, OL);                    // gloved mitt
+    rect(-2, 5, 4, 2, p.cl[1]);
+    rr(-4, 6, 8, 7, 3, OL);
     rr(-3, 7, 6, 5, 2, g.skin);
     rect(-3, 7, 4, 2, mixHex(g.skin, '#ffffff', 0.35));
     rect(-3, 11, 6, 1, mixHex(g.skin, '#000000', 0.35));
-    rect(side > 0 ? 2 : -4, 8, 2, 3, g.skin);  // thumb
+    rect(side > 0 ? 2 : -4, 8, 2, 3, g.skin);
     ctx.restore();
   });
   ctx.restore(); // squash
@@ -1122,13 +1143,13 @@ function drawBobble(cx, gy, key, o) {
   // ---------------- head ------------------------------------------------
   const hy = by - 12;
   ctx.save();
-  ctx.translate(0, hy + Math.sin(t * 1.9 + 1.2) * 0.6); ctx.rotate(tilt);
-  ctx.save(); ctx.globalAlpha = 0.28; ctx.scale(1, 0.4); fillCircle(0, (14) / 0.4, 9, '#000'); ctx.restore(); // neck AO
+  ctx.translate(0, hy + Math.sin(t * 1.3 + 1.2) * 0.3); ctx.rotate(tilt);
+  ctx.save(); ctx.globalAlpha = 0.25; ctx.scale(1, 0.4); fillCircle(0, 14 / 0.4, 9, '#000'); ctx.restore();
   bobHead(key, expr, o.phase || 0, look, tilt);
   const gk = o.gear && gearUnlocked(o.gear) ? o.gear : 'none';
-  if (gk !== 'none') drawGearArt(0, -2, gk, 1);
+  if (gk !== 'none') drawGearArt(0, -1, gk, 1);
   const hk = o.hat && hatUnlocked(o.hat) ? o.hat : 'none';
-  if (hk !== 'none') drawHatArt(0, -11, hk, 1);
+  if (hk !== 'none') drawHatArt(0, -12, hk, 1);
   ctx.restore();
 
   // ---------------- the snail sage's shell -------------------------------
@@ -1546,6 +1567,128 @@ function drawNpcFace(x, y, key) {
     rect(x + 1, y + 14, 4, 6, '#c86a5a'); rect(x + 23, y + 14, 4, 6, '#c86a5a'); // little claws
     rr(x + 4, y + 23, 20, 4, 2, '#f4f0dc'); // doctor collar
   }
+}
+
+// ======================= RANGER MERIT BADGES ==============================
+//  A deliberately different art style from the shaded bobble actors: these are
+//  embroidered patches.  Flat three-tone portraits with a heavy outline, sewn
+//  onto a felt disc with a stitched rim, a chevron banner and merit pips.
+//  drawRangerBadge(x, y, key, o) fills a 28x28 box from (x, y); o.sc scales it.
+// ==========================================================================
+const BADGEPAL = {
+  scout: { felt: '#2f6b3a', feltD: '#1a4423', feltL: '#49915a', thread: '#ffe089', fur: ['#2a1608', '#8c5c33', '#cfa370'], cream: '#f0dcbc' },
+  medic: { felt: '#26606e', feltD: '#143a44', feltL: '#3d8896', thread: '#dff4ff', fur: ['#1c1820', '#9d9dab', '#e2e2ee'], cream: '#fbfbff' },
+  trader: { felt: '#7a5a14', feltD: '#4a3608', feltL: '#a8811f', thread: '#ffe089', fur: ['#191510', '#8a8171', '#cfc6b2'], cream: '#efe8d4' },
+  frog: { felt: '#7a3320', feltD: '#4a1c10', feltL: '#a8492c', thread: '#ffe089', fur: ['#12200c', '#68a744', '#b4e688'], cream: '#e2f4c0' },
+  snail: { felt: '#4a3a66', feltD: '#2c2240', feltL: '#6b5790', thread: '#f0dcbc', fur: ['#1a1510', '#d5c2a0', '#fcf2e0'], cream: '#fcf2e0' },
+};
+
+// flat, symmetrical, two-tone animal busts - patch art, not sprite art
+function badgeBust(key, P) {
+  const [OL, MID, LIT] = P.fur;
+  if (key === 'scout') {                       // otter
+    fillCircle(-6, -6, 4, OL); fillCircle(6, -6, 4, OL);          // ears
+    fillCircle(-6, -6, 3, MID); fillCircle(6, -6, 3, MID);
+    fillCircle(-6, -6, 1, OL); fillCircle(6, -6, 1, OL);
+    rr(-8, -6, 17, 15, 7, OL); rr(-7, -5, 15, 13, 6, MID);
+    rr(-6, -5, 8, 6, 4, LIT);                                     // lit crown
+    rr(-5, 1, 11, 7, 4, P.cream);                                  // muzzle bib
+    rect(-4, 3, 4, 1, OL); rect(2, 3, 4, 1, OL);                   // whiskers
+    rr(-2, 0, 5, 3, 1, OL);                                        // nose
+    rect(-1, 0, 2, 1, MID);
+    rect(-5, -3, 3, 3, OL); rect(3, -3, 3, 3, OL);                 // eyes
+    rect(-5, -3, 1, 1, '#ffffff'); rect(3, -3, 1, 1, '#ffffff');
+  } else if (key === 'medic') {                // opossum
+    fillCircle(-7, -6, 5, OL); fillCircle(7, -6, 5, OL);
+    fillCircle(-7, -6, 4, '#c87a90'); fillCircle(7, -6, 4, '#c87a90');
+    rr(-8, -6, 17, 14, 6, OL); rr(-7, -5, 15, 12, 5, MID);
+    rr(-6, -5, 8, 5, 4, LIT);
+    rr(-5, -1, 11, 9, 5, P.cream);
+    rr(-2, 2, 5, 3, 1, '#c8708a'); rect(-1, 2, 2, 1, '#f0a8bc');
+    rect(-5, -2, 3, 3, OL); rect(3, -2, 3, 3, OL);
+    rect(-5, -2, 1, 1, '#ffffff'); rect(3, -2, 1, 1, '#ffffff');
+  } else if (key === 'trader') {               // raccoon
+    fillCircle(-7, -7, 4, OL); fillCircle(7, -7, 4, OL);
+    fillCircle(-7, -7, 3, MID); fillCircle(7, -7, 3, MID);
+    rr(-8, -6, 17, 14, 6, OL); rr(-7, -5, 15, 12, 5, MID);
+    rect(-7, -5, 15, 2, LIT);
+    rect(-7, -3, 15, 5, OL);                                       // bandit mask
+    rr(-4, 2, 9, 6, 3, P.cream);
+    rr(-2, 3, 5, 3, 1, OL);
+    rect(-5, -2, 3, 3, P.cream); rect(3, -2, 3, 3, P.cream);
+    rect(-4, -2, 1, 1, OL); rect(4, -2, 1, 1, OL);
+    rect(6, 5, 1, 2, '#ffd54a');                                   // gold tooth
+  } else if (key === 'frog') {                 // bullfrog
+    fillCircle(-6, -6, 5, OL); fillCircle(6, -6, 5, OL);
+    fillCircle(-6, -6, 4, MID); fillCircle(6, -6, 4, MID);
+    rect(-8, -7, 4, 3, LIT); rect(4, -7, 4, 3, LIT);
+    rect(-7, -7, 3, 3, '#f8f4e0'); rect(4, -7, 3, 3, '#f8f4e0');
+    rect(-6, -7, 2, 2, OL); rect(5, -7, 2, 2, OL);
+    rr(-9, -3, 19, 11, 5, OL); rr(-8, -2, 17, 9, 4, MID);
+    rr(-7, -2, 9, 4, 3, LIT);
+    rect(-7, 3, 15, 1, OL); rect(-8, 2, 1, 2, OL); rect(8, 2, 1, 2, OL);  // wide mouth
+    rr(-5, 5, 11, 3, 1, P.cream);
+    rect(-3, 0, 2, 1, OL); rect(2, 0, 2, 1, OL);                   // nostrils
+  } else {                                     // snail
+    fillCircle(7, 2, 8, OL); fillCircle(7, 2, 7, '#ab7c44');
+    fillCircle(6, 1, 5, '#d0a668'); fillCircle(5, 0, 3, '#efd6a2');
+    fillCircle(6, 2, 2, '#7d5528');
+    rect(-7, -10, 2, 7, OL); rect(-2, -12, 2, 9, OL);
+    fillCircle(-6, -11, 3, OL); fillCircle(-6, -11, 2, MID);
+    fillCircle(-1, -13, 3, OL); fillCircle(-1, -13, 2, MID);
+    rect(-7, -12, 1, 1, '#ffffff'); rect(-2, -14, 1, 1, '#ffffff');
+    rr(-10, -4, 13, 13, 6, OL); rr(-9, -3, 11, 11, 5, MID);
+    rr(-8, -3, 6, 5, 3, LIT);
+    rect(-7, 1, 2, 3, OL); rect(-2, 1, 2, 3, OL);
+    rect(-7, 1, 1, 1, '#ffffff'); rect(-2, 1, 1, 1, '#ffffff');
+    rect(-6, 6, 4, 1, OL);
+  }
+}
+
+function drawRangerBadge(x, y, key, o) {
+  o = o || {};
+  const P = BADGEPAL[key] || BADGEPAL.scout;
+  const sc = o.sc || 1;
+  const locked = !!o.locked;
+  ctx.save();
+  ctx.translate((x + 14 * sc) | 0, (y + 14 * sc) | 0);
+  if (sc !== 1) ctx.scale(sc, sc);
+  if (o.wob) ctx.rotate(Math.sin(tNow * 1.2 + key.length) * 0.03);
+  // ---- felt disc ----
+  fillCircle(0, 1, 13, '#00000066');
+  fillCircle(0, 0, 13, P.feltD);
+  fillCircle(0, 0, 12, P.felt);
+  fillCircle(-1, -1, 10, P.feltL);
+  fillCircle(0, 0, 9, P.felt);
+  ctx.save(); ctx.globalAlpha = 0.2;                       // felt nap
+  for (let k = 0; k < 18; k++) rect(-9 + (k * 7) % 18, -8 + (k * 5) % 17, 2, 1, '#ffffff');
+  ctx.restore();
+  // ---- stitched rim ----
+  for (let k = 0; k < 20; k++) {
+    const a = k / 20 * 6.283 + 0.08;
+    rect(Math.cos(a) * 12 - 1, Math.sin(a) * 12 - 1, 2, 2, k % 2 ? P.thread : P.feltD);
+  }
+  ctx.save(); ctx.globalAlpha = 0.5;                       // top-left sheen on the thread
+  for (let k = 0; k < 6; k++) { const a = -2.5 + k * 0.2; rect(Math.cos(a) * 12 - 1, Math.sin(a) * 12 - 1, 2, 2, '#ffffff'); }
+  ctx.restore();
+  // ---- the bust ----
+  ctx.save(); ctx.translate(0, -2); ctx.scale(0.76, 0.76); badgeBust(key, P); ctx.restore();
+  // ---- chevron banner + merit pips along the bottom ----
+  rect(-9, 8, 18, 4, P.feltD);
+  rect(-9, 8, 18, 1, P.feltL);
+  rect(-11, 9, 2, 3, P.feltD); rect(9, 9, 2, 3, P.feltD);
+  for (let k = 0; k < 3; k++) {
+    const px = -5 + k * 5;
+    const pc = (key === 'medic' && k === 1) ? '#ff6a5a' : P.thread;
+    rect(px, 9, 3, 1, pc); rect(px + 1, 8, 1, 3, pc);
+  }
+  if (locked) {
+    ctx.save(); ctx.globalAlpha = 0.72; fillCircle(0, 0, 13, '#0b1116'); ctx.restore();
+    rr(-4, -2, 9, 8, 2, '#5d7078'); rr(-3, -1, 7, 6, 2, '#8fa3ab');
+    rect(-2, -6, 5, 5, '#5d7078'); rect(-1, -5, 3, 4, '#2a3840');
+    rect(-1, 1, 2, 3, '#3b4a52');
+  }
+  ctx.restore();
 }
 
 // 28x28 ranger icons: the same shaded head as the full body, scaled to fit
@@ -2397,9 +2540,9 @@ const ACHS = [
 // ------------------------------------- rangers (animal run characters) ----
 const RANGERS = {
   scout: {
-    name: 'BAYOU SCOUT', animal: 'THE HERON', col: '#63d66a', ach: null,
+    name: 'BAYOU SCOUT', animal: 'THE OTTER', col: '#63d66a', ach: null,
     lines: ['+1 TOOTH IN EVERY MOUTH', 'ONE TOOTH PER MOUTH COMES PRE-XRAYED'],
-    flav: 'Knows every log that blinks.',
+    flav: 'Floats on her back, counting teeth.',
   },
   medic: {
     name: 'SWAMP MEDIC', animal: 'THE OPOSSUM', col: '#7fd4e8', ach: 'boss',
@@ -2616,7 +2759,7 @@ function drawMerleTalk(dt) {
   // Merle bobbing in the corner of the bubble
   const bob = Math.round(Math.sin(merle.t * 3.2) * 2);
   const mTalk = merle.t < merle.txt.length / 42 + 0.2;
-  ctx.save(); ctx.translate(bx - 6, by - 10 + bob); ctx.scale(0.62, 0.62);
+  ctx.save(); ctx.translate(bx - 10, by - 16 + bob); ctx.scale(0.56, 0.56);
   drawVendor(0, 0, { expr: mTalk ? 'happy' : 'calm', talk: mTalk, phase: 1.3 });
   ctx.restore();
   // speech tail + name plate
@@ -6730,65 +6873,6 @@ function drawMenu(dt) {
 }
 // first NEW RUN runs the tutorial once, then goes to ranger select
 function startRun() { if (!meta.tutDone) startTutorial(); else { G.state = 'ranger'; sfx.whoosh(); } }
-
-// ------------------------------------------------ character (hat + glove) --
-// the player's dentist: chosen ranger head wearing the equipped HAT, with the
-// equipped GLOVE on a raised fist. cy = head-center y.
-function drawCharacter(cx, cy) {
-  const gid = gloveUnlocked(meta.glove) ? meta.glove : 'bare';
-  const g = GLOVES[gid];
-  const yy = cy + Math.round(Math.sin(tNow * 1.5) * 1);
-  // shadow
-  ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, yy + 52, 20, '#000'); ctx.restore();
-  // torso: ranger vest over a shirt
-  rr(cx - 16, yy + 15, 32, 36, 6, '#20140c');
-  rr(cx - 15, yy + 16, 30, 34, 6, '#2c4436');
-  rect(cx - 5, yy + 16, 10, 32, '#e8e0c8');
-  rect(cx - 15, yy + 18, 5, 28, '#3a5a44'); rect(cx + 10, yy + 18, 5, 28, '#3a5a44');
-  rect(cx - 1, yy + 20, 2, 24, '#b8a068'); rect(cx - 11, yy + 22, 4, 3, C.gold); rect(cx - 10, yy + 23, 1, 1, '#fff6c8');
-  // head (chosen ranger) - hats are worn on the map traveler now, not here
-  drawRangerFace(cx - 14, yy - 16, meta.ranger || 'scout');
-  // raised gloved fist (mirrors drawHand's grab shape, static)
-  const hx = cx + 23, hy = yy + 16;
-  rect(cx + 12, yy + 18, 12, 4, '#2c4436'); rect(cx + 12, yy + 18, 12, 1, '#3a5a44');
-  rr(hx - 7, hy - 2, 16, 13, 3, '#20140c'); rr(hx - 6, hy - 1, 14, 11, 3, g.skin);
-  for (let k = 0; k < 4; k++) rect(hx - 5 + k * 3, hy - 1, 2, 3, g.shade);
-  rr(hx - 8, hy + 3, 4, 6, 2, g.skin);
-  drawGloveDeco(hx, hy, 0, gid, g, true);
-  rr(hx - 7, hy + 10, 16, 5, 1, '#20140c'); rr(hx - 6, hy + 10, 14, 4, 1, g.cuff);
-  // signature glove effect on the fist
-  ctx.save();
-  const gf = GLOVE_FX[gid]; if (gf) gf(hx, hy, 9, true);
-  ctx.globalAlpha = 1; ctx.restore();
-}
-
-// --------------------------------------------------- SKINS (cosmetics) -----
-// a simple horizontal picker row of item icons; click to equip, ? when locked.
-function skinRow(y, order, cur, isOpen, drawIco, tipFor, equip, rarOf) {
-  const n = order.length, cw = (W - 24) / n, s = Math.min(24, cw - 2);
-  order.forEach((k, i) => {
-    const gx = Math.round(12 + i * cw), gy = y, on = cur() === k, open = isOpen(k);
-    rr(gx, gy, s, s, 2, on ? C.gold : (open ? RAR_COL[rarOf(k)] : '#2a3a42'));
-    rr(gx + 1, gy + 1, s - 2, s - 2, 2, open ? '#1a2830' : '#101820');
-    if (open) drawIco(gx + (s >> 1), gy + (s >> 1), k); else drawTextC('?', gx + (s >> 1), gy + (s >> 1) - 4, '#41565e', 1);
-    if (on) rect(gx + (s >> 1) - 3, gy + s - 3, 6, 2, C.gold);
-    hit(gx, gy, s, s, { id: 'skin' + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
-  });
-}
-// just the CHARACTER'S HEAD (the ranger you last played), no body, with the
-// equipped cosmetic hat sitting on the crown. Drawn scaled inside a transform.
-function drawCharHead(cx, cy, sc) {
-  const key = RANGERS[meta.ranger] ? meta.ranger : 'scout';
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(sc, sc);
-  drawRangerFace(-14, -6, key);
-  const gearKey = (meta.gear && gearUnlocked(meta.gear)) ? meta.gear : 'none';
-  if (gearKey !== 'none') drawGearArt(0, 5, gearKey, 1); // face gear sits on the eye line
-  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
-  if (hatKey !== 'none') drawHatArt(0, 3, hatKey, 1);
-  ctx.restore();
-}
 // ------------------------------------------------------------- INDEX -------
 // A field journal of every croc variant, boss, badge and tooth you have met.
 // Each fresh find can be cashed in for SCOUT COOKIES, plus a completion bonus.
@@ -6895,6 +6979,20 @@ function drawIndex() {
     });
   }
   button(W / 2 - 45, 250, 90, 15, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'idxback' });
+}
+
+// --------------------------------------------------- SKINS (cosmetics) -----
+// a simple horizontal picker row of item icons; click to equip, ? when locked.
+function skinRow(y, order, cur, isOpen, drawIco, tipFor, equip, rarOf) {
+  const n = order.length, cw = (W - 24) / n, s = Math.min(24, cw - 2);
+  order.forEach((k, i) => {
+    const gx = Math.round(12 + i * cw), gy = y, on = cur() === k, open = isOpen(k);
+    rr(gx, gy, s, s, 2, on ? C.gold : (open ? RAR_COL[rarOf(k)] : '#2a3a42'));
+    rr(gx + 1, gy + 1, s - 2, s - 2, 2, open ? '#1a2830' : '#101820');
+    if (open) drawIco(gx + (s >> 1), gy + (s >> 1), k); else drawTextC('?', gx + (s >> 1), gy + (s >> 1) - 4, '#41565e', 1);
+    if (on) rect(gx + (s >> 1) - 3, gy + s - 3, 6, 2, C.gold);
+    hit(gx, gy, s, s, { id: 'skin' + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
+  });
 }
 
 function drawSkins() {
@@ -7198,10 +7296,11 @@ function drawRangerSelect() {
     const sel = rangerFocus === key;
     const x = sel ? 46 : 40, y = 36 + i * 42;
     panel(x, y, 46, 38, { face: sel ? '#26321e' : open ? '#1a2530ee' : '#10161aee', edge: sel ? C.gold : open ? r.col : '#2c3a44' });
-    if (open) drawRangerFace(x + 9, y + 5, key);
-    else {
-      ctx.globalAlpha = 0.25; drawRangerFace(x + 9, y + 5, key); ctx.globalAlpha = 1;
-      drawTextC('?', x + 23, y + 13, '#41565e', 2);
+    if (open) {
+      if (sel) { ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 4) * 0.07; fillCircle(x + 23, y + 19, 19, r.col); ctx.restore(); }
+      drawRangerBadge(x + 9, y + 5, key, { wob: sel });
+    } else {
+      drawRangerBadge(x + 9, y + 5, key, { locked: 1 });
     }
     if (sel) drawText('>', x - 12 + Math.round(Math.sin(tNow * 5) * 1.5), y + 13, C.gold, 2);
     hit(x, y, 46, 38, {
@@ -7218,6 +7317,16 @@ function drawRangerSelect() {
   const stamp = 'EVERGLADES DENTAL PATROL';
   drawText(stamp, px + pw - 12 - textW(stamp, 1), py + 8, '#8a7a5888', 1);
   rect(px + 10, py + 17, pw - 20, 1, '#5a402888');
+  // the patch itself, sewn onto the corner of the file
+  (function patch() {
+    const bx = px + pw - 76, by = py + ph - 104;
+    ctx.save(); ctx.globalAlpha = 0.5;
+    rr(bx - 4, by - 4, 64, 64, 6, '#3d2c18'); ctx.restore();
+    rr(bx - 2, by - 2, 60, 60, 5, '#4a3520');
+    rect(bx - 2, by - 2, 60, 1, '#6a4f30');
+    drawRangerBadge(bx, by, rangerFocus, { sc: 2, locked: !focusOpen, wob: 1 });
+    drawTextC('PATCH', bx + 28, by + 60, '#8a7a58', 1);
+  })();
   // pinned photo card with accent glow
   const fx = px + 16, fy = py + 26;
   rr(fx - 3, fy - 3, 96, 108, 2, '#e8e0c8');
@@ -7243,7 +7352,7 @@ function drawRangerSelect() {
       rect(tx, ly, 5, 5, r.col); rect(tx + 1, ly + 1, 3, 3, '#00000044');
       drawText(l, tx + 11, ly - 1, C.white, 1);
     });
-    drawText("'" + r.flav + "'", tx, py + 106, '#a89468', 1);
+    drawSmallWrapped("'" + r.flav + "'", tx, py + 106, 148, '#a89468');
   } else {
     const a = ACHS.find(a2 => a2.id === r.ach);
     drawText('FILE SEALED.', tx, py + 54, '#ff9a90', 1);
@@ -9034,7 +9143,7 @@ function drawHand() {
     rr(x - 4, y + fl + 9, 14, 4, 1, g.cuff);
     rect(x - 4, y + fl + 9, 14, 1, '#ffffff44');
   }
-  // the hat is worn on the character sprite (drawCharacter), not the hand
+  // the hat is worn on the ranger sprite (drawBobble), not the hand
   // signature per-frame cosmetic effects for the glove (sparkles, glow, embers)
   drawCosmeticFx(x, y, grab);
 }
