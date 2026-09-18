@@ -249,12 +249,31 @@ function rr(x, y, w, h, r, c) {
   }
   ctx.fillRect(x, y + r, w, h - 2 * r);
 }
+// A panel with a real bevel: drop shadow, rim, a lit top-left inner edge and a
+// shaded bottom-right, so every box in the game reads as a raised plate.
 function panel(x, y, w, h, opts) {
   opts = opts || {};
   const r = opts.r === undefined ? 3 : opts.r;
-  rr(x + 1, y + 2, w, h, r, opts.sh || '#00000066');
-  rr(x, y, w, h, r, opts.edge || C.edge);
-  rr(x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1), opts.face || C.panel);
+  const face = opts.face || C.panel, edge = opts.edge || C.edge;
+  rr(x + 1, y + 3, w, h, r, opts.sh || '#00000077');
+  rr(x, y, w, h, r, edge);
+  rr(x + 1, y + 1, w - 2, h - 2, Math.max(0, r - 1), face);
+  if (opts.flat) return;
+  ctx.save();
+  ctx.globalAlpha = 0.16;
+  rect(x + 2, y + 1, w - 4, 1, '#ffffff');            // lit top edge
+  rect(x + 1, y + 2, 1, h - 4, '#ffffff');
+  ctx.globalAlpha = 0.24;
+  rect(x + 2, y + h - 2, w - 4, 1, '#000000');        // shaded bottom edge
+  rect(x + w - 2, y + 2, 1, h - 4, '#000000');
+  ctx.globalAlpha = 0.07;                              // faint inner glow near the top
+  for (let k = 0; k < Math.min(6, h - 4); k++) rect(x + 2, y + 2 + k, w - 4, 1, '#ffffff');
+  ctx.restore();
+  if (opts.studs) {                                    // brass corner studs
+    [[x + 2, y + 2], [x + w - 4, y + 2], [x + 2, y + h - 4], [x + w - 4, y + h - 4]].forEach(([sx, sy]) => {
+      rect(sx, sy, 2, 2, '#8a6510'); rect(sx, sy, 1, 1, '#ffe089');
+    });
+  }
 }
 function fillCircle(cx, cy, r, col) {
   for (let dy = -r; dy <= r; dy++) {
@@ -264,6 +283,16 @@ function fillCircle(cx, cy, r, col) {
 }
 
 // --------------------------------------------------- swamp scene themes ---
+// a soft light bloom: concentric discs so the falloff never shows a hard rim
+function glow(cx, cy, r, col, a) {
+  ctx.save();
+  for (let k = 5; k >= 1; k--) {
+    ctx.globalAlpha = (a === undefined ? 0.12 : a) * (k / 5) * 0.5;
+    fillCircle(cx, cy, r * (k / 5), col);
+  }
+  ctx.restore();
+}
+
 const WATERY = 198; // waterline
 const THEMES = {
   night: {
@@ -683,250 +712,801 @@ function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
   rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
 }
 
-// ---------------------------------------------------- BOBBLE CHARACTERS ----
-// Cute chibi rangers: an oversized wobbling head on a small springy body with
-// real facial expressions. Drawn in a ~40x52 box whose FEET rest on `gy`.
-// Pass `sc` to scale. Expressions: happy | calm | wow | worry | mad | sleepy.
-const BOBBLE = {
-  scout: { skin: '#a8bcd2', skinD: '#7f95ad', skinL: '#c8d8e8', shirt: '#2c4436', shirtD: '#1b2c22', shirtL: '#3d5c49', accent: '#63d66a', beak: '#e8c04a', beakD: '#bd8f18' },
-  medic: { skin: '#bcbcc6', skinD: '#8d8d97', skinL: '#dedee6', shirt: '#25464f', shirtD: '#152c33', shirtL: '#35606b', accent: '#7fd4e8', ear: '#e8a0b0' },
-  trader: { skin: '#968d80', skinD: '#6a6258', skinL: '#b6aea0', shirt: '#4a3a24', shirtD: '#2c2214', shirtL: '#634e31', accent: '#ffc843', mask: '#3a342c' },
-  frog: { skin: '#84cf56', skinD: '#5a9a3c', skinL: '#aaea7c', shirt: '#38562a', shirtD: '#213619', shirtL: '#4c7239', accent: '#d94f30' },
-  snail: { skin: '#e6d7b8', skinD: '#bca98a', skinL: '#f8eeda', shirt: '#6a5a8a', shirtD: '#403354', shirtL: '#8878a8', accent: '#c8a878' },
+// ==========================================================================
+//  BOBBLE RANGERS  -  hand-shaded chibi pixel actors
+// --------------------------------------------------------------------------
+//  Each ranger is built from five-tone ramps (outline / shade / mid / light /
+//  highlight) raked by an upper-left key light, with dithered tone breaks and
+//  a cool rim light down the shaded edge.  The rig runs on springs: the head
+//  lags the torso, the scarf trails the head, knees bend on landing and the
+//  chest breathes, so even the idle pose is never still.
+//  Drawn in a ~46x58 box whose FEET rest on `gy`.  Expressions:
+//  happy | calm | wow | worry | mad | sleepy | smug | sad | love | grit
+// ==========================================================================
+const BOB = {
+  scout: { // great blue heron: slate feathers, long sunrise beak, wispy crest
+    sk: ['#161110', '#5d7286', '#8399ae', '#a9bfd4', '#d2e4f4'],
+    cl: ['#0d1811', '#1c3122', '#2d4a34', '#3f6748', '#5b8a62'],
+    ac: '#63d66a', acD: '#2c7a3c', iris: '#d8a020',
+    bk: ['#6d4a0c', '#a87a14', '#dcb032', '#ffe089'],
+    crest: 1, beak: 1,
+  },
+  medic: { // opossum: ash fur, rose ears, white muzzle
+    sk: ['#17131a', '#767683', '#9d9dab', '#c2c2d2', '#e9e9f4'],
+    cl: ['#0b1a1e', '#163037', '#234c56', '#2f6b78', '#4691a0'],
+    ac: '#7fd4e8', acD: '#2c7c92', iris: '#9a5364',
+    ear: ['#8a5666', '#c87a90', '#f0a8bc'],
+    muz: ['#c5c5d2', '#e4e4ee', '#fbfbff'],
+    cross: 1, whisk: 1, snout: 1,
+  },
+  trader: { // raccoon: dusty pelt, bandit mask, gold tooth
+    sk: ['#15120d', '#665e51', '#8a8171', '#aca392', '#cfc6b2'],
+    cl: ['#160e06', '#2b1c10', '#42301b', '#5a4527', '#7b6038'],
+    ac: '#ffc843', acD: '#a8760f', iris: '#c08a2a',
+    mask: ['#120f0d', '#221d18', '#332c24'],
+    ear: ['#4a443c', '#6a6258', '#8a8276'],
+    gold: 1, snout: 1,
+  },
+  frog: { // bullfrog: swamp green, eyes riding high on the skull
+    sk: ['#111f0c', '#478230', '#68a744', '#8bc95e', '#b4e688'],
+    cl: ['#0e1a0c', '#203619', '#345228', '#487036', '#68984d'],
+    ac: '#d94f30', acD: '#8a2a16', iris: '#f0c040',
+    wide: 1, topeyes: 1,
+  },
+  snail: { // snail sage: cream shell-dweller on swaying eye stalks
+    sk: ['#1a1510', '#b6a284', '#d5c2a0', '#ecdcbe', '#fcf2e0'],
+    cl: ['#181222', '#302848', '#493c68', '#665688', '#8b7bac'],
+    ac: '#c8a878', acD: '#8a6a44', iris: '#6a5a8c',
+    shell: ['#4f3419', '#7d5528', '#ab7c44', '#d0a668', '#efd6a2'],
+    stalk: 1,
+  },
 };
-// eyes + brows + mouth, drawn about the head centre (0,0) in head-local space
-function bobbleFace(p, expr, phase, look, opt) {
-  opt = opt || {};
-  const EY = -1, EX = 6;           // eye line / spacing
-  const dark = '#20140c';
-  const pupil = (ox) => {          // a tracking pupil with a highlight
-    const dx = clamp(look.x, -1, 1), dy = clamp(look.y, -1, 1);
-    rect(ox - 1 + dx, EY + dy, 2, 3, dark);
-    rect(ox - 1 + dx, EY + dy, 1, 1, '#ffffff');
-  };
-  const blink = ((tNow + phase) % 4.3) > 4.12;
-  if (expr === 'happy' || blink) {                 // ^  ^  closed smiling eyes
-    [-EX, EX].forEach(ox => {
-      rect(ox - 3, EY + 1, 2, 1, dark); rect(ox - 1, EY, 2, 1, dark); rect(ox + 1, EY + 1, 2, 1, dark);
-    });
-  } else if (expr === 'wow') {                     // big surprised saucers
-    [-EX, EX].forEach(ox => {
-      fillCircle(ox, EY + 1, 4, dark); fillCircle(ox, EY + 1, 3, '#f8f4dc');
-      pupil(ox);
-    });
-  } else if (expr === 'mad') {                     // narrowed + angry brows
-    [-EX, EX].forEach((ox, i) => {
-      rr(ox - 3, EY, 6, 4, 1, '#f8f4dc'); rect(ox - 3, EY, 6, 1, dark);
-      rect(ox - 1, EY + 1, 2, 3, dark);
-      rect(ox - 3 + (i ? 2 : 0), EY - 3, 4, 2, dark); // slanted brow
-    });
-  } else if (expr === 'worry') {                   // small eyes, raised inner brows
-    [-EX, EX].forEach((ox, i) => {
-      rr(ox - 2, EY, 5, 5, 2, '#f8f4dc'); pupil(ox);
-      rect(ox - 3 + (i ? 1 : 0), EY - 4, 4, 1, dark);
-    });
-  } else if (expr === 'sleepy') {
-    [-EX, EX].forEach(ox => { rect(ox - 3, EY + 1, 6, 1, dark); rect(ox - 3, EY + 2, 2, 1, dark); });
-  } else {                                          // calm: round open eyes
-    [-EX, EX].forEach(ox => {
-      rr(ox - 3, EY - 1, 6, 6, 2, dark); rr(ox - 2, EY, 4, 4, 1, '#f8f4dc');
-      pupil(ox);
-    });
+const BOOT = ['#150e06', '#33230f', '#4d3a1e', '#6c542f', '#8f7343'];
+// head silhouette: half-widths per scanline, y = -13 .. +9
+const HEADSPAN = [4, 7, 9, 10, 11, 12, 12, 12, 12, 12, 12, 12, 12, 11, 11, 11, 10, 10, 9, 8, 7, 6, 4];
+
+// A shaded blob from a half-width table.  Tone bands are concentric ellipses
+// around the key-light point, so the terminator curves like a real sphere
+// instead of stepping in stripes; the band edges are 1px dithered.
+function bobShape(spans, y0, ramp, o) {
+  o = o || {};
+  const n = spans.length, ox = o.ox || 0;
+  let maxw = 0; for (let i = 0; i < n; i++) maxw = Math.max(maxw, spans[i]);
+  // outline: every row widened by one, plus caps
+  for (let i = 0; i < n; i++) rect(ox - spans[i] - 1, y0 + i, spans[i] * 2 + 2, 1, ramp[0]);
+  rect(ox - spans[0], y0 - 1, spans[0] * 2, 1, ramp[0]);
+  rect(ox - spans[n - 1], y0 + n, spans[n - 1] * 2, 1, ramp[0]);
+  // key light sits up and to the left of centre
+  const Lx = ox - maxw * (o.lx === undefined ? 0.42 : o.lx);
+  const Ly = y0 + n * (o.ly === undefined ? 0.26 : o.ly);
+  const ra = maxw * 1.22, rb = n * 0.62;
+  for (let i = 0; i < n; i++) {
+    const hw = spans[i], y = y0 + i;
+    const dy = (y - Ly) / rb;
+    const run = (d0, col, dith) => {
+      const k = d0 * d0 - dy * dy; if (k <= 0) return;
+      const w = ra * Math.sqrt(k);
+      const a = Math.max(ox - hw, Math.round(Lx - w)), b = Math.min(ox + hw, Math.round(Lx + w));
+      if (b > a) rect(a, y, b - a, 1, col);
+      if (dith && (i & 1)) { if (b < ox + hw) rect(b, y, 1, 1, col); if (a > ox - hw) rect(a - 1, y, 1, 1, col); }
+    };
+    rect(ox - hw, y, hw * 2, 1, ramp[1]);   // shade everywhere...
+    run(1.24, ramp[2], 1);                  // ...then the lit ellipses on top
+    run(0.86, ramp[3], 1);
+    run(0.40, ramp[4], 0);
   }
-  // ---- mouth (beaked rangers draw their own snout instead) ----
-  const my2 = 6;
-  if (opt.noMouth) { /* beak/snout takes over */ }
-  else if (opt.wide) {                                  // bullfrog's ear-to-ear grin
-    rect(-7, my2, 14, 1, dark); rect(-8, my2 - 1, 1, 1, dark); rect(7, my2 - 1, 1, 1, dark);
-    if (expr === 'happy' || expr === 'wow') { rr(-6, my2 + 1, 12, 3, 1, '#c85a6a'); rect(-5, my2 + 1, 10, 1, '#f8f4dc'); }
-  }
-  else if (expr === 'wow') { rr(-2, my2 - 1, 5, 5, 2, '#5a2430'); rect(-1, my2, 3, 2, '#d0607a'); }
-  else if (expr === 'mad') { rect(-3, my2 + 1, 7, 1, dark); rect(-3, my2, 2, 1, dark); rect(2, my2, 2, 1, dark); }
-  else if (expr === 'worry') { rect(-2, my2 + 1, 5, 1, dark); rect(-3, my2, 1, 1, dark); rect(3, my2, 1, 1, dark); }
-  else if (expr === 'sleepy') { rr(-1, my2, 3, 3, 1, '#5a2430'); }
-  else { rect(-3, my2, 1, 1, dark); rect(-2, my2 + 1, 5, 1, dark); rect(3, my2, 1, 1, dark); } // smile
-  // rosy cheeks on the sunny moods
-  if (expr === 'happy' || expr === 'wow' || expr === 'calm') {
-    ctx.save(); ctx.globalAlpha = 0.5;
-    rect(-EX - 4, my2 - 2, 3, 2, '#f08a9a'); rect(EX + 2, my2 - 2, 3, 2, '#f08a9a');
+  if (!o.norim) { // cool bounce light licking the shaded edge
+    ctx.save(); ctx.globalAlpha = 0.6;
+    const rim = mixHex(ramp[1], '#a8cdf0', 0.62);
+    for (let i = (n * 0.22) | 0; i < n - (n * 0.2 | 0); i++) rect(ox + spans[i] - 1, y0 + i, 1, 1, rim);
+    ctx.globalAlpha = 0.4;
+    for (let i = n - 5; i < n - 1; i++) rect(ox - spans[i], y0 + i, Math.min(4, spans[i]), 1, mixHex(ramp[1], '#ffe3b0', 0.4));
     ctx.restore();
   }
 }
-// the head only (used for portraits + the body below)
-function bobbleHead(key, expr, phase, look) {
-  const p = BOBBLE[key] || BOBBLE.scout;
-  const OL = '#20140c';
-  // ---- ears / crests / stalks behind the skull ----
+
+// ----------------------------------------------------------- the face -----
+// eyes with irises and catchlights, real brows, mouths with teeth and tongue
+function bobFace(p, expr, phase, look, opt) {
+  opt = opt || {};
+  const OL = p.sk[0], EX = opt.topeyes ? 9 : 6, EY = opt.topeyes ? -11 : -2;
+  const lx = clamp(look.x, -1, 1), ly = clamp(look.y, -1, 1);
+  // three-stage blink: lids fall fast, hang shut a beat, snap back up
+  const bt = (tNow + phase * 1.7) % 4.3;
+  let lid = 0;
+  if (bt > 4.02) { const k = (bt - 4.02) / 0.28; lid = k < 0.38 ? k / 0.38 : k < 0.66 ? 1 : Math.max(0, (1 - k) / 0.34); }
+  const shut = expr === 'happy' || expr === 'love' || expr === 'sleepy';
+
+  const openEye = (ox, ew, eh) => {
+    const ey = EY - (eh >> 1);
+    rr(ox - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 3, OL);
+    rr(ox - (ew >> 1), ey, ew, eh, 2, '#fbf7e8');
+    ctx.save(); ctx.globalAlpha = 0.3; rect(ox - (ew >> 1), ey, ew, 1, '#7f93a8'); ctx.restore();
+    const dx = Math.round(lx * (ew / 5)), dy = Math.round(ly * (eh / 5));
+    const iw = Math.max(3, (ew * 0.66) | 0), ih = Math.max(3, (eh * 0.82) | 0);
+    const ix = ox - (iw >> 1) + dx, iy = ey + ((eh - ih) >> 1) + dy;
+    rr(ix, iy, iw, ih, 1, p.iris);
+    rect(ix, iy + ih - 2, iw, 1, mixHex(p.iris, '#ffffff', 0.4)); // iris bounce
+    rect(ix + ((iw - 2) >> 1), iy + 1, 2, ih - 2, OL);            // pupil
+    rect(ix, iy, 2, 2, '#ffffff');                                 // catchlight
+    rect(ix + iw - 1, iy + ih - 2, 1, 1, '#ffffffaa');
+    if (lid > 0) { // lid sweeping down over the eye
+      const h = Math.round(lid * (eh + 2));
+      if (h > 0) { rect(ox - (ew >> 1) - 1, ey - 1, ew + 2, h, p.sk[2]); rect(ox - (ew >> 1) - 1, ey - 1 + h, ew + 2, 1, OL); }
+    }
+  };
+  const smileEye = (ox) => { // happy '^' arc with a lash tick
+    rect(ox - 4, EY + 1, 2, 1, OL); rect(ox - 2, EY - 1, 2, 1, OL);
+    rect(ox, EY - 1, 2, 1, OL); rect(ox + 2, EY + 1, 2, 1, OL);
+    rect(ox + 3, EY + 2, 1, 1, OL);
+  };
+  const brow = (ox, dy, ang, col) => { for (let k = 0; k < 7; k++) rect(ox - 4 + k, EY - 7 + dy + Math.round((k - 3) * ang), 1, 2, col || OL); };
+
+  if (expr === 'wow') {
+    [-EX, EX].forEach(ox => openEye(ox, 9, 10));
+    brow(-EX, -3, 0); brow(EX, -3, 0);
+  } else if (expr === 'mad' || expr === 'grit') {
+    [-EX, EX].forEach((ox, i) => { openEye(ox, 8, 6); brow(ox, 1, i ? -0.55 : 0.55, OL); });
+    if (expr === 'mad') { // anger vein ticking on the temple
+      const a = 0.6 + Math.sin(tNow * 9) * 0.4; ctx.save(); ctx.globalAlpha = a;
+      rect(EX + 5, EY - 9, 3, 1, '#e2483c'); rect(EX + 6, EY - 10, 1, 3, '#e2483c'); ctx.restore();
+    }
+  } else if (expr === 'worry' || expr === 'sad') {
+    [-EX, EX].forEach((ox, i) => { openEye(ox, 7, 8); brow(ox, -2, i ? 0.45 : -0.45, OL); });
+    const sw = (tNow * 1.3 + phase) % 2.4;  // a bead of sweat rolling down
+    if (sw < 1) { const yy = EY + 1 + sw * 9; ctx.save(); ctx.globalAlpha = 1 - sw * 0.5; rr(EX + 7, yy, 3, 4, 1, '#8fd8f0'); rect(EX + 7, yy + 1, 1, 1, '#eafaff'); ctx.restore(); }
+  } else if (expr === 'sleepy') {
+    [-EX, EX].forEach(ox => { rect(ox - 4, EY + 1, 8, 1, OL); rect(ox - 4, EY + 2, 3, 1, OL); rect(ox + 2, EY + 2, 2, 1, OL); });
+    const zz = (tNow * 0.7 + phase) % 3;    // drifting Z
+    if (zz < 2) { ctx.save(); ctx.globalAlpha = 0.85 - zz * 0.4; drawText('z', EX + 7 + zz * 2, EY - 8 - zz * 5, '#cfe8f0', 1); ctx.restore(); }
+  } else if (expr === 'smug') {
+    [-EX, EX].forEach((ox, i) => { rect(ox - 4, EY, 8, 1, OL); rect(ox - 3 + (i ? 2 : 0), EY + 1, 5, 1, OL); brow(ox, 0, i ? -0.3 : 0.3, OL); });
+  } else if (expr === 'love') {
+    [-EX, EX].forEach(ox => { // heart eyes
+      const s = 1 + Math.sin(tNow * 7 + ox) * 0.12;
+      ctx.save(); ctx.translate(ox, EY); ctx.scale(s, s);
+      rect(-4, -3, 3, 3, '#e2486a'); rect(1, -3, 3, 3, '#e2486a'); rect(-4, 0, 8, 2, '#e2486a');
+      rect(-3, 2, 6, 1, '#e2486a'); rect(-1, 3, 2, 1, '#e2486a'); rect(-3, -2, 1, 1, '#ffb0c4');
+      ctx.restore();
+    });
+  } else if (expr === 'happy' || (lid >= 1 && shut)) {
+    [-EX, EX].forEach(smileEye);
+  } else {
+    [-EX, EX].forEach(ox => openEye(ox, 8, 9));
+    brow(-EX, 0, 0.12); brow(EX, 0, -0.12);
+  }
+
+  // ---- mouth: beaked and snouted rangers draw their own instead ----
+  const MY = opt.topeyes ? 3 : 6;
+  if (opt.noMouth) { /* beak handles it */ }
+  else if (opt.wide) {                                     // bullfrog grin, ear to ear
+    rect(-9, MY, 18, 1, OL); rect(-10, MY - 1, 1, 2, OL); rect(9, MY - 1, 1, 2, OL);
+    if (expr === 'happy' || expr === 'wow' || expr === 'love') {
+      rr(-8, MY + 1, 16, 4, 2, '#6d2434'); rect(-7, MY + 1, 14, 1, '#f6f2e0');
+      rr(-4, MY + 3, 8, 2, 1, '#d2607e'); // tongue
+    } else rect(-8, MY + 1, 16, 1, p.sk[1]);
+  }
+  else if (expr === 'wow') { rr(-3, MY - 1, 7, 7, 3, '#5d2430'); rr(-2, MY + 2, 5, 3, 2, '#d2607e'); rect(-2, MY, 5, 1, '#f6f2e0'); }
+  else if (expr === 'mad' || expr === 'grit') {
+    rr(-5, MY, 11, 5, 1, '#4a1c26'); rect(-4, MY, 9, 2, '#f6f2e0');
+    for (let k = 0; k < 4; k++) rect(-3 + k * 3, MY, 1, 2, '#b8b2a0'); rect(-4, MY + 3, 9, 1, '#d2607e');
+  }
+  else if (expr === 'worry' || expr === 'sad') { rect(-3, MY + 2, 7, 1, OL); rect(-4, MY + 1, 1, 1, OL); rect(4, MY + 1, 1, 1, OL); }
+  else if (expr === 'sleepy') { rr(-2, MY, 4, 4, 2, '#5d2430'); rect(-1, MY + 1, 2, 1, '#d2607e'); }
+  else if (expr === 'smug') { rect(-4, MY + 1, 6, 1, OL); rect(2, MY, 2, 1, OL); rect(4, MY - 1, 1, 1, OL); }
+  else { // easy smile with a hint of teeth
+    rect(-4, MY + 1, 9, 1, OL); rect(-5, MY, 1, 1, OL); rect(5, MY, 1, 1, OL);
+    if (expr === 'happy' || expr === 'love') { rr(-4, MY + 2, 9, 3, 1, '#5d2430'); rect(-3, MY + 2, 7, 1, '#f6f2e0'); }
+  }
+  if (p.gold && expr !== 'sleepy') rect(3, MY + 1, 1, 2, '#ffd54a'); // trader's gold tooth
+  // rosy cheeks on the sunny moods
+  if (expr === 'happy' || expr === 'wow' || expr === 'calm' || expr === 'love') {
+    ctx.save(); ctx.globalAlpha = 0.45;
+    [-1, 1].forEach(s => { rect(s * (EX + 3) - 1, MY - 3, 4, 2, '#ef7f94'); rect(s * (EX + 3), MY - 4, 2, 1, '#ef7f94'); });
+    ctx.restore();
+  }
+}
+
+// the head alone, drawn about its own centre (used for portraits + the body)
+function bobHead(key, expr, phase, look, lean) {
+  const p = BOB[key] || BOB.scout, OL = p.sk[0];
+  lean = lean || 0;
+  // ---- plumes / ears / stalks BEHIND the skull ----
+  if (key === 'scout' && p.crest) {          // two swept head plumes
+    [0, 1].forEach(k => {
+      const wig = Math.sin(tNow * 2.6 + k * 1.1 + phase) * 2 - lean * 10;
+      for (let s = 0; s < 9; s++) {
+        const f = s / 8;
+        rect(4 + k * 2 + f * 9 + wig * f, -12 - k * 2 - f * 7 + f * f * 4, 2, 2, s < 3 ? p.sk[1] : s < 6 ? p.sk[2] : p.sk[3]);
+      }
+    });
+  }
   if (key === 'medic') {
-    [[-10, -10], [10, -10]].forEach(([ex, ey]) => { fillCircle(ex, ey, 6, OL); fillCircle(ex, ey, 5, p.skinD); fillCircle(ex, ey + 1, 3, p.ear); });
+    [-1, 1].forEach(s => {
+      const tw = Math.round(Math.sin(tNow * 2.1 + s * 2 + phase) * 1.2);
+      fillCircle(s * 10, -10 + tw, 7, OL); fillCircle(s * 10, -10 + tw, 6, p.sk[2]);
+      fillCircle(s * 10 - s * 2, -11 + tw, 4, p.sk[3]);
+      fillCircle(s * 10 - s, -10 + tw, 4, p.ear[1]); fillCircle(s * 10 - s, -11 + tw, 2, p.ear[2]);
+    });
   }
   if (key === 'trader') {
-    [[-10, -11], [10, -11]].forEach(([ex, ey]) => { rr(ex - 5, ey - 4, 10, 9, 4, OL); rr(ex - 4, ey - 3, 8, 7, 3, p.skinD); rr(ex - 2, ey - 1, 4, 4, 2, '#4a443c'); });
+    [-1, 1].forEach(s => {
+      const tw = Math.round(Math.sin(tNow * 1.8 + s + phase) * 1);
+      rr(s * 10 - 5, -16 + tw, 10, 10, 4, OL); rr(s * 10 - 4, -15 + tw, 8, 8, 3, p.ear[1]);
+      rect(s * 10 - 4, -15 + tw, 5, 2, p.ear[2]);
+      rr(s * 10 - 2, -12 + tw, 4, 4, 2, p.ear[0]);
+    });
   }
-  if (key === 'frog') {
-    [[-9, -11], [9, -11]].forEach(([ex, ey]) => { fillCircle(ex, ey, 7, OL); fillCircle(ex, ey, 6, p.skin); fillCircle(ex, ey - 1, 4, p.skinL); });
+  if (key === 'frog') {   // eye turrets riding high on the skull
+    [-1, 1].forEach(s => { fillCircle(s * 9, -11, 8, OL); fillCircle(s * 9, -11, 7, p.sk[2]); fillCircle(s * 9 - s * 2, -13, 4, p.sk[3]); fillCircle(s * 9 - s * 3, -14, 2, p.sk[4]); });
   }
-  if (key === 'snail') {
-    rect(-8, -19, 2, 11, p.skinD); rect(6, -21, 2, 13, p.skinD);
-    [[-7, -20], [7, -22]].forEach(([ex, ey]) => { fillCircle(ex, ey, 4, OL); fillCircle(ex, ey, 3, p.skinL); rect(ex - 1, ey - 1, 2, 2, OL); rect(ex - 1, ey - 1, 1, 1, '#fff'); });
+  if (key === 'snail') {  // eye stalks that sway a beat behind the head
+    [-1, 1].forEach(s => {
+      const sw = Math.sin(tNow * 1.7 + s * 1.4 + phase) * 2 - lean * 8;
+      for (let k = 0; k <= 12; k++) {
+        const f = k / 12, sx2 = s * 5 + s * f * 3 + sw * f;
+        rect(sx2 - 2, -9 - k, 4, 1, OL);
+        rect(sx2 - 1, -9 - k, 2, 1, k > 6 ? p.sk[3] : p.sk[2]);
+      }
+      const tx = s * 8 + sw, ty = -24;
+      fillCircle(tx, ty, 4, OL); fillCircle(tx, ty, 3, p.sk[4]);
+      rect(tx - 1 + Math.round(clamp(look.x, -1, 1)), ty - 1, 2, 2, OL);
+      rect(tx - 1, ty - 2, 1, 1, '#ffffff');
+    });
   }
-  // ---- skull: a wide dome over a narrower jaw = soft egg, not a box ----
-  rr(-13, -13, 26, 19, 9, OL);          // dome outline
-  rr(-11, -1, 22, 13, 8, OL);           // jaw outline
-  rr(-12, -12, 24, 17, 8, p.skin);
-  rr(-10, 0, 20, 11, 7, p.skin);
-  rr(-11, -11, 22, 9, 7, p.skinL);      // lit crown
-  rect(-9, 8, 18, 3, p.skinD);          // shaded chin
-  ctx.save(); ctx.globalAlpha = 0.5; rect(-12, -3, 3, 6, p.skinD); rect(9, -3, 3, 6, p.skinD); ctx.restore(); // temple shading
-  if (key === 'trader') rect(-12, -5, 24, 7, p.mask);   // bandit mask
-  if (key === 'medic') rr(-6, 1, 12, 8, 4, '#e8e8ee');  // pale muzzle
-  bobbleFace(p, expr, phase, look, { noMouth: key === 'scout', wide: key === 'frog' });
-  // ---- beaks / snouts in front of the face ----
+  // ---- skull ----
+  bobShape(HEADSPAN, -13, p.sk);
+  if (key === 'trader') { // bandit mask, feathered at its edges
+    rect(-12, -6, 24, 7, p.mask[1]); rect(-12, -6, 24, 1, p.mask[2]);
+    rect(-11, 1, 22, 1, p.mask[0]);
+    for (let k = -5; k < 6; k += 2) rect(k * 2, -7, 2, 1, p.mask[1]);
+  }
+  if (p.muz) { rr(-7, 1, 14, 8, 4, p.muz[0]); rr(-6, 1, 12, 6, 3, p.muz[1]); rect(-5, 2, 9, 2, p.muz[2]); }
+  if (key === 'frog') { ctx.save(); ctx.globalAlpha = 0.4; rect(-11, 2, 22, 5, p.sk[4]); ctx.restore(); }
+  bobFace(p, expr, phase, look, { noMouth: !!p.beak, wide: !!p.wide, topeyes: !!p.topeyes, gold: !!p.gold });
+  // ---- beaks / snouts IN FRONT of the face ----
   if (key === 'scout') {
-    rect(-4, 4, 13, 4, OL); rect(-3, 4, 12, 3, p.beak); rect(-3, 6, 11, 1, p.beakD);
-    rect(9, 5, 3, 2, p.beakD); rect(-3, 4, 7, 1, '#f8dc84');
-    if (expr === 'happy' || expr === 'wow') rect(-3, 7, 9, 1, '#c8801a'); // open beak
+    const open = (expr === 'happy' || expr === 'wow' || expr === 'love') ? 2 : 0;
+    rect(-4, 2, 15, 5 + open, p.bk[0]);          // outline
+    rect(-3, 2, 14, 3, p.bk[2]);                  // upper mandible
+    rect(-3, 2, 10, 1, p.bk[3]);
+    rect(-3, 5, 13, 1, p.bk[1]);
+    if (open) { rect(-3, 6, 11, 2, '#7d3038'); rect(-2, 6, 8, 1, '#b8505c'); rect(-3, 8, 10, 1, p.bk[1]); }
+    rect(10, 3, 3, 2, p.bk[1]); rect(-3, 3, 2, 1, p.bk[3]);
+    rect(0, 3, 1, 1, p.bk[0]);
   }
-  if (key === 'medic') { rect(-2, 4, 5, 3, '#e88898'); rect(-1, 4, 3, 1, '#f8b0c0'); rect(-1, 7, 2, 1, '#8a6a72'); }
-  if (key === 'trader') { rect(-2, 3, 5, 3, '#2e2820'); rect(-1, 3, 2, 1, '#57504a'); }
-  if (key === 'frog') { rect(-5, 1, 2, 1, p.skinD); rect(3, 1, 2, 1, p.skinD); } // nostrils
-  // ---- scarf / bandana knotted under the jaw ----
-  rr(-12, 11, 24, 5, 2, OL);
-  rr(-11, 11, 22, 4, 2, p.accent);
-  rect(-9, 12, 18, 1, '#ffffff38');
-  rect(-3, 14, 5, 3, p.accent); rect(-2, 15, 3, 1, '#00000033'); // knot tail
-  if (key === 'medic') { rect(-2, 12, 4, 2, C.red); rect(-1, 11, 2, 4, C.red); } // medic cross
+  if (key === 'medic') { rr(-3, 4, 6, 4, 2, p.ear[0]); rr(-2, 4, 4, 2, 1, p.ear[2]); rect(-1, 8, 2, 1, p.sk[1]); }
+  if (key === 'trader') { rr(-3, 3, 6, 4, 2, p.mask[0]); rect(-2, 3, 3, 1, p.sk[2]); }
+  if (key === 'frog') { rect(-5, -2, 2, 1, p.sk[1]); rect(3, -2, 2, 1, p.sk[1]); }
+  if (p.whisk) {
+    ctx.save(); ctx.globalAlpha = 0.55;
+    [-1, 1].forEach(s => { rect(s === 1 ? 7 : -12, 4, 5, 1, '#e4e4ee'); rect(s === 1 ? 7 : -11, 6, 4, 1, '#e4e4ee'); });
+    ctx.restore();
+  }
+  // ---- neckerchief knotted under the jaw, trailing after the head ----
+  const trail = Math.round(clamp(-lean * 14, -3, 3));
+  rr(-9, 9, 18, 5, 2, OL);
+  rr(-8, 9, 16, 4, 2, p.ac);
+  rect(-7, 10, 14, 1, '#ffffff4a');
+  rect(-7, 12, 14, 1, p.acD);
+  rect(-3, 13, 6, 1, OL); rect(-2, 13, 4, 1, p.acD);      // V under the throat
+  rr(-3 + trail, 12, 5, 5, 2, OL); rr(-3 + trail, 12, 4, 4, 2, p.ac);
+  rect(-2 + trail, 13, 2, 1, '#ffffff55'); rect(-2 + trail, 16, 2, 2, p.acD);
+  if (p.cross) { rect(-2, 9, 4, 2, C.red); rect(-1, 8, 2, 4, C.red); rect(-1, 8, 1, 1, '#ff8a7a'); }
 }
-// full chibi: bobbing head, springy body, stubby limbs.
-// o = { sc, expr, act, flip, t, hat, gear, glove }
+
+// ----------------------------------------------------------- full body ----
+// o = { sc, expr, act, flip, t, phase, hat, gear, glove, mute }
+// acts: idle | walk | row | cheer | point | wave | think
 function drawBobble(cx, gy, key, o) {
   o = o || {};
-  const p = BOBBLE[key] || BOBBLE.scout;
+  const p = BOB[key] || BOB.scout, OL = p.sk[0];
   const sc = o.sc || 1, act = o.act || 'idle', expr = o.expr || 'calm';
   const t = (o.t !== undefined ? o.t : tNow) + (o.phase || 0);
-  // springy motion: body squashes, head lags behind it (that is the bobble)
-  const hop = act === 'cheer' ? Math.abs(Math.sin(t * 4)) * 5 : Math.sin(t * 2.6) * 1.2;
-  const squash = 1 + Math.sin(t * 2.6 + 0.5) * 0.06;
-  const tilt = Math.sin(t * 1.9) * 0.07 + (act === 'row' ? Math.sin(t * 3.4) * 0.05 : 0);
-  const look = { x: clamp((mx - cx) / 60, -1, 1), y: clamp((my - (gy - 34 * sc)) / 60, -1, 1) };
+
+  // ---------------- rig -------------------------------------------------
+  let hop = 0, sq = 1, lean = 0, stride = 0, dust = 0;
+  const breathe = Math.sin(t * 1.9) * 0.5;
+  if (act === 'cheer') {
+    const k = (t * 0.95) % 1;
+    if (k < 0.16) { hop = -1.5 * (k / 0.16); sq = 1 - 0.16 * (k / 0.16); }          // crouch
+    else if (k < 0.72) { const a = (k - 0.16) / 0.56; hop = Math.sin(a * Math.PI) * 11; sq = 1 + 0.12 * Math.sin(a * Math.PI); }
+    else { const a = (k - 0.72) / 0.28; hop = -2 * Math.sin(a * Math.PI); sq = 1 - 0.18 * Math.sin(a * Math.PI); dust = a < 0.2 ? 1 : 0; }
+  } else if (act === 'walk') {
+    const c = t * 7.2;
+    stride = Math.sin(c) * 4;
+    hop = Math.abs(Math.sin(c)) * 2.2 + breathe * 0.4;
+    sq = 1 - Math.abs(Math.cos(c)) * 0.05;
+    lean = 0.05;
+  } else if (act === 'row') {
+    const s = Math.sin(t * 2.8);
+    hop = s * 1.2; lean = s * 0.13; sq = 1 + s * 0.04;
+  } else {
+    hop = breathe * 1.4 + Math.max(0, Math.sin(t * 1.55)) ** 8 * 3; // idle breath + rare bounce
+    sq = 1 + Math.sin(t * 1.9 + 0.7) * 0.045;
+    lean = Math.sin(t * 0.75) * 0.05;
+  }
+  // head lags the torso (that IS the bobble), then overshoots back
+  const tilt = lean * 0.9 + Math.sin(t * 1.55 - 0.5) * 0.05 - (act === 'cheer' ? Math.sin(t * 5.97) * 0.07 : 0);
+  const look = { x: clamp((mx - cx) / 70, -1, 1), y: clamp((my - (gy - 38 * sc)) / 70, -1, 1) };
+
   ctx.save();
-  ctx.translate(cx, gy);
+  ctx.translate(cx | 0, gy | 0);
   ctx.scale(o.flip ? -sc : sc, sc);
-  // ---- ground shadow (squashes opposite the hop) ----
-  ctx.save(); ctx.globalAlpha = 0.28; fillCircle(0, -1, 13 - hop * 0.6, '#000'); ctx.restore();
-  // ---- legs + boots ----
-  const stride = act === 'walk' ? Math.sin(t * 7) * 3 : 0;
-  [[-5, stride], [4, -stride]].forEach(([lx, s]) => {
-    rr(lx, -9 + hop * 0.3, 5, 7, 2, p.shirtD);
-    rr(lx - 1, -3 + s * 0.3, 7, 4, 2, '#20140c');
-    rr(lx - 1, -4 + s * 0.3, 7, 3, 2, '#54463a');
+
+  // ---------------- contact shadow --------------------------------------
+  ctx.save(); ctx.globalAlpha = 0.32 - hop * 0.014;
+  ctx.translate(0, -1); ctx.scale(1, 0.3); fillCircle(0, 0, 12 - hop * 0.4, '#000');
+  ctx.restore();
+  if (dust) { for (let d = 0; d < 5; d++) { const a = -0.3 + d * 0.22; ctx.save(); ctx.globalAlpha = 0.35; fillCircle(Math.cos(a) * 14, -2 - Math.abs(Math.sin(a)) * 3, 2, '#c8bda0'); ctx.restore(); } }
+
+  // ---------------- legs + boots ----------------------------------------
+  const legY = -13 + hop * 0.32;
+  [[-5, stride], [4, -stride]].forEach(([lx, s], i) => {
+    const lift = act === 'walk' ? Math.max(0, s) * 0.42 : 0;
+    // thigh with a knee highlight
+    rr(lx - 1, legY - lift, 7, 10, 3, OL);
+    rr(lx, legY - lift, 5, 9, 2, p.cl[2]);
+    rect(lx, legY - lift, 3, 5, p.cl[3]);
+    rect(lx, legY - lift + 1, 2, 2, p.cl[4]);
+    rect(lx + 4, legY - lift + 1, 1, 7, p.cl[1]);
+    // boot: sole, upper, cuff, lace eyelets
+    const by2 = -5 + s * 0.28 - lift;
+    rr(lx - 3, by2, 10, 6, 2, BOOT[0]);
+    rr(lx - 2, by2, 8, 5, 2, BOOT[2]);
+    rect(lx - 2, by2, 6, 2, BOOT[3]);
+    rect(lx - 2, by2, 3, 1, BOOT[4]);
+    rect(lx - 3, by2 + 4, 10, 2, BOOT[1]);          // sole
+    rect(lx - 3, by2 + 5, 10, 1, BOOT[0]);
+    rect(lx - 1, by2 + 1, 1, 1, '#d8c890'); rect(lx + 2, by2 + 2, 1, 1, '#d8c890'); // eyelets
+    rect(lx + 5, by2 + 1, 1, 3, BOOT[1]);
   });
-  // ---- torso: little vest over a rounded belly ----
-  const by = -24 + hop;
+
+  // ---------------- torso -----------------------------------------------
+  const by = -29 + hop;
   ctx.save();
-  ctx.translate(0, by + 8); ctx.scale(1 / squash, squash); ctx.translate(0, -(by + 8));
-  rr(-10, by, 20, 17, 6, '#20140c');
-  rr(-9, by + 1, 18, 15, 5, p.shirt);
-  rr(-8, by + 2, 16, 6, 4, p.shirtL);
-  rr(-4, by + 3, 8, 13, 3, '#e8e0c8');           // shirt front
-  rect(-1, by + 4, 1, 11, '#c8c0a8');
-  rect(-9, by + 10, 18, 3, p.shirtD);            // belt
-  rect(-2, by + 10, 4, 3, C.gold); rect(-1, by + 11, 1, 1, '#fff6c8');
-  // ---- arms ----
+  ctx.translate(0, by + 9); ctx.scale(1 / sq, sq); ctx.translate(0, -(by + 9)); ctx.rotate(lean * 0.35);
+  // body block
+  rr(-10, by, 21, 18, 6, OL);
+  rr(-9, by + 1, 19, 16, 5, p.cl[2]);
+  rr(-9, by + 1, 12, 8, 4, p.cl[3]);                    // key light on the chest
+  rr(-8, by + 1, 7, 4, 3, p.cl[4]);
+  rect(4, by + 3, 6, 13, p.cl[1]);                       // shade side
+  ctx.save(); ctx.globalAlpha = 0.5; rect(9, by + 5, 1, 9, mixHex(p.cl[1], '#a8cdf0', 0.6)); ctx.restore();
+  // shirt placket with buttons + a chest pocket
+  rr(-5, by + 3, 10, 14, 2, '#0f120e');
+  rr(-4, by + 3, 9, 13, 2, '#e6dfc6');
+  rect(-4, by + 3, 9, 1, '#f8f4e4');
+  rect(0, by + 4, 1, 12, '#bdb59c');
+  [4, 8, 12].forEach(k => { rect(-2, by + k, 2, 1, '#9a9280'); rect(-2, by + k, 1, 1, '#fffdf2'); });
+  rr(-4, by + 9, 5, 4, 1, '#d8d0b6'); rect(-4, by + 9, 5, 1, '#f2ecd8'); // pocket flap
+  // collar wings
+  rect(-6, by + 2, 4, 3, '#cfc8ae'); rect(3, by + 2, 4, 3, '#b7b096');
+  rect(-6, by + 2, 4, 1, '#f2ecd8');
+  // belt + buckle
+  rect(-10, by + 12, 21, 3, BOOT[1]);
+  rect(-10, by + 12, 21, 1, BOOT[2]);
+  rect(-10, by + 14, 21, 1, BOOT[0]);
+  rect(-2, by + 11, 5, 5, '#8a6510'); rect(-2, by + 11, 5, 4, C.gold);
+  rect(-1, by + 12, 2, 2, '#8a6510'); rect(-1, by + 12, 1, 1, '#fff6c8');
+  // shoulder badge
+  rr(5, by + 3, 5, 5, 2, p.acD); rr(5, by + 3, 4, 4, 2, p.ac); rect(6, by + 4, 1, 1, '#ffffff99');
+
+  // ---------------- arms ------------------------------------------------
   const g = GLOVES[(o.glove && gloveUnlocked(o.glove)) ? o.glove : 'bare'] || GLOVES.bare;
-  const armPose = (side) => {
-    if (act === 'cheer') return { ax: side * 11, ay: by - 4 + Math.sin(t * 8 + side) * 2, rot: side * 0.9 };
-    if (act === 'row') return { ax: side * 10, ay: by + 4 + Math.sin(t * 3.4 + (side > 0 ? 0 : 0.2)) * 3, rot: side * (0.3 + Math.sin(t * 3.4) * 0.4) };
-    return { ax: side * 10, ay: by + 5 + Math.sin(t * 2.6 + side) * 1, rot: side * 0.18 };
+  const pose = (side) => {
+    if (act === 'cheer') return { x: side * 11, y: by - 3 + Math.sin(t * 8 + side) * 2, r: side * (1.9 + Math.sin(t * 8) * 0.2) };
+    if (act === 'row') return { x: side * 10, y: by + 4 + Math.sin(t * 2.8) * 3, r: side * (0.35 + Math.sin(t * 2.8) * 0.5) };
+    if (act === 'walk') return { x: side * 10, y: by + 5, r: side * 0.2 + Math.sin(t * 7.2) * 0.55 * side };
+    if (act === 'wave' && side > 0) return { x: 11, y: by - 2, r: 2.2 + Math.sin(t * 9) * 0.45 };
+    if (act === 'point' && side > 0) return { x: 12, y: by + 2, r: 1.15 };
+    if (act === 'think' && side > 0) return { x: 7, y: by - 6, r: -0.5 };
+    return { x: side * 10, y: by + 5 + Math.sin(t * 1.9 + side) * 1.1, r: side * (0.16 + Math.sin(t * 1.9 + side) * 0.06) };
   };
   [-1, 1].forEach(side => {
-    const a = armPose(side);
-    ctx.save(); ctx.translate(a.ax, a.ay); ctx.rotate(a.rot);
-    rr(-2, -1, 4, 8, 2, p.shirtD);
-    rr(-3, 5, 6, 5, 2, '#20140c'); rr(-2, 6, 4, 4, 2, g.skin);   // gloved mitt
+    const a = pose(side);
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.r);
+    rr(-3, -2, 6, 10, 3, OL);                 // sleeve
+    rr(-2, -1, 4, 8, 2, p.cl[2]);
+    rect(-2, -1, 2, 5, p.cl[3]);
+    rect(-2, 5, 4, 2, p.cl[1]);                // cuff
+    rr(-4, 6, 8, 7, 3, OL);                    // gloved mitt
+    rr(-3, 7, 6, 5, 2, g.skin);
+    rect(-3, 7, 4, 2, mixHex(g.skin, '#ffffff', 0.35));
+    rect(-3, 11, 6, 1, mixHex(g.skin, '#000000', 0.35));
+    rect(side > 0 ? 2 : -4, 8, 2, 3, g.skin);  // thumb
     ctx.restore();
   });
-  // ---- head on a springy neck ----
-  const hy = by - 13;
+  ctx.restore(); // squash
+
+  // ---------------- head ------------------------------------------------
+  const hy = by - 12;
   ctx.save();
-  ctx.translate(0, hy); ctx.rotate(tilt);
-  bobbleHead(key, expr, o.phase || 0, look);
-  // cosmetics ride the head
+  ctx.translate(0, hy + Math.sin(t * 1.9 + 1.2) * 0.6); ctx.rotate(tilt);
+  ctx.save(); ctx.globalAlpha = 0.28; ctx.scale(1, 0.4); fillCircle(0, (14) / 0.4, 9, '#000'); ctx.restore(); // neck AO
+  bobHead(key, expr, o.phase || 0, look, tilt);
   const gk = o.gear && gearUnlocked(o.gear) ? o.gear : 'none';
-  if (gk !== 'none') drawGearArt(0, -1, gk, 1);
+  if (gk !== 'none') drawGearArt(0, -2, gk, 1);
   const hk = o.hat && hatUnlocked(o.hat) ? o.hat : 'none';
-  if (hk !== 'none') drawHatArt(0, -9, hk, 1);
+  if (hk !== 'none') drawHatArt(0, -11, hk, 1);
   ctx.restore();
-  // snail sage carries her shell
-  if (key === 'snail') { fillCircle(9, by + 6, 9, '#a87848'); fillCircle(9, by + 6, 7, '#c8a878'); fillCircle(10, by + 5, 4, '#a87848'); rect(9, by + 4, 2, 2, '#7a5430'); }
-  ctx.restore();
+
+  // ---------------- the snail sage's shell -------------------------------
+  if (key === 'snail') {
+    const s = p.shell, sx = 10, sy = by + 7;
+    fillCircle(sx, sy, 10, s[0]); fillCircle(sx, sy, 9, s[2]);
+    fillCircle(sx - 1, sy - 1, 7, s[3]); fillCircle(sx - 2, sy - 2, 4, s[4]);
+    ctx.save(); ctx.globalAlpha = 0.5;
+    for (let a = 0; a < 16; a++) { const an = a / 16 * 6.283, rr2 = 9 - a * 0.42; rect(sx + Math.cos(an * 2) * rr2, sy + Math.sin(an * 2) * rr2, 1, 1, s[1]); }
+    ctx.restore();
+    fillCircle(sx + 1, sy + 1, 2, s[1]); rect(sx - 4, sy - 5, 2, 1, '#ffffff77');
+  }
   ctx.restore();
 }
 
-// Merle the manatee shopkeep: big, round, beloved - polished sea-cow
-function drawVendor(x, y) {
-  const bob = Math.round(Math.sin(tNow * 1.3) * 1.5);
-  const b = y + bob;
-  const G1 = '#586878', G2 = '#7c8b99', G3 = '#9fb1bd', BELLY = '#c4d2da', SNOUT = '#8a99a5';
-  // soft ground shadow
-  ctx.save(); ctx.globalAlpha = 0.22; fillCircle(x + 23, b + 55, 25, '#000'); ctx.restore();
-  // ---- big rounded body, layered for volume ----
-  fillCircle(x + 23, b + 34, 24, G1);
-  fillCircle(x + 23, b + 33, 22, G2);
-  fillCircle(x + 19, b + 29, 17, G3);            // upper-left light
-  fillCircle(x + 23, b + 41, 15, BELLY);          // pale belly
-  fillCircle(x + 23, b + 39, 12, '#d8e4ea');
-  // skin folds + algae freckles (a swamp sea-cow)
-  ctx.save(); ctx.globalAlpha = 0.28; rect(x + 9, b + 45, 28, 1, G1); rect(x + 12, b + 49, 22, 1, G1); ctx.restore();
-  rect(x + 34, b + 25, 3, 2, '#6f9a4a'); rect(x + 7, b + 37, 2, 2, '#6f9a4a'); rect(x + 37, b + 41, 2, 2, '#7ab055');
-  // ---- park vest ----
-  rr(x + 2, b + 20, 13, 27, 3, '#3d5824'); rr(x + 31, b + 20, 13, 27, 3, '#3d5824');
-  rect(x + 5, b + 21, 4, 25, '#557a34'); rect(x + 37, b + 21, 4, 25, '#557a34');
-  rr(x + 6, b + 24, 6, 4, 1, C.gold); rect(x + 7, b + 25, 2, 2, '#fff6c8'); // ranger badge
-  // ---- head blends into the body (no neck) ----
-  fillCircle(x + 23, b + 10, 15, G1);
-  fillCircle(x + 23, b + 9, 14, G2);
-  fillCircle(x + 20, b + 6, 10, G3);
-  ctx.save(); ctx.globalAlpha = 0.25; rect(x + 12, b + 4, 9, 2, G1); rect(x + 25, b + 4, 9, 2, G1); ctx.restore(); // brow
-  // ---- muzzle: big prehensile-lipped nose ----
-  rr(x + 13, b + 9, 20, 13, 6, SNOUT);
-  rr(x + 14, b + 15, 18, 7, 4, '#a8b7c3');        // lower lip pad
-  rect(x + 18, b + 11, 3, 4, '#4c5b67'); rect(x + 25, b + 11, 3, 4, '#4c5b67'); // nostrils
-  // bristle whiskers
-  ctx.save(); ctx.globalAlpha = 0.7;
-  rect(x + 9, b + 16, 5, 1, '#cbd5dd'); rect(x + 9, b + 18, 5, 1, '#cbd5dd'); rect(x + 10, b + 20, 4, 1, '#cbd5dd');
-  rect(x + 32, b + 16, 5, 1, '#cbd5dd'); rect(x + 32, b + 18, 5, 1, '#cbd5dd'); rect(x + 32, b + 20, 4, 1, '#cbd5dd');
+// ======================= MERLE THE MANATEE ================================
+//  The shopkeep gets the same five-tone treatment as the rangers: a barrel of
+//  a sea-cow lit from the upper-left, with a real expression set, whiskers
+//  that twitch, flippers that gesture and a jaw that flaps while he talks.
+//  Nothing here is rotated - every pose is a hand-placed pixel offset, so the
+//  art never smears.  drawVendor(x, y, o) fills a ~60x64 box from (x, y).
+//  o = { expr, talk, phase }   expr: calm|happy|wow|think|sleepy|sad|proud
+// ==========================================================================
+const MERLE = {
+  sk: ['#151d22', '#4d5d69', '#6f8290', '#93a7b4', '#c0d2dc'],
+  bel: ['#151d22', '#8a9aa4', '#adbdc6', '#cddce4', '#eef6fa'],
+  vest: ['#16210d', '#2f4519', '#446425', '#5c8532', '#7dab4a'],
+  algae: ['#3f6b28', '#5f9a3c', '#8fc85a'],
+};
+// egg-shaped half-width tables, built once so the silhouette is smooth
+function eggSpans(n, maxw, bias, minw) {
+  const a = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i / (n - 1) - (bias === undefined ? 0.46 : bias)) / 0.58;
+    a.push(Math.max(minw === undefined ? 4 : minw, Math.round(maxw * Math.sqrt(Math.max(0, 1 - t * t)))));
+  }
+  return a;
+}
+const MERLE_BODY = eggSpans(42, 24, 0.44, 7);
+const MERLE_HEAD = eggSpans(21, 16, 0.42, 4);
+const MERLE_BELLY = eggSpans(18, 15, 0.5, 5);
+const MERLE_FLIP = eggSpans(12, 9, 0.46, 3);
+const MERLE_TAIL = eggSpans(15, 13, 0.5, 5);
+
+function drawVendor(x, y, o) {
+  o = o || {};
+  const p = MERLE, OL = p.sk[0], ph = o.phase || 0;
+  const expr = o.expr || 'calm';
+  const float = Math.round(Math.sin(tNow * 1.25 + ph) * 2);   // always half-swimming
+  const cx = (x + 30) | 0, gy = (y + 64 + float) | 0;
+  const look = { x: clamp((mx - cx) / 90, -1, 1), y: clamp((my - (gy - 48)) / 90, -1, 1) };
+
+  ctx.save();
+  ctx.translate(cx, gy);
+  // ---- water shadow ----
+  ctx.save(); ctx.globalAlpha = 0.26; ctx.scale(1, 0.2); fillCircle(0, (-4 - float) / 0.2, 23, '#000'); ctx.restore();
+
+  // ---- tail paddle sweeping behind him (stepped, never rotated) ----
+  const sweep = Math.round(Math.sin(tNow * 1.05 + ph) * 3);
+  ctx.save(); ctx.translate(24, -24 + sweep); ctx.scale(1.25, 0.8);
+  bobShape(MERLE_TAIL, -8, p.sk, { norim: 1 });
   ctx.restore();
-  rect(x + 19, b + 19, 8, 1, '#5c6b77');           // gentle smile
-  // ---- kind tracking eyes ----
-  critterEye(x + 13, b + 3, 6, 6, G2, '#f8f4dc', '#2a2018', 7.0);
-  critterEye(x + 28, b + 3, 6, 6, G2, '#f8f4dc', '#2a2018', 7.4);
-  ctx.save(); ctx.globalAlpha = 0.3; rect(x + 13, b + 2, 6, 1, G1); rect(x + 28, b + 2, 6, 1, G1); ctx.restore(); // sleepy lids
-  // ---- flippers with little nails ----
-  const wave = Math.sin(tNow * 3) > 0.3 ? -5 : 0;
-  rr(x - 10, b + 24 + wave, 17, 11, 5, G1); rr(x - 9, b + 25 + wave, 15, 9, 4, G2);
-  rect(x - 6, b + 33 + wave, 2, 3, '#4c5b67'); rect(x - 2, b + 33 + wave, 2, 3, '#4c5b67'); rect(x + 2, b + 33 + wave, 2, 3, '#4c5b67');
-  rr(x + 39, b + 39, 15, 10, 5, G1); rr(x + 40, b + 40, 13, 8, 4, G2);
-  rect(x + 44, b + 46, 2, 2, '#4c5b67'); rect(x + 47, b + 46, 2, 2, '#4c5b67'); rect(x + 50, b + 46, 2, 2, '#4c5b67');
+  ctx.save(); ctx.globalAlpha = 0.3;
+  for (let k = 0; k < 4; k++) rect(22 + k * 4, -30 + sweep, 1, 12, p.sk[1]);
+  ctx.restore();
+
+  // ---- far flipper, tucked behind the barrel ----
+  const far = Math.round(Math.sin(tNow * 1.4 + ph + 1) * 2);
+  ctx.save(); ctx.translate(21, -30 + far); ctx.scale(1.35, 0.95); bobShape(MERLE_FLIP, 0, p.sk, { norim: 1 }); ctx.restore();
+  [0, 1, 2].forEach(k => rect(19 + k * 3, -17 + far, 2, 3, p.sk[1]));
+
+  // ---- body ----
+  bobShape(MERLE_BODY, -52, p.sk);
+  ctx.save(); ctx.globalAlpha = 0.62; bobShape(MERLE_BELLY, -30, p.bel, { norim: 1 }); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.3; bobShape(eggSpans(10, 13, 0.5, 4), -33, p.sk, { norim: 1 }); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.28;   // skin folds
+  rect(-19, -40, 34, 1, p.sk[1]); rect(-18, -34, 32, 1, p.sk[1]); rect(-15, -28, 27, 1, p.sk[1]);
+  ctx.restore();
+  [[16, -44, 3], [-18, -33, 2], [15, -26, 2], [-16, -47, 2], [7, -50, 3]].forEach(([ax, ay, ar], i) => {
+    fillCircle(ax, ay, ar, p.algae[0]); fillCircle(ax, ay - 1, ar - 1, p.algae[1]);
+    if (i % 2) rect(ax - 1, ay - ar, 1, 1, p.algae[2]);
+  });
+
+  // ---- ranger vest, hanging down both flanks ----
+  [-1, 1].forEach(s => {
+    const vx = s < 0 ? -23 : 12;
+    rr(vx, -44, 12, 29, 3, p.vest[0]);
+    rr(vx + 1, -43, 10, 27, 2, p.vest[2]);
+    rect(vx + 1, -43, 4, 25, p.vest[3]);
+    rect(vx + 1, -43, 3, 7, p.vest[4]);
+    rect(vx + 9, -42, 1, 25, p.vest[1]);
+    rr(vx + 2, -29, 7, 7, 1, p.vest[1]); rect(vx + 2, -29, 7, 1, p.vest[3]);
+    rect(vx + 3, -27, 5, 1, p.vest[0]);
+  });
+  rr(-21, -40, 8, 7, 2, '#8a6510'); rr(-21, -40, 7, 6, 2, C.gold);
+  rect(-20, -39, 2, 2, '#fff6c8'); rect(-19, -36, 4, 1, '#8a6510');
+
+  // ---- near flipper: gestures with the mood ----
+  const gest = expr === 'happy' ? 3 : expr === 'wow' ? 1 : expr === 'think' ? 2 : 0;
+  let fy = -30 + Math.round(Math.sin(tNow * 1.6 + ph) * 2), fox = -21;
+  if (gest === 3) { fy = -44 + Math.round(Math.abs(Math.sin(tNow * 5 + ph)) * -5); fox = -23; }  // waving
+  else if (gest === 1) { fy = -47; fox = -20; }                                                   // both up
+  else if (gest === 2) { fy = -52; fox = -11; }                                                   // paw to chin
+  ctx.save(); ctx.globalAlpha = 0.28; fillCircle(fox + 6, fy + 5, 6, '#000'); ctx.restore();
+  ctx.save(); ctx.translate(fox, fy); ctx.scale(1.35, 0.95); bobShape(MERLE_FLIP, 0, p.sk); ctx.restore();
+  [0, 1, 2].forEach(k => { rect(fox - 5 + k * 3, fy + 12, 2, 3, OL); rect(fox - 5 + k * 3, fy + 12, 2, 2, p.sk[1]); });
+
+  // ---- head (merges straight into the barrel, manatees have no neck) ----
+  const nod = expr === 'sleepy' ? Math.round(Math.sin(tNow * 1.1 + ph) * 2) : 0;
+  const hx = expr === 'think' ? -3 : 0;
+  ctx.save();
+  ctx.translate(hx, -54 + nod);
+  bobShape(MERLE_HEAD, -14, p.sk);
+  ctx.save(); ctx.globalAlpha = 0.28; rect(-14, -7, 11, 2, p.sk[1]); rect(3, -7, 11, 2, p.sk[1]); ctx.restore();
+
+  // ---- eyes ----
+  const bt = (tNow * 0.9 + ph) % 4.6;
+  let lid = 0;
+  if (bt > 4.3) { const k = (bt - 4.3) / 0.3; lid = k < 0.4 ? k / 0.4 : k < 0.7 ? 1 : Math.max(0, (1 - k) / 0.3); }
+  const eye = (ex, ew, eh) => {
+    const ey = -4 - (eh >> 1);
+    rr(ex - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 3, OL);
+    rr(ex - (ew >> 1), ey, ew, eh, 2, '#fbf7e8');
+    const dx = Math.round(look.x * 1.6), dy = Math.round(look.y * 1.4);
+    rr(ex - 2 + dx, ey + 1 + dy, 4, eh - 2, 1, '#55705f');
+    rect(ex - 1 + dx, ey + 2 + dy, 2, eh - 4, '#191410');
+    rect(ex - 2 + dx, ey + 1 + dy, 2, 2, '#ffffff');
+    rect(ex + 1 + dx, ey + eh - 3 + dy, 1, 1, '#ffffffaa');
+    const close = expr === 'sleepy' ? 0.55 + lid * 0.45 : lid;
+    if (close > 0) {
+      const h = Math.round(close * (eh + 2));
+      if (h > 0) { rect(ex - (ew >> 1) - 1, ey - 1, ew + 2, h, p.sk[2]); rect(ex - (ew >> 1) - 1, ey - 1 + h, ew + 2, 1, OL); }
+    }
+  };
+  if (expr === 'happy' || expr === 'proud') {
+    [-8, 8].forEach(ex => { rect(ex - 4, -4, 2, 1, OL); rect(ex - 2, -6, 2, 1, OL); rect(ex, -6, 2, 1, OL); rect(ex + 2, -4, 2, 1, OL); });
+  } else if (expr === 'wow') { [-8, 8].forEach(ex => eye(ex, 9, 10)); }
+  else { [-8, 8].forEach(ex => eye(ex, 8, 8)); }
+  if (expr === 'sad' || expr === 'think') {
+    rect(-13, -12, 6, 2, OL); rect(-12, -13, 4, 1, OL);
+    rect(7, -12, 6, 2, OL); rect(8, -13, 4, 1, OL);
+  } else if (expr === 'proud' || expr === 'wow') { rect(-13, -13, 7, 2, OL); rect(6, -13, 7, 2, OL); }
+
+  // ---- muzzle: the big prehensile-lipped nose ----
+  rr(-11, 0, 22, 14, 6, OL);
+  rr(-10, 0, 20, 12, 5, p.sk[3]);
+  rr(-9, 0, 11, 6, 4, p.sk[4]);
+  rect(3, 2, 6, 10, p.sk[2]);
+  rr(-9, 7, 18, 6, 3, p.bel[2]); rect(-8, 7, 11, 1, p.bel[3]);
+  rect(-6, 2, 4, 4, p.sk[1]); rect(3, 2, 4, 4, p.sk[1]);
+  rect(-6, 2, 4, 1, OL); rect(3, 2, 4, 1, OL);
+  ctx.save(); ctx.globalAlpha = 0.75;
+  [0, 1, 2].forEach(k => {
+    const tw = Math.round(Math.sin(tNow * 3.1 + k * 1.7 + ph) * 0.9);
+    rect(-18, 4 + k * 3 + tw, 8, 1, '#d6e4ec'); rect(10, 4 + k * 3 - tw, 8, 1, '#d6e4ec');
+  });
+  ctx.restore();
+  // mouth, flapping while he talks
+  const talk = o.talk ? (Math.sin(tNow * 13 + ph) * 0.5 + 0.5) : 0;
+  const mh = 1 + Math.round(talk * 4);
+  if (expr === 'happy' || expr === 'proud') { rect(-5, 10, 11, 1, '#3f4f59'); rect(-6, 9, 1, 1, '#3f4f59'); rect(6, 9, 1, 1, '#3f4f59'); }
+  else if (expr === 'sad') { rect(-4, 11, 9, 1, '#3f4f59'); rect(-5, 10, 1, 1, '#3f4f59'); rect(5, 10, 1, 1, '#3f4f59'); }
+  else rect(-4, 10, 9, 1, '#3f4f59');
+  if (talk > 0.05) { rr(-4, 10, 9, mh, 2, '#40202a'); rect(-3, 11, 7, Math.max(1, mh - 2), '#9a4f5e'); }
+  ctx.restore(); // head
+
+  // ---- mood flourishes ----
+  if (expr === 'sleepy') {
+    const z = (tNow * 0.55 + ph) % 3;
+    if (z < 2.4) { ctx.save(); ctx.globalAlpha = 0.9 - z * 0.35; drawText('z', 16 + z * 3, -68 - z * 7, '#cfe8f0', z < 1.2 ? 1 : 2); ctx.restore(); }
+  } else if (expr === 'wow') {
+    ctx.save(); ctx.globalAlpha = 0.6 + Math.sin(tNow * 8) * 0.4; drawText('!', 18, -76, '#ffd54a', 2); ctx.restore();
+  } else if (expr === 'think') {
+    for (let k = 0; k < 3; k++) {
+      const f = (tNow * 0.5 + k * 0.33 + ph) % 1;
+      ctx.save(); ctx.globalAlpha = 0.7 * (1 - f); fillCircle(18 + k * 3, -66 - f * 20, 1 + k, '#bfe8f2'); ctx.restore();
+    }
+  }
+  ctx.restore();
 }
 
-// a dentist tool as a REAL tool: hanging on a leather shop tag
+// ---------------------------------------------------- HERO ITEM SPRITES ---
+// The 12x12 ICONS stay for chips and lists; these are the 24x24 "hero" sprites
+// the shop, the packs and the bench show off.  Shared ramps keep every tool
+// looking like it came out of the same sterilised drawer.
+const MET = ['#0e171c', '#374954', '#64798a', '#9cb2c0', '#e6f2fa'];   // chrome
+const BRS = ['#221403', '#5e3f0d', '#9a7118', '#cfa332', '#ffe9a0'];   // brass
+const GRP = ['#0f1a17', '#1d352e', '#2c5348', '#3f7465', '#5a9a86'];   // rubber grip
+const ENA = ['#9a9078', '#cfc7ae', '#eee7d2', '#fdfaf0'];              // enamel
+
+// a chrome shaft with a lit top edge and a shaded belly
+function metalBar(x, y, w, h, ramp) {
+  ramp = ramp || MET;
+  rect(x, y, w, h, ramp[0]);
+  rect(x, y + 1, w, h - 2, ramp[2]);
+  rect(x, y + 1, w, 1, ramp[3]);
+  rect(x + 1, y + 1, Math.max(1, w - 2), 1, ramp[4]);
+  rect(x, y + h - 2, w, 1, ramp[1]);
+}
+function metalBarV(x, y, w, h, ramp) {
+  ramp = ramp || MET;
+  rect(x, y, w, h, ramp[0]);
+  rect(x + 1, y, w - 2, h, ramp[2]);
+  rect(x + 1, y, 1, h, ramp[3]);
+  rect(x + 1, y + 1, 1, Math.max(1, h - 2), ramp[4]);
+  rect(x + w - 2, y, 1, h, ramp[1]);
+}
+function toothBody(x, y, w, h, ramp) {
+  ramp = ramp || ENA;
+  rr(x, y, w, h - 5, 4, ramp[0]);
+  rr(x + 1, y + 1, w - 2, h - 7, 3, ramp[2]);
+  rr(x + 1, y + 1, w - 6, h - 10, 3, ramp[3]);
+  rect(x, y + h - 7, (w >> 1) - 1, 7, ramp[0]);
+  rect(x + (w >> 1) + 1, y + h - 7, (w >> 1) - 1, 7, ramp[0]);
+  rect(x + 1, y + h - 7, (w >> 1) - 3, 5, ramp[1]);
+  rect(x + (w >> 1) + 2, y + h - 7, (w >> 1) - 3, 5, ramp[1]);
+  rect(x + 2, y + 2, 2, 3, ramp[3]);
+}
+
+const TOOLART = {
+  // ---- the dental handpiece: chrome barrel, knurled grip, spinning burr ----
+  tdrill(x, y) {
+    const spin = (tNow * 26 | 0) % 3;
+    for (let k = 0; k < 7; k++) rect(x + 1 + k, y + 19 - k, 2, 2, '#2b3a44');       // cable
+    rect(x + 1, y + 18, 3, 4, '#1c272e'); rect(x + 1, y + 18, 3, 1, '#42565f');
+    metalBar(x + 5, y + 10, 13, 7);                                                  // barrel
+    for (let k = 0; k < 4; k++) rect(x + 7 + k * 2, y + 11, 1, 5, MET[1]);           // knurling
+    rect(x + 5, y + 10, 13, 1, MET[4]);
+    metalBar(x + 16, y + 6, 6, 6);                                                   // head
+    rect(x + 17, y + 7, 4, 1, MET[4]);
+    rect(x + 18, y + 2, 2, 5, MET[1]);                                               // burr shank
+    rect(x + 17 + spin, y + 1, 2, 2, MET[4]); rect(x + 20 - spin, y + 2, 1, 1, '#fff');
+    rect(x + 5, y + 17, 6, 3, C.red); rect(x + 5, y + 17, 6, 1, '#ff8a6a');           // trigger
+    ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 18) * 0.3;
+    rect(x + 16, y + 0, 5, 1, '#cfe8f0'); ctx.restore();
+  },
+  // ---- extraction forceps ----
+  tpliers(x, y) {
+    metalBarV(x + 5, y + 1, 4, 11); metalBarV(x + 15, y + 1, 4, 11);
+    rect(x + 6, y + 1, 2, 2, MET[4]); rect(x + 16, y + 1, 2, 2, MET[4]);
+    rect(x + 7, y + 9, 10, 4, MET[0]); rect(x + 7, y + 10, 10, 2, MET[2]); rect(x + 7, y + 10, 10, 1, MET[3]);
+    fillCircle(x + 12, y + 11, 2, MET[1]); rect(x + 11, y + 10, 1, 1, MET[4]);       // pivot screw
+    rr(x + 4, y + 12, 6, 10, 2, GRP[0]); rr(x + 5, y + 13, 4, 8, 2, GRP[2]); rect(x + 5, y + 13, 2, 6, GRP[3]);
+    rr(x + 14, y + 12, 6, 10, 2, GRP[0]); rr(x + 15, y + 13, 4, 8, 2, GRP[2]); rect(x + 15, y + 13, 2, 6, GRP[3]);
+    for (let k = 0; k < 3; k++) { rect(x + 5, y + 15 + k * 2, 4, 1, GRP[1]); rect(x + 15, y + 15 + k * 2, 4, 1, GRP[1]); }
+  },
+  // ---- brace wire on a spool ----
+  twire(x, y) {
+    fillCircle(x + 8, y + 13, 8, MET[0]); fillCircle(x + 8, y + 13, 7, MET[1]);
+    fillCircle(x + 7, y + 12, 5, MET[2]); fillCircle(x + 6, y + 11, 3, MET[3]);
+    ctx.save(); ctx.globalAlpha = 0.6;
+    for (let k = 0; k < 6; k++) fillCircle(x + 8, y + 13, 7 - k, k & 1 ? MET[1] : MET[2]);
+    ctx.restore();
+    fillCircle(x + 8, y + 13, 2, '#1a242a');
+    for (let k = 0; k < 9; k++) rect(x + 14 + k, y + 8 - Math.round(Math.sin(k * 0.8 + tNow * 2) * 2), 2, 1, MET[3]);
+    [0, 1, 2].forEach(k => { rect(x + 15 + k * 3, y + 3, 3, 4, MET[0]); rect(x + 15 + k * 3, y + 3, 3, 3, MET[2]); rect(x + 15 + k * 3, y + 3, 1, 3, MET[4]); });
+  },
+  // ---- infection vial ----
+  tvial(x, y) {
+    rect(x + 8, y + 1, 8, 4, '#6a4a22'); rect(x + 8, y + 1, 8, 2, '#8f6a34'); rect(x + 9, y + 1, 2, 1, '#c09858');
+    rect(x + 7, y + 5, 10, 2, MET[1]); rect(x + 7, y + 5, 10, 1, MET[3]);
+    rr(x + 6, y + 6, 12, 16, 4, '#0f1a20');
+    rr(x + 7, y + 7, 10, 14, 3, '#1b2f38');
+    rr(x + 7, y + 12, 10, 9, 3, '#6b2fa8');                    // fluid
+    rect(x + 7, y + 12, 10, 1, '#a86ae0');
+    ctx.save(); ctx.globalAlpha = 0.6; rect(x + 8, y + 8, 2, 12, '#bfe8f2'); ctx.restore();
+    const bb = (tNow * 1.6) % 1;
+    fillCircle(x + 13, y + 20 - bb * 7, 1, '#d8b0ff');
+    fillCircle(x + 11, y + 19 - ((bb + 0.5) % 1) * 6, 1, '#d8b0ff');
+    rr(x + 8, y + 15, 8, 5, 1, '#e8e0c8'); rect(x + 9, y + 16, 6, 1, '#8a3a3a'); rect(x + 9, y + 18, 4, 1, '#6a6050');
+  },
+  // ---- veneer kit: a hinged case of shells ----
+  tveneer(x, y) {
+    rr(x + 1, y + 6, 22, 16, 2, '#241708');
+    rr(x + 2, y + 7, 20, 14, 2, '#6a4a2a'); rect(x + 2, y + 7, 20, 2, '#8a6238');
+    rect(x + 2, y + 13, 20, 1, '#3a2818');
+    rr(x + 3, y + 14, 18, 6, 1, '#2a1c10');
+    for (let k = 0; k < 4; k++) { rr(x + 4 + k * 4, y + 15, 3, 5, 1, ENA[1]); rect(x + 4 + k * 4, y + 15, 3, 2, ENA[3]); }
+    rr(x + 3, y + 8, 18, 5, 1, '#8a6238'); rect(x + 4, y + 9, 16, 2, '#a87a48');
+    drawTextC('VENEER', x + 12, y + 9, '#3a2818', 1);
+    rect(x + 10, y + 5, 4, 2, MET[2]); rect(x + 10, y + 5, 4, 1, MET[4]);
+    if (Math.sin(tNow * 3) > 0.7) rect(x + 6, y + 15, 1, 1, '#ffffff');
+  },
+  // ---- fluoride bath: a tray of blue foam ----
+  tbath(x, y) {
+    rr(x + 1, y + 10, 22, 12, 3, '#0e2630');
+    rr(x + 2, y + 11, 20, 10, 2, '#2f7f9a');
+    rr(x + 3, y + 11, 18, 5, 2, '#4fb3d9');
+    rect(x + 3, y + 11, 14, 1, '#9fe8ff');
+    ctx.save(); ctx.globalAlpha = 0.6;
+    for (let k = 0; k < 6; k++) { const bx = x + 4 + k * 3, byy = y + 12 + ((tNow * 2 + k) | 0) % 2; fillCircle(bx, byy, 1, '#dff8ff'); }
+    ctx.restore();
+    rect(x + 1, y + 20, 22, 2, '#123845');
+    toothBody(x + 7, y + 1, 11, 14);
+    ctx.save(); ctx.globalAlpha = 0.35; rr(x + 7, y + 9, 11, 5, 2, '#4fb3d9'); ctx.restore();
+    if (Math.sin(tNow * 4) > 0.4) { rect(x + 18, y + 4, 1, 1, '#fff'); rect(x + 19, y + 6, 1, 1, '#cfe8f0'); }
+  },
+  // ---- root extractor: a dental elevator ----
+  troot(x, y) {
+    rr(x + 8, y + 9, 7, 13, 3, '#241708'); rr(x + 9, y + 10, 5, 11, 2, '#6a4a2a');
+    rect(x + 9, y + 10, 2, 9, '#8a6238');
+    for (let k = 0; k < 4; k++) rect(x + 9, y + 12 + k * 2, 5, 1, '#3a2818');
+    metalBarV(x + 9, y + 2, 5, 9);
+    rect(x + 8, y + 1, 7, 3, MET[0]); rect(x + 9, y + 1, 5, 2, MET[3]); rect(x + 9, y + 1, 2, 1, MET[4]);
+    rect(x + 4, y + 4, 4, 2, BRS[2]); rect(x + 4, y + 4, 4, 1, BRS[4]);   // pried-out gold
+    rect(x + 16, y + 6, 3, 3, BRS[1]); rect(x + 16, y + 6, 2, 2, BRS[3]);
+    if (Math.sin(tNow * 5) > 0.5) rect(x + 12, y + 0, 1, 1, '#fff');
+  },
+  // ---- diamond cap ----
+  tdiamond(x, y) {
+    toothBody(x + 4, y + 8, 16, 14);
+    const b = 0.6 + Math.sin(tNow * 3) * 0.25;
+    ctx.save(); ctx.globalAlpha = 0.28 * b; fillCircle(x + 12, y + 7, 11, '#9fe8ff'); ctx.restore();
+    rect(x + 6, y + 6, 12, 2, '#5fb0d0');
+    rect(x + 5, y + 4, 14, 2, '#8fdcf4');
+    rect(x + 7, y + 2, 10, 2, '#cff4ff');
+    rect(x + 9, y + 8, 6, 2, '#5fb0d0');
+    rect(x + 11, y + 10, 2, 1, '#3f8ab0');
+    rect(x + 8, y + 3, 3, 2, '#ffffff'); rect(x + 14, y + 5, 2, 1, '#ffffff');
+    ctx.save(); ctx.globalAlpha = b; rect(x + 12 - ((tNow * 6 | 0) % 8), y + 1, 1, 1, '#ffffff'); ctx.restore();
+  },
+  // ---- gold filling ----
+  tgold(x, y) {
+    toothBody(x + 4, y + 3, 16, 19);
+    rr(x + 8, y + 7, 8, 8, 2, BRS[1]);
+    rr(x + 8, y + 7, 7, 7, 2, BRS[3]);
+    rect(x + 9, y + 8, 4, 2, BRS[4]);
+    rect(x + 9, y + 12, 5, 1, BRS[2]);
+    ctx.save(); ctx.globalAlpha = 0.8;
+    const sh = (tNow * 4 | 0) % 6; rect(x + 8 + sh, y + 7, 1, 8, '#fff6c8'); ctx.restore();
+  },
+  // ---- ruby inlay ----
+  truby(x, y) {
+    toothBody(x + 4, y + 3, 16, 19);
+    rect(x + 9, y + 7, 6, 2, '#a3162e');
+    rect(x + 8, y + 9, 8, 3, '#e0304f');
+    rect(x + 9, y + 12, 6, 2, '#ff4d6a');
+    rect(x + 11, y + 14, 2, 1, '#a3162e');
+    rect(x + 10, y + 8, 2, 1, '#ffb0c0'); rect(x + 13, y + 11, 1, 1, '#ffd8e0');
+    if (Math.sin(tNow * 3.5) > 0.6) rect(x + 16, y + 6, 1, 1, '#fff');
+  },
+};
+const TOOL_HERO = k => TOOLART[k] || null;
+
+// a dentist tool presented like a real instrument: brass-cornered display case
+// with velvet backing, a hero sprite under glass and an engraved name plate
 function drawToolItem(x, y, def, o) {
   o = o || {};
   x |= 0; y |= 0;
-  // leather tag with stitching + hook hole
-  rr(x + 1, y + 3, 30, 42, 3, '#00000077');
-  rr(x, y, 30, 42, 3, '#6a4a2a');
-  rr(x + 1, y + 1, 28, 40, 3, '#8a6238');
-  for (let k = 0; k < 6; k++) { rect(x + 3 + k * 4, y + 2, 2, 1, '#5a3a1e'); rect(x + 3 + k * 4, y + 39, 2, 1, '#5a3a1e'); }
-  fillCircle(x + 15, y + 5, 2, '#4a3018');
-  // the tool itself, drawn big (2x icon)
+  const hero = TOOLART[def.ico];
+  // case body
+  rr(x + 1, y + 3, 30, 42, 3, '#00000088');
+  rr(x, y, 30, 42, 3, '#1a1008');
+  rr(x + 1, y + 1, 28, 40, 3, BRS[1]);
+  rr(x + 2, y + 2, 26, 38, 2, '#2b1c0c');
+  rr(x + 3, y + 3, 24, 30, 2, '#120d18');          // velvet well
+  rr(x + 3, y + 3, 24, 12, 2, '#1d1526');
+  ctx.save(); ctx.globalAlpha = 0.5; fillCircle(x + 12, y + 12, 11, '#2a2036'); ctx.restore();
+  // the instrument itself
+  if (hero) { ctx.save(); ctx.translate(x + 3, y + 5); hero(0, 0); ctx.restore(); }
+  else { ctx.save(); ctx.translate(x + 3, y + 8); ctx.scale(2, 2); (ICONS[def.ico] || ICONS.tdrill)(0, 0); ctx.restore(); }
+  // glass: a raking reflection that slides across the pane
   ctx.save();
-  ctx.translate(x + 3, y + 9);
-  ctx.scale(2, 2);
-  (ICONS[def.ico] || ICONS.tdrill)(0, 0);
+  ctx.beginPath(); ctx.rect(x + 3, y + 3, 24, 30); ctx.clip();
+  ctx.globalAlpha = 0.13;
+  const gsw = ((tNow * 0.35 + (def.id || '').length * 0.21) % 3);
+  if (gsw < 1) { const gx = x - 14 + gsw * 46; for (let k = 0; k < 32; k++) rect(gx + k * 0.5, y + 3 + k, 6, 1, '#ffffff'); }
+  ctx.globalAlpha = 0.09; rect(x + 4, y + 4, 4, 28, '#cfe8f0');
   ctx.restore();
-  drawTextC(def.name.split(' ')[0].slice(0, 5), x + 15, y + 34, '#f0e0c0', 1);
+  // engraved brass name plate
+  rr(x + 3, y + 33, 24, 7, 1, BRS[0]);
+  rr(x + 3, y + 33, 24, 6, 1, BRS[2]);
+  rect(x + 4, y + 34, 22, 1, BRS[4]);
+  drawTextC(def.name.split(' ')[0].slice(0, 6), x + 15, y + 34, '#3a2606', 1);
+  // corner rivets
+  [[x + 2, y + 2], [x + 26, y + 2], [x + 2, y + 37], [x + 26, y + 37]].forEach(([rx, ry]) => {
+    rect(rx, ry, 2, 2, BRS[1]); rect(rx, ry, 1, 1, BRS[4]);
+  });
   if (o.price !== undefined) {
     rr(x - 3, y - 5, 20, 9, 2, '#00000088');
     drawText('$' + o.price, x - 1, y - 3, o.afford ? C.gold : C.red, 1);
@@ -968,68 +1548,16 @@ function drawNpcFace(x, y, key) {
   }
 }
 
-// 28x28 animal faces (animal-crossing-ish: big head, big eyes, tiny features)
+// 28x28 ranger icons: the same shaded head as the full body, scaled to fit
 function drawRangerFace(x, y, key) {
-  const hat = (hx, hy, hw, band) => {
-    rect(hx - 3, hy + 6, hw + 6, 3, '#4a3320');
-    rr(hx, hy, hw, 8, 2, '#5a4028');
-    rect(hx, hy + 5, hw, 2, band);
-  };
-  if (key === 'scout') { // heron: blue-grey, long yellow beak (bare head: cosmetic hats sit here)
-    rr(x + 5, y + 9, 18, 14, 3, '#9fb2c8');
-    rr(x + 6, y + 7, 16, 4, 2, '#8aa0b8'); // small crown so hats have a head to rest on
-    rect(x + 6, y + 9, 16, 2, '#00000022');
-    critterEye(x + 7, y + 12, 6, 7, '#9fb2c8', '#f8f4dc', '#1b1408', 0);
-    critterEye(x + 15, y + 12, 6, 7, '#9fb2c8', '#f8f4dc', '#1b1408', 0.4);
-    rect(x + 11, y + 20, 14, 3, '#e8c04a'); // long beak
-    rect(x + 22, y + 21, 4, 2, '#c89a2a');
-    rect(x + 11, y + 22, 10, 1, '#c89a2a');
-    rr(x + 3, y + 24, 22, 4, 2, '#63d66a'); // scarf
-  } else if (key === 'medic') { // opossum: grey, pink round ears, pink nose
-    fillCircle(x + 7, y + 6, 4, '#8a8a92'); fillCircle(x + 7, y + 6, 2, '#e8a0b0');
-    fillCircle(x + 21, y + 6, 4, '#8a8a92'); fillCircle(x + 21, y + 6, 2, '#e8a0b0');
-    rr(x + 4, y + 8, 20, 16, 4, '#b8b8c0');
-    rr(x + 8, y + 14, 12, 10, 3, '#e8e8e8'); // white muzzle patch
-    critterEye(x + 6, y + 11, 6, 7, '#b8b8c0', '#f8f4dc', '#2a1a2a', 0.8);
-    critterEye(x + 16, y + 11, 6, 7, '#b8b8c0', '#f8f4dc', '#2a1a2a', 1.2);
-    rect(x + 12, y + 19, 4, 3, '#e88898'); // pink nose
-    rect(x + 13, y + 22, 2, 1, '#8a6a72');
-    rr(x + 4, y + 24, 20, 4, 2, '#7fd4e8'); // medic scarf
-    rect(x + 12, y + 25, 4, 2, C.red); rect(x + 13, y + 24, 2, 4, C.red); // cross
-  } else if (key === 'trader') { // raccoon: mask, striped ears, grin
-    rect(x + 4, y + 2, 6, 6, '#6a6258'); rect(x + 18, y + 2, 6, 6, '#6a6258');
-    rect(x + 6, y + 4, 2, 2, '#3a342c'); rect(x + 20, y + 4, 2, 2, '#3a342c');
-    rr(x + 4, y + 6, 20, 17, 4, '#8a8276');
-    rect(x + 4, y + 11, 20, 6, '#3a342c'); // bandit mask
-    critterEye(x + 6, y + 11, 6, 6, '#3a342c', '#f8f4dc', '#1b1408', 1.6);
-    critterEye(x + 16, y + 11, 6, 6, '#3a342c', '#f8f4dc', '#1b1408', 2.0);
-    rr(x + 10, y + 17, 8, 6, 2, '#d8d0c0');
-    rect(x + 13, y + 18, 3, 2, '#3a342c'); // nose
-    rect(x + 11, y + 21, 6, 1, '#8a6a3a'); // sly grin
-    rect(x + 16, y + 20, 2, 1, '#ffd54a'); // gold tooth glint
-    rr(x + 4, y + 23, 20, 4, 2, '#ffc843');
-  } else if (key === 'frog') { // bullfrog: eyes on top like the gator
-    fillCircle(x + 8, y + 6, 5, '#5a9a3c'); fillCircle(x + 20, y + 6, 5, '#5a9a3c');
-    critterEye(x + 5, y + 3, 6, 6, '#5a9a3c', '#f8f4dc', '#1b1408', 2.4);
-    critterEye(x + 17, y + 3, 6, 6, '#5a9a3c', '#f8f4dc', '#1b1408', 2.8);
-    rr(x + 3, y + 8, 22, 15, 5, '#7ec850');
-    rect(x + 5, y + 16, 18, 1, '#4a7c2e'); // wide mouth
-    rect(x + 4, y + 15, 2, 2, '#4a7c2e'); rect(x + 22, y + 15, 2, 2, '#4a7c2e');
-    rect(x + 9, y + 12, 2, 1, '#4a7c2e'); rect(x + 17, y + 12, 2, 1, '#4a7c2e'); // nostrils
-    rr(x + 6, y + 19, 16, 4, 2, '#e8e0b0'); // pale chin
-    rr(x + 3, y + 23, 22, 4, 2, '#d94f30'); // brawler bandana
-  } else if (key === 'snail') { // snail sage: shell + eye stalks
-    fillCircle(x + 19, y + 14, 9, '#a87848');
-    fillCircle(x + 19, y + 14, 7, '#c8a878');
-    fillCircle(x + 20, y + 13, 4, '#a87848');
-    rect(x + 19, y + 12, 2, 2, '#7a5430'); // spiral core
-    rect(x + 4, y + 5, 2, 8, '#d8c8a8'); rect(x + 10, y + 3, 2, 10, '#d8c8a8'); // stalks
-    critterEye(x + 2, y + 1, 5, 5, '#d8c8a8', '#f8f4dc', '#1b1408', 3.2);
-    critterEye(x + 8, y - 1, 5, 5, '#d8c8a8', '#f8f4dc', '#1b1408', 3.6);
-    rr(x + 2, y + 12, 14, 12, 4, '#e0d0b0'); // head/body
-    rect(x + 4, y + 18, 6, 1, '#a89068'); // wise little smile
-    rect(x + 3, y + 24, 12, 3, '#8878a8'); // sage wrap
-  }
+  const look = { x: clamp((mx - (x + 14)) / 60, -1, 1), y: clamp((my - (y + 13)) / 60, -1, 1) };
+  const ph = key.length * 0.7;
+  ctx.save();
+  ctx.translate(x + 14, y + 15);
+  ctx.scale(0.78, 0.78);
+  ctx.rotate(Math.sin(tNow * 1.5 + ph) * 0.05);
+  bobHead(key, 'calm', ph, look, 0);
+  ctx.restore();
 }
 
 // ------------------------------------------------------------ tooth art ---
@@ -1940,11 +2468,11 @@ const TOOLS = [
 
 // --------------------------------------------- snack-stand pack products --
 const PACK_DEFS = [
-  { id: 'gummies', name: 'GATOR GUMMIES', cost: 5, kind: 'tooth', show: 3, picks: 1, boost: 1, col: '#c9556a', flav: 'Now with 20% more chew.' },
-  { id: 'chomppops', name: 'CHOMP-POPS', cost: 8, kind: 'tooth', show: 5, picks: 1, boost: 2, col: '#e8a020', flav: 'The lolly that bites back.' },
-  { id: 'sundae', name: 'SWAMP SUNDAE', cost: 12, kind: 'tooth', show: 5, picks: 2, boost: 3, col: '#7fd4e8', flav: 'Two scoops. Pick two teeth.' },
-  { id: 'tacklebox', name: 'TACKLE BOX', cost: 6, kind: 'tool', show: 2, picks: 1, col: '#3a9a8a', flav: 'Sterilized-ish.' },
-  { id: 'toolbelt', name: 'RANGER TOOLBELT', cost: 11, kind: 'tool', show: 4, picks: 1, col: '#8a6510', flav: 'Every loop holds a promise.' },
+  { id: 'gummies', name: 'TOOTHIE GUMMIES', brand: 'TOOTHIE', sub: 'GUMMIES', cost: 5, kind: 'tooth', show: 3, picks: 1, boost: 1, col: '#c9556a', flav: 'Now with 20% more chew.' },
+  { id: 'chomppops', name: 'CHOMP-POPS', brand: 'CHOMP', sub: 'POPS', cost: 8, kind: 'tooth', show: 5, picks: 1, boost: 2, col: '#e8a020', flav: 'The lolly that bites back.' },
+  { id: 'sundae', name: 'SWAMP SUNDAE', brand: 'SWAMP', sub: 'SUNDAE', cost: 12, kind: 'tooth', show: 5, picks: 2, boost: 3, col: '#7fd4e8', flav: 'Two scoops. Pick two teeth.' },
+  { id: 'tacklebox', name: 'DENTAL TOOL KIT 101', brand: 'DENTAL', sub: 'TOOL KIT 101', cost: 6, kind: 'tool', show: 2, picks: 1, col: '#3a9a8a', flav: 'Everything a rookie needs. Sterilized-ish.' },
+  { id: 'toolbelt', name: 'RANGER TOOLBELT', brand: 'RANGER', sub: 'TOOLBELT', cost: 11, kind: 'tool', show: 4, picks: 1, col: '#8a6510', flav: 'Every loop holds a promise.' },
 ];
 
 // ---------------- scout gacha-pon: SPEND COOKIES on capsule prizes --------
@@ -2087,7 +2615,10 @@ function drawMerleTalk(dt) {
   panel(bx, by, bw, bh, { face: '#12262ef6', edge: '#5cb0ac', r: 4 });
   // Merle bobbing in the corner of the bubble
   const bob = Math.round(Math.sin(merle.t * 3.2) * 2);
-  ctx.save(); ctx.translate(bx + 4, by + 8 + bob); ctx.scale(0.62, 0.62); drawVendor(0, 0); ctx.restore();
+  const mTalk = merle.t < merle.txt.length / 42 + 0.2;
+  ctx.save(); ctx.translate(bx - 6, by - 10 + bob); ctx.scale(0.62, 0.62);
+  drawVendor(0, 0, { expr: mTalk ? 'happy' : 'calm', talk: mTalk, phase: 1.3 });
+  ctx.restore();
   // speech tail + name plate
   rect(bx + 40, by + 12, 4, 3, '#5cb0ac');
   drawText('MERLE', bx + 46, by + 5, '#7fd4e8', 1);
@@ -3254,12 +3785,12 @@ function openPack(product) {
     const pool = shuffle(TOOLS.filter(cardUnlocked));
     options = pool.slice(0, show).map(t => ({ tool: t }));
   }
-  G.pack = { product, options, picksLeft: product.picks, taken: [], t: 0 };
+  G.pack = { product, options, picksLeft: product.picks, taken: [], t: 0, tear: 0, ripped: false, ripT: 0 };
   quest('pack1', 1);
   sfx.sweep();
 }
 function pickPack(i) {
-  const p = G.pack; if (!p || p.t < 0.35) return;
+  const p = G.pack; if (!p || !p.ripped || p.ripT < 0.45) return;
   const o = p.options[i]; if (!o || o.taken) return;
   if (o.tooth) {
     G.deck.push(mkTooth(o.tooth));
@@ -3466,13 +3997,20 @@ function onDown() {
     down = { x: mx, y: my, hit: h }; // resolved on mouseup: click or drag
     return;
   }
-  if (h && h.cb && !h.disabled) h.cb();
+  if (h && h.cb && !h.disabled) {
+    fxRing(mx, my, '#ffffff', 2, 13, 0.24);           // a cartoon tap ripple on every press
+    fxStars(mx, my, '#ffe8a0', 3, 46);
+    h.cb();
+  } else if (h && h.disabled) {
+    fxRing(mx, my, '#ff6a6a', 2, 9, 0.2);             // a small refusal blip
+  }
   hits.length = 0; // one action per rendered frame: stale rects must not double-fire
   down = null;
 }
 function onUp() {
   if (G.drag) { resolveDrop(); G.drag = null; down = null; return; }
   if (down && down.hit && down.hit.click && !down.hit.disabled) {
+    if (down.hit.id !== 'packtear') { fxRing(mx, my, '#ffffff', 2, 13, 0.24); fxStars(mx, my, '#ffe8a0', 3, 46); }
     down.hit.click();
     hits.length = 0;
   }
@@ -3584,13 +4122,51 @@ function drawCroc(closeT, opts) {
   rr(bodyX, maw.y + maw.h - 6, bodyW, 40, 4, st.d);
   rr(bodyX + 1, maw.y + maw.h - 6, bodyW - 2, 38, 4, st.b);
   rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, st.a);
-  // belly plate bands on the chin
+  // belly plate bands on the chin, with scutes and pond light playing over them
+  ctx.save(); ctx.globalAlpha = 0.42;
+  for (let ry = 0; ry < 5; ry++) {
+    const sy3 = maw.y + maw.h + 8 + ry * 7, off = (ry % 2) * 5;
+    for (let sx3 = bodyX + 10 + off; sx3 < bodyX + bodyW - 10; sx3 += 10) {
+      rect(sx3, sy3, 5, 3, st.d); rect(sx3, sy3 - 1, 5, 1, st.c); rect(sx3 + 1, sy3 + 1, 3, 1, st.b);
+    }
+  }
+  ctx.restore();
   for (let k = 0; k < 3; k++) rect(bodyX + 16, maw.y + maw.h + 14 + k * 7, bodyW - 32, 1, st.b);
+  ctx.save(); ctx.globalAlpha = 0.18;
+  for (let k = 0; k < 16; k++) {
+    const cx3 = bodyX + ((k * 53) % (bodyW - 12));
+    const cy3 = maw.y + maw.h + 6 + ((k * 19) % 28);
+    const wob = Math.sin(tNow * 1.9 + k * 0.7) * 3;
+    rect(cx3 + wob, cy3, 8, 1, '#bfe8ff'); rect(cx3 + 2 + wob, cy3 + 1, 4, 1, '#eafcff');
+    rect(cx3 - 2 + wob * 0.6, cy3 + 3, 5, 1, '#9fd8f0');
+  }
+  ctx.restore();
   if (st.skinny) { rect(bodyX + 14, maw.y + maw.h + 14, 3, 14, st.b); rect(bodyX + bodyW - 17, maw.y + maw.h + 14, 3, 14, st.b); }
 
   // --- maw interior ---
   rr(maw.x - 6, maw.y - 4, maw.w + 12, maw.h + 10, 4, mawD);
   rr(maw.x - 3, maw.y - 1, maw.w + 6, maw.h + 4, 4, mawC);
+  // palate ribs arching across the roof of the mouth
+  ctx.save(); ctx.globalAlpha = 0.34;
+  for (let k = 0; k < 6; k++) {
+    const ry2 = maw.y + 4 + k * 4, inset = k * 3;
+    rect(maw.x + 6 + inset, ry2, maw.w - 12 - inset * 2, 1, mawD);
+  }
+  ctx.restore();
+  // throat shadow receding into the dark
+  ctx.save(); ctx.globalAlpha = 0.5;
+  rr(maw.x + maw.w / 2 - 34, maw.y + maw.h / 2 - 16, 68, 30, 10, '#2a0a14');
+  ctx.globalAlpha = 0.35; rr(maw.x + maw.w / 2 - 24, maw.y + maw.h / 2 - 10, 48, 20, 8, '#170208');
+  ctx.restore();
+  // gum ridges the teeth grow out of
+  ctx.save(); ctx.globalAlpha = 0.55;
+  rect(maw.x - 2, maw.y + 1, maw.w + 4, 4, st.paleMaw ? '#e8a8b4' : '#b8536a');
+  rect(maw.x - 2, maw.y + maw.h - 5, maw.w + 4, 4, st.paleMaw ? '#d89aa6' : '#9c4258');
+  for (let k = 0; k * 15 < maw.w; k++) {
+    rect(maw.x + 4 + k * 15, maw.y + 1, 7, 2, st.paleMaw ? '#f4c8d0' : '#d0708a');
+    rect(maw.x + 10 + k * 15, maw.y + maw.h - 3, 7, 2, st.paleMaw ? '#c88898' : '#7d2d42');
+  }
+  ctx.restore();
   rr(maw.x + 30, maw.y + maw.h - 34, maw.w - 60, 28, 4, st.tongue);
   rr(maw.x + 40, maw.y + maw.h - 32, maw.w - 80, 10, 3, st.tongueHi);
   rect(maw.x + maw.w / 2 - 1, maw.y + maw.h - 30, 2, 22, st.paleMaw ? '#c88898' : '#a83a4e');
@@ -3683,6 +4259,33 @@ function drawCroc(closeT, opts) {
       rect(sx2, sy2 - 1, 5, 1, st.c);      // lit top edge
       rect(sx2 + 1, sy2 + 1, 3, 1, st.b);  // inner shadow
     }
+  }
+  ctx.restore();
+  // ---- nostrils flaring on the snout tip ----
+  (function nostrils() {
+    const flare = Math.round(Math.max(0, Math.sin(tNow * 1.6)) * 1.5);
+    const nx = bodyX + bodyW / 2;
+    [-1, 1].forEach(sd => {
+      const px2 = nx + sd * 15 - 5;
+      rr(px2 - 1, jy + 3, 12, 9, 4, st.c);          // raised nostril boss
+      rr(px2, jy + 4, 10, 7, 3, st.a);
+      rect(px2 + 1, jy + 4, 8, 1, mixHex(st.c, '#ffffff', 0.3));
+      rr(px2 + 2, jy + 6 - flare, 6, 4 + flare * 2, 2, '#160b06');
+      rect(px2 + 3, jy + 6 - flare, 3, 1, '#3a2418');
+    });
+  })();
+  // ---- jowl volume: the sides of the skull roll away from the light ----
+  ctx.save(); ctx.globalAlpha = 0.3;
+  rect(bodyX - 3, jy + 12, 8, 44, st.d); rect(bodyX + bodyW - 5, jy + 12, 8, 44, st.d);
+  ctx.globalAlpha = 0.18; rect(bodyX + 3, jy + 16, 5, 38, st.d); rect(bodyX + bodyW - 8, jy + 16, 5, 38, st.d);
+  ctx.restore();
+  // ---- neck folds behind the jaw hinge ----
+  ctx.save(); ctx.globalAlpha = 0.4;
+  for (let k = 0; k < 3; k++) {
+    rect(bodyX - 2, maw.y + maw.h + 12 + k * 7, 20, 2, st.d);
+    rect(bodyX + bodyW - 18, maw.y + maw.h + 12 + k * 7, 20, 2, st.d);
+    rect(bodyX - 2, maw.y + maw.h + 11 + k * 7, 20, 1, st.c);
+    rect(bodyX + bodyW - 18, maw.y + maw.h + 11 + k * 7, 20, 1, st.c);
   }
   ctx.restore();
   // ---- rim light along the top of the skull ----
@@ -3915,13 +4518,28 @@ function toothTip(s) {
 }
 
 // ------------------------------------------------------------ UI pieces ---
+// Chunky arcade button: a coloured cap sitting on a darker plinth, with a
+// glossy top half, a lit rim, a hover halo and a real travel on press.
 function button(x, y, w, h, label, col, colD, cb, o) {
   o = o || {};
   const hov = mx >= x && mx < x + w && my >= y && my < y + h && !o.disabled;
-  const yy = hov ? y + 1 : y;
-  rr(x, y + 3, w, h, 3, '#00000088');
-  rr(x, yy + 2, w, h - 1, 3, colD);
-  rr(x, yy, w, h - 2, 3, o.disabled ? '#3a4a50' : col);
+  const pressed = hov && down && down.hit && down.hit.id === (o.id || label);
+  const yy = y + (pressed ? 3 : hov ? 1 : 0);
+  const cap = o.disabled ? '#3a4a50' : col, base = o.disabled ? '#243136' : colD;
+  if (hov && !o.disabled) {   // soft halo so the hovered control reads instantly
+    ctx.save(); ctx.globalAlpha = 0.17 + Math.sin(tNow * 7) * 0.05;
+    rr(x - 3, y - 3, w + 6, h + 8, 5, cap); ctx.restore();
+  }
+  rr(x, y + 4, w, h, 3, '#00000088');            // cast shadow
+  rr(x, yy + 3, w, h - 2, 3, base);              // plinth
+  rr(x, yy, w, h - 2, 3, mixHex(cap, '#000000', 0.25));
+  rr(x + 1, yy + 1, w - 2, h - 4, 2, cap);       // cap
+  ctx.save();
+  ctx.globalAlpha = 0.2;
+  for (let k = 0; k < Math.max(1, (h - 6) >> 1); k++) rect(x + 2, yy + 1 + k, w - 4, 1, '#ffffff');
+  ctx.globalAlpha = 0.32; rect(x + 2, yy + 1, w - 4, 1, '#ffffff');
+  ctx.globalAlpha = 0.22; rect(x + 2, yy + h - 4, w - 4, 1, '#000000');
+  ctx.restore();
   const tcol = o.disabled ? '#7d8f94' : (o.tcol || C.white);
   const sc = o.sc || 1;
   drawTextC(label, x + w / 2, yy + Math.floor((h - 2 - 5 * sc) / 2), tcol, sc);
@@ -3930,10 +4548,15 @@ function button(x, y, w, h, label, col, colD, cb, o) {
 }
 
 function chip(x, y, w, h, val, colA, colB, sc) {
-  rr(x, y + 2, w, h, 2, '#00000066');
+  rr(x, y + 2, w, h, 2, '#00000077');
   rr(x, y, w, h, 2, colB);
   rr(x + 1, y + 1, w - 2, h - 2, 2, colA);
-  drawTextC(fmt(val), x + w / 2, y + Math.floor((h - 5 * sc) / 2) + 1, C.white, sc);
+  ctx.save();
+  ctx.globalAlpha = 0.22; for (let k = 0; k < Math.max(1, (h - 4) >> 1); k++) rect(x + 2, y + 1 + k, w - 4, 1, '#ffffff');
+  ctx.globalAlpha = 0.3; rect(x + 2, y + 1, w - 4, 1, '#ffffff');
+  ctx.globalAlpha = 0.25; rect(x + 2, y + h - 2, w - 4, 1, '#000000');
+  ctx.restore();
+  drawTextCSh(fmt(val), x + w / 2, y + Math.floor((h - 5 * sc) / 2) + 1, C.white, sc, '#00000066');
 }
 
 // ---- unified card face (30x42) -------------------------------------------
@@ -4265,6 +4888,18 @@ function drawSidebar() {
   button(x, SIDEBAR.y + SIDEBAR.h - 12, w, 10, 'II PAUSE (ESC)', '#243a44', '#16262c', () => { togglePause(); }, { id: 'pausebtn' });
 }
 
+// split a label into at most 2 lines that fit `w`, breaking long words if need be
+function fitLines(name, w) {
+  if (textW(name, 1) <= w) return [name];
+  if (name.includes(' ')) {
+    const cut = name.lastIndexOf(' ');
+    const a = name.slice(0, cut), b = name.slice(cut + 1);
+    if (textW(a, 1) <= w && textW(b, 1) <= w) return [a, b];
+  }
+  const per = Math.max(1, Math.floor((w + 1) / 5));
+  return [name.slice(0, per), name.slice(per, per * 2)];
+}
+
 function drawSmallWrapped(txt, x, y, w, col) {
   const words = ('' + txt).toUpperCase().split(' ');
   let line = '', yy = y;
@@ -4497,12 +5132,9 @@ function drawCosmeticStand(X, Y, Wc) {
     const cdefs = { glove: GLOVES, hat: HATS, gear: GEAR };
     const cdef = (cdefs[c.kind] || HATS)[c.k];
     const kindLbl = c.kind === 'glove' ? 'GLOVE' : c.kind === 'gear' ? 'GEAR' : 'HAT';
-    const tx = X + 48, nm = cdef.name;
-    if (nm.length > 10 && nm.includes(' ')) {
-      const cut = nm.lastIndexOf(' ');
-      drawText(nm.slice(0, cut), tx, sy + 6, C.white, 1);
-      drawText(nm.slice(cut + 1), tx, sy + 15, C.white, 1);
-    } else drawText(nm, tx, sy + 8, C.white, 1);
+    const tx = X + 48, nl2 = fitLines(cdef.name, Wc - 60);
+    if (nl2.length > 1) { drawText(nl2[0], tx, sy + 6, C.white, 1); drawText(nl2[1], tx, sy + 15, C.white, 1); }
+    else drawText(nl2[0], tx, sy + 8, C.white, 1);
     drawText(RAR_NAME[c.rar], tx, sy + 25, rc, 1);
     const afford = G.money >= c.price;
     rr(tx, sy + 33, 30, 9, 2, afford ? '#3a2c10' : '#2a1a1a');
@@ -4510,7 +5142,7 @@ function drawCosmeticStand(X, Y, Wc) {
     if (hov) drawTextC(kindLbl, X + Wc - 24, sy + 34, rc, 1);
     hit(X + 6, sy, Wc - 12, 44, {
       id: 'cos' + i, cursor: true, cb: () => buyCosmetic(c),
-      tip: nm + '|' + RAR_NAME[c.rar] + ' ' + kindLbl + '|'
+      tip: cdef.name + '|' + RAR_NAME[c.rar] + ' ' + kindLbl + '|'
         + cdef.flav + '|$' + c.price + ' - CLICK TO WEAR IT',
     });
   });
@@ -4533,130 +5165,306 @@ function drawBarrel() {
   hit(BARREL.x, BARREL.y, BARREL.w, BARREL.h, { id: 'barrel', tip: 'TRADE-IN BIN|Drag a badge here to sell it|for half its price' });
 }
 
-function drawShop() {
-  // ================= the trading post INTERIOR =================
-  // wall: horizontal planks with seams and nails
-  for (let y = 0; y < 212; y += 14) {
-    rect(0, y, W, 14, ((y / 14) | 0) % 2 ? '#4e3722' : '#463019');
-    rect(0, y + 13, W, 1, '#2e1f12');
+// ===================== THE TRADING POST INTERIOR ==========================
+//  A proper room: tongue-and-groove walls over a wainscot, joists and swinging
+//  bulbs overhead, board floor running to a rag rug, a steel gondola of goods,
+//  a humming cooler, a pegboard of hung tools and Merle behind his counter.
+// ==========================================================================
+const SHOPW = {
+  plank: ['#2a1c10', '#3d2a18', '#4e3721', '#5f452a', '#755538'],
+  wains: ['#1b2a22', '#26402f', '#33533d', '#44694c'],
+  floor: ['#1c1208', '#2c1e11', '#3b2917', '#4b351f', '#5c4228'],
+  steel: ['#12191e', '#2c3c46', '#4c626f', '#7b95a3', '#c3d8e2'],
+};
+
+// vertical tongue-and-groove boarding with knots, seams and a nail line
+function shopWall() {
+  const P = SHOPW.plank;
+  rect(0, 0, W, 216, P[2]);
+  for (let x = 0; x < W; x += 16) {
+    const v = ((x / 16) | 0) % 3;
+    rect(x, 0, 15, 216, v === 0 ? P[2] : v === 1 ? P[3] : P[1]);
+    rect(x, 0, 1, 216, P[4]);                 // lit bevel
+    rect(x + 14, 0, 2, 216, P[0]);            // groove shadow
+    // grain
+    ctx.save(); ctx.globalAlpha = 0.16;
+    for (let g = 0; g < 5; g++) rect(x + 2 + ((x * 7 + g * 13) % 11), (g * 47 + x) % 210, 1, 18 + (x % 13), P[0]);
+    ctx.restore();
+    if ((x / 16) % 4 === 1) { // knot
+      const ky = 30 + (x * 13) % 150;
+      fillCircle(x + 7, ky, 3, P[1]); fillCircle(x + 7, ky, 2, P[0]); rect(x + 6, ky - 1, 1, 1, P[3]);
+    }
+    rect(x + 7, 8, 1, 1, P[0]); rect(x + 7, 206, 1, 1, P[0]); // nails
   }
-  [[36, 20], [318, 48], [452, 20], [104, 160], [396, 174]].forEach(([nx, ny]) => rect(nx, ny, 2, 2, '#2e1f12'));
-  // gloom at the ceiling
-  for (let i = 0; i < 10; i++) { ctx.save(); ctx.globalAlpha = (10 - i) / 10 * 0.5; rect(0, i * 3, W, 3, '#160e08'); ctx.restore(); }
-  // floorboards
-  rect(0, 212, W, H - 212, '#3a2818');
-  rect(0, 212, W, 3, '#241708');
-  for (let x = 0; x < W; x += 48) rect(x + ((x / 48) | 0) % 2 * 24, 215, 1, H - 215, '#2e1f12');
-  for (let y = 226; y < H; y += 16) rect(0, y, W, 1, '#31210f');
-  // woven rug under the goods
-  rr(170, 232, 180, 26, 4, '#6a3a2a');
-  rr(174, 235, 172, 20, 3, '#8a5038');
-  for (let k = 0; k < 4; k++) rect(178 + k * 42, 237, 22, 16, k % 2 ? '#a86a48' : '#6a3a2a');
-  rect(174, 244, 172, 2, '#5a3020');
-  // recessed fluorescent strip light over the aisle
-  rect(150, 2, 200, 3, RAMP.steel[1]); rect(150, 5, 200, 5, RAMP.steel[2]);
-  rect(154, 6, 192, 3, '#fdfbe6'); rect(154, 6, 192, 1, '#ffffff');
-  rect(150, 10, 200, 1, RAMP.steel[0]);
-  ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 5) * 0.012; rect(150, 11, 200, 22, '#fff7d8');
-  ctx.globalAlpha = 0.05; rect(150, 11, 200, 40, '#fff7d8'); ctx.restore();
-  // dust motes drifting lazily through the shop light
+  // wainscot + chair rail along the bottom of the wall
+  const Wn = SHOPW.wains;
+  rect(0, 150, W, 66, Wn[2]);
+  for (let x = 0; x < W; x += 22) { rect(x, 150, 1, 66, Wn[3]); rect(x + 20, 150, 2, 66, Wn[0]); }
+  rect(0, 150, W, 3, Wn[3]); rect(0, 153, W, 1, Wn[1]);
+  rect(0, 146, W, 5, SHOPW.plank[4]); rect(0, 146, W, 1, '#8a6a46'); rect(0, 150, W, 1, SHOPW.plank[0]);
+  // ceiling joists and gloom
+  for (let i = 0; i < 12; i++) { ctx.save(); ctx.globalAlpha = (12 - i) / 12 * 0.55; rect(0, i * 2, W, 2, '#120b06'); ctx.restore(); }
+  [44, 148, 252, 356, 440].forEach(jx => { rect(jx, 0, 10, 16, '#24170c'); rect(jx, 0, 2, 16, '#3a2716'); rect(jx, 14, 10, 2, '#100a04'); });
+}
+
+// board floor in loose perspective, worn path, rag rug
+function shopFloor() {
+  const F = SHOPW.floor;
+  rect(0, 216, W, H - 216, F[2]);
+  rect(0, 216, W, 2, F[0]);
+  rect(0, 218, W, 2, F[4]);
+  let row = 0;
+  for (let y = 220; y < H; y += 11 + row * 2) {
+    const h = 11 + row * 2;
+    rect(0, y, W, h, row % 2 ? F[2] : F[3]);
+    rect(0, y + h - 1, W, 1, F[0]);
+    for (let x = ((row * 37) % 60); x < W; x += 60) { rect(x, y, 1, h, F[1]); rect(x + 2, y + 2, 1, 1, F[0]); rect(x + 2, y + h - 3, 1, 1, F[0]); }
+    ctx.save(); ctx.globalAlpha = 0.12;
+    for (let g = 0; g < 12; g++) rect((g * 43 + row * 17) % W, y + 2 + (g % 3) * 3, 14 + (g % 5) * 4, 1, F[0]);
+    ctx.restore();
+    row++;
+  }
+  ctx.save(); ctx.globalAlpha = 0.16; // worn walking path down the aisle
+  fillCircle(240, 250, 70, '#8a6a44'); ctx.restore();
+  // rag rug under the goods
+  rr(168, 230, 184, 28, 5, '#4a2418');
+  rr(171, 232, 178, 24, 4, '#7a3f2a');
+  for (let k = 0; k < 8; k++) rect(174 + k * 22, 234, 20, 20, k % 2 ? '#a5604a' : '#8a4a32');
+  for (let k = 0; k < 8; k++) rect(174 + k * 22, 240, 20, 3, k % 2 ? '#c88a6a' : '#6a3524');
+  rect(171, 232, 178, 1, '#b8735a'); rect(171, 255, 178, 1, '#3a1a10');
+  ctx.save(); ctx.globalAlpha = 0.25;
+  for (let k = 0; k < 20; k++) rect(172 + (k * 29) % 176, 233 + (k * 7) % 22, 2, 1, '#2a1208');
+  ctx.restore();
+}
+
+// swinging enamel pendant lamp
+function shopLamp(lx, ly, drop, warm) {
+  const sw = Math.sin(tNow * 0.9 + lx) * 0.06;
+  ctx.save(); ctx.translate(lx, ly); ctx.rotate(sw);
+  rect(-1, 0, 2, drop, '#1a1208'); rect(-1, 0, 1, drop, '#3a2a18');
+  rr(-11, drop, 22, 4, 2, '#0f1a14');
+  rr(-10, drop, 20, 3, 2, '#2c7d3a');
+  rect(-9, drop, 16, 1, '#63d66a');
+  rr(-6, drop + 3, 12, 3, 1, '#e8e0c8');
+  rect(-3, drop + 4, 6, 3, '#fff6c8');
+  glow(0, drop + 6, 36, '#ffcc6a', (warm ? 0.3 : 0.2) + Math.sin(tNow * 5 + lx) * 0.03);
+  glow(0, drop + 20, 62, '#ffcc6a', 0.1);
+  ctx.restore();
+}
+
+// the main gondola: steel uprights, timber decks, price rail, stocked shelves
+function shopRack(gx, gy, gw, gh) {
+  const S = SHOPW.steel;
+  rr(gx + 3, gy + 4, gw, gh, 2, '#00000066');
+  // pegboard back panel
+  rect(gx + 6, gy + 2, gw - 12, gh - 4, '#9a8a60');
+  rect(gx + 6, gy + 2, gw - 12, 2, '#b8a878');
+  rect(gx + 6, gy + gh - 4, gw - 12, 2, '#786a48');
+  for (let px = gx + 12; px < gx + gw - 10; px += 8)
+    for (let py = gy + 10; py < gy + gh - 6; py += 8) { rect(px, py, 2, 2, '#6a5c3c'); rect(px, py, 2, 1, '#544828'); }
+  ctx.save(); ctx.globalAlpha = 0.2; rect(gx + 6, gy + 2, 8, gh - 4, '#ffe8b0'); ctx.restore();
+  // uprights
+  [gx, gx + gw - 7].forEach(ux => {
+    rect(ux, gy, 7, gh, S[2]); rect(ux, gy, 1, gh, S[3]); rect(ux + 1, gy, 1, gh, S[4]);
+    rect(ux + 3, gy, 2, gh, S[1]); rect(ux + 6, gy, 1, gh, S[0]);
+    for (let sy = gy + 8; sy < gy + gh; sy += 10) { rect(ux + 2, sy, 3, 2, S[0]); rect(ux + 2, sy, 3, 1, S[1]); }
+  });
+  // timber decks with a yellow price rail
+  const deck = (dy) => {
+    rect(gx + 6, dy - 2, gw - 12, 2, S[1]);
+    rect(gx + 6, dy, gw - 12, 4, '#6a4a2a');
+    rect(gx + 6, dy, gw - 12, 1, '#9a6c40');
+    rect(gx + 6, dy + 3, gw - 12, 1, '#2e1f10');
+    for (let bx = gx + 14; bx < gx + gw - 14; bx += 26) { rect(bx, dy + 4, 3, 4, S[1]); rect(bx, dy + 4, 1, 4, S[3]); }
+    rect(gx + 6, dy + 4, gw - 12, 5, '#e8b41c');
+    rect(gx + 6, dy + 4, gw - 12, 1, '#ffe38a');
+    rect(gx + 6, dy + 8, gw - 12, 1, '#9a7208');
+    for (let lx = gx + 12; lx < gx + gw - 16; lx += 19) {
+      rect(lx, dy + 5, 13, 3, '#fffaea'); rect(lx, dy + 5, 13, 1, '#ffffff');
+      rect(lx + 1, dy + 5, 1, 3, '#b8301c'); rect(lx + 3, dy + 6, 6, 1, '#8a9098');
+    }
+  };
+  deck(gy + 20); deck(gy + 130);
+}
+
+// stocked product on the upper shelf: bottles, tins, cartons - each with a label
+function shopStock(bx, by, ex) {
+  let sx = bx, ki = 0;
+  while (sx < ex) {
+    const col = STOCK[ki % STOCK.length], dark = mixHex(col, '#000000', 0.42), lite = mixHex(col, '#ffffff', 0.38);
+    const kind = ki % 4;
+    if (kind === 0) {           // tall bottle
+      rr(sx, by - 20, 8, 20, 2, '#101418');
+      rr(sx + 1, by - 19, 6, 18, 2, col);
+      rect(sx + 1, by - 19, 2, 17, lite); rect(sx + 6, by - 18, 1, 16, dark);
+      rect(sx + 2, by - 24, 4, 5, dark); rect(sx + 2, by - 24, 2, 5, col);
+      rect(sx + 2, by - 25, 4, 2, '#c8a860'); rect(sx + 2, by - 25, 2, 1, '#f0d898');
+      rect(sx + 1, by - 12, 6, 6, '#efe6cc'); rect(sx + 2, by - 11, 4, 1, dark); rect(sx + 2, by - 9, 3, 1, '#8a8270');
+    } else if (kind === 1) {    // squat jar
+      rr(sx, by - 14, 11, 14, 3, '#101418');
+      rr(sx + 1, by - 13, 9, 12, 2, '#cfe3e0');
+      rr(sx + 2, by - 9, 7, 7, 2, col); rect(sx + 2, by - 9, 7, 1, lite);
+      rect(sx + 1, by - 16, 9, 3, '#7a5a2e'); rect(sx + 1, by - 16, 9, 1, '#a8824a');
+      rect(sx + 2, by - 12, 1, 4, '#ffffff77');
+    } else if (kind === 2) {    // carton
+      rr(sx, by - 18, 12, 18, 1, '#101418');
+      rect(sx + 1, by - 17, 10, 16, col);
+      rect(sx + 1, by - 17, 10, 2, lite); rect(sx + 10, by - 16, 1, 15, dark);
+      rect(sx + 2, by - 13, 8, 6, '#efe6cc');
+      rect(sx + 3, by - 12, 6, 1, dark); rect(sx + 3, by - 10, 4, 1, '#8a8270');
+      rect(sx + 3, by - 5, 6, 3, dark);
+    } else {                    // stacked tins
+      for (let t = 0; t < 2; t++) {
+        rr(sx, by - 7 - t * 7, 11, 7, 2, '#101418');
+        rr(sx + 1, by - 6 - t * 7, 9, 5, 2, t ? lite : col);
+        rect(sx + 1, by - 6 - t * 7, 9, 1, '#ffffff66');
+        rect(sx + 3, by - 4 - t * 7, 5, 1, dark);
+      }
+    }
+    sx += [11, 14, 15, 14][kind];
+    ki++;
+  }
+}
+
+// the humming drinks cooler
+function shopCooler(cx, cy, cw, ch) {
+  const S = SHOPW.steel, lit = 0.6 + Math.sin(tNow * 2) * 0.08;
+  rr(cx - 2, cy + 3, cw + 4, ch, 3, '#00000077');
+  rr(cx, cy, cw, ch, 3, S[0]);
+  rr(cx + 1, cy + 1, cw - 2, ch - 2, 2, '#c9d4d8');
+  rect(cx + 2, cy + 2, cw - 4, 2, '#f2f8fa'); rect(cx + 2, cy + ch - 5, cw - 4, 3, '#8fa0a8');
+  // lit header
+  rr(cx + 2, cy + 3, cw - 4, 9, 1, '#123a46');
+  rect(cx + 2, cy + 3, cw - 4, 1, '#dff8ff');
+  ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 9) * 0.05; drawTextC('ICE COLD', cx + cw / 2, cy + 5, '#9fe8ff', 1); ctx.restore();
+  const door = (dx, dw) => {
+    rr(dx, cy + 14, dw, ch - 22, 2, '#8fa0a8');
+    rr(dx + 1, cy + 15, dw - 2, ch - 24, 1, '#0d2b33');
+    // shelves of bottles behind the glass
+    for (let r = 0; r < 3; r++) {
+      const by = cy + 18 + r * ((ch - 30) / 3);
+      rect(dx + 2, by + ((ch - 30) / 3) - 3, dw - 4, 2, '#20444e');
+      for (let c = 0; c < 3; c++) {
+        const bxx = dx + 3 + c * ((dw - 6) / 3), col = STOCK[(r * 3 + c + (dx | 0)) % STOCK.length];
+        rr(bxx, by, 5, ((ch - 34) / 3) | 0, 1, mixHex(col, '#000000', 0.3));
+        rect(bxx, by, 2, ((ch - 34) / 3) | 0, col);
+        rect(bxx, by, 5, 1, '#ffffff55');
+        rect(bxx, by + 4, 5, 3, '#efe6cc');
+      }
+    }
+    ctx.save(); ctx.globalAlpha = 0.14; rect(dx + 2, cy + 16, 4, ch - 26, '#dff8ff');
+    ctx.globalAlpha = 0.08;
+    for (let k = 0; k < 20; k++) rect(dx + 2 + k, cy + 15 + k * 1.4, 3, 1, '#ffffff');
+    ctx.restore();
+    for (let fy = cy + 17; fy < cy + ch - 12; fy += 5) rect(dx + 2, fy + ((fy / 5) & 1), 1, 1, '#bfeef2'); // frost
+    rect(dx + dw - 4, cy + 24, 3, ch - 40, S[3]); rect(dx + dw - 4, cy + 24, 1, ch - 40, S[4]);
+  };
+  const dw = (cw - 7) / 2; door(cx + 3, dw); door(cx + 4 + dw, dw);
+  rect(cx + cw / 2 - 1, cy + 14, 2, ch - 22, '#8fa0a8');
+  glow(cx + cw / 2, cy + ch, 48, '#6fd8f0', 0.3 * lit);
+  ctx.save(); ctx.globalAlpha = 0.05 * lit; rect(cx - 10, cy, cw + 20, ch + 26, '#6fd8f0'); ctx.restore();
+  const vt = tNow % 3;
+  if (vt < 1.2) { ctx.save(); ctx.globalAlpha = (1.2 - vt) * 0.25; fillCircle(cx + 9 + vt * 6, cy + ch - 5 - vt * 5, 3 + vt * 2, '#dff8ff'); ctx.restore(); }
+}
+
+function drawShop() {
+  shopWall();
+  shopFloor();
+  // ---- ceiling lamps over the aisle ----
+  shopLamp(170, 0, 12, 1); shopLamp(258, 0, 18, 1); shopLamp(340, 0, 12, 1);
+  // light shaft + dust motes drifting through it
+  ctx.save(); ctx.globalAlpha = 0.07 + Math.sin(tNow * 3) * 0.008;
+  for (let k = 0; k < 8; k++) rect(150 + k * 2, 12, 200 - k * 4, 26 + k * 12, '#ffe6b0');
+  ctx.restore();
   ctx.save();
-  for (let d = 0; d < 22; d++) {
-    const per = 9 + (d % 5) * 3.5;
-    const f = ((tNow / per) + d * 0.137) % 1;
-    const dx = 152 + ((d * 71) % 196) + Math.sin(tNow * 0.7 + d) * 7;
-    const dy = 12 + f * 190;
-    ctx.globalAlpha = (0.30 - f * 0.22) * (0.5 + 0.5 * Math.sin(tNow * 3 + d));
-    rect(dx, dy, 1, 1, '#fff7d8');
+  for (let d = 0; d < 26; d++) {
+    const per = 9 + (d % 5) * 3.5, f = ((tNow / per) + d * 0.137) % 1;
+    const dx = 150 + ((d * 71) % 200) + Math.sin(tNow * 0.7 + d) * 8;
+    ctx.globalAlpha = (0.34 - f * 0.25) * (0.5 + 0.5 * Math.sin(tNow * 3 + d));
+    rect(dx, 12 + f * 200, 1, 1, '#fff7d8');
   }
   ctx.restore();
-  // hanging lantern (warm left accent, kept)
-  rect(146, 0, 2, 22, '#241708');
-  rr(141, 22, 12, 14, 3, '#2a2018'); rect(144, 25, 6, 8, '#ffd54a'); rect(145, 26, 2, 3, '#fff6c8');
-  ctx.save(); ctx.globalAlpha = 0.10 + Math.sin(tNow * 4) * 0.025; fillCircle(147, 30, 34, '#ffb848'); ctx.globalAlpha = 0.06; fillCircle(147, 32, 52, '#ffb848'); ctx.restore();
-  // raised EVERGLADES sign on ropes (clears the stock shelf below)
-  rect(238, 8, 2, 10, '#8a7a58'); rect(354, 8, 2, 10, '#8a7a58');
-  panel(206, 18, 182, 26, { face: '#5f4228', edge: '#8a6a3a', r: 2 });
-  drawTextCSh(G.summer ? 'MALDIVES' : 'EVERGLADES', 296, 22, '#ffe6b0', 2);
-  drawTextC(G.summer ? 'B E A C H   S H A C K' : 'T R A D I N G   P O S T', 296, 36, '#c8a878', 1);
 
-  // ---- main metal gondola (holds the 4 gear cards + stocked upper shelf) ----
-  (function gondola() {
-    const gx = 134, gw = 220, gy = 44, gh = 140;
-    rr(gx + 2, gy + 3, gw, gh, 2, '#00000055');
-    rect(gx + 6, gy + 2, gw - 12, gh - 4, '#a8986f');
-    rect(gx + 6, gy + 2, gw - 12, 2, '#8a7a54');
-    for (let px = gx + 12; px < gx + gw - 10; px += 8)
-      for (let py = gy + 10; py < gy + gh - 6; py += 8) rect(px, py, 1, 1, '#8a7a54');
-    [gx, gx + gw - 6].forEach(ux => {
-      rect(ux, gy, 6, gh, RAMP.steel[2]); rect(ux, gy, 1, gh, RAMP.steel[3]);
-      rect(ux + 2, gy, 2, gh, RAMP.steel[1]); rect(ux + 5, gy, 1, gh, RAMP.steel[0]);
-      for (let sy = gy + 8; sy < gy + gh; sy += 10) rect(ux + 2, sy, 2, 1, RAMP.steel[0]);
-    });
-    const deck = (dy) => {
-      rect(gx + 6, dy, gw - 12, 3, RAMP.steel[2]); rect(gx + 6, dy, gw - 12, 1, RAMP.steel[4]);
-      rect(gx + 6, dy + 3, gw - 12, 1, RAMP.steel[0]);
-      rect(gx + 6, dy + 4, gw - 12, 4, '#f2c53a'); rect(gx + 6, dy + 4, gw - 12, 1, '#fff0a8'); rect(gx + 6, dy + 7, gw - 12, 1, '#b8901e');
-      for (let lx = gx + 12; lx < gx + gw - 14; lx += 17) { rect(lx, dy + 5, 11, 2, '#fff8e0'); rect(lx + 1, dy + 5, 1, 2, '#b03020'); }
-    };
-    deck(64); deck(174);
-  })();
-  // stocked product silhouettes on the upper shelf
-  const stockItem = (x, kind, col) => {
-    const b = 64;
-    if (kind === 0) { rr(x, b - 15, 8, 15, 1, col); rect(x, b - 15, 8, 1, '#ffffff55'); rect(x, b - 14, 8, 2, '#00000030'); rect(x, b - 9, 8, 4, '#ffffff2a'); rect(x + 7, b - 14, 1, 14, '#00000044'); rect(x + 1, b - 13, 1, 1, '#ffffffaa'); }
-    else if (kind === 1) { rr(x, b - 13, 9, 13, 3, '#cfe3e0'); rr(x + 1, b - 8, 7, 7, 2, col); rect(x, b - 13, 9, 3, '#8a6a3c'); rect(x + 1, b - 12, 3, 1, '#c8a860'); rect(x + 1, b - 6, 1, 4, '#ffffff66'); }
-    else { rr(x, b - 16, 11, 16, 1, col); rect(x, b - 16, 11, 1, '#ffffff55'); rect(x + 1, b - 11, 9, 5, '#ffffff26'); rect(x + 10, b - 15, 1, 15, '#00000044'); }
-  };
-  { let sx = 146, ki = 0; while (sx < 346) { stockItem(sx, ki % 3, STOCK[ki % STOCK.length]); sx += (ki % 3 === 2 ? 14 : 11); ki++; } }
+  // ---- hand-painted sign hung on chains over the aisle ----
+  rect(240, 8, 2, 12, '#7a6a48'); rect(352, 8, 2, 12, '#7a6a48');
+  rect(239, 8, 4, 2, '#9a8a60'); rect(351, 8, 4, 2, '#9a8a60');
+  rr(206, 18, 182, 28, 3, '#241708');
+  rr(207, 19, 180, 26, 3, '#6a4a2a');
+  rr(209, 21, 176, 22, 2, '#5f4228');
+  rect(209, 21, 176, 2, '#8a6238'); rect(209, 41, 176, 2, '#3a2818');
+  for (let k = 0; k < 6; k++) rect(214 + k * 30, 23, 1, 18, '#00000022');
+  drawTextCSh(G.summer ? 'MALDIVES' : 'EVERGLADES', 296, 24, '#ffe6b0', 2);
+  drawTextC(G.summer ? 'B E A C H   S H A C K' : 'T R A D I N G   P O S T', 296, 38, '#c8a878', 1);
+  [[210, 22], [382, 22], [210, 40], [382, 40]].forEach(([sx, sy]) => { rect(sx, sy, 2, 2, '#c8b060'); rect(sx, sy, 1, 1, '#fff6c8'); });
 
-  // ---- glowing drink cooler (center-right, between gondola and Merle) ----
-  (function cooler() {
-    const cx = 356, cy = 44, cw = 60, ch = 120, glow = 0.6 + Math.sin(tNow * 2) * 0.08;
-    rr(cx - 2, cy + 2, cw + 4, ch, 3, '#00000066');
-    rr(cx, cy, cw, ch, 3, RAMP.appl[0]); rr(cx + 1, cy + 1, cw - 2, ch - 2, 2, RAMP.appl[2]);
-    rect(cx + 2, cy + 2, cw - 4, 2, RAMP.appl[4]); rect(cx + 2, cy + ch - 4, cw - 4, 2, RAMP.appl[1]);
-    rect(cx + 2, cy + 3, cw - 4, 8, RAMP.glass[1]); rect(cx + 2, cy + 3, cw - 4, 1, '#dff8ff');
-    drawTextC('ICE COLD', cx + cw / 2, cy + 4, '#dff8ff', 1);
-    const door = (dx, dw) => {
-      rr(dx, cy + 13, dw, ch - 20, 2, RAMP.appl[1]); rr(dx + 2, cy + 15, dw - 4, ch - 24, 1, RAMP.glass[0]);
-      rect(dx + 2, cy + 15, dw - 4, (ch - 24) / 3, RAMP.glass[1]);
-      rect(dx + 2, cy + 15 + 2 * (ch - 24) / 3, dw - 4, (ch - 24) / 3, RAMP.glass[0]);
-      for (let r = 0; r < 3; r++) for (let c = 0; c < 2; c++) {
-        const bx = dx + 4 + c * ((dw - 8) / 2), by = cy + 18 + r * ((ch - 30) / 3);
-        rr(bx, by, (dw - 12) / 2, (ch - 34) / 3, 1, STOCK[(r * 2 + c) % STOCK.length]); rect(bx, by, (dw - 12) / 2, 1, '#ffffff40');
-      }
-      ctx.save(); ctx.globalAlpha = 0.16; rect(dx + 3, cy + 16, 3, ch - 26, RAMP.glass[4]); ctx.restore();
-      for (let fy = cy + 16; fy < cy + ch - 12; fy += 4) rect(dx + 2, fy + ((fy / 4) & 1), 1, 1, RAMP.glass[4]);
-      rect(dx + dw - 3, cy + 22, 2, ch - 36, RAMP.steel[4]);
+  // ---- the main gondola of goods ----
+  shopRack(134, 44, 220, 140);
+  shopStock(146, 64, 344);
+  (function posters() {
+    // two little hand-painted notices tacked to the pegboard
+    const tack = (px, py, pw, phh, face, edge) => {
+      ctx.save(); ctx.translate(px, py); ctx.rotate(Math.sin(px * 0.7) * 0.05);
+      rr(1, 2, pw, phh, 1, '#00000044'); rr(0, 0, pw, phh, 1, edge); rr(1, 1, pw - 2, phh - 2, 1, face);
+      rect(2, 2, pw - 4, 1, '#ffffff55');
+      rect(pw / 2 - 1, 1, 2, 2, '#c23a4a');
+      ctx.restore();
     };
-    const dw = (cw - 8) / 2; door(cx + 3, dw); door(cx + 5 + dw, dw);
-    rect(cx + cw / 2 - 1, cy + 13, 2, ch - 20, RAMP.appl[0]);
-    ctx.save(); ctx.globalAlpha = 0.12 * glow; fillCircle(cx + cw / 2, cy + ch, 44, RAMP.glass[3]);
-    ctx.globalAlpha = 0.06 * glow; rect(cx - 8, cy, cw + 16, ch + 24, RAMP.glass[3]); ctx.restore();
-    const vt = tNow % 3;
-    if (vt < 1.2) { ctx.save(); ctx.globalAlpha = (1.2 - vt) * 0.25; fillCircle(cx + 8 + vt * 6, cy + ch - 4 - vt * 5, 3 + vt * 2, RAMP.glass[4]); ctx.restore(); }
+    tack(140, 76, 46, 13, '#e8dfc2', '#8a7a54');
+    drawText('NO BITING', 144, 80, '#8a2a16', 1);
+    tack(302, 76, 50, 13, '#cfe3d6', '#4a6a54');
+    drawText('TRADE-INS OK', 305, 80, '#1d4a2c', 1);
   })();
 
-  // ---- Merle at his checkout counter (far RIGHT) ----
-  if (G.summer) drawDuckVendor(424, 100); else drawVendor(424, 100);
+  // ---- the cooler ----
+  shopCooler(356, 66, 58, 98);
+
+  // ---- Merle behind his counter (far RIGHT) ----
+  const vTalking = (tNow % 6) < 4.2;
+  const vMood = ['calm', 'happy', 'think', 'calm', 'proud', 'wow'][Math.floor(tNow / 6) % 6];
+  if (G.summer) drawDuckVendor(424, 100); else drawVendor(416, 92, { expr: vMood, talk: vTalking });
   (function counter() {
-    const kx = 408, ky = 150, kw = 72, kh = 26;
-    rr(kx, ky + 2, kw, kh, 2, '#00000066'); rr(kx, ky, kw, kh, 2, RAMP.wood[0]); rr(kx + 1, ky + 1, kw - 2, kh - 3, 2, RAMP.wood[2]);
-    for (let px = kx + 6; px < kx + kw; px += 12) rect(px, ky + 3, 1, kh - 6, RAMP.wood[1]);
-    rect(kx, ky, kw, 3, RAMP.steel[2]); rect(kx, ky, kw, 1, RAMP.steel[4]); rect(kx, ky + 3, kw, 1, RAMP.steel[0]);
-    rr(kx + 6, ky + 5, 22, 18, 3, RAMP.wood[3]); rect(kx + 12, ky + 9, 8, 8, '#2c5a24'); rect(kx + 15, ky + 7, 3, 4, '#2c5a24');
-    rr(kx + 34, ky - 8, 16, 9, 1, RAMP.steel[1]); rect(kx + 36, ky - 6, 12, 3, C.green);
+    const kx = 404, ky = 150, kw = 76, kh = 30, Wd = RAMP.wood, S = SHOPW.steel;
+    rr(kx, ky + 3, kw, kh, 2, '#00000077');
+    rr(kx, ky, kw, kh, 2, Wd[0]); rr(kx + 1, ky + 1, kw - 2, kh - 3, 2, Wd[2]);
+    for (let px = kx + 8; px < kx + kw; px += 13) { rect(px, ky + 4, 1, kh - 7, Wd[1]); rect(px + 1, ky + 4, 1, kh - 7, Wd[3]); }
+    ctx.save(); ctx.globalAlpha = 0.18; for (let g = 0; g < 8; g++) rect(kx + 3 + (g * 17) % 68, ky + 6 + (g % 4) * 5, 9, 1, '#2a1a0c'); ctx.restore();
+    rect(kx, ky, kw, 4, S[3]); rect(kx, ky, kw, 1, S[4]); rect(kx, ky + 4, kw, 1, S[0]);
+    // brass till
+    rr(kx + 5, ky + 6, 24, 20, 3, '#241708'); rr(kx + 6, ky + 7, 22, 18, 2, BRS[1]);
+    rect(kx + 7, ky + 8, 20, 3, BRS[3]); rect(kx + 7, ky + 8, 12, 1, BRS[4]);
+    rect(kx + 11, ky + 13, 12, 9, '#1c2c22'); rect(kx + 12, ky + 14, 10, 7, '#2c5a24');
+    rect(kx + 13, ky + 15, 8, 1, '#63d66a');
+    rect(kx + 15, ky + 4, 5, 3, BRS[2]); rect(kx + 15, ky + 4, 5, 1, BRS[4]);
+    // a jar of gummies and a tip cup
+    rr(kx + 34, ky - 12, 14, 14, 3, '#101418'); rr(kx + 35, ky - 11, 12, 12, 2, '#cfe3e0');
+    [0, 1, 2, 3].forEach(k => fillCircle(kx + 38 + (k % 2) * 5, ky - 6 + ((k / 2) | 0) * 4, 2, ['#e2486a', '#63d66a', '#ffd54a', '#7fd4e8'][k]));
+    rect(kx + 35, ky - 14, 12, 3, '#7a5a2e'); rect(kx + 35, ky - 14, 12, 1, '#a8824a');
+    rr(kx + 54, ky - 8, 12, 10, 2, '#3a444c'); rr(kx + 55, ky - 7, 10, 8, 2, '#5a646c');
+    rect(kx + 57, ky - 5, 3, 2, C.gold); rect(kx + 61, ky - 4, 3, 2, C.gold);
   })();
-  rr(456, 140, 12, 10, 2, '#c8b060'); rect(458, 138, 8, 3, '#a89040'); rect(459, 144, 3, 2, C.gold); rect(463, 145, 3, 2, C.gold);
+  // hanging scale above the counter
+  rect(452, 118, 2, 14, '#5a646c');
+  rr(444, 132, 18, 10, 2, '#241708'); rr(445, 133, 16, 8, 2, '#c8b060');
+  fillCircle(453, 137, 3, '#f4f0dc'); rect(453, 135, 1, 3, '#3a2818');
+  rect(447, 142, 12, 2, '#8a7448');
+
   const vline = VENDOR.lines[Math.floor(tNow / 6) % VENDOR.lines.length];
-  if ((tNow % 6) < 4.2) {
-    const bw = Math.min(150, textW(vline.slice(0, 28), 1) + 12);
-    panel(316, 70, bw, 14, { face: '#f4f2e4', edge: '#c8b060', r: 2 });
-    drawText(vline.slice(0, 28), 321, 74, '#3a2818', 1);
-    rect(452, 84, 3, 6, '#f4f2e4'); // tail down toward Merle
+  if (vTalking) {
+    const words = vline.split(' ');
+    let l1 = '', l2 = '';
+    words.forEach(w2 => { if (textW(l1 + ' ' + w2, 1) < 122 && !l2) l1 = l1 ? l1 + ' ' + w2 : w2; else l2 = (l2 ? l2 + ' ' + w2 : w2); });
+    l2 = l2.slice(0, 24);
+    const bw = Math.max(textW(l1, 1), textW(l2, 1)) + 14, bh = l2 ? 24 : 16;
+    const bx2 = 472 - bw, by2 = 46 + Math.round(Math.sin(tNow * 2) * 1);
+    rr(bx2 + 2, by2 + 3, bw, bh, 4, '#00000066');
+    rr(bx2, by2, bw, bh, 4, '#8a7a54');
+    rr(bx2 + 1, by2 + 1, bw - 2, bh - 2, 3, '#f7f4e6');
+    rect(bx2 + 3, by2 + 2, bw - 6, 1, '#ffffff');
+    drawText(l1, bx2 + 6, by2 + 4, '#3a2818', 1);
+    if (l2) drawText(l2, bx2 + 6, by2 + 13, '#6a5238', 1);
+    rect(448, by2 + bh, 6, 3, '#f7f4e6'); rect(450, by2 + bh + 3, 4, 3, '#f7f4e6'); rect(452, by2 + bh + 6, 2, 2, '#f7f4e6');
   }
-  hit(418, 100, 60, 74, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
+  hit(414, 92, 64, 80, { id: 'merle', tip: VENDOR.name + '|' + VENDOR.who + "|'" + vline + "'" });
 
   // =========== GATOR'S CLOSET: the cosmetics boutique (LEFT end-cap) ===========
   drawCosmeticStand(8, 108, 120);
@@ -4672,49 +5480,101 @@ function drawShop() {
   const bx0 = 148;
   G.shopItems.forEach((it, i) => {
     const x = bx0 + i * 51, y = 96;
-    panel(x - 4, y - 6, 50, 82, { face: '#1a2530dd' });
+    const afford = !it.sold && G.money >= it.price;
+    const hovS = mx >= x - 4 && mx < x + 46 && my >= y - 6 && my < y + 76;
+    // ---- display niche: slate back, lit cove, timber plinth ----
+    rr(x - 4, y - 6, 50, 82, 3, '#0d1318');
+    rr(x - 3, y - 5, 48, 80, 3, '#1b2831');
+    rect(x - 3, y - 5, 48, 3, '#273a45');
+    rect(x - 3, y - 5, 48, 1, '#3d5966');
+    ctx.save(); ctx.globalAlpha = 0.22 + (hovS ? 0.12 : 0) + Math.sin(tNow * 2 + i) * 0.02;
+    for (let k = 0; k < 7; k++) rect(x + 2 + k, y - 2, 38 - k * 2, 40, '#ffe6b0');   // spotlight cone
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.2; fillCircle(x + 21, y + 46, 15, '#ffd48a'); ctx.restore();
+    rect(x - 3, y + 46, 48, 6, '#5f4228');   // plinth
+    rect(x - 3, y + 46, 48, 1, '#8a6238');
+    rect(x - 3, y + 51, 48, 1, '#2e1f10');
+    for (let k = 0; k < 4; k++) rect(x + 2 + k * 12, y + 47, 1, 4, '#4a3320');
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.scale(1, 0.3); fillCircle(x + 21, (y + 46) / 0.3, 13, '#000'); ctx.restore();
+
     if (it.sold) {
-      drawTextC('SOLD', x + 22, y + 30, C.dim, 1);
+      ctx.save(); ctx.globalAlpha = 0.5; rect(x - 3, y - 5, 48, 80, '#0a0f13'); ctx.restore();
+      ctx.save(); ctx.translate(x + 21, y + 30); ctx.rotate(-0.18);
+      rr(-24, -9, 48, 18, 2, '#5a1a12'); rr(-23, -8, 46, 16, 2, '#8a2a16');
+      rect(-22, -7, 44, 1, '#c85a3a');
+      drawTextC('SOLD OUT', 0, -3, '#ffd8c0', 1);
+      ctx.restore();
       return;
     }
-    const afford = G.money >= it.price;
     drawCardAnim(x + 7, y + 2, it.def, it.kind, i + 10, {
       id: 'shopitem' + i,
-      price: it.price, afford,
+      price: undefined, afford,
       tip: it.def.name + '|CLICK FOR DETAILS',
       click: () => { G.inspect = { kind: 'shop', item: it }; },
     });
-    // a spinning cartoon starburst on anything you can actually afford cheaply
-    if (!it.sold && afford && it.price <= 6) {
-      const sx2 = x + 40, sy2 = y + 6, spin = tNow * 1.6;
+    // ---- swing tag on a wire, carrying the price ----
+    const sway = Math.sin(tNow * 1.7 + i * 1.3) * 0.1 + (hovS ? Math.sin(tNow * 9) * 0.06 : 0);
+    ctx.save(); ctx.translate(x + 34, y - 4); ctx.rotate(sway);
+    rect(-1, 0, 2, 6, '#8a949c');
+    rr(-10, 5, 20, 14, 3, '#241708');
+    rr(-9, 6, 18, 12, 2, afford ? '#f0d48a' : '#b8a898');
+    rect(-8, 7, 16, 1, '#fff4d0');
+    rect(-8, 15, 16, 1, '#b8922a');
+    fillCircle(0, 8, 2, '#8a7448'); fillCircle(0, 8, 1, '#241708');
+    drawTextC('$' + it.price, 0, 11, afford ? '#4a3208' : '#6a2a2a', 1);
+    ctx.restore();
+    // a spinning cartoon starburst on anything you can afford cheaply
+    if (afford && it.price === Math.min.apply(null, G.shopItems.filter(q => !q.sold && G.money >= q.price).map(q => q.price)) && G.shopItems.filter(q => !q.sold).length > 1) {
+      const sx2 = x + 5, sy2 = y + 8, spin = tNow * 1.6;
       ctx.save(); ctx.translate(sx2, sy2); ctx.rotate(spin);
-      for (let s = 0; s < 8; s++) { const a = s / 8 * Math.PI * 2; rect(Math.cos(a) * 7 - 1, Math.sin(a) * 7 - 1, 3, 3, '#ff5a4a'); }
+      for (let s2 = 0; s2 < 8; s2++) { const a2 = s2 / 8 * Math.PI * 2; rect(Math.cos(a2) * 7 - 1, Math.sin(a2) * 7 - 1, 3, 3, '#ff5a4a'); }
       ctx.restore();
       fillCircle(sx2, sy2, 7, '#ff5a4a'); fillCircle(sx2, sy2 - 1, 6, '#ff8a6a');
       drawTextC('!', sx2, sy2 - 3, '#fff6c8', 1);
     }
+    // ---- engraved shelf label ----
     const label = it.kind === 'charm' ? 'BADGE' : it.kind === 'tool' ? 'TOOL' : 'CARD';
-    drawTextC(label, x + 22, y + 50, it.kind === 'tool' ? '#7fd0c0' : C.dim, 1);
-    const nm = it.def.name;
-    if (nm.length > 9 && nm.includes(' ')) {
-      const cut = nm.lastIndexOf(' ');
-      drawTextC(nm.slice(0, cut), x + 22, y + 59, C.white, 1);
-      drawTextC(nm.slice(cut + 1), x + 22, y + 67, C.white, 1);
-    } else {
-      drawTextC(nm, x + 22, y + 62, C.white, 1);
-    }
+    rr(x - 2, y + 52, 46, 22, 2, '#131c22');
+    rect(x - 1, y + 53, 44, 1, '#2b3d47');
+    drawTextC(label, x + 21, y + 55, it.kind === 'tool' ? '#7fd0c0' : it.kind === 'charm' ? '#e8b45a' : '#c8a8f8', 1);
+    const nl = fitLines(it.def.name, 42);
+    if (nl.length > 1) { drawTextC(nl[0], x + 21, y + 63, C.white, 1); drawTextC(nl[1], x + 21, y + 70, C.white, 1); }
+    else drawTextC(nl[0], x + 21, y + 66, C.white, 1);
   });
 
+  // ---- snack crate: the packs stand in a torn-open display box ----
+  (function crate() {
+    const cx2 = 180, cy2 = 214, cw2 = 150, chh = 26;
+    rr(cx2 - 2, cy2 + 2, cw2 + 4, chh, 2, '#00000066');
+    rr(cx2, cy2, cw2, chh, 2, '#3a2412');
+    rr(cx2 + 1, cy2 + 1, cw2 - 2, chh - 2, 2, '#7a5230');
+    rect(cx2 + 1, cy2 + 1, cw2 - 2, 2, '#9a6a3e');
+    for (let k = 0; k * 22 < cw2; k++) rect(cx2 + 4 + k * 22, cy2 + 3, 1, chh - 6, '#5a3a1e');
+    rect(cx2 + 4, cy2 + 15, cw2 - 8, 9, '#e8dfc2');
+    rect(cx2 + 4, cy2 + 15, cw2 - 8, 1, '#ffffff');
+    drawTextC('SNACK STAND', cx2 + cw2 / 2, cy2 + 17, '#8a2a16', 1);
+    ctx.save(); ctx.globalAlpha = 0.2;
+    for (let k = 0; k < 12; k++) rect(cx2 + 6 + (k * 29) % (cw2 - 12), cy2 + 4 + (k % 3) * 8, 8, 1, '#2a1a0c');
+    ctx.restore();
+  })();
   // packs shelf
   G.shopPacks.forEach((p, i) => {
-    const x = 186 + i * 78, y = 186;
+    const x = 186 + i * 78, y = 172;
     const hov = mx >= x && mx < x + 64 && my >= y - 4 && my < y + 44;
-    const yy = y + (hov ? -3 : Math.round(Math.sin(tNow * 1.6 + i * 2) * 1.5));
+    const yy = y + (hov ? -4 : Math.round(Math.sin(tNow * 1.6 + i * 2) * 1.5));
     if (p.sold) { panel(x, y, 64, 40, { face: '#141c22' }); drawTextC('OPENED', x + 32, y + 17, C.dim, 1); return; }
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.scale(1, 0.25);
+    fillCircle(x + 32, (y + 46) / 0.25, 26, '#000'); ctx.restore();
+    ctx.save();
+    ctx.translate(x + 32, yy + 44); ctx.rotate(Math.sin(tNow * 1.3 + i) * 0.022 + (hov ? Math.sin(tNow * 9) * 0.03 : 0));
+    ctx.translate(-(x + 32), -(yy + 44));
     drawPackArt(x, yy, 64, 44, p.def);
+    ctx.restore();
     const afford = G.money >= p.price;
-    drawTextC('$' + p.price, x + 32, yy + 44, afford ? C.gold : C.red, 1);
-    hit(x, y - 2, 64, 40, { // 40 tall: bottom clears the NEXT button at y226
+    rr(x + 20, yy + 44, 24, 10, 2, '#241708');
+    rr(x + 20, yy + 44, 23, 9, 2, afford ? '#f0d48a' : '#b8a898');
+    drawTextC('$' + p.price, x + 32, yy + 46, afford ? '#4a3208' : '#6a2a2a', 1);
+    hit(x, y - 2, 64, 44, { // clears the NEXT button below
       cb: () => buyPack(p), id: 'pack' + p.kind, cursor: true,
       tip: p.def.name + '|' + (p.kind === 'tooth' ? 'SHOWS ' + p.def.show + ' TEETH, PICK ' + p.def.picks : 'SHOWS ' + p.def.show + ' TOOLS, PICK ' + p.def.picks) + "|'" + p.def.flav + "'",
     });
@@ -4747,96 +5607,379 @@ function drawShop() {
   }
 }
 
-// foil snack/TCG pack art: crimped edges, mascot, shine
-function drawPackArt(x, y, w, h, def) {
-  x |= 0; y |= 0;
-  const col = def.col || '#c9941a';
-  const dark = '#00000055';
-  // crimped top and bottom (zigzag teeth)
-  for (let k = 0; k < Math.floor(w / 6); k++) {
-    rect(x + k * 6 + 1, y, 4, 3, col);
-    rect(x + k * 6 + 1, y + h - 3, 4, 3, col);
+// ======================= SNACK-STAND PACKAGING ============================
+//  Every product gets real packaging: crimped foil edges, a printed brand
+//  band, a holo strip that catches the light, a mascot and a serrated tear
+//  strip along the top.  `o.tear` (0..1) peels that strip off for the opening
+//  animation, so the shelf art and the rip animation are the same sprite.
+// ==========================================================================
+const PACKPAL = {
+  gummies: { a: '#c9556a', b: '#7a2338', c: '#f08fa2', d: '#ffd54a', ink: '#4a1220', holo: ['#ff8fb0', '#ffd0dc', '#b06a8a'] },
+  chomppops: { a: '#e8a020', b: '#8a5408', c: '#ffcf6a', d: '#63d66a', ink: '#4a2c04', holo: ['#ffd88a', '#fff2c8', '#c08a20'] },
+  sundae: { a: '#4fb3c8', b: '#1d5a68', c: '#9fe4f0', d: '#ff8fb0', ink: '#0d3540', holo: ['#9fe8ff', '#e8fbff', '#5f9ab0'] },
+  tacklebox: { a: '#3a9a8a', b: '#175048', c: '#7fd4c4', d: '#ffd54a', ink: '#0c2e2a', holo: ['#8fe8d8', '#e0fff8', '#4a8a80'] },
+  toolbelt: { a: '#8a6510', b: '#4a3406', c: '#d0a03a', d: '#e8e0c8', ink: '#2e1f04', holo: ['#e8c46a', '#fff2c8', '#a07820'] },
+};
+
+// a grinning tooth mascot - the face of the whole snack range
+function packMascot(x, y, s, wink) {
+  const w = 10 * s, h = 12 * s;
+  rr(x, y, w, h - 3 * s, 3 * s, '#c8bfa0');
+  rr(x + s, y + s, w - 2 * s, h - 5 * s, 2 * s, '#fdfaf0');
+  rect(x + s, y + s, w - 5 * s, 2 * s, '#ffffff');
+  rect(x, y + h - 5 * s, 4 * s, 5 * s, '#c8bfa0'); rect(x + w - 4 * s, y + h - 5 * s, 4 * s, 5 * s, '#c8bfa0');
+  rect(x + s, y + h - 5 * s, 2 * s, 3 * s, '#efe8d2'); rect(x + w - 3 * s, y + h - 5 * s, 2 * s, 3 * s, '#efe8d2');
+  // face
+  if (wink) { rect(x + 2 * s, y + 4 * s, 2 * s, s, '#20140c'); }
+  else { rect(x + 2 * s, y + 3 * s, 2 * s, 2 * s, '#20140c'); rect(x + 2 * s, y + 3 * s, s, s, '#ffffff'); }
+  rect(x + 6 * s, y + 3 * s, 2 * s, 2 * s, '#20140c'); rect(x + 6 * s, y + 3 * s, s, s, '#ffffff');
+  rect(x + 3 * s, y + 7 * s, 5 * s, s, '#20140c');
+  rect(x + 4 * s, y + 8 * s, 3 * s, s, '#d2607e');
+  ctx.save(); ctx.globalAlpha = 0.45;
+  rect(x + s, y + 6 * s, 2 * s, s, '#ef7f94'); rect(x + 7 * s, y + 6 * s, 2 * s, s, '#ef7f94');
+  ctx.restore();
+}
+
+function drawPackArt(x, y, w, h, def, o) {
+  o = o || {};
+  x |= 0; y |= 0; w |= 0; h |= 0;
+  const P = PACKPAL[def.id] || PACKPAL.gummies;
+  const tear = clamp(o.tear || 0, 0, 1);
+  const s = w >= 100 ? 2 : 1;                       // 1x on the shelf, 2x when held
+  const stripH = 4 * s + 2;                          // the tear-off strip at the top
+  const bodyY = y + stripH;
+  const crimp = (cy, flip) => {                      // serrated foil crimp
+    for (let k = 0; k * 5 < w; k++) {
+      rect(x + k * 5, cy, 3, 3, P.b);
+      rect(x + k * 5, cy + (flip ? 0 : 1), 3, 1, P.c);
+    }
+  };
+
+  // ---------------- body ----------------
+  rr(x, bodyY, w, y + h - bodyY, 2, P.b);
+  rr(x + 1, bodyY + 1, w - 2, y + h - bodyY - 2, 2, P.a);
+  ctx.save(); ctx.globalAlpha = 0.5; rect(x + 1, bodyY + 1, w - 2, Math.round(h * 0.28), P.c); ctx.restore();
+  rect(x + 1, y + h - 4, w - 2, 3, P.b);
+  crimp(y + h - 4, 1);
+  // vertical foil creases
+  ctx.save(); ctx.globalAlpha = 0.14;
+  for (let k = 1; k * 9 < w; k++) rect(x + k * 9, bodyY + 2, 1, y + h - bodyY - 5, '#000000');
+  for (let k = 1; k * 9 < w; k++) rect(x + k * 9 + 1, bodyY + 2, 1, y + h - bodyY - 5, '#ffffff');
+  ctx.restore();
+
+  // ---------------- holo band that catches the light ----------------
+  const hy = bodyY + Math.round(h * 0.1), hh = Math.max(11, Math.round(h * 0.26));
+  rect(x + 2, hy - 1, w - 4, hh + 2, P.ink);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x + 2, hy, w - 4, hh); ctx.clip();
+  const HOLO = [P.holo[0], P.holo[1], '#ffffff', P.holo[1], P.holo[0], P.holo[2], P.a, P.holo[2]];
+  for (let k = 0; k < w; k += 2) {
+    const f = ((k / 15) + tNow * 0.3) % 1;
+    rect(x + 2 + k, hy, 2, hh, HOLO[(f * HOLO.length) | 0]);
   }
-  rect(x, y + 2, w, 2, col);
-  rect(x, y + h - 4, w, 2, col);
-  // bag body
-  rr(x, y + 3, w, h - 6, 2, col);
-  rr(x + 2, y + 5, w - 4, h - 10, 2, '#1a2530');
-  // brand band
-  rect(x + 2, y + 7, w - 4, 9, col);
-  rect(x + 2, y + 16, w - 4, 1, '#ffffff44');
-  const words = def.name.split(' ');
-  drawTextC(words[0].slice(0, 9), x + w / 2, y + 9, '#fff', 1);
-  if (words[1]) drawTextC(words[1].slice(0, 9), x + w / 2, y + 19, '#ffe6b0', 1);
-  // mascot gator winking
-  const mx2 = x + 8, my2 = y + h - 18;
-  rr(mx2, my2 + 4, 16, 7, 3, '#5aa843');
-  rr(mx2 + 1, my2, 6, 6, 2, '#5aa843');
-  rr(mx2 + 9, my2, 6, 6, 2, '#5aa843');
-  rect(mx2 + 3, my2 + 2, 2, 2, '#f8f4dc'); rect(mx2 + 11, my2 + 2, 2, 1, '#1b1408'); // wink
-  rect(mx2 + 2, my2 + 8, 12, 1, '#f8f4dc'); // grin
-  // product motif
-  if (def.kind === 'tooth') { ICONS.tooth(x + w - 18, my2 - 2, '#fff'); }
-  else { ctx.save(); ctx.translate(x + w - 19, my2 - 2); ICONS.tdrill(0, 0); ctx.restore(); }
-  // starburst 'PICK N!'
-  fillCircle(x + w - 9, y + 10, 7, '#ffe089');
-  fillCircle(x + w - 9, y + 10, 6, '#d94f30');
-  drawTextC('' + def.picks, x + w - 9, y + 8, '#fff', 1);
-  // diagonal foil shine
-  ctx.globalAlpha = 0.18;
-  for (let k = 0; k < 3; k++) rect(x + 6 + k * 3 + ((tNow * 8 | 0) % Math.max(1, w)), y + 4, 2, h - 8, '#ffffff');
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = 0.22; rect(x + 2, hy, w - 4, Math.ceil(hh / 2), '#ffffff');
+  ctx.globalAlpha = 0.25; rect(x + 2, hy + hh - 3, w - 4, 3, '#000000');
+  ctx.restore();
+  rect(x + 2, hy, w - 4, 1, '#ffffffcc'); rect(x + 2, hy + hh - 1, w - 4, 1, '#00000077');
+
+  // ---------------- brand wordmark, auto-fitted ----------------
+  const brand = def.brand || def.name.split(' ')[0];
+  let bs = s > 1 ? 3 : 1;
+  while (bs > 1 && textW(brand, bs) > w - 14) bs--;
+  drawTextCSh(brand, x + w / 2, hy + Math.round((hh - 5 * bs) / 2), '#ffffff', bs, P.ink);
+  let sub = def.sub || def.name.split(' ').slice(1).join(' ');
+  while (sub && textW(sub, 1) > w - 12) sub = sub.slice(0, -1);
+  if (sub) {
+    const sy2 = hy + hh + 2;
+    rr(x + 4, sy2, w - 8, 9, 1, P.ink);
+    drawTextC(sub, x + w / 2, sy2 + 2, P.d, 1);
+  }
+
+  // ---------------- product motif ----------------
+  const my2 = hy + hh + (sub ? 11 : 3);
+  if (def.id === 'tacklebox') {
+    // a blister window with the tools on show
+    const bw = Math.round(w * 0.42), bx = x + Math.round(w * 0.32), by2 = my2 + s;
+    rr(bx - 1, by2 - 1, bw + 2, 14 * s + 2, 2, P.ink);
+    rr(bx, by2, bw, 14 * s, 2, '#0d1c20');
+    ctx.save(); ctx.globalAlpha = 0.3; rect(bx + 1, by2 + 1, bw - 2, 4 * s, '#bfeef2'); ctx.restore();
+    ['tpliers', 'tdrill'].forEach((k, i) => {
+      ctx.save(); ctx.translate(bx + 2 + i * (bw / 2 - 1), by2 + 1); ctx.scale(0.6 * s, 0.6 * s);
+      (TOOLART[k])(0, 0); ctx.restore();
+    });
+    ctx.save(); ctx.globalAlpha = 0.2;
+    for (let k = 0; k * 6 < bw; k++) rect(bx + k * 6, by2, 2, 14 * s, '#ffffff'); ctx.restore();
+    // the 101 roundel
+    const rx = x + 9 * s + 2, ry = my2 + 8 * s;
+    fillCircle(rx, ry, 9 * s, P.ink);
+    fillCircle(rx, ry, 8 * s, P.d);
+    fillCircle(rx, ry, 6 * s, '#fff6c8');
+    drawTextC('101', rx, ry - 3 * s, P.ink, s);
+    if (s > 1) drawTextC('KIT', rx, ry + 5, P.b, 1);
+  } else if (def.id === 'toolbelt') {
+    ctx.save(); ctx.globalAlpha = 0.25;
+    for (let k = 0; k < 14; k++) rect(x + 3 + (k * 13) % (w - 6), bodyY + 3 + (k * 7) % (h - 14), 2, 1, '#2e1f04');
+    ctx.restore();
+    for (let k = 0; k * 11 < w - 8; k++) { rect(x + 5 + k * 11, y + h - 9, 3, 3, '#c8a860'); rect(x + 5 + k * 11, y + h - 9, 2, 2, '#fff2c8'); }
+    ctx.save(); ctx.translate(x + Math.round(w * 0.42), my2); ctx.scale(0.7 * s, 0.7 * s); TOOLART.troot(0, 0); ctx.restore();
+    packMascot(x + 4 * s, my2, s, 1);
+  } else {
+    packMascot(x + 4 * s, my2, s, def.id === 'gummies' ? 1 : 0);
+    if (def.id === 'gummies') {           // scattered gummy teeth
+      [[0.26, 0.2], [0.3, 0.62], [0.22, 0.86], [0.34, 0.4]].forEach(([fx, fy], i) => {
+        const gx = x + fx * w, gy2 = my2 + fy * (y + h - my2 - 4);
+        rr(gx, gy2, 4 * s, 4 * s, s, ['#ff8fb0', '#63d66a', '#ffd54a', '#8fd8ff'][i]);
+        rect(gx, gy2, 2 * s, s, '#ffffffaa');
+      });
+      const bump = 1 + Math.sin(tNow * 4) * 0.06;
+      ctx.save(); ctx.translate(x + Math.round(w * 0.5) + 4 * s, my2 + 8 * s); ctx.scale(bump, bump);
+      for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; rect(Math.cos(a) * 8 * s - s, Math.sin(a) * 8 * s - s, 2 * s, 2 * s, '#ffd54a'); }
+      fillCircle(0, 0, 7 * s, '#ffd54a'); fillCircle(0, -s, 6 * s, '#fff2c8');
+      drawTextC('CHEWY', 0, -2 * s, '#c9556a', s > 1 ? 1 : 1);
+      ctx.restore();
+    } else if (def.id === 'chomppops') { // lolly on a stick with a bite taken out
+      const lx = x + Math.round(w * 0.52), ly = my2 + 6 * s;
+      rect(lx - s, ly + 5 * s, 2 * s, 8 * s, '#e8dcc0');
+      fillCircle(lx, ly, 7 * s, '#8a5408'); fillCircle(lx, ly, 6 * s, '#ff6a4a');
+      ctx.save();
+      for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283 + tNow; rect(lx + Math.cos(a) * 3 * s, ly + Math.sin(a) * 3 * s, 2 * s, 2 * s, k % 2 ? '#ffd54a' : '#ff6a4a'); }
+      ctx.restore();
+      fillCircle(lx + 5 * s, ly - 3 * s, 4 * s, P.a);   // bite mark
+    } else if (def.id === 'sundae') {
+      const gx = x + Math.round(w * 0.48), gy2 = my2 + 3 * s;
+      rect(gx, gy2 + 4 * s, 11 * s, 2 * s, '#cfe8f0');
+      rect(gx + s, gy2 + 6 * s, 9 * s, 6 * s, '#efe0c8');
+      rect(gx + 4 * s, gy2 + 12 * s, 3 * s, 3 * s, '#cfe8f0');
+      fillCircle(gx + 4 * s, gy2 + 2 * s, 4 * s, '#f8e8d0'); fillCircle(gx + 8 * s, gy2 + 3 * s, 3 * s, '#c07a4a');
+      fillCircle(gx + 5 * s, gy2 - 2 * s, 2 * s, '#e2486a'); rect(gx + 5 * s, gy2 - 5 * s, s, 3 * s, '#5f8440');
+    }
+  }
+
+  // ---------------- PICK N starburst ----------------
+  const br = s > 1 ? 16 : 7;
+  const bx2 = x + w - br - 2, by3 = y + h - br - 3;
+  ctx.save(); ctx.translate(bx2, by3); ctx.rotate(Math.sin(tNow * 2) * 0.08);
+  for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283; rect(Math.cos(a) * (br + 1) - 1, Math.sin(a) * (br + 1) - 1, 2 * s, 2 * s, '#ffe089'); }
+  fillCircle(0, 0, br, '#ffe089'); fillCircle(0, 0, br - 1, '#d94f30');
+  drawTextC('' + def.picks, 0, s > 1 ? -6 : -3, '#fff', s);
+  if (s > 1) drawTextC('PICK', 0, 2, '#ffd0c0', 1);
+  ctx.restore();
+
+  // ---------------- tear strip along the top ----------------
+  const peel = tear * (w + 30);
+  ctx.save();
+  if (tear > 0) {
+    ctx.translate(peel, -tear * 6);
+    ctx.rotate(tear * 0.22);
+    ctx.globalAlpha = 1 - tear * 0.25;
+  }
+  rr(x, y, w, stripH + 2, 2, P.b);
+  rr(x + 1, y + 1, w - 2, stripH, 2, mixHex(P.a, '#ffffff', 0.18));
+  crimp(y, 0);
+  ctx.save(); ctx.globalAlpha = 0.35;
+  for (let k = 0; k * 4 < w; k++) rect(x + 2 + k * 4, y + stripH - 1, 2, 1, P.ink);
+  ctx.restore();
+  if (s > 1) drawTextC('TEAR HERE >>', x + w / 2, y + 2, P.ink, 1);
+  // the grab notch
+  rect(x + 2, y, 3, stripH + 2, P.ink);
+  rect(x + w - 5, y, 3, stripH + 2, P.ink);
+  ctx.restore();
+
+  // torn edge + light spilling out of the gap
+  if (tear > 0) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, bodyY - 3, w, 6); ctx.clip();
+    for (let k = 0; k * 3 < w; k++) {
+      const jag = ((k * 7919) % 5) - 2;
+      rect(x + k * 3, bodyY - 3 + jag, 3, 4, P.ink);
+      rect(x + k * 3, bodyY - 2 + jag, 3, 1, mixHex(P.a, '#ffffff', 0.5));
+    }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha = tear * 0.7;
+    rect(x + 2, bodyY - 2, w - 4, 3, '#fff6c8');
+    ctx.globalAlpha = tear * 0.22; rect(x - 4, bodyY - 10, w + 8, 12, '#fff6c8');
+    ctx.restore();
+  }
+
+  // ---------------- overall foil shine ----------------
+  if (!o.noShine) {
+    ctx.save(); ctx.globalAlpha = 0.12;
+    const sw2 = ((tNow * 0.6 + (def.id || '').length) % 3);
+    if (sw2 < 1) { const gx2 = x - 20 + sw2 * (w + 40); for (let k = 0; k < h; k += 1) rect(gx2 + k * 0.5, y + k, 7, 1, '#ffffff'); }
+    ctx.restore();
+  }
 }
 
 // ------------------------------------------------------ pack opening ------
+//  Two beats, like tearing into a real card pack:
+//   1. the sealed pack floats centre-screen.  You GRAB the tear strip and DRAG
+//      it across - the foil peels, shreds fly and light spills from the gap.
+//   2. the strip rips free in a burst and the contents launch out of the mouth
+//      and fan into a row you pick from.
+function packRip(p) {
+  p.ripped = true; p.ripT = 0; p.tear = 1;
+  shake = Math.max(shake, 7);
+  sfx.sweep(); sfx.buy();
+  const cx = W / 2, cy = 96;
+  fxRing(cx, cy, '#fff6c8', 6, 120, 0.5);
+  fxRing(cx, cy, (PACKPAL[p.product.id] || PACKPAL.gummies).a, 4, 86, 0.42);
+  fxStars(cx, cy, '#ffe089', 16, 150);
+  fxConfetti(cx, cy, 34);
+  fxLines(cx, cy, '#ffffff88', 10, 200);
+  // foil shreds
+  const P = PACKPAL[p.product.id] || PACKPAL.gummies;
+  for (let k = 0; k < 18; k++) {
+    parts.push({
+      x: cx + (rnd() - 0.5) * 130, y: cy - 22, vx: (rnd() - 0.5) * 190, vy: -60 - rnd() * 130,
+      life: 0.9 + rnd() * 0.5, t: 0, col: [P.a, P.b, P.c, P.holo[0]][k % 4], g: 320, kind: 'ribbon', sz: 3,
+    });
+  }
+}
+
 function drawPackOpen(dt) {
   const p = G.pack; if (!p) return;
   p.t += dt;
-  overlayDim(0.78);
+  if (p.tear === undefined) { p.tear = 0; p.ripped = false; p.ripT = 0; }
+  const P = PACKPAL[p.product.id] || PACKPAL.gummies;
+  overlayDim(0.88);
   hit(0, 0, W, H, { cb: () => { }, id: 'packblock' });
-  drawPackArt(W / 2 - 130, 14, 64, 48, p.product);
-  drawPackArt(W / 2 + 66, 14, 64, 48, p.product);
-  drawTextCSh(p.product.name, W / 2, 24, C.gold, 3);
-  drawTextCSh("'" + p.product.flav + "'", W / 2, 46, '#6f8a90', 1);
-  drawTextCSh(p.picksLeft > 1 ? 'PICK ' + p.picksLeft : 'PICK ONE', W / 2, 58, C.white, 1);
+
+  // ---- rotating light bloom behind the whole thing ----
+  ctx.save();
+  ctx.globalAlpha = (p.ripped ? 0.075 : 0.05) + Math.sin(tNow * 2) * 0.012;
+  ctx.translate(W / 2, 96);
+  for (let k = 0; k < 10; k++) {
+    const a = k / 10 * 6.283 + tNow * 0.3;
+    ctx.save(); ctx.rotate(a); rect(0, -4, 250, 8, P.holo[1]); ctx.restore();
+  }
+  ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.14; fillCircle(W / 2, 96, 90, P.a); ctx.restore();
+
+  // ============================ BEAT 1: the rip =============================
+  if (!p.ripped) {
+    const PW = 150, PH = 116;
+    const px = Math.round((W - PW) / 2), py = Math.round(56 + Math.sin(tNow * 1.5) * 2);
+    // drag from the tear strip peels the foil
+    const holding = down && down.hit && down.hit.id === 'packtear';
+    if (holding) {
+      p.tear = clamp((mx - down.x) / (PW * 0.7), 0, 1);
+      if (p.tear >= 1) { packRip(p); return; }
+    } else if (p.tear > 0) p.tear = Math.max(0, p.tear - dt * 2.2);
+
+    // pack shadow + a slight tilt into the pull
+    ctx.save();
+    ctx.translate(px + PW / 2, py + PH / 2);
+    ctx.rotate(p.tear * 0.05 + Math.sin(tNow * 1.1) * 0.012);
+    ctx.translate(-(px + PW / 2), -(py + PH / 2));
+    ctx.save(); ctx.globalAlpha = 0.45; rr(px + 4, py + 8, PW, PH, 4, '#000'); ctx.restore();
+    drawPackArt(px, py, PW, PH, p.product, { tear: p.tear });
+    ctx.restore();
+
+    // ---- title + flavour ----
+    drawTextCSh(p.product.name, W / 2, 16, C.gold, 2);
+    drawTextCSh("'" + p.product.flav + "'", W / 2, 36, '#8fa8b0', 1);
+
+    // ---- drag prompt: a hand that swipes across the strip ----
+    const pulse = 0.55 + Math.sin(tNow * 4) * 0.45;
+    if (p.tear < 0.9) {
+      const hx = px + 18 + ((tNow * 46) % (PW - 44)) * (1 - p.tear * 0.6);
+      ctx.save(); ctx.globalAlpha = 0.35 + pulse * 0.4;
+      for (let k = 0; k < 5; k++) rect(px + 14 + k * 8, py + 2, 5, 2, '#ffffff');
+      ctx.restore();
+      // pointing mitt
+      ctx.save(); ctx.globalAlpha = 0.9;
+      rr(hx - 5, py - 12, 11, 10, 4, '#20140c'); rr(hx - 4, py - 11, 9, 8, 3, '#f0c9a0');
+      rect(hx - 1, py - 16, 3, 6, '#20140c'); rect(hx - 1, py - 15, 2, 5, '#f0c9a0');
+      ctx.restore();
+      // arrow
+      ctx.save(); ctx.globalAlpha = pulse;
+      const ax = px + PW - 26 + Math.sin(tNow * 5) * 3;
+      rect(ax - 16, py + 2, 16, 3, '#ffe089');
+      rect(ax, py - 1, 3, 3, '#ffe089'); rect(ax + 2, py + 1, 3, 3, '#ffe089'); rect(ax, py + 4, 3, 3, '#ffe089');
+      ctx.restore();
+      drawTextCSh(p.tear > 0.05 ? 'KEEP PULLING!' : 'DRAG THE STRIP TO OPEN', W / 2, py + PH + 12, p.tear > 0.05 ? C.gold : '#a8c0c8', 1);
+    }
+    // tension meter under the pack
+    if (p.tear > 0.02) {
+      const mw = 120, mx2 = W / 2 - mw / 2, my2 = py + PH + 24;
+      rr(mx2 - 2, my2 - 2, mw + 4, 10, 2, '#0d1418');
+      rr(mx2, my2, mw, 6, 2, '#243038');
+      rr(mx2, my2, Math.round(mw * p.tear), 6, 2, p.tear > 0.8 ? '#ff6a4a' : P.holo[0]);
+      rect(mx2, my2, Math.round(mw * p.tear), 1, '#ffffff88');
+    }
+    hit(px, py - 10, PW, 24, { id: 'packtear', click: () => { }, cursor: true, tip: 'GRAB AND DRAG TO RIP IT OPEN' });
+    // a mercy button for anyone who would rather just tap
+    if (p.t > 3.5) button(W / 2 - 46, 232, 92, 18, 'JUST RIP IT', '#d94f30', '#8a2a16', () => packRip(p), { id: 'packrip' });
+    return;
+  }
+
+  // ========================= BEAT 2: the reveal =============================
+  p.ripT += dt;
+  const rt = p.ripT;
+  // the emptied wrapper drops to the bottom of the screen
+  const wy = 176 + Math.min(34, rt * 120);
+  ctx.save(); ctx.globalAlpha = 0.8;
+  drawPackArt(W / 2 - 34, wy, 68, 56, p.product, { tear: 1, noShine: 1 });
+  ctx.restore();
+  // white flash on the first frames
+  if (rt < 0.28) { ctx.save(); ctx.globalAlpha = (1 - rt / 0.28) * 0.85; rect(0, 0, W, H, '#fffaf0'); ctx.restore(); }
+
+  drawTextCSh(p.product.name, W / 2, 14, C.gold, 2);
+  drawTextCSh(p.picksLeft > 1 ? 'PICK ' + p.picksLeft : 'PICK ONE', W / 2, 34, C.white, 1);
+
   const n = p.options.length;
   const spacing = n > 4 ? 66 : 70;
   p.options.forEach((o, i) => {
-    const x = W / 2 - (n * spacing - 14) / 2 + i * spacing;
+    const tx = W / 2 - (n * spacing - 14) / 2 + i * spacing;
     if (o.taken) {
-      panel(x - 2, 88, 60, 30, { face: '#141c22' });
-      drawTextC('TAKEN', x + 26, 99, C.green, 1);
+      panel(tx - 2, 88, 60, 30, { face: '#141c22' });
+      drawTextC('TAKEN', tx + 26, 99, C.green, 1);
       return;
     }
-    const appear = clamp(p.t * 2 - i * 0.25, 0, 1);
+    // launch out of the pack mouth, then settle into the row
+    const appear = clamp((rt - 0.12 - i * 0.11) * 2.6, 0, 1);
     if (appear <= 0) return;
-    const y = 78 + (1 - easeOut(appear)) * 60;
-    const hov = appear >= 1 && mx >= x - 4 && mx < x + 60 && my >= y - 6 && my < y + 108;
-    const yy = y + (hov ? -4 : 0);
-    // flip-in: show pack back until half-open
-    if (appear < 0.5) {
+    const e = easeOut(appear);
+    const x = lerp(W / 2 - 14, tx, e);
+    const y = lerp(112, 74, e) - Math.sin(appear * Math.PI) * 26;
+    const spin = (1 - e) * (i % 2 ? 0.9 : -0.9);
+    const hov = appear >= 1 && mx >= x - 4 && mx < x + 60 && my >= y - 6 && my < y + 112;
+    const yy = y + (hov ? -5 : Math.round(Math.sin(tNow * 2 + i) * 1.5));
+
+    ctx.save();
+    ctx.translate(x + 28, yy + 54); ctx.rotate(spin);
+    const sc2 = 0.5 + e * 0.5; ctx.scale(sc2, sc2);
+    ctx.translate(-(x + 28), -(yy + 54));
+    if (appear < 0.55) {                       // face-down until it lands
       rr(x, yy + 10, 56, 76, 3, '#2a3a44');
       rr(x + 4, yy + 14, 48, 68, 3, '#1c2830');
+      for (let k = 0; k < 4; k++) rect(x + 8, yy + 20 + k * 16, 40, 2, '#26333c');
       drawTextC('?', x + 28, yy + 40, '#41565e', 3);
+      ctx.restore();
       return;
     }
+    if (hov) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 8) * 0.12; rr(x - 6, yy - 6, 68, 120, 5, '#ffe8a0'); ctx.restore(); }
     panel(x - 2, yy - 2, 60, 112, { face: '#1a2530f0', edge: hov ? C.gold : '#3a5a50' });
     if (o.tooth) {
+      const td = TOOTH_DEFS[o.tooth];
+      ctx.save(); ctx.globalAlpha = 0.18; fillCircle(x + 28, yy + 24, 20, '#9fe8ff'); ctx.restore();
       drawTooth(x + 16, yy + 8, 24, 32, true, o.tooth, {});
-      const d = TOOTH_DEFS[o.tooth];
-      drawTextC(d.name.replace(' TOOTH', '').replace(' FANG', ''), x + 28, yy + 48, C.white, 1);
-      drawSmallWrapped(d.desc, x + 3, yy + 58, 54, C.dim);
+      drawTextC(td.name.replace(' TOOTH', '').replace(' FANG', ''), x + 28, yy + 48, C.white, 1);
+      drawSmallWrapped(td.desc, x + 3, yy + 58, 54, C.dim);
     } else {
       drawCardFace(x + 13, yy + 6, o.tool, 'tool', {});
       drawTextC(o.tool.name.split(' ')[0], x + 28, yy + 54, C.white, 1);
       drawSmallWrapped(o.tool.desc, x + 3, yy + 64, 54, C.dim);
     }
-    hit(x - 2, y - 4, 60, 116, {
-      cb: () => pickPack(i), id: 'packopt' + i, cursor: true,
-      tip: o.tooth ? TOOTH_DEFS[o.tooth].name + '|' + TOOTH_DEFS[o.tooth].desc : o.tool.name + '|' + o.tool.desc,
-    });
+    ctx.restore();
+    if (appear >= 1) {
+      hit(x - 2, y - 4, 60, 116, {
+        cb: () => pickPack(i), id: 'packopt' + i, cursor: true,
+        tip: o.tooth ? TOOTH_DEFS[o.tooth].name + '|' + TOOTH_DEFS[o.tooth].desc : o.tool.name + '|' + o.tool.desc,
+      });
+    }
   });
-  drawTextC('CHOOSE WISELY, RANGER', W / 2, 216, '#54707a', 1);
+  drawTextC('CHOOSE WISELY, RANGER', W / 2, 214, '#54707a', 1);
   if (p.picksLeft > 0 && p.options.some(o => o.taken)) {
     button(W / 2 - 40, 228, 80, 16, 'SKIP REST', '#3a5560', '#243a44', () => { G.pack = null; }, { id: 'packskip' });
   }
@@ -5550,11 +6693,18 @@ function drawMenu(dt) {
 
   // ===== weathered info + utility row =====
   ensureDaily();
-  drawTextSh('QUESTS DONE: ' + ((meta.qb && meta.qb.done) || 0), 10, 150, C.dim, 1);
-  hit(8, 146, 90, 12, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall|Accept up to 2 quests', cb: () => { G.state = 'pass'; sfx.click(2); } });
-  ICONS.cookie(8, 160);
-  drawTextSh(fmt(meta.rp || 0) + ' COOKIES', 24, 163, C.gold, 1);
-  if (best > 0) drawTextSh('BEST ANTE: ' + best, 10, 178, '#8fa6a8', 1);
+  (function statPlate() {
+    const px = 6, py = 142, pw = 106, phh = best > 0 ? 48 : 38;
+    ctx.save(); ctx.globalAlpha = 0.9;
+    panel(px, py, pw, phh, { face: '#231a10ee', edge: '#6a5230', r: 3, studs: 1 });
+    ctx.restore();
+    rect(px + 4, py + 4, pw - 8, 1, '#00000055');
+    drawTextSh('QUESTS DONE: ' + ((meta.qb && meta.qb.done) || 0), px + 6, py + 7, '#b8a888', 1);
+    ICONS.cookie(px + 4, py + 16);
+    drawTextSh(fmt(meta.rp || 0) + ' COOKIES', px + 20, py + 19, C.gold, 1);
+    if (best > 0) drawTextSh('BEST ANTE: ' + best, px + 6, py + 33, '#8fa6a8', 1);
+    hit(px, py, pw, 14, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall|Accept up to 2 quests', cb: () => { G.state = 'pass'; sfx.click(2); } });
+  })();
 
   // rusted utility buttons (weathered browns) along the bottom
   const idxAll = indexEntries();
@@ -6188,7 +7338,7 @@ const LAKE = { x: 64, y: 44, w: 382, h: 186 };
 function lakePal() {
   return G.summer
     ? { deep: '#0a3446', mid: '#11566a', shal: '#1d8298', foam: '#9ff0ff', glint: '#d6fbff', lily: '#2fa07c', lilyD: '#1c6f56', bank: '#c8b078', bankD: '#8f7a48', tree: '#0d4256', reed: '#3aa88a' }
-    : { deep: '#0a1f27', mid: '#13394a', shal: '#1e5c6e', foam: '#6fc0cc', glint: '#a8ecff', lily: '#3a8040', lilyD: '#24542a', bank: '#33462c', bankD: '#1d2e18', tree: '#0b2018', reed: '#5c9448' };
+    : { deep: '#0e2b36', mid: '#1a4a5e', shal: '#2a7286', foam: '#8ad8e4', glint: '#c8f4ff', lily: '#4a9a4e', lilyD: '#2c6632', bank: '#3d5434', bankD: '#22361d', tree: '#0d2a20', reed: '#6fae56' };
 }
 function drawLake() {
   const L = LAKE, P = lakePal();
@@ -6253,7 +7403,7 @@ function drawLake() {
   pads.forEach(([px2, py2], i) => {
     const x = L.x + px2, y = top + (py2 % (wh - 6)) + Math.sin(tNow * 1.1 + i * 1.7) * 1.2;
     const r = 6 + (i % 3);
-    ctx.save(); ctx.globalAlpha = 0.35; fillCircle(x + 1, y + 2, r, '#04101a'); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.22; fillCircle(x + 1, y + 2, r, '#04101a'); ctx.restore();
     fillCircle(x, y, r, P.lilyD); fillCircle(x, y - 1, r - 1, P.lily);
     rect(x, y - 1, r, 2, P.lilyD);                                   // notch
     rect(x - r + 2, y - 2, 3, 1, '#ffffff22');
@@ -6312,7 +7462,7 @@ function drawRowBoat(x, y, lean, moving) {
   // ---- a little lantern on the bow ----
   rect(11, -12, 1, 6, '#3a2818');
   rr(9, -16, 5, 5, 2, '#2a2018'); rect(10, -15, 3, 3, '#ffd54a');
-  ctx.save(); ctx.globalAlpha = 0.13 + Math.sin(tNow * 5) * 0.04; fillCircle(11, -14, 14, '#ffb848'); ctx.restore();
+  glow(11, -14, 16, '#ffb848', 0.3 + Math.sin(tNow * 5) * 0.06);
   ctx.restore();
 }
 
@@ -6485,8 +7635,8 @@ function drawMap() {
     ctx.restore();
   }
   drawRowBoat(bpos.x, bpos.y + bob, lean, !!G.boat);
-  drawBobble(bpos.x + lean * 0.4, bpos.y - 4 + bob, G.ranger, {
-    sc: 0.5, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle',
+  drawBobble(bpos.x + lean * 0.4, bpos.y + 1 + bob, G.ranger, {
+    sc: 0.42, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle',
     hat: meta.hat, gear: meta.gear, glove: meta.glove,
   });
   // the equipped cosmetic GEAR + HAT ride on the traveler
@@ -8030,8 +9180,17 @@ function frame(ms) {
     for (let y = 0; y < H; y += 3) rect(0, y, W, 1, '#000');
     ctx.globalAlpha = 1;
   }
-  rect(0, 0, W, 2, '#00000088'); rect(0, H - 2, W, 2, '#00000088');
-  rect(0, 0, 2, H, '#00000088'); rect(W - 2, 0, 2, H, '#00000088');
+  // soft corner vignette: eight stepped bands that pull the eye to the middle
+  ctx.save();
+  for (let k = 0; k < 9; k++) {
+    ctx.globalAlpha = 0.05 - k * 0.005;
+    if (ctx.globalAlpha <= 0) break;
+    rect(0, 0, W, 2 + k * 2, '#000'); rect(0, H - 2 - k * 2, W, 2 + k * 2, '#000');
+    rect(0, 0, 2 + k * 3, H, '#000'); rect(W - 2 - k * 3, 0, 2 + k * 3, H, '#000');
+  }
+  ctx.restore();
+  rect(0, 0, W, 2, '#000000aa'); rect(0, H - 2, W, 2, '#000000aa');
+  rect(0, 0, 2, H, '#000000aa'); rect(W - 2, 0, 2, H, '#000000aa');
 
   // pause + overlays swallow all other input
   if (G.paused || G.overlay) {
