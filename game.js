@@ -259,6 +259,133 @@ function rr(x, y, w, h, r, c) {
   }
   ctx.fillRect(x, y + r, w, h - 2 * r);
 }
+// ======================== GOLD & WOOD UI KIT ==============================
+//  One house style for every frame in the game: a dark-outlined brass band
+//  with scroll filigree at the corners, wrapped around an oiled-wood field.
+//  Buttons are stamped brass plaques, headers are planks with steel straps,
+//  bars are segmented brass.  Everything is built from these few pieces so
+//  the shop, the index, the badges and the HUD all read as one set.
+// ==========================================================================
+const UGOLD = ['#2a1a06', '#8a5f10', '#d09a1e', '#f0c447', '#ffe89a'];  // outline..shine
+const UWOOD = ['#241405', '#40230c', '#5c3413', '#74441c', '#8f5a28'];
+const USTEEL = ['#0f2530', '#1d4a5e', '#2f7288', '#4f9fb8', '#9fdcee'];
+const UPARCH = ['#2a1a06', '#9a7442', '#c8a06a', '#dfbc8e', '#f0d8b0'];
+
+// the little brass scroll that sits in each corner of a frame
+function goldCurl(cx, cy, sx, sy) {
+  const px = (dx, dy, w, h, c) => rect(cx + sx * dx - (sx < 0 ? w - 1 : 0), cy + sy * dy - (sy < 0 ? h - 1 : 0), w, h, c);
+  px(0, 0, 7, 1, UGOLD[3]);
+  px(0, 0, 4, 1, UGOLD[4]);
+  px(0, 1, 4, 1, UGOLD[2]);
+  px(0, 1, 1, 6, UGOLD[3]);
+  px(1, 1, 1, 4, UGOLD[4]);
+  px(1, 5, 1, 1, UGOLD[2]);
+  px(5, 1, 2, 1, UGOLD[1]);
+  px(3, 3, 3, 1, UGOLD[2]);
+  px(4, 4, 2, 1, UGOLD[1]);
+  px(2, 4, 1, 2, UGOLD[2]);
+}
+
+// A framed tile: brass band, corner scrolls, wood (or custom) field.
+// o = { field, fieldD, r, flat, thin, glow }
+function goldFrame(x, y, w, h, o) {
+  o = o || {};
+  x |= 0; y |= 0; w |= 0; h |= 0;
+  const r = o.r === undefined ? 4 : o.r;
+  const F = o.field || UWOOD[2], FD = o.fieldD || UWOOD[1], FL = o.fieldL || UWOOD[3];
+  if (o.glow) { ctx.save(); ctx.globalAlpha = o.glow; rr(x - 3, y - 3, w + 6, h + 6, r + 2, UGOLD[3]); ctx.restore(); }
+  rr(x + 1, y + 3, w, h, r, '#00000077');
+  rr(x, y, w, h, r, UGOLD[0]);                         // outline
+  rr(x + 1, y + 1, w - 2, h - 2, r, UGOLD[1]);         // band shadow
+  rr(x + 1, y + 1, w - 2, h - 3, r, UGOLD[2]);         // band
+  rect(x + 3, y + 1, w - 6, 1, UGOLD[4]);              // band top light
+  rect(x + 1, y + 3, 1, h - 6, UGOLD[3]);
+  const b = o.thin ? 2 : 3;
+  rr(x + b, y + b, w - b * 2, h - b * 2, Math.max(1, r - 2), UGOLD[0]);
+  rr(x + b + 1, y + b + 1, w - b * 2 - 2, h - b * 2 - 2, Math.max(1, r - 2), F);
+  if (!o.flat) {                                        // oiled sheen in the field
+    ctx.save(); ctx.globalAlpha = 0.5;
+    rr(x + b + 1, y + b + 1, w - b * 2 - 2, Math.max(2, (h - b * 2) >> 2), Math.max(1, r - 2), FL);
+    ctx.globalAlpha = 0.35;
+    rect(x + b + 1, y + h - b - 3, w - b * 2 - 2, 2, FD);
+    ctx.restore();
+  }
+  if (w >= 26 && h >= 26) {
+    goldCurl(x + 2, y + 2, 1, 1); goldCurl(x + w - 3, y + 2, -1, 1);
+    goldCurl(x + 2, y + h - 3, 1, -1); goldCurl(x + w - 3, y + h - 3, -1, -1);
+  }
+}
+
+// A stamped brass plaque - the standard button face.  `tint` recolours it.
+function plaque(x, y, w, h, o) {
+  o = o || {};
+  const t = o.tint;
+  const g = t ? [mixHex(t, '#000000', 0.7), mixHex(t, '#000000', 0.45), t, mixHex(t, '#ffffff', 0.3), mixHex(t, '#ffffff', 0.62)] : UGOLD;
+  const r = o.r === undefined ? 3 : o.r;
+  rr(x, y + 2, w, h, r, '#00000088');
+  rr(x, y, w, h, r, g[0]);
+  rr(x + 1, y + 1, w - 2, h - 2, r, g[1]);
+  rr(x + 1, y + 1, w - 2, h - 3, r, g[2]);
+  rr(x + 2, y + 2, w - 4, Math.max(1, (h - 4) >> 1), Math.max(1, r - 1), g[3]);
+  rect(x + 3, y + 2, w - 6, 1, g[4]);
+  rect(x + 2, y + h - 3, w - 4, 1, g[1]);
+  if (!o.noStud && w >= 22) {                            // corner rivets
+    [[x + 3, y + 3], [x + w - 5, y + 3], [x + 3, y + h - 6], [x + w - 5, y + h - 6]].forEach(([sx, sy]) => {
+      rect(sx, sy, 2, 2, g[1]); rect(sx, sy, 1, 1, g[4]);
+    });
+  }
+}
+
+// A plank header with steel straps at both ends - used for titles and rows.
+function woodBanner(x, y, w, h, label, o) {
+  o = o || {};
+  x |= 0; y |= 0;
+  rr(x + 1, y + 2, w, h, 2, '#00000077');
+  rr(x, y, w, h, 2, UWOOD[0]);
+  rr(x + 1, y + 1, w - 2, h - 2, 2, UWOOD[2]);
+  rect(x + 2, y + 1, w - 4, 1, UWOOD[4]);
+  rect(x + 2, y + h - 2, w - 4, 1, UWOOD[1]);
+  ctx.save(); ctx.globalAlpha = 0.2;                     // grain
+  for (let k = 0; k < Math.max(2, w / 14); k++) rect(x + 4 + (k * 27) % Math.max(1, w - 10), y + 2 + (k % 3) * 2, 8 + (k % 4) * 3, 1, UWOOD[0]);
+  ctx.restore();
+  [x + 1, x + w - 8].forEach(sx => {                     // steel straps
+    rr(sx, y - 1, 7, h + 2, 1, USTEEL[0]);
+    rr(sx + 1, y, 5, h, 1, USTEEL[2]);
+    rect(sx + 1, y, 2, h, USTEEL[3]);
+    rect(sx + 2, y + 1, 1, h - 2, USTEEL[4]);
+    rect(sx + 3, y + 2, 1, 1, USTEEL[1]); rect(sx + 3, y + h - 3, 1, 1, USTEEL[1]);
+  });
+  if (label) drawTextCSh(label, x + w / 2, y + Math.floor((h - 5 * (o.sc || 1)) / 2), o.col || '#ffe6b0', o.sc || 1, '#2a1a06');
+}
+
+// A segmented brass meter, like the reference's notched bar.
+function segBar(x, y, w, h, frac, o) {
+  o = o || {};
+  rr(x, y, w, h, 2, UGOLD[0]);
+  rr(x + 1, y + 1, w - 2, h - 2, 1, '#2f2212');
+  const iw = w - 4, n = Math.max(1, Math.floor(iw / 5));
+  const lit = Math.round(n * clamp(frac, 0, 1));
+  for (let k = 0; k < n; k++) {
+    const cx2 = x + 2 + k * (iw / n);
+    const on = k < lit;
+    rr(cx2, y + 2, Math.max(2, iw / n - 1), h - 4, 1, on ? (o.tint || UGOLD[2]) : '#4a3a20');
+    if (on) rect(cx2, y + 2, Math.max(2, iw / n - 1), 1, o.tintL || UGOLD[4]);
+  }
+}
+
+// A small steel-framed icon button, the square kind from the reference sheet.
+function steelTile(x, y, w, h, o) {
+  if (typeof h === 'object' || h === undefined) { o = h; h = w; }
+  o = o || {};
+  rr(x, y + 2, w, h, 3, '#00000077');
+  rr(x, y, w, h, 3, USTEEL[0]);
+  rr(x + 1, y + 1, w - 2, h - 2, 3, USTEEL[2]);
+  rect(x + 2, y + 1, w - 4, 1, USTEEL[4]);
+  rect(x + 1, y + 2, 1, h - 4, USTEEL[3]);
+  rr(x + 3, y + 3, w - 6, h - 6, 2, o.field || '#12242e');
+  if (o.hot) { ctx.save(); ctx.globalAlpha = 0.25 + Math.sin(tNow * 6) * 0.08; rr(x + 3, y + 3, w - 6, h - 6, 2, USTEEL[4]); ctx.restore(); }
+}
+
 // A panel with a real bevel: drop shadow, rim, a lit top-left inner edge and a
 // shaded bottom-right, so every box in the game reads as a raised plate.
 function panel(x, y, w, h, opts) {
@@ -295,10 +422,12 @@ function fillCircle(cx, cy, r, col) {
 // --------------------------------------------------- swamp scene themes ---
 // a soft light bloom: concentric discs so the falloff never shows a hard rim
 function glow(cx, cy, r, col, a) {
+  const n = r > 30 ? 10 : 6;                 // more rings on big blooms, so no hard rim
   ctx.save();
-  for (let k = 5; k >= 1; k--) {
-    ctx.globalAlpha = (a === undefined ? 0.12 : a) * (k / 5) * 0.5;
-    fillCircle(cx, cy, r * (k / 5), col);
+  for (let k = n; k >= 1; k--) {
+    const f = k / n;
+    ctx.globalAlpha = (a === undefined ? 0.12 : a) * (1 - f) * 0.7 + 0.01;
+    fillCircle(cx, cy, r * f, col);
   }
   ctx.restore();
 }
@@ -741,7 +870,7 @@ const BOB = {
     muz: ['#b99a72', '#e2cba6', '#f8ecd6'],
     ear: ['#3d2210', '#7a4c28', '#a87a52'],
     nose: ['#2a1508', '#54301a', '#8a5a38'],
-    otter: 1, whisk: 1, tail: ['#3d2210', '#7a4c28', '#9c6a40'],
+    otter: 1, whisk: 1, tail: ['#2e1809', '#8a5730', '#b07a4c'],
   },
   medic: { // opossum: ash fur, rose ears, white muzzle
     sk: ['#17131a', '#767683', '#9d9dab', '#c2c2d2', '#e9e9f4'],
@@ -981,9 +1110,7 @@ function bobHead(key, expr, phase, look, lean) {
   }
   if (p.otter) {   // cream bib running up the throat into the muzzle
     rr(-9, 1, 18, 11, 5, p.muz[0]);
-    rr(-8, 1, 16, 9, 4, p.muz[1]);
-    rect(-7, 2, 12, 2, p.muz[2]);
-    ctx.save(); ctx.globalAlpha = 0.35; rect(-12, -4, 6, 4, p.muz[0]); rect(6, -4, 6, 4, p.muz[0]); ctx.restore();
+    rr(-8, 1, 16, 8, 4, p.muz[1]);
   } else if (p.muz) { rr(-7, 2, 14, 8, 4, p.muz[0]); rr(-6, 2, 12, 6, 3, p.muz[1]); rect(-5, 3, 9, 2, p.muz[2]); }
   if (key === 'frog') { ctx.save(); ctx.globalAlpha = 0.4; rect(-11, 2, 22, 5, p.sk[4]); ctx.restore(); }
   bobFace(p, expr, phase, look, { wide: !!p.wide, topeyes: !!p.topeyes, gold: !!p.gold });
@@ -1059,61 +1186,44 @@ function drawBobble(cx, gy, key, o) {
   ctx.restore();
   if (dust) { for (let d = 0; d < 5; d++) { const a = -0.3 + d * 0.22; ctx.save(); ctx.globalAlpha = 0.3; fillCircle(Math.cos(a) * 13, -2 - Math.abs(Math.sin(a)) * 3, 2, '#c8bda0'); ctx.restore(); } }
 
-  // ---------------- the otter's thick tail, behind everything -----------
+  // ---------------- the otter's tail: one tapered piece ------------------
   if (p.tail) {
-    const sw = Math.sin(t * 1.1) * 1.6;
-    [[10, -15, 5], [15, -13 + sw * 0.3, 4], [19, -10 + sw * 0.7, 3], [22, -7 + sw, 2]].forEach(([tx, ty, tr], i) => {
-      const yy2 = ty + hop * 0.3;
-      fillCircle(tx, yy2, tr + 1, p.tail[0]);
-      fillCircle(tx, yy2, tr, i > 1 ? p.tail[2] : p.tail[1]);
-      if (i < 2) fillCircle(tx - 1, yy2 - 1, Math.max(1, tr - 2), p.sk[3]);
-    });
+    const sw = Math.round(Math.sin(t * 1.1) * 2);
+    const ty = hop * 0.3;
+    rr(8, -18 + ty, 13, 9, 4, p.tail[0]);
+    rr(9, -17 + ty, 11, 7, 3, p.tail[1]);
+    rr(18, -14 + sw + ty, 9, 7, 3, p.tail[0]);
+    rr(19, -13 + sw + ty, 7, 5, 2, p.tail[2]);
+    rect(10, -16 + ty, 5, 2, p.sk[3]);
   }
 
   // ---------------- legs + boots ----------------------------------------
   const legY = -13 + hop * 0.3;
-  [[-5, stride], [4, -stride]].forEach(([lx, s], i) => {
-    const lift = act === 'walk' ? Math.max(0, s) * 0.4 : 0;
+  [[-5, stride], [4, -stride]].forEach(([lx, s2]) => {
+    const lift = act === 'walk' ? Math.max(0, s2) * 0.4 : 0;
     rr(lx - 1, legY - lift, 7, 10, 3, OL);
     rr(lx, legY - lift, 5, 9, 2, p.cl[2]);
-    rect(lx, legY - lift, 3, 5, p.cl[3]);
-    rect(lx, legY - lift + 1, 2, 2, p.cl[4]);
-    rect(lx + 4, legY - lift + 1, 1, 7, p.cl[1]);
-    const by2 = -5 + s * 0.26 - lift;
-    rr(lx - 3, by2, 10, 6, 2, BOOT[0]);
-    rr(lx - 2, by2, 8, 5, 2, BOOT[2]);
-    rect(lx - 2, by2, 6, 2, BOOT[3]);
-    rect(lx - 2, by2, 3, 1, BOOT[4]);
+    rect(lx, legY - lift, 2, 6, p.cl[3]);
+    const by2 = -5 + s2 * 0.26 - lift;
+    rr(lx - 3, by2, 10, 6, 2, OL);
+    rr(lx - 2, by2, 8, 4, 2, BOOT[2]);
+    rect(lx - 2, by2, 5, 1, BOOT[3]);
     rect(lx - 3, by2 + 4, 10, 2, BOOT[1]);
-    rect(lx - 3, by2 + 5, 10, 1, BOOT[0]);
-    rect(lx - 1, by2 + 1, 1, 1, '#d8c890'); rect(lx + 2, by2 + 2, 1, 1, '#d8c890');
-    rect(lx + 5, by2 + 1, 1, 3, BOOT[1]);
   });
 
   // ---------------- torso -----------------------------------------------
   const by = -29 + hop;
   ctx.save();
   ctx.translate(0, by + 9); ctx.scale(1 / sq, sq); ctx.translate(0, -(by + 9)); ctx.rotate(lean * 0.3);
-  rr(-10, by, 21, 18, 7, OL);
+  rr(-10, by, 21, 18, 7, OL);                       // jacket
   rr(-9, by + 1, 19, 16, 6, p.cl[2]);
-  rr(-9, by + 1, 12, 8, 5, p.cl[3]);
-  rr(-8, by + 1, 7, 4, 3, p.cl[4]);
-  rect(4, by + 3, 6, 13, p.cl[1]);
-  ctx.save(); ctx.globalAlpha = 0.5; rect(9, by + 5, 1, 9, mixHex(p.cl[1], '#a8cdf0', 0.6)); ctx.restore();
-  rr(-5, by + 3, 10, 14, 3, '#0f120e');
-  rr(-4, by + 3, 9, 13, 3, '#e6dfc6');
-  rect(-4, by + 3, 9, 1, '#f8f4e4');
-  rect(0, by + 4, 1, 12, '#bdb59c');
-  [4, 8, 12].forEach(k => { rect(-2, by + k, 2, 1, '#9a9280'); rect(-2, by + k, 1, 1, '#fffdf2'); });
-  rr(-4, by + 9, 5, 4, 1, '#d8d0b6'); rect(-4, by + 9, 5, 1, '#f2ecd8');
-  rect(-6, by + 2, 4, 3, '#cfc8ae'); rect(3, by + 2, 4, 3, '#b7b096');
-  rect(-6, by + 2, 4, 1, '#f2ecd8');
-  rect(-10, by + 12, 21, 3, BOOT[1]);
-  rect(-10, by + 12, 21, 1, BOOT[2]);
-  rect(-10, by + 14, 21, 1, BOOT[0]);
-  rect(-2, by + 11, 5, 5, '#8a6510'); rect(-2, by + 11, 5, 4, C.gold);
-  rect(-1, by + 12, 2, 2, '#8a6510'); rect(-1, by + 12, 1, 1, '#fff6c8');
-  rr(5, by + 3, 5, 5, 2, p.acD); rr(5, by + 3, 4, 4, 2, p.ac); rect(6, by + 4, 1, 1, '#ffffff99');
+  rr(-9, by + 1, 11, 9, 5, p.cl[3]);                // one lit shoulder
+  rect(5, by + 4, 5, 12, p.cl[1]);                  // one shade side
+  rr(-4, by + 3, 9, 14, 3, '#e6dfc6');              // shirt front
+  rect(-4, by + 3, 9, 2, '#f8f4e4');
+  rect(-10, by + 12, 21, 3, BOOT[1]);               // belt
+  rect(-2, by + 11, 5, 5, UGOLD[1]); rect(-2, by + 11, 5, 4, UGOLD[3]);
+  rr(5, by + 3, 5, 5, 2, p.acD); rr(5, by + 3, 4, 4, 2, p.ac);
 
   // ---------------- arms ------------------------------------------------
   const g = GLOVES[(o.glove && gloveUnlocked(o.glove)) ? o.glove : 'bare'] || GLOVES.bare;
@@ -1127,17 +1237,13 @@ function drawBobble(cx, gy, key, o) {
     return { x: side * 10, y: by + 6 + Math.sin(t * 1.3 + side) * 0.6, r: side * (0.14 + Math.sin(t * 1.3 + side) * 0.03) };
   };
   [-1, 1].forEach(side => {
-    const a = pose(side);
-    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.r);
-    rr(-3, -2, 6, 10, 3, OL);
+    const a2 = pose(side);
+    ctx.save(); ctx.translate(a2.x, a2.y); ctx.rotate(a2.r);
+    rr(-3, -2, 6, 10, 3, OL);                        // sleeve
     rr(-2, -1, 4, 8, 2, p.cl[2]);
-    rect(-2, -1, 2, 5, p.cl[3]);
-    rect(-2, 5, 4, 2, p.cl[1]);
-    rr(-4, 6, 8, 7, 3, OL);
+    rr(-4, 6, 8, 7, 3, OL);                          // mitt
     rr(-3, 7, 6, 5, 2, g.skin);
     rect(-3, 7, 4, 2, mixHex(g.skin, '#ffffff', 0.35));
-    rect(-3, 11, 6, 1, mixHex(g.skin, '#000000', 0.35));
-    rect(side > 0 ? 2 : -4, 8, 2, 3, g.skin);
     ctx.restore();
   });
   ctx.restore(); // squash
@@ -1652,40 +1758,29 @@ function drawRangerBadge(x, y, key, o) {
   ctx.save();
   ctx.translate((x + 14 * sc) | 0, (y + 14 * sc) | 0);
   if (sc !== 1) ctx.scale(sc, sc);
-  if (o.wob) ctx.rotate(Math.sin(tNow * 1.2 + key.length) * 0.03);
-  // ---- felt disc ----
-  fillCircle(0, 1, 13, '#00000066');
-  fillCircle(0, 0, 13, P.feltD);
-  fillCircle(0, 0, 12, P.felt);
-  fillCircle(-1, -1, 10, P.feltL);
-  fillCircle(0, 0, 9, P.felt);
-  ctx.save(); ctx.globalAlpha = 0.2;                       // felt nap
-  for (let k = 0; k < 18; k++) rect(-9 + (k * 7) % 18, -8 + (k * 5) % 17, 2, 1, '#ffffff');
-  ctx.restore();
-  // ---- stitched rim ----
-  for (let k = 0; k < 20; k++) {
-    const a = k / 20 * 6.283 + 0.08;
-    rect(Math.cos(a) * 12 - 1, Math.sin(a) * 12 - 1, 2, 2, k % 2 ? P.thread : P.feltD);
-  }
-  ctx.save(); ctx.globalAlpha = 0.5;                       // top-left sheen on the thread
-  for (let k = 0; k < 6; k++) { const a = -2.5 + k * 0.2; rect(Math.cos(a) * 12 - 1, Math.sin(a) * 12 - 1, 2, 2, '#ffffff'); }
-  ctx.restore();
-  // ---- the bust ----
-  ctx.save(); ctx.translate(0, -2); ctx.scale(0.76, 0.76); badgeBust(key, P); ctx.restore();
-  // ---- chevron banner + merit pips along the bottom ----
-  rect(-9, 8, 18, 4, P.feltD);
-  rect(-9, 8, 18, 1, P.feltL);
-  rect(-11, 9, 2, 3, P.feltD); rect(9, 9, 2, 3, P.feltD);
+  if (o.wob) ctx.rotate(Math.sin(tNow * 1.2 + key.length) * 0.02);
+  // brass-framed plate over tinted wood, matching the item tiles
+  goldFrame(-14, -14, 28, 28, {
+    field: mixHex(UWOOD[2], P.felt, 0.34),
+    fieldD: mixHex(UWOOD[1], P.feltD, 0.34),
+    fieldL: mixHex(UWOOD[3], P.feltL, 0.34),
+    r: 4, glow: o.wob ? 0.2 + Math.sin(tNow * 4) * 0.06 : 0,
+  });
+  ctx.save(); ctx.globalAlpha = 0.22;                    // a pool of light behind the bust
+  fillCircle(0, -1, 9, P.feltL); ctx.restore();
+  ctx.save(); ctx.translate(0, -1); ctx.scale(0.72, 0.72); badgeBust(key, P); ctx.restore();
+  // brass rank pips on the lower rail
   for (let k = 0; k < 3; k++) {
-    const px = -5 + k * 5;
-    const pc = (key === 'medic' && k === 1) ? '#ff6a5a' : P.thread;
+    const px = -4 + k * 4;
+    const pc = (key === 'medic' && k === 1) ? '#ff6a5a' : UGOLD[3];
     rect(px, 9, 3, 1, pc); rect(px + 1, 8, 1, 3, pc);
+    rect(px + 1, 8, 1, 1, UGOLD[4]);
   }
   if (locked) {
-    ctx.save(); ctx.globalAlpha = 0.72; fillCircle(0, 0, 13, '#0b1116'); ctx.restore();
-    rr(-4, -2, 9, 8, 2, '#5d7078'); rr(-3, -1, 7, 6, 2, '#8fa3ab');
-    rect(-2, -6, 5, 5, '#5d7078'); rect(-1, -5, 3, 4, '#2a3840');
-    rect(-1, 1, 2, 3, '#3b4a52');
+    ctx.save(); ctx.globalAlpha = 0.74; rr(-11, -11, 22, 22, 2, '#0b1116'); ctx.restore();
+    rr(-4, -2, 9, 8, 2, UGOLD[1]); rr(-3, -1, 7, 6, 2, UGOLD[3]);
+    rect(-2, -6, 5, 5, UGOLD[1]); rect(-1, -5, 3, 4, '#1a1206');
+    rect(-1, 1, 2, 3, UGOLD[0]);
   }
   ctx.restore();
 }
@@ -4648,45 +4743,29 @@ function toothTip(s) {
 }
 
 // ------------------------------------------------------------ UI pieces ---
-// Chunky arcade button: a coloured cap sitting on a darker plinth, with a
-// glossy top half, a lit rim, a hover halo and a real travel on press.
+// Every button in the game is a stamped brass plaque: rivets at the corners,
+// a lit upper face, a hover halo and real travel when you press it.
 function button(x, y, w, h, label, col, colD, cb, o) {
   o = o || {};
   const hov = mx >= x && mx < x + w && my >= y && my < y + h && !o.disabled;
   const pressed = hov && down && down.hit && down.hit.id === (o.id || label);
   const yy = y + (pressed ? 3 : hov ? 1 : 0);
-  const cap = o.disabled ? '#3a4a50' : col, base = o.disabled ? '#243136' : colD;
-  if (hov && !o.disabled) {   // soft halo so the hovered control reads instantly
-    ctx.save(); ctx.globalAlpha = 0.17 + Math.sin(tNow * 7) * 0.05;
-    rr(x - 3, y - 3, w + 6, h + 8, 5, cap); ctx.restore();
+  const tint = o.disabled ? '#5a6268' : col;
+  if (hov && !o.disabled) {
+    ctx.save(); ctx.globalAlpha = 0.18 + Math.sin(tNow * 7) * 0.05;
+    rr(x - 3, y - 3, w + 6, h + 8, 5, mixHex(tint, '#ffffff', 0.4)); ctx.restore();
   }
-  rr(x, y + 4, w, h, 3, '#00000088');            // cast shadow
-  rr(x, yy + 3, w, h - 2, 3, base);              // plinth
-  rr(x, yy, w, h - 2, 3, mixHex(cap, '#000000', 0.25));
-  rr(x + 1, yy + 1, w - 2, h - 4, 2, cap);       // cap
-  ctx.save();
-  ctx.globalAlpha = 0.2;
-  for (let k = 0; k < Math.max(1, (h - 6) >> 1); k++) rect(x + 2, yy + 1 + k, w - 4, 1, '#ffffff');
-  ctx.globalAlpha = 0.32; rect(x + 2, yy + 1, w - 4, 1, '#ffffff');
-  ctx.globalAlpha = 0.22; rect(x + 2, yy + h - 4, w - 4, 1, '#000000');
-  ctx.restore();
-  const tcol = o.disabled ? '#7d8f94' : (o.tcol || C.white);
+  plaque(x, yy, w, h - 1, { tint, r: 3 });
+  const tcol = o.disabled ? '#9aa4a8' : (o.tcol || C.white);
   const sc = o.sc || 1;
-  drawTextC(label, x + w / 2, yy + Math.floor((h - 2 - 5 * sc) / 2), tcol, sc);
+  drawTextCSh(label, x + w / 2, yy + Math.floor((h - 2 - 5 * sc) / 2), tcol, sc, '#00000077');
   if (o.sub) drawTextC(o.sub, x + w / 2, yy + h - 8, o.subCol || tcol, 1);
   hit(x, y, w, h, { cb, disabled: o.disabled, tip: o.tip, id: o.id || label, cursor: true });
 }
 
 function chip(x, y, w, h, val, colA, colB, sc) {
-  rr(x, y + 2, w, h, 2, '#00000077');
-  rr(x, y, w, h, 2, colB);
-  rr(x + 1, y + 1, w - 2, h - 2, 2, colA);
-  ctx.save();
-  ctx.globalAlpha = 0.22; for (let k = 0; k < Math.max(1, (h - 4) >> 1); k++) rect(x + 2, y + 1 + k, w - 4, 1, '#ffffff');
-  ctx.globalAlpha = 0.3; rect(x + 2, y + 1, w - 4, 1, '#ffffff');
-  ctx.globalAlpha = 0.25; rect(x + 2, y + h - 2, w - 4, 1, '#000000');
-  ctx.restore();
-  drawTextCSh(fmt(val), x + w / 2, y + Math.floor((h - 5 * sc) / 2) + 1, C.white, sc, '#00000066');
+  plaque(x, y, w, h, { tint: colA, r: 2, noStud: 1 });
+  drawTextCSh(fmt(val), x + w / 2, y + Math.floor((h - 5 * sc) / 2) + 1, C.white, sc, '#00000088');
 }
 
 // ---- unified card face (30x42) -------------------------------------------
@@ -5613,10 +5692,10 @@ function drawShop() {
     const afford = !it.sold && G.money >= it.price;
     const hovS = mx >= x - 4 && mx < x + 46 && my >= y - 6 && my < y + 76;
     // ---- display niche: slate back, lit cove, timber plinth ----
-    rr(x - 4, y - 6, 50, 82, 3, '#0d1318');
-    rr(x - 3, y - 5, 48, 80, 3, '#1b2831');
-    rect(x - 3, y - 5, 48, 3, '#273a45');
-    rect(x - 3, y - 5, 48, 1, '#3d5966');
+    goldFrame(x - 4, y - 6, 50, 82, {
+      r: 4, field: '#1b2831', fieldD: '#101a20', fieldL: '#2f4756',
+      glow: hovS ? 0.24 + Math.sin(tNow * 5) * 0.06 : 0,
+    });
     ctx.save(); ctx.globalAlpha = 0.22 + (hovS ? 0.12 : 0) + Math.sin(tNow * 2 + i) * 0.02;
     for (let k = 0; k < 7; k++) rect(x + 2 + k, y - 2, 38 - k * 2, 40, '#ffe6b0');   // spotlight cone
     ctx.restore();
@@ -6905,8 +6984,8 @@ function drawIndex() {
     const tw = 108, tx = 12 + i * (tw + 6), on = G.idxTab === k;
     const grp = all.filter(sel), got = grp.filter(e => meta.index.seen[e.key]).length;
     const fresh = grp.some(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]);
-    rr(tx, 26, tw, 16, 2, on ? C.gold : '#2a3a42');
-    rr(tx + 1, 27, tw - 2, 14, 2, on ? '#3a4a22' : '#16222a');
+    if (on) plaque(tx, 26, tw, 15, { tint: '#c9941a', r: 2, noStud: 1 });
+    else { rr(tx, 26, tw, 16, 2, '#2a3a42'); rr(tx + 1, 27, tw - 2, 14, 2, '#16222a'); }
     drawTextC(lbl + '  ' + got + '/' + grp.length, tx + tw / 2, 31, on ? C.gold : '#7a8a92', 1);
     if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.35; rect(tx + tw - 6, 29, 3, 3, C.gold); ctx.restore(); }
     hit(tx, 26, tw, 16, { id: 'idxtab' + k, cursor: true, cb: () => { G.idxTab = k; sfx.click(2); } });
@@ -6927,8 +7006,9 @@ function drawIndex() {
       const x = gx0 + (i % cols) * cell, y = gy0 + Math.floor(i / cols) * chh;
       const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
       const cw = cell - 5, ch2 = chh - 5;
-      rr(x, y, cw, ch2, 2, got ? (fresh ? C.gold : e.col) : '#243038');
-      rr(x + 1, y + 1, cw - 2, ch2 - 2, 2, got ? '#16242c' : '#0f181e');
+      if (got) {
+        goldFrame(x, y, cw, ch2, { r: 3, thin: 1, field: mixHex('#16242c', e.col, 0.22), fieldD: '#0d1720', fieldL: mixHex('#2c4250', e.col, 0.22), glow: fresh ? 0.26 : 0 });
+      } else { rr(x, y, cw, ch2, 2, '#243038'); rr(x + 1, y + 1, cw - 2, ch2 - 2, 2, '#0f181e'); }
       if (got) {
         if (isT) drawTooth(x + 7, y + 6, cw - 14, ch2 - 22, true, e.tooth, {});
         else { ctx.save(); ctx.globalAlpha = 1; (ICONS[e.charm.ico] || ICONS.star)(x + cw / 2 - 6, y + 4); ctx.restore(); }
@@ -6945,9 +7025,12 @@ function drawIndex() {
       const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
       const tierLbl = e.boss ? 'BOSS' : MUT_TIER_NAME[e.tier];
       const tierCol = e.boss ? '#ff8a8a' : MUT_TIER_COL[e.tier];
-      rr(x + 1, y + 2, cw - 6, ch - 6, 3, '#00000066');
-      rr(x, y, cw - 6, ch - 6, 3, got ? (fresh ? C.gold : e.col) : '#243038');
-      rr(x + 1, y + 1, cw - 8, ch - 8, 2, got ? '#16242c' : '#101a20');
+      if (got) {
+        goldFrame(x, y, cw - 6, ch - 6, {
+          r: 4, field: mixHex('#16242c', e.col, 0.2), fieldD: '#0d1720', fieldL: mixHex('#2c4250', e.col, 0.2),
+          glow: fresh ? 0.28 + Math.sin(tNow * 4) * 0.08 : 0,
+        });
+      } else steelTile(x, y, cw - 6, ch - 6, { field: '#101a20' });
       if (got) {
         if (e.boss) {
           const bx = x + 34, by2 = y + 15;
@@ -6977,10 +7060,20 @@ function skinRow(y, order, cur, isOpen, drawIco, tipFor, equip, rarOf) {
   const n = order.length, cw = (W - 24) / n, s = Math.min(24, cw - 2);
   order.forEach((k, i) => {
     const gx = Math.round(12 + i * cw), gy = y, on = cur() === k, open = isOpen(k);
-    rr(gx, gy, s, s, 2, on ? C.gold : (open ? RAR_COL[rarOf(k)] : '#2a3a42'));
-    rr(gx + 1, gy + 1, s - 2, s - 2, 2, open ? '#1a2830' : '#101820');
-    if (open) drawIco(gx + (s >> 1), gy + (s >> 1), k); else drawTextC('?', gx + (s >> 1), gy + (s >> 1) - 4, '#41565e', 1);
-    if (on) rect(gx + (s >> 1) - 3, gy + s - 3, 6, 2, C.gold);
+    const hovT = mx >= gx && mx < gx + s && my >= gy && my < gy + s;
+    if (open) {
+      goldFrame(gx, gy, s, s, {
+        r: 3, thin: 1,
+        field: mixHex('#2a1a10', RAR_COL[rarOf(k)], on ? 0.5 : 0.24),
+        fieldD: '#1a1008', fieldL: mixHex('#4a3020', RAR_COL[rarOf(k)], 0.35),
+        glow: on ? 0.28 + Math.sin(tNow * 4) * 0.07 : (hovT ? 0.2 : 0),
+      });
+      drawIco(gx + (s >> 1), gy + (s >> 1), k);
+    } else {
+      steelTile(gx, gy, s, {});
+      drawTextC('?', gx + (s >> 1), gy + (s >> 1) - 4, '#4b6b7a', 1);
+    }
+    if (on) { rect(gx + (s >> 1) - 3, gy + s - 2, 6, 2, UGOLD[3]); rect(gx + (s >> 1) - 2, gy + s - 2, 4, 1, UGOLD[4]); }
     hit(gx, gy, s, s, { id: 'skin' + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
   });
 }
