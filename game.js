@@ -711,15 +711,15 @@ const ICONS = {
 // -------- animal ranger portraits, gator-style tracking eyes --------------
 // a big expressive eye that blinks and follows the cursor (like the gator's)
 function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
-  rr(ex - 1, ey - 1, ew + 2, eh + 2, 2, '#20140c');
+  const cx2 = ex + ew / 2, cy2 = ey + eh / 2;
+  const r = Math.max(2, Math.round(Math.min(ew, eh) / 2));
   const blink = ((tNow + (phase || 0)) % 4.1) > 3.95;
-  rr(ex, ey, ew, eh, 2, sclera);
-  if (blink) { rr(ex, ey, ew, eh, 2, lidCol); return; }
-  const dx = clamp((mx - (ex + ew / 2)) / 70, -1, 1) * Math.max(1, ew / 5);
-  const dy = clamp((my - (ey + eh / 2)) / 70, -1, 1) * Math.max(1, eh / 6);
-  const pw = Math.max(2, (ew / 3) | 0), ph2 = Math.max(3, (eh / 2) | 0);
-  rect(ex + ew / 2 - pw / 2 + dx, ey + eh / 2 - ph2 / 2 + dy, pw, ph2, pupilCol || '#1b1408');
-  rect(ex + ew / 2 - pw / 2 + dx + 1, ey + eh / 2 - ph2 / 2 + dy + 1, 1, 1, '#fff');
+  if (blink) { rect(cx2 - r - 1, cy2 - 1, r * 2 + 2, 2, '#20140c'); return; }
+  const dx = Math.round(clamp((mx - cx2) / 70, -1, 1) * 1.2);
+  const dy = Math.round(clamp((my - cy2) / 70, -1, 1) * 1);
+  fillCircle(cx2 + dx, cy2 + dy, r, pupilCol || '#120b05');
+  rect(cx2 + dx - r + 1, cy2 + dy - r + 1, 2, 2, '#ffffff');
+  rect(cx2 + dx + r - 2, cy2 + dy + r - 2, 1, 1, '#ffffff55');
 }
 
 // ==========================================================================
@@ -756,7 +756,7 @@ const BOB = {
     sk: ['#15120d', '#665e51', '#8a8171', '#aca392', '#cfc6b2'],
     cl: ['#160e06', '#2b1c10', '#42301b', '#5a4527', '#7b6038'],
     ac: '#ffc843', acD: '#a8760f', iris: '#c08a2a',
-    mask: ['#120f0d', '#221d18', '#332c24'],
+    mask: ['#120f0d', '#221d18', '#332c24'], paleEye: 1,
     ear: ['#3a342c', '#6a6258', '#8a8276'],
     muz: ['#b0a896', '#d4ccb8', '#efe8d4'],
     nose: ['#181410', '#3a342c', '#6a6258'],
@@ -833,22 +833,24 @@ function bobFace(p, expr, phase, look, opt) {
   if (bt > 4.94) { const k = (bt - 4.94) / 0.26; lid = k < 0.38 ? k / 0.38 : k < 0.66 ? 1 : Math.max(0, (1 - k) / 0.34); }
   const shut = expr === 'happy' || expr === 'love' || expr === 'sleepy';
 
-  const openEye = (ox, ew, eh) => {
-    const ey = EY - (eh >> 1);
-    rr(ox - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 4, OL);
-    rr(ox - (ew >> 1), ey, ew, eh, 3, '#fbf7e8');
-    ctx.save(); ctx.globalAlpha = 0.28; rect(ox - (ew >> 1) + 1, ey, ew - 2, 2, '#8a9cae'); ctx.restore();
-    const dx = Math.round(lx * (ew / 6)), dy = Math.round(ly * (eh / 6));
-    const iw = Math.max(5, (ew * 0.72) | 0), ih = Math.max(5, (eh * 0.78) | 0);
-    const ix = ox - (iw >> 1) + dx, iy = ey + ((eh - ih) >> 1) + dy + 1;
-    rr(ix, iy, iw, ih, 2, p.iris);
-    rect(ix + 1, iy + ih - 2, iw - 2, 1, mixHex(p.iris, '#ffffff', 0.45));
-    rr(ix + 1, iy + 1, iw - 2, ih - 2, 2, '#1c1208');          // big soft pupil
-    rect(ix + 1, iy + 1, 3, 3, '#ffffff');                      // catchlight
-    rect(ix + iw - 3, iy + ih - 3, 2, 2, '#ffffff99');          // bounce spark
+  // A bead eye: one solid dark dot with a single bright catch. No sclera, no
+  // iris rings - the whole face reads at a glance, even two pixels tall.
+  const beadEye = (ox, r, squishTop) => {
+    const dx = Math.round(lx * (r > 3 ? 1.2 : 0.8)), dy = Math.round(ly * (r > 3 ? 1 : 0.6));
+    const bx = ox + dx, by2 = EY + dy;
+    if (p.paleEye) {          // a masked face needs light beads to read at all
+      fillCircle(bx, by2, r, '#efe7d4');
+      fillCircle(bx + Math.round(lx), by2 + Math.round(ly * 0.6), Math.max(1, r - 1), '#120b05');
+      rect(bx - r + 1, by2 - r + 1, 1, 1, '#ffffff');
+    } else {
+      fillCircle(bx, by2, r, '#120b05');                     // the bead
+      rect(bx - r + 1, by2 - r + 1, 2, 2, '#ffffff');        // one bright catch
+      rect(bx + r - 2, by2 + r - 2, 1, 1, '#ffffff55');
+    }
+    if (squishTop) { rect(bx - r - 1, by2 - r - 1, r * 2 + 2, squishTop, p.sk[2]); rect(bx - r - 1, by2 - r - 1 + squishTop, r * 2 + 2, 1, OL); }
     if (lid > 0) {
-      const h = Math.round(lid * (eh + 2));
-      if (h > 0) { rect(ox - (ew >> 1) - 1, ey - 1, ew + 2, h, p.sk[2]); rect(ox - (ew >> 1) - 1, ey - 1 + h, ew + 2, 1, OL); }
+      const h = Math.round(lid * (r * 2 + 2));
+      if (h > 0) { rect(bx - r - 1, by2 - r - 1, r * 2 + 2, h, p.sk[2]); rect(bx - r - 1, by2 - r - 1 + h, r * 2 + 2, 1, OL); }
     }
   };
   const smileEye = (ox) => { // happy '^' arc with a lash tick
@@ -859,16 +861,16 @@ function bobFace(p, expr, phase, look, opt) {
   const brow = (ox, dy, ang) => { for (let k = 0; k < 6; k++) rect(ox - 3 + k, EY - 8 + dy + Math.round((k - 2.5) * ang), 1, 2, OL); };
 
   if (expr === 'wow') {
-    [-EX, EX].forEach(ox => openEye(ox, 10, 12));
-    brow(-EX, -2, 0); brow(EX, -2, 0);
+    [-EX, EX].forEach(ox => beadEye(ox, 4));
+    brow(-EX, -4, 0); brow(EX, -4, 0);
   } else if (expr === 'mad' || expr === 'grit') {
-    [-EX, EX].forEach((ox, i) => { openEye(ox, 9, 7); brow(ox, 3, i ? -0.5 : 0.5); });
+    [-EX, EX].forEach((ox, i) => { beadEye(ox, 3, 2); brow(ox, 3, i ? -0.5 : 0.5); });
     if (expr === 'mad') {
       const a = 0.6 + Math.sin(tNow * 8) * 0.4; ctx.save(); ctx.globalAlpha = a;
       rect(EX + 6, EY - 8, 3, 1, '#e2483c'); rect(EX + 7, EY - 9, 1, 3, '#e2483c'); ctx.restore();
     }
   } else if (expr === 'worry' || expr === 'sad') {
-    [-EX, EX].forEach((ox, i) => { openEye(ox, 8, 10); brow(ox, -1, i ? 0.4 : -0.4); });
+    [-EX, EX].forEach((ox, i) => { beadEye(ox, 3); brow(ox, -1, i ? 0.4 : -0.4); });
     const sw = (tNow * 1.1 + phase) % 3.2;
     if (sw < 1) { const yy = EY + 1 + sw * 9; ctx.save(); ctx.globalAlpha = 1 - sw * 0.5; rr(EX + 8, yy, 3, 4, 1, '#8fd8f0'); rect(EX + 8, yy + 1, 1, 1, '#eafaff'); ctx.restore(); }
   } else if (expr === 'sleepy') {
@@ -889,7 +891,7 @@ function bobFace(p, expr, phase, look, opt) {
   } else if (expr === 'happy' || (lid >= 1 && shut)) {
     [-EX, EX].forEach(smileEye);
   } else {
-    [-EX, EX].forEach(ox => openEye(ox, 9, 11));
+    [-EX, EX].forEach(ox => beadEye(ox, 3));
   }
 
   // ---- mouth: small and low, right under the muzzle ----
@@ -1269,25 +1271,22 @@ function drawVendor(x, y, o) {
   const bt = (tNow * 0.9 + ph) % 4.6;
   let lid = 0;
   if (bt > 4.3) { const k = (bt - 4.3) / 0.3; lid = k < 0.4 ? k / 0.4 : k < 0.7 ? 1 : Math.max(0, (1 - k) / 0.3); }
-  const eye = (ex, ew, eh) => {
-    const ey = -4 - (eh >> 1);
-    rr(ex - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 3, OL);
-    rr(ex - (ew >> 1), ey, ew, eh, 2, '#fbf7e8');
-    const dx = Math.round(look.x * 1.6), dy = Math.round(look.y * 1.4);
-    rr(ex - 2 + dx, ey + 1 + dy, 4, eh - 2, 1, '#55705f');
-    rect(ex - 1 + dx, ey + 2 + dy, 2, eh - 4, '#191410');
-    rect(ex - 2 + dx, ey + 1 + dy, 2, 2, '#ffffff');
-    rect(ex + 1 + dx, ey + eh - 3 + dy, 1, 1, '#ffffffaa');
+  const eye = (ex, r) => {                      // one dark bead, one bright catch
+    const dx = Math.round(look.x * 1.2), dy = Math.round(look.y * 1);
+    const bx = ex + dx, by2 = -4 + dy;
+    fillCircle(bx, by2, r, '#120b05');
+    rect(bx - r + 1, by2 - r + 1, 2, 2, '#ffffff');
+    rect(bx + r - 2, by2 + r - 2, 1, 1, '#ffffff55');
     const close = expr === 'sleepy' ? 0.55 + lid * 0.45 : lid;
     if (close > 0) {
-      const h = Math.round(close * (eh + 2));
-      if (h > 0) { rect(ex - (ew >> 1) - 1, ey - 1, ew + 2, h, p.sk[2]); rect(ex - (ew >> 1) - 1, ey - 1 + h, ew + 2, 1, OL); }
+      const h = Math.round(close * (r * 2 + 2));
+      if (h > 0) { rect(bx - r - 1, by2 - r - 1, r * 2 + 2, h, p.sk[2]); rect(bx - r - 1, by2 - r - 1 + h, r * 2 + 2, 1, OL); }
     }
   };
   if (expr === 'happy' || expr === 'proud') {
     [-8, 8].forEach(ex => { rect(ex - 4, -4, 2, 1, OL); rect(ex - 2, -6, 2, 1, OL); rect(ex, -6, 2, 1, OL); rect(ex + 2, -4, 2, 1, OL); });
-  } else if (expr === 'wow') { [-8, 8].forEach(ex => eye(ex, 9, 10)); }
-  else { [-8, 8].forEach(ex => eye(ex, 8, 8)); }
+  } else if (expr === 'wow') { [-7, 7].forEach(ex => eye(ex, 4)); }
+  else { [-7, 7].forEach(ex => eye(ex, 3)); }
   if (expr === 'sad' || expr === 'think') {
     rect(-13, -12, 6, 2, OL); rect(-12, -13, 4, 1, OL);
     rect(7, -12, 6, 2, OL); rect(8, -13, 4, 1, OL);
@@ -1688,18 +1687,6 @@ function drawRangerBadge(x, y, key, o) {
     rect(-2, -6, 5, 5, '#5d7078'); rect(-1, -5, 3, 4, '#2a3840');
     rect(-1, 1, 2, 3, '#3b4a52');
   }
-  ctx.restore();
-}
-
-// 28x28 ranger icons: the same shaded head as the full body, scaled to fit
-function drawRangerFace(x, y, key) {
-  const look = { x: clamp((mx - (x + 14)) / 60, -1, 1), y: clamp((my - (y + 13)) / 60, -1, 1) };
-  const ph = key.length * 0.7;
-  ctx.save();
-  ctx.translate(x + 14, y + 15);
-  ctx.scale(0.78, 0.78);
-  ctx.rotate(Math.sin(tNow * 1.5 + ph) * 0.05);
-  bobHead(key, 'calm', ph, look, 0);
   ctx.restore();
 }
 
@@ -6298,10 +6285,13 @@ function drawAirboat(cx, y, moving, dt) {
   rect(cx - 44, y + 9, 92, 3, '#3c464e');
   rect(cx - 40, y + 3, 84, 3, '#2c7d3a'); // park-service stripe
   // raised driver perch + the ranger up top
-  rect(cx - 6, y - 22, 3, 22, '#5a646c'); rect(cx + 12, y - 22, 3, 22, '#5a646c');
-  rr(cx - 10, y - 27, 28, 7, 2, '#c23a4a');
-  rr(cx - 6, y - 32, 20, 7, 2, '#2c4436'); // torso
-  drawRangerFace(cx - 4, y - 58, G.ranger);
+  rect(cx - 8, y - 22, 3, 22, '#5a646c'); rect(cx + 14, y - 22, 3, 22, '#5a646c');
+  rr(cx - 12, y - 27, 32, 7, 2, '#c23a4a');           // bench seat
+  rect(cx - 12, y - 27, 32, 2, '#e05a6a');
+  drawBobble(cx + 4, y - 25, G.ranger, {
+    sc: 0.62, expr: 'calm', act: 'idle',
+    hat: meta.hat, gear: meta.gear, glove: meta.glove,
+  });
   // bow headlamp + beam
   rr(cx + 34, y - 12, 8, 7, 2, '#2a2018'); rect(cx + 40, y - 10, 3, 3, '#ffd54a');
   ctx.save(); ctx.globalAlpha = 0.07 + Math.sin(tNow * 5) * 0.02;
@@ -6605,12 +6595,12 @@ function drawBossIntro() {
   ctx.save(); ctx.translate(dx, 0);
   const R = RANGERS[G.ranger] || RANGERS.scout;
   // portrait: ranger at 3x on a plate
-  panel(22, 48, 118, 118, { face: '#10262cee', edge: '#5cb0ac', r: 4 });
-  drawBobble(81, 160, G.ranger, { sc: 1.95, expr: 'mad', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  panel(22, 40, 118, 118, { face: '#10262cee', edge: '#5cb0ac', r: 4 });
+  drawBobble(81, 150, G.ranger, { sc: 1.6, expr: 'grit', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
   // crossed forceps behind the ranger, like a crest
-  for (let i = 0; i <= 10; i++) { rect(118 + i, 66 - i, 2, 2, '#5cb0ac'); rect(128 - i, 66 - i, 2, 2, '#5cb0ac'); }
-  drawTextCSh('RANGER ' + R.name, 81, 172, '#7fd4e8', 1);
-  drawTextCSh('THE DENTIST', 81, 184, C.white, 2);
+  for (let i = 0; i <= 10; i++) { rect(118 + i, 58 - i, 2, 2, '#5cb0ac'); rect(128 - i, 58 - i, 2, 2, '#5cb0ac'); }
+  drawTextCSh('RANGER ' + R.name, 81, 162, '#7fd4e8', 1);
+  drawTextCSh('THE DENTIST', 81, 172, C.white, 2);
   ctx.restore();
 
   // ---- boss side (slides in from the right) ----
@@ -7334,13 +7324,13 @@ function drawRangerSelect() {
   ctx.save(); ctx.globalAlpha = 0.18 + Math.sin(tNow * 2) * 0.05; fillCircle(fx + 45, fy + 45, 40, focusOpen ? r.col : '#2c3a44'); ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.rect(fx, fy, 90, 90); ctx.clip();
   if (!focusOpen) ctx.globalAlpha = 0.3;
-  drawBobble(fx + 45, fy + 86, rangerFocus, { sc: 1.6, expr: focusOpen ? 'happy' : 'sleepy', act: focusOpen ? 'cheer' : 'idle' });
+  drawBobble(fx + 45, fy + 84, rangerFocus, { sc: 1.2, expr: focusOpen ? 'happy' : 'sleepy', act: focusOpen ? 'cheer' : 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
   ctx.restore();
   rect(fx + 41, fy - 7, 8, 8, '#c23a4a'); rect(fx + 43, fy - 5, 3, 3, '#e86a6a'); // pin
   drawTextC(focusOpen ? r.animal : '? ? ?', fx + 45, fy + 94, '#8a7a58', 1);
   if (meta.ranger === rangerFocus && focusOpen) {
-    rr(fx - 8, fy + 70, 60, 12, 2, C.gold);
-    drawText('LAST USED', fx - 3, fy + 73, '#3a2818', 1);
+    rr(fx - 8, fy + 4, 60, 12, 2, C.gold);
+    drawText('LAST USED', fx - 3, fy + 7, '#3a2818', 1);
   }
   // traits column
   const tx = px + 126;
