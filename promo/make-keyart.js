@@ -1,211 +1,260 @@
+// Renders the store art straight out of the live game, so the promo images can
+// never drift from what the game actually looks like.
+//   node promo/make-keyart.js
+// Writes promo/thumbnail-630x500.png, promo/banner-1440x480.png,
+// promo/cover-fullart.png.
 const { chromium } = require('playwright');
 const fs = require('fs');
+const OUT = __dirname;
 
-const ART = `
-window.drawKeyArt = function (LW, LH, opt) {
-  opt = opt || {};
-  const U = LH / 100;                       // one layout unit
-  const wide = LW / LH > 2;
-  // ---------------- sky ----------------
-  const bands = ['#050d14', '#08151e', '#0d2030', '#123044', '#173f57', '#1d5070'];
-  for (let i = 0; i < bands.length; i++) rect(0, i * (46 * U / bands.length), LW, 46 * U / bands.length + 1, bands[i]);
-  rect(0, 46 * U, LW, LH, '#0a1a24');
-  for (let k = 0; k < 110; k++) {
-    const sx = (k * 137) % LW, sy = (k * 61) % (44 * U);
-    const bg = (k % 7 === 0);
-    rect(sx, sy, bg ? 2 : 1, bg ? 2 : 1, bg ? '#ffffff' : '#9fc8d8');
-  }
-  const mx2 = LW * (wide ? 0.88 : 0.82), my2 = 15 * U, mr = 9 * U;
-  glow(mx2, my2, mr * 3.4, '#cfe8f0', 0.34);
-  fillCircle(mx2, my2, mr + 1, '#8fa8b8');
-  fillCircle(mx2, my2, mr, '#eef6ef');
-  fillCircle(mx2 - mr * 0.2, my2 - mr * 0.15, mr * 0.82, '#fbfff4');
-  fillCircle(mx2 + mr * 0.35, my2 + mr * 0.2, mr * 0.2, '#d2dfd0');
-  fillCircle(mx2 - mr * 0.4, my2 + mr * 0.35, mr * 0.13, '#d2dfd0');
-  // ---------------- treeline ----------------
-  const hz = 48 * U;
-  for (let k = 0; k < 34; k++) {
-    const tx = (k * LW / 30) - 10, th = U * (7 + ((k * 37) % 11));
-    rect(tx, hz - th, 2 + (k % 3), th, '#071219');
-    rr(tx - 4 * U, hz - th - 4 * U, 10 * U, 7 * U, 3, '#071219');
-  }
-  rect(0, hz - 2, LW, 3, '#0a1620');
-  // ---------------- water ----------------
-  for (let y = hz; y < LH; y += 2) rect(0, y, LW, 2, mixHex('#0e2a38', '#061119', (y - hz) / (LH - hz)));
-  ctx.save();
-  for (let k = 0; k < 80; k++) {
-    const gy2 = hz + 3 + ((k * 29) % Math.max(1, LH - hz - 4));
-    ctx.globalAlpha = 0.28 * (1 - (gy2 - hz) / (LH - hz) * 0.6);
-    rect((k * 83) % LW, gy2, 4 * U + (k % 5) * 3, 1, '#6fc0d8');
-  }
-  ctx.globalAlpha = 0.16;
-  for (let k = 0; k < 30; k++) rect(mx2 - 5 * U + ((k % 3) * 3 * U), hz + k * 2 * U, 8 * U - (k % 4) * 2, 1, '#cfe8f0');
-  ctx.restore();
+// ---------------------------------------------------------------- page code
+const HELPERS = `
+// Draw the real fight scene - the same drawCroc() the game uses - at 2x into
+// the canvas, then hand back an offscreen copy to composite from.
+window.grabCroc = function (Z) {
+  Z = Z || 2;
+  canvas.width = 480 * Z; canvas.height = 270 * Z;
+  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(Z, 0, 0, Z, 0, 0);
+  newRun('scout');
+  G.state = 'menu';
+  rollMenuLook();
+  G.menuLook.mut = null;               // always the plain swamp gator, never a variant
+  G.menuLook.round = 1;                // the big gator: widest jaws, best for key art
+  G.menuLook.nodeType = 'big';
+  G.mouth = G.menuLook.teeth;
+  G.mut = null;
+  const th = THEMES.night;
+  drawSceneBack(th);
+  drawCroc(0.02);                      // jaws all the way open
+  drawSceneFront(th);
+  const off = document.createElement('canvas');
+  off.width = canvas.width; off.height = canvas.height;
+  off.getContext('2d').drawImage(canvas, 0, 0);
+  return off;
+};
 
-  // ---------------- the maw ----------------
-  const jawT = (wide ? 31 : 26) * U, jawB = (wide ? 83 : 80) * U, mawH = jawB - jawT;
-  ctx.save();
-  ctx.globalAlpha = 0.72; rect(0, jawT, LW, mawH, '#2e0a14');
-  ctx.globalAlpha = 0.5; rect(0, jawT, LW, mawH * 0.3, '#5a1020');
-  ctx.globalAlpha = 0.55; rect(0, jawB - mawH * 0.22, LW, mawH * 0.22, '#180209');
-  for (let k = 0; k < 14; k++) {                 // darken hard toward the corners
-    ctx.globalAlpha = 0.07;
-    rect(0, jawT, 4 * U + k * 3 * U, mawH, '#12020a');
-    rect(LW - 4 * U - k * 3 * U, jawT, 4 * U + k * 3 * U, mawH, '#12020a');
-  }
-  ctx.restore();
-
-  const G1 = '#1b4a14', G2 = '#2f7d22', G3 = '#4aa832', G4 = '#6fd04a', G5 = '#9ae86a';
-  // ---- upper jaw ----
-  rr(-12, -20, LW + 24, jawT + 20, 14, G1);
-  rr(-10, -20, LW + 20, jawT + 16, 12, G2);
-  rr(-8, -20, LW + 16, jawT * 0.6, 12, G3);
-  rr(-6, -20, LW + 12, jawT * 0.28, 10, G4);
-  ctx.save(); ctx.globalAlpha = 0.45; rect(0, 2, LW, 2, G5); ctx.restore();
-  ctx.save(); ctx.globalAlpha = 0.26;
-  for (let ry = 0; ry < 4; ry++) for (let sx = -6 + (ry % 2) * 6 * U; sx < LW; sx += 11 * U) rect(sx, 6 * U + ry * 6 * U, 6 * U, 2.5 * U, G1);
-  ctx.restore();
-  // brow ridges + eyes
-  [wide ? 0.2 : 0.26, wide ? 0.74 : 0.74].forEach((f, i) => {
-    const ex = LW * f, ey = jawT * 0.6, er = 8 * U;
-    rr(ex - er * 2.1, ey - er * 2.2, er * 4.2, er * 2.9, 12, G1);
-    rr(ex - er * 1.9, ey - er * 2.2, er * 3.8, er * 2.5, 10, G3);
-    rr(ex - er * 1.5, ey - er * 2, er * 3, er * 1.4, 8, G4);
-    rr(ex - er * 1.4, ey - er * 0.7, er * 2.8, er * 1.8, 7, '#f6f2dc');
-    const look = (i ? -1 : 1) * er * 0.22;
-    fillCircle(ex + look, ey + er * 0.25, er * 0.8, '#c9a52a');
-    fillCircle(ex + look, ey + er * 0.25, er * 0.66, '#ffd93f');
-    rect(ex + look - er * 0.22, ey - er * 0.5, er * 0.45, er * 1.5, '#12100a');
-    rect(ex + look - er * 0.5, ey - er * 0.2, er * 0.3, er * 0.3, '#ffffff');
-    ctx.save(); ctx.globalAlpha = 0.35; rect(ex - er * 1.4, ey - er * 0.7, er * 2.8, er * 0.4, '#a8832a'); ctx.restore();
-  });
-  [0.47, 0.53].forEach(f => { rr(LW * f - 3 * U, 3 * U, 6 * U, 4 * U, 3, G1); rr(LW * f - 2.5 * U, 3.5 * U, 5 * U, 2.5 * U, 2, '#0e1a08'); });
-  // gum + upper teeth
-  rect(-4, jawT - 5 * U, LW + 8, 6 * U, '#a8354f');
-  rect(-4, jawT - 5 * U, LW + 8, 2 * U, '#d4587a');
-  const tw0 = 17 * U, nT = Math.max(6, Math.round(LW / tw0));
-  const fang = (tx, tw, top, tl, down) => {     // a smooth 1px-per-row taper
-    const n = Math.max(6, Math.round(tl));
-    for (let i = 0; i < n; i++) {
-      const f = i / n;
-      const w2 = Math.max(2, Math.round(tw * (1 - f * f * 0.88)));
-      const xx = Math.round(tx + (tw - w2) / 2);
-      const yy = Math.round(down ? top + i : top + tl - i - 1);
-      rect(xx - 1, yy, w2 + 2, 1, '#8f8468');
-      rect(xx, yy, w2, 1, f < 0.25 ? '#ddd4b6' : f < 0.6 ? '#f2ecd8' : '#fdfaec');
-      rect(xx + 1, yy, Math.max(1, Math.round(w2 * 0.3)), 1, '#ffffff');
-    }
-  };
-  for (let k = 0; k < nT; k++) {
-    const tw = LW / nT, tx = k * tw + tw * 0.08, w3 = tw * 0.84;
-    const tl = tw * (k % 3 === 1 ? 1.15 : k % 3 === 2 ? 0.78 : 0.96);
-    ctx.save(); ctx.globalAlpha = 0.3; rr(tx + 2, jawT - U, w3, tl + 2, 3, '#120208'); ctx.restore();
-    fang(tx, w3, jawT - 2 * U, tl, true);
-  }
-  // ---- lower jaw ----
-  rr(-12, jawB, LW + 24, LH - jawB + 20, 14, G1);
-  rr(-10, jawB + 2, LW + 20, LH - jawB + 18, 12, G2);
-  rr(-8, jawB + 4 * U, LW + 16, LH - jawB, 12, G3);
-  ctx.save(); ctx.globalAlpha = 0.24;
-  for (let ry = 0; ry < 3; ry++) for (let sx = -6 + (ry % 2) * 6 * U; sx < LW; sx += 11 * U) rect(sx, jawB + 8 * U + ry * 5 * U, 6 * U, 2.5 * U, G1);
-  ctx.restore();
-  rect(-4, jawB - U, LW + 8, 5 * U, '#8f2b42');
-  rect(-4, jawB + 4 * U, LW + 8, 1.5 * U, '#5f1a2a');
-  for (let k = 0; k < nT; k++) {
-    const tw = LW / nT, tx = k * tw + tw * 0.56, w3 = tw * 0.76;
-    if (tx > LW - 4) continue;
-    const tl = tw * (k % 3 === 0 ? 1.0 : 0.72);
-    ctx.save(); ctx.globalAlpha = 0.3; rr(tx + 2, jawB - tl, w3, tl + 2, 3, '#120208'); ctx.restore();
-    fang(tx, w3, jawB - tl, tl + 2 * U, false);
-  }
-  ctx.save(); ctx.globalAlpha = 0.5;
-  [0.14, 0.4, 0.62, 0.9].forEach((f, i) => {
-    const dx2 = LW * f, dl = (5 + i * 2) * U;
-    rect(dx2, jawT + 7 * U, 2, dl, '#cfe8f0');
-    rr(dx2 - 1, jawT + 7 * U + dl, 4, 4, 2, '#e8f6fa');
-  });
-  ctx.restore();
-
-  // ---------------- hero: the otter in her boat ----------------
-  const hsc = 0.84 * mawH / 58;
-  const hx = LW * (wide ? 0.3 : 0.44), hy = jawB - (wide ? 6 : 4) * U;
-  ctx.save();                                   // a soft spotlight cone from the roof
-  const coneTop = jawT + 2 * U, coneH = (hy + 4 * U) - coneTop;
-  for (let i = 0; i < coneH; i++) {
-    const f = i / coneH;
-    const halfW = (4 + 34 * f) * U;
-    ctx.globalAlpha = 0.16 * (1 - f * 0.5);
-    rect(hx - halfW, coneTop + i, halfW * 2, 1, '#ffdf9a');
-  }
-  ctx.globalAlpha = 0.24; ctx.scale(1, 0.22);
-  fillCircle(hx, (hy + 2 * U) / 0.22, 28 * U, '#ffc867');
-  ctx.restore();
-  ctx.save(); ctx.translate(hx, hy + 2 * hsc); ctx.scale(hsc * 1.5, hsc * 1.5); drawRowBoat(0, 0, 0, false); ctx.restore();
-  drawBobble(hx - 2 * hsc, hy, 'scout', {
-    sc: hsc, expr: 'wow', act: 'idle', t: 2.1,
-    hat: 'ranger', gear: 'none', glove: 'rubber',
-  });
-  const lx2 = hx + 15 * hsc, ly2 = hy - 46 * hsc;
-  rect(lx2 - 1, ly2 + 8 * hsc, 2, 10 * hsc, '#4a3320');
-  rr(lx2 - 5 * hsc, ly2, 10 * hsc, 12 * hsc, 3, '#2a2018');
-  rr(lx2 - 3 * hsc, ly2 + 2 * hsc, 6 * hsc, 8 * hsc, 2, '#ffd54a');
-  glow(lx2, ly2 + 6 * hsc, 20 * hsc, '#ffd88a', 0.55);
-
-  for (let k = 0; k < 46; k++) {
-    const px = (k * 197) % LW, py = 20 * U + ((k * 113) % (66 * U));
-    ctx.save(); ctx.globalAlpha = 0.22 + (k % 7) / 14;
-    rect(px, py, (k % 5 === 0) ? 2 : 1, (k % 5 === 0) ? 2 : 1, k % 3 ? '#ffe089' : '#9ff0c0');
-    ctx.restore();
-  }
-
-  // ---------------- title ----------------
+// A rusted plank sign carrying the title.
+window.titlePlank = function (cx, cy, tsc, o) {
+  o = o || {};
   const t1 = 'BITE', t2 = 'DOWN';
-  const gapW = 5;                                   // gap between the words, in scale units
-  const tsc = Math.max(2, Math.round((wide ? LW * 0.42 : LW * 0.84) / (19 + gapW + 19)));
+  const gapU = 5, gap = gapU * tsc;
   const tw1 = textW(t1, tsc), tw2 = textW(t2, tsc);
-  const gap = gapW * tsc;
   const tot = tw1 + tw2 + gap;
   const pad = Math.max(4, Math.round(tsc * 1.4));
-  const plankW = tot + pad * 2, plankH = 5 * tsc + pad * 2;
-  const tcx = wide ? LW * 0.66 : LW * 0.5;
-  const plankX = Math.round(tcx - plankW / 2);
-  const plankY = Math.round(wide ? jawT + mawH * 0.3 : LH - plankH - 7 * U);
-  ctx.save(); ctx.globalAlpha = 0.6; rr(plankX + 3, plankY + 5, plankW, plankH, 6, '#000'); ctx.restore();
-  rr(plankX, plankY, plankW, plankH, 6, '#1d1005');
-  rr(plankX + 2, plankY + 2, plankW - 4, plankH - 4, 5, '#5c3413');
-  rr(plankX + 2, plankY + 2, plankW - 4, plankH * 0.42, 5, '#74441c');
+  const pw = tot + pad * 2, ph = 5 * tsc + pad * 2;
+  const px = Math.round(cx - pw / 2), py = Math.round(cy - ph / 2);
+  ctx.save(); ctx.globalAlpha = 0.6; rr(px + 3, py + 5, pw, ph, 6, '#000'); ctx.restore();
+  rr(px, py, pw, ph, 6, '#1d1005');
+  rr(px + 2, py + 2, pw - 4, ph - 4, 5, '#5c3413');
+  rr(px + 2, py + 2, pw - 4, ph * 0.42, 5, '#74441c');
   ctx.save(); ctx.globalAlpha = 0.22;
-  for (let k = 0; k < 18; k++) rect(plankX + 5 + (k * 53) % Math.max(1, plankW - 12), plankY + 4 + (k % 5) * 3, 10 + (k % 4) * 7, 1, '#241405');
+  for (let k = 0; k < 18; k++) rect(px + 5 + (k * 53) % Math.max(1, pw - 12), py + 4 + (k % 5) * 3, 10 + (k % 4) * 7, 1, '#241405');
   ctx.restore();
   for (let k = 0; k < 4; k++) {
-    const rx2 = k % 2 ? plankX + plankW - 8 : plankX + 4, ry2 = k < 2 ? plankY + 4 : plankY + plankH - 8;
-    rect(rx2, ry2, 4, 4, '#8a5f10'); rect(rx2, ry2, 2, 2, '#ffe89a');
+    const rx = k % 2 ? px + pw - 8 : px + 4, ry = k < 2 ? py + 4 : py + ph - 8;
+    rect(rx, ry, 4, 4, '#8a5f10'); rect(rx, ry, 2, 2, '#ffe89a');
   }
-  const ty0 = plankY + pad;
-  drawTextSh(t1, plankX + pad, ty0, '#ffd23f', tsc, '#2a1a06');
-  drawTextSh(t2, plankX + pad + tw1 + gap, ty0, '#63d66a', tsc, '#2a1a06');
-  // a bite mark chewed out of the plank's corner, for character
-  ctx.save(); ctx.globalAlpha = 0.9;
-  for (let k = 0; k < 3; k++) fillCircle(plankX + plankW - 6 - k * 7, plankY + plankH - 1, 4 + (k % 2) * 2, '#0a0c10');
+  drawTextSh(t1, px + pad, py + pad, '#ffd23f', tsc, '#2a1a06');
+  drawTextSh(t2, px + pad + tw1 + gap, py + pad, '#63d66a', tsc, '#2a1a06');
+  ctx.save(); ctx.globalAlpha = 0.9;            // a bite chewed out of the corner
+  for (let k = 0; k < 3; k++) fillCircle(px + pw - 6 - k * 7, py + ph - 1, 4 + (k % 2) * 2, o.biteCol || '#0a0c10');
   ctx.restore();
+  if (o.sub !== false) {
+    const sub = 'A PRESS-YOUR-LUCK DENTAL ROGUELIKE';
+    const ssc = Math.max(1, Math.min(3, Math.round(pw / 200)));
+    const sw = textW(sub, ssc), sy = py + ph + 3 * ssc;
+    rr(cx - sw / 2 - 4 * ssc, sy - 2 * ssc, sw + 8 * ssc, 9 * ssc, 2, '#1d1005');
+    rr(cx - sw / 2 - 3 * ssc, sy - ssc, sw + 6 * ssc, 7 * ssc, 2, '#40230c');
+    drawTextCSh(sub, cx, sy, '#f0d8b0', ssc, '#1d1005');
+  }
+  return { x: px, y: py, w: pw, h: ph };
+};
 
-  const sub = 'A PRESS-YOUR-LUCK DENTAL ROGUELIKE';
-  const ssc = Math.max(1, Math.min(3, Math.round(plankW / 200)));
-  const sw2 = textW(sub, ssc);
-  const sy2 = wide ? plankY + plankH + 3 * ssc : plankY - 12 * ssc;
-  rr(tcx - sw2 / 2 - 4 * ssc, sy2 - 2 * ssc, sw2 + 8 * ssc, 9 * ssc, 2, '#1d1005');
-  rr(tcx - sw2 / 2 - 3 * ssc, sy2 - ssc, sw2 + 6 * ssc, 7 * ssc, 2, '#40230c');
-  drawTextCSh(sub, tcx, sy2, '#f0d8b0', ssc, '#1d1005');
-
-  // ---------------- vignette ----------------
+window.vignette = function (LW, LH, strength) {
   ctx.save();
   for (let k = 0; k < 14; k++) {
-    ctx.globalAlpha = 0.055;
+    ctx.globalAlpha = (strength || 0.055);
     rect(0, 0, LW, 2 + k * 2, '#000'); rect(0, LH - 2 - k * 2, LW, 2 + k * 2, '#000');
     rect(0, 0, 2 + k * 3, LH, '#000'); rect(LW - 2 - k * 3, 0, 2 + k * 3, LH, '#000');
   }
   ctx.restore();
+};
 
+// ------------------------------------------------- COVER / THUMBNAIL -------
+// The real croc, cropped so its open jaws frame the shot, with the otter lit
+// on the tongue and the title below her.
+window.drawCover = function (off, OW, OH, S, crop) {
+  canvas.width = OW; canvas.height = OH;
+  ctx.imageSmoothingEnabled = false;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  rect(0, 0, OW, OH, '#050d14');
+  ctx.drawImage(off, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, OW, OH);
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  const LW = OW / S, LH = OH / S, U = LH / 100;
+  // the croc was rendered at 2x from the 480x270 field, then cropped - so a
+  // game coordinate maps into this frame as (game * 2 - crop) / S
+  const Z = crop.z || 2;
+  const g2l = (gx, gy) => ({ x: (gx * Z - crop.sx) / S, y: (gy * Z - crop.sy) / S });
+  const ml = mouthLayout().maw;
+  const topL = g2l(ml.x + ml.w / 2, ml.y), botL = g2l(ml.x + ml.w / 2, ml.y + ml.h);
+  const hx = topL.x, mawTop = topL.y, mawBot = botL.y, mawH = mawBot - mawTop;
+
+  ctx.save(); ctx.globalAlpha = 0.34; rect(0, 0, LW, LH, '#0a0a18'); ctx.restore();
+  ctx.save();                                   // stage light pouring down the throat
+  const coneH = mawBot - mawTop + 4;
+  for (let i = 0; i < coneH; i++) {
+    const f = i / coneH;
+    ctx.globalAlpha = 0.1 * (1 - f * 0.4);
+    rect(hx - (4 + 22 * f) * U, mawTop + i, (4 + 22 * f) * U * 2, 1, '#ffdf9a');
+  }
+  ctx.restore();
+
+  const hsc = 0.8 * mawH / 58, hy = mawBot - 2;
+  ctx.save(); ctx.globalAlpha = 0.36; ctx.scale(1, 0.24);
+  fillCircle(hx, hy / 0.24, 22 * U, '#ffc867'); ctx.restore();
+  ctx.save(); ctx.translate(hx, hy + 3 * hsc); ctx.scale(hsc * 1.4, hsc * 1.4); drawRowBoat(0, 0, 0, false); ctx.restore();
+  drawBobble(hx - 2 * hsc, hy, 'scout', { sc: hsc, expr: 'wow', act: 'idle', t: 2.1, hat: 'ranger', gear: 'none', glove: 'rubber' });
+  const lx = hx + 15 * hsc, ly = hy - 46 * hsc;
+  rect(lx - 1, ly + 8 * hsc, 2, 10 * hsc, '#4a3320');
+  rr(lx - 5 * hsc, ly, 10 * hsc, 12 * hsc, 3, '#2a2018');
+  rr(lx - 3 * hsc, ly + 2 * hsc, 6 * hsc, 8 * hsc, 2, '#ffd54a');
+  glow(lx, ly + 6 * hsc, 16 * hsc, '#ffd88a', 0.5);
+
+  for (let k = 0; k < 40; k++) {
+    const px = (k * 197) % LW, py = mawTop + ((k * 113) % Math.max(1, mawH));
+    ctx.save(); ctx.globalAlpha = 0.2 + (k % 7) / 14;
+    rect(px, py, (k % 5 === 0) ? 2 : 1, (k % 5 === 0) ? 2 : 1, k % 3 ? '#ffe089' : '#9ff0c0');
+    ctx.restore();
+  }
+  // size the title so the plank clears the hero's boots and the strapline
+  // still lands inside the frame
+  const subH = 13;
+  const plankBottom = LH - subH - 4;
+  let tsc = Math.max(3, Math.round(LW * 0.74 / 43));
+  while (tsc > 3) {
+    const ph = 5 * tsc + 2 * Math.max(4, Math.round(tsc * 1.4));
+    if (plankBottom - ph >= hy + 1) break;
+    tsc--;
+  }
+  const phF = 5 * tsc + 2 * Math.max(4, Math.round(tsc * 1.4));
+  titlePlank(LW * 0.5, plankBottom - phF / 2, tsc, {});
+  vignette(LW, LH, 0.06);
+};
+
+// ------------------------------------------------------------ BANNER -------
+// Abbey Road, bayou edition: the four rangers striding over a zebra crossing.
+window.drawStreet = function (LW, LH) {
+  const U = LH / 100;
+  // ---- dusk sky ----
+  const sky = ['#161d3a', '#26244a', '#452f52', '#6e3f52', '#a55a4a', '#d98a4a', '#f0b566'];
+  for (let i = 0; i < sky.length; i++) rect(0, i * (52 * U / sky.length), LW, 52 * U / sky.length + 1, sky[i]);
+  for (let k = 0; k < 60; k++) { const sx = (k * 149) % LW, sy = (k * 37) % (26 * U); ctx.save(); ctx.globalAlpha = 0.5; rect(sx, sy, 1, 1, '#cfe0ff'); ctx.restore(); }
+  const sunX = LW * 0.5, sunY = 48 * U;
+  glow(sunX, sunY, 40 * U, '#ffc06a', 0.5);
+  fillCircle(sunX, sunY, 11 * U, '#ffd88a'); fillCircle(sunX, sunY, 9 * U, '#fff0c0');
+  // ---- far treeline ----
+  for (let k = 0; k < 40; k++) {
+    const tx = (k * LW / 36) - 8, th = U * (5 + ((k * 31) % 8));
+    rect(tx, 52 * U - th, 2 + (k % 3), th + 2, '#2a2038');
+    rr(tx - 3 * U, 52 * U - th - 3 * U, 7 * U, 5 * U, 2, '#2a2038');
+  }
+  // ---- bayou-town buildings ----
+  const blds = [[4, 30, 34], [40, 22, 26], [66, 38, 30], [100, 26, 22], [128, 34, 28], [300, 30, 26], [336, 24, 34], [366, 36, 24], [404, 28, 30], [440, 34, 26]];
+  blds.forEach(([bx, bw, bh], i) => {
+    const x = bx * (LW / 480), w = bw * (LW / 480), y = 52 * U - bh * U, h = bh * U + 4 * U;
+    rect(x, y, w, h, i % 2 ? '#241d33' : '#2c2440');
+    rect(x, y, w, 2, i % 2 ? '#3a3050' : '#463a5e');
+    rect(x + w - 2, y, 2, h, '#1a1526');
+    for (let wy = y + 5 * U; wy < y + h - 4 * U; wy += 7 * U)
+      for (let wx = x + 3 * U; wx < x + w - 4 * U; wx += 7 * U) {
+        const on = ((wx * 7 + wy * 3) | 0) % 5 !== 0;
+        rect(wx, wy, 3 * U, 4 * U, on ? '#ffd07a' : '#191428');
+        if (on) rect(wx, wy, 3 * U, 1, '#fff0c0');
+      }
+    if (i % 3 === 0) { rect(x + w / 2 - U, y - 6 * U, 2 * U, 6 * U, '#1a1526'); rect(x + w / 2 - 3 * U, y - 8 * U, 6 * U, 2 * U, '#1a1526'); }
+  });
+  // ---- pavement + kerb ----
+  rect(0, 52 * U, LW, 12 * U, '#4a4458');
+  rect(0, 52 * U, LW, 2, '#5f586e');
+  for (let k = 0; k * 14 * U < LW; k++) rect(k * 14 * U, 52 * U, 1, 12 * U, '#3a3446');
+  rect(0, 62 * U, LW, 3 * U, '#6a6278');
+  rect(0, 62 * U, LW, 1, '#8a8298');
+  rect(0, 65 * U, LW, 2 * U, '#2a2632');
+  // ---- road ----
+  rect(0, 67 * U, LW, LH - 67 * U, '#32303c');
+  ctx.save(); ctx.globalAlpha = 0.25;
+  for (let k = 0; k < 90; k++) rect((k * 97) % LW, 68 * U + ((k * 53) % (32 * U)), 3 + (k % 4) * 3, 1, '#4a4858');
+  ctx.restore();
+  // ---- zebra crossing, widening toward the camera ----
+  for (let k = 0; k < 9; k++) {
+    const t = k / 8;
+    const bx = LW * (0.06 + t * 0.86);
+    for (let i = 0; i < 26 * U; i++) {
+      const f = i / (26 * U);
+      const w = (6 + f * 5) * U;
+      ctx.save(); ctx.globalAlpha = 0.96 - f * 0.1;
+      rect(bx - w / 2 + f * (bx - LW / 2) * 0.1, 70 * U + i, w, 1, f < 0.12 ? '#fbf6e8' : '#eae2d0');
+      ctx.restore();
+    }
+  }
+  ctx.save(); ctx.globalAlpha = 0.13; rect(0, 67 * U, LW, LH - 67 * U, '#1a1826'); ctx.restore();
+
+  // ---- a parked swamp buggy on the left kerb ----
+  (function buggy() {
+    const bx = 14 * U, by = 66 * U;
+    rr(bx, by - 11 * U, 46 * U, 11 * U, 3, '#1b2c22');
+    rr(bx + 1, by - 10 * U, 44 * U, 9 * U, 3, '#2f6b3a');
+    rect(bx + 3 * U, by - 10 * U, 40 * U, 2 * U, '#49915a');
+    rr(bx + 8 * U, by - 17 * U, 26 * U, 7 * U, 2, '#1b2c22');
+    rr(bx + 9 * U, by - 16 * U, 24 * U, 5 * U, 2, '#7fc0d8');
+    rect(bx + 10 * U, by - 16 * U, 10 * U, 2 * U, '#bfe8f2');
+    [bx + 9 * U, bx + 34 * U].forEach(wx => { fillCircle(wx, by, 5 * U, '#17151c'); fillCircle(wx, by, 3 * U, '#3a3644'); fillCircle(wx, by, 1.5 * U, '#6a6278'); });
+    rect(bx + 44 * U, by - 8 * U, 3 * U, 3 * U, '#ffd54a');
+    glow(bx + 46 * U, by - 7 * U, 12 * U, '#ffd54a', 0.35);
+  })();
+  // ---- street lamp ----
+  (function lamp() {
+    const lx = LW - 34 * U;
+    rect(lx, 22 * U, 2 * U, 44 * U, '#241f2c');
+    rect(lx - 7 * U, 21 * U, 12 * U, 3 * U, '#241f2c');
+    rr(lx - 9 * U, 22 * U, 8 * U, 5 * U, 2, '#3a3446');
+    rect(lx - 8 * U, 24 * U, 6 * U, 3 * U, '#ffe089');
+    glow(lx - 5 * U, 26 * U, 26 * U, '#ffd88a', 0.45);
+  })();
+
+  // ---- THE CROSSING: four rangers, in step, long shadows ----
+  const crew = ['scout', 'medic', 'trader', 'frog'];
+  const hats = ['ranger', 'straw', 'cowboy', 'bandana'];
+  const strides = [0.291, 0.873, 1.454, 2.036];   // sin(t*5.4) at +1,-1,+1,-1
+  const feetY = 87 * U, sc = LH / 152;
+  const startX = LW * 0.29, stepX = LW * 0.108;
+  crew.forEach((k, i) => {
+    const cx = startX + i * stepX;
+    ctx.save(); ctx.globalAlpha = 0.3;           // long shadow thrown back toward the sun
+    ctx.translate(cx, feetY); ctx.transform(1, 0, -1.7, 0.26, 0, 0);
+    fillCircle(0, 0, 7 * sc, '#0c0a14'); rect(-5 * sc, -50 * sc, 10 * sc, 50 * sc, '#0c0a14');
+    ctx.restore();
+    drawBobble(cx, feetY, k, {
+      sc, act: 'walk', expr: i === 0 ? 'calm' : i === 1 ? 'happy' : i === 2 ? 'smug' : 'wow',
+      t: strides[i], hat: hats[i], gear: 'none', glove: i === 1 ? 'rubber' : i === 2 ? 'leather' : 'bare',
+    });
+  });
+
+  // ---- title on a hanging street sign ----
+  const tsc = Math.max(3, Math.round(LW * 0.3 / 43));
+  const tcx = Math.min(LW * 0.8, LW - textW('A PRESS-YOUR-LUCK DENTAL ROGUELIKE', 1) / 2 - 8);
+  const pk = titlePlank(tcx, 20 * U, tsc, { sub: false, biteCol: '#2c2440' });
+  rect(pk.x + pk.w * 0.22, 0, 2, pk.y, '#241f2c');
+  rect(pk.x + pk.w * 0.78, 0, 2, pk.y, '#241f2c');
+  const sub = 'A PRESS-YOUR-LUCK DENTAL ROGUELIKE';
+  const ssc = Math.max(1, Math.round(pk.w / 190));
+  const sw = textW(sub, ssc), sy = pk.y + pk.h + 4 * ssc;
+  rr(tcx - sw / 2 - 4 * ssc, sy - 2 * ssc, sw + 8 * ssc, 9 * ssc, 2, '#1d1005');
+  rr(tcx - sw / 2 - 3 * ssc, sy - ssc, sw + 6 * ssc, 7 * ssc, 2, '#40230c');
+  drawTextCSh(sub, tcx, sy, '#f0d8b0', ssc, '#1d1005');
+
+  vignette(LW, LH, 0.05);
 };
 `;
 
@@ -215,28 +264,42 @@ window.drawKeyArt = function (LW, LH, opt) {
   const errs = [];
   pg.on('pageerror', e => errs.push('PAGEERR ' + e.message));
   pg.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-  await pg.goto('file:///home/user/Pk/index.html');
+  await pg.goto('file://' + OUT.replace(/\/promo$/, '') + '/index.html');
   await pg.waitForTimeout(800);
-  await pg.evaluate(ART);
+  await pg.evaluate(HELPERS);
+  await pg.evaluate(() => {   // promo art gets the full wardrobe
+    Object.keys(HATS).forEach(k => meta.hatOwn[k] = 1);
+    Object.keys(GEAR).forEach(k => meta.gearOwn[k] = 1);
+    Object.keys(GLOVES).forEach(k => meta.gachaOwn[k] = 1);
+    ACHS.forEach(a => meta.ach[a.id] = 1);
+  });
 
-  const shots = [
-    { name: 'thumbnail-630x500.png', w: 630, h: 500, s: 2 },
-    { name: 'banner-1440x480.png', w: 1440, h: 480, s: 3 },
-    { name: 'cover-fullart.png', w: 960, h: 540, s: 3 },
-  ];
-  for (const sh of shots) {
-    const data = await pg.evaluate(({ w, h, s }) => {
-      canvas.width = w; canvas.height = h;
-      const c = canvas.getContext('2d');
-      c.imageSmoothingEnabled = false;
-      ctx.imageSmoothingEnabled = false;
-      ctx.setTransform(s, 0, 0, s, 0, 0);
-      window.drawKeyArt(w / s, h / s, {});
+  const save = (name, data) => fs.writeFileSync(OUT + '/' + name, Buffer.from(data.split(',')[1], 'base64'));
+
+  // thumbnail + cover both composite the real croc
+  for (const job of [
+    { name: 'thumbnail-630x500.png', w: 630, h: 500, s: 2, z: 2, sx: 273, sy: 34, sw: 630, sh: 500 },
+    { name: 'cover-fullart.png', w: 960, h: 540, s: 2, z: 2, sx: 0, sy: 0, sw: 960, sh: 540 },
+  ]) {
+    const data = await pg.evaluate((j) => {
+      const off = window.grabCroc(j.z);
+      window.drawCover(off, j.w, j.h, j.s, { sx: j.sx, sy: j.sy, sw: j.sw, sh: j.sh, z: j.z });
       return canvas.toDataURL('image/png');
-    }, sh);
-    fs.writeFileSync('/home/user/Pk/promo/' + sh.name, Buffer.from(data.split(',')[1], 'base64'));
-    console.log('wrote', sh.name);
+    }, job);
+    save(job.name, data);
+    console.log('wrote', job.name);
   }
+
+  const banner = await pg.evaluate(() => {
+    canvas.width = 1440; canvas.height = 480;
+    ctx.imageSmoothingEnabled = false;
+    ctx.setTransform(3, 0, 0, 3, 0, 0);
+    window.drawStreet(480, 160);
+    return canvas.toDataURL('image/png');
+  });
+  save('banner-1440x480.png', banner);
+  console.log('wrote banner-1440x480.png');
+
   console.log('ERRORS:', errs.length ? errs.join('\n') : 'none');
   await b.close();
 })();

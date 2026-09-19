@@ -1188,13 +1188,13 @@ function drawBobble(cx, gy, key, o) {
 
   // ---------------- the otter's tail: one tapered piece ------------------
   if (p.tail) {
-    const sw = Math.round(Math.sin(t * 1.1) * 2);
+    const sw = Math.round(Math.sin(t * 1.1) * 1.5);
     const ty = hop * 0.3;
-    rr(8, -18 + ty, 13, 9, 4, p.tail[0]);
-    rr(9, -17 + ty, 11, 7, 3, p.tail[1]);
-    rr(18, -14 + sw + ty, 9, 7, 3, p.tail[0]);
-    rr(19, -13 + sw + ty, 7, 5, 2, p.tail[2]);
-    rect(10, -16 + ty, 5, 2, p.sk[3]);
+    rr(9, -12 + ty, 10, 7, 3, p.tail[0]);
+    rr(10, -11 + ty, 8, 5, 2, p.tail[1]);
+    rr(16, -9 + sw + ty, 7, 5, 2, p.tail[0]);
+    rr(17, -8 + sw + ty, 5, 3, 2, p.tail[2]);
+    rect(11, -10 + ty, 4, 1, p.sk[3]);
   }
 
   // ---------------- legs + boots ----------------------------------------
