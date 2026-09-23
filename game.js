@@ -271,14 +271,12 @@ function plasticBox(x, y, w, h, r, ramp, o) {
   x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
   if (w < 2 || h < 2) return;
   const ri = Math.max(1, r - 1);
-  rr(x, y, w, h, r, ramp[0]);                                     // moulded edge
-  rr(x + 1, y + 1, w - 2, h - 2, ri, ramp[1]);                    // shade face
-  rr(x + 1, y + 1, w - 2, Math.max(2, h - 2 - Math.round(h * 0.2)), ri, ramp[2]);
-  if (!o.flat) rr(x + 2, y + 2, Math.max(2, w - 4 - Math.round(w * 0.24)), Math.max(2, Math.round(h * 0.42)), ri, ramp[3]);
+  rr(x, y, w, h, r, ramp[0]);                                   // moulded edge
+  rr(x + 1, y + 1, w - 2, h - 2, ri, ramp[2]);                  // ONE body colour
+  if (!o.flat && h > 5) rect(x + 2, y + h - 3, w - 4, 2, ramp[1]);   // one shade strip
   if (!o.noShine && w > 7 && h > 7) {
-    const sw = Math.max(2, Math.round(w * 0.16)), sh = Math.max(2, Math.round(h * 0.13));
-    rr(x + 3, y + 3, sw, sh, 1, ramp[4]);
-    if (w > 14) rect(x + 3 + sw + 1, y + 3, 1, 1, ramp[4]);
+    const sw = Math.max(2, Math.round(w * 0.2)), sh = Math.max(2, Math.round(h * 0.14));
+    rr(x + 3, y + 3, sw, sh, 1, ramp[4]);                        // one hard highlight
   }
 }
 function plasticRound(cx, cy, rad, ramp, o) {
@@ -969,128 +967,60 @@ function bobShape(spans, y0, ramp, o) {
 // make a face read as cute rather than odd.
 function bobFace(p, expr, phase, look, opt) {
   opt = opt || {};
-  const OL = p.sk[0], EX = opt.topeyes ? 9 : 6, EY = opt.topeyes ? -11 : -1;
+  const OL = p.sk[0], EX = opt.topeyes ? 8 : 5, EY = opt.topeyes ? -11 : -1;
   const lx = clamp(look.x, -1, 1), ly = clamp(look.y, -1, 1);
-  const shake = (expr === 'scared' || expr === 'panic') ? Math.round(Math.sin(tNow * 26 + phase) * 1) : 0;
-  // three-stage blink
+  const shake = (expr === 'scared' || expr === 'panic') ? Math.round(Math.sin(tNow * 22 + phase) * 1) : 0;
   const bt = (tNow + phase * 1.7) % 5.2;
-  let lid = 0;
-  if (bt > 4.94) { const k = (bt - 4.94) / 0.26; lid = k < 0.38 ? k / 0.38 : k < 0.66 ? 1 : Math.max(0, (1 - k) / 0.34); }
-  const shut = expr === 'happy' || expr === 'love' || expr === 'sleepy';
+  const blink = bt > 4.98 && bt < 5.1;
 
-  // ---- the anime eye: a tall glossy oval with a fat highlight ----
-  const animeEye = (ox, ew, eh, o2) => {
-    o2 = o2 || {};
-    const ey = EY - (eh >> 1), bx = ox + shake;
-    rr(bx - (ew >> 1) - 1, ey - 1, ew + 2, eh + 2, 4, OL);         // lash line
-    rr(bx - (ew >> 1), ey, ew, eh, 3, '#fbf7ec');                   // sclera
-    rect(bx - (ew >> 1), ey, ew, 2, mixHex(p.iris, '#000000', 0.55)); // upper lash shade
-    const dx = Math.round(lx * (ew / 7)), dy = Math.round(ly * (eh / 7));
-    const iw = Math.max(4, ew - 2), ih = Math.max(5, eh - 3);
-    const ix = bx - (iw >> 1) + dx, iy = ey + (eh - ih) + dy;
-    rr(ix, iy, iw, ih, 3, p.iris);                                   // iris fills the eye
-    rr(ix, iy + Math.round(ih * 0.45), iw, Math.round(ih * 0.55), 3, mixHex(p.iris, '#000000', 0.45));
-    rr(ix + 1, iy + ih - Math.max(2, Math.round(ih * 0.3)), iw - 2, Math.max(2, Math.round(ih * 0.26)), 2, mixHex(p.iris, '#ffffff', 0.5));
-    rr(ix + (iw >> 2), iy + Math.round(ih * 0.3), Math.max(2, iw >> 1), Math.max(3, Math.round(ih * 0.4)), 2, '#120b05'); // pupil
-    rr(ix + 1, iy + 1, Math.max(2, Math.round(iw * 0.42)), Math.max(2, Math.round(ih * 0.34)), 1, '#ffffff'); // big gloss
-    rect(ix + iw - 3, iy + ih - 4, 2, 2, '#ffffff');                 // second spark
-    if (o2.tear) { rr(bx + (ew >> 1) - 1, ey + eh - 2, 3, 4, 1, '#9fe0f8'); rect(bx + (ew >> 1), ey + eh - 1, 1, 1, '#eafaff'); }
-    const close = Math.max(lid, o2.close || 0);
-    if (close > 0) {
-      const h = Math.round(close * (eh + 2));
-      if (h > 0) { rect(bx - (ew >> 1) - 1, ey - 1, ew + 2, h, p.sk[2]); rect(bx - (ew >> 1) - 1, ey - 1 + h, ew + 2, 1, OL); }
-    }
+  // one small moulded bead, one pixel of shine.  That is the whole eye.
+  const bead = (ox, r) => {
+    const bx = ox + shake + Math.round(lx * 0.8), by2 = EY + Math.round(ly * 0.6);
+    fillCircle(bx, by2, r, '#141010');
+    rect(bx - r + 1, by2 - r + 1, 1, 1, '#ffffff');
   };
-  const smileEye = (ox) => {
-    rect(ox - 4, EY + 1, 2, 1, OL); rect(ox - 2, EY - 1, 2, 1, OL);
-    rect(ox, EY - 1, 2, 1, OL); rect(ox + 2, EY + 1, 2, 1, OL);
-    rect(ox - 4, EY + 2, 1, 1, OL); rect(ox + 3, EY + 2, 1, 1, OL);
-  };
-  const brow = (ox, dy, ang) => { for (let k = 0; k < 7; k++) rect(ox - 3 + k + shake, EY - 9 + dy + Math.round((k - 3) * ang), 1, 2, OL); };
+  const shutEye = (ox) => { rect(ox - 3 + shake, EY, 7, 1, OL); };
+  const arcEye = (ox) => { rect(ox - 3, EY + 1, 2, 1, OL); rect(ox - 1, EY - 1, 2, 1, OL); rect(ox + 1, EY + 1, 2, 1, OL); };
+  const brow = (ox, dy, ang) => { for (let k = 0; k < 5; k++) rect(ox - 2 + k + shake, EY - 6 + dy + Math.round((k - 2) * ang), 1, 1, OL); };
 
-  if (expr === 'wow' || expr === 'shocked') {
-    [-EX, EX].forEach(ox => animeEye(ox, 10, 13));
-    brow(-EX, -3, 0); brow(EX, -3, 0);
-  } else if (expr === 'scared' || expr === 'panic') {
-    [-EX, EX].forEach((ox, i) => { animeEye(ox, 10, 13, { tear: expr === 'panic' }); brow(ox, -2, i ? 0.5 : -0.5); });
-    ctx.save(); ctx.globalAlpha = 0.85;                       // shock lines up the temples
-    for (let k = 0; k < 3; k++) { rect(-13 - k, EY - 11 + k * 3, 4, 1, '#cfe8f0'); rect(10 + k, EY - 11 + k * 3, 4, 1, '#cfe8f0'); }
-    ctx.restore();
-    const sw = (tNow * 1.6 + phase) % 2.4;                    // flying sweat bead
-    if (sw < 1) { ctx.save(); ctx.globalAlpha = 1 - sw * 0.6; rr(EX + 7, EY - 8 + sw * 10, 3, 5, 1, '#8fd8f0'); ctx.restore(); }
-  } else if (expr === 'mad' || expr === 'grit') {
-    [-EX, EX].forEach((ox, i) => { animeEye(ox, 10, 8, { close: 0.18 }); brow(ox, 4, i ? -0.6 : 0.6); });
-    if (expr === 'mad') {
-      const a = 0.6 + Math.sin(tNow * 8) * 0.4; ctx.save(); ctx.globalAlpha = a;
-      rect(EX + 6, EY - 9, 3, 1, '#e2483c'); rect(EX + 7, EY - 10, 1, 3, '#e2483c'); ctx.restore();
-    }
-  } else if (expr === 'worry' || expr === 'sad') {
-    [-EX, EX].forEach((ox, i) => { animeEye(ox, 9, 11, { tear: expr === 'sad' }); brow(ox, -1, i ? 0.45 : -0.45); });
-  } else if (expr === 'sleepy') {
-    [-EX, EX].forEach(ox => { rect(ox - 4, EY + 1, 9, 1, OL); rect(ox - 4, EY + 2, 3, 1, OL); rect(ox + 3, EY + 2, 2, 1, OL); });
+  if (blink && expr !== 'happy' && expr !== 'love') { [-EX, EX].forEach(shutEye); }
+  else if (expr === 'happy' || expr === 'love') { [-EX, EX].forEach(arcEye); }
+  else if (expr === 'sleepy' || expr === 'smug') { [-EX, EX].forEach(shutEye); }
+  else if (expr === 'mad' || expr === 'grit') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, 3, i ? -0.6 : 0.6); }); }
+  else if (expr === 'wow' || expr === 'shocked' || expr === 'scared' || expr === 'panic') { [-EX, EX].forEach(ox => bead(ox, 3)); }
+  else if (expr === 'worry' || expr === 'sad') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, -1, i ? 0.5 : -0.5); }); }
+  else { [-EX, EX].forEach(ox => bead(ox, 2)); }
+
+  // one sweat bead is all the panic anyone needs
+  if (expr === 'scared' || expr === 'panic' || expr === 'worry') {
+    const sw = (tNow * 1.4 + phase) % 2.8;
+    if (sw < 1) { ctx.save(); ctx.globalAlpha = 1 - sw * 0.6; rr(EX + 5, EY - 5 + sw * 9, 2, 3, 1, '#8fd8f0'); ctx.restore(); }
+  }
+  if (expr === 'sleepy') {
     const zz = (tNow * 0.6 + phase) % 3.4;
-    if (zz < 2.2) { ctx.save(); ctx.globalAlpha = 0.85 - zz * 0.34; drawText('z', EX + 8 + zz * 2, EY - 9 - zz * 5, '#cfe8f0', 1); ctx.restore(); }
-  } else if (expr === 'smug') {
-    [-EX, EX].forEach((ox, i) => { rect(ox - 4, EY, 9, 1, OL); rect(ox - 3 + (i ? 2 : 0), EY + 1, 5, 1, OL); brow(ox, 1, i ? -0.28 : 0.28); });
-  } else if (expr === 'love') {
-    [-EX, EX].forEach(ox => {
-      const s2 = 1 + Math.sin(tNow * 5 + ox) * 0.08;
-      ctx.save(); ctx.translate(ox, EY); ctx.scale(s2, s2);
-      rect(-5, -4, 4, 4, '#e2486a'); rect(1, -4, 4, 4, '#e2486a'); rect(-5, 0, 10, 2, '#e2486a');
-      rect(-4, 2, 8, 1, '#e2486a'); rect(-2, 3, 4, 1, '#e2486a'); rect(0, 4, 1, 1, '#e2486a');
-      rect(-4, -3, 2, 2, '#ffb0c4');
-      ctx.restore();
-    });
-  } else if (expr === 'happy' || (lid >= 1 && shut)) {
-    [-EX, EX].forEach(smileEye);
-  } else {
-    [-EX, EX].forEach(ox => animeEye(ox, 10, 12));
+    if (zz < 2.2) { ctx.save(); ctx.globalAlpha = 0.85 - zz * 0.34; drawText('z', EX + 6 + zz * 2, EY - 8 - zz * 5, '#cfe8f0', 1); ctx.restore(); }
   }
+  if (expr === 'love') { [-EX, EX].forEach(ox => { rect(ox - 2, EY - 2, 2, 2, '#e2486a'); rect(ox + 1, EY - 2, 2, 2, '#e2486a'); rect(ox - 2, EY, 5, 1, '#e2486a'); rect(ox - 1, EY + 1, 3, 1, '#e2486a'); }); }
 
-  // ---- mouths ----
-  const MY = opt.topeyes ? 3 : 6, MX = shake;
-  const wobble = (expr === 'scared' || expr === 'panic');
+  // ---- mouths: one or two strokes ----
+  const MY = opt.topeyes ? 3 : 5, MX = shake;
   if (opt.wide) {
-    rect(-9 + MX, MY, 18, 1, OL); rect(-10 + MX, MY - 1, 1, 2, OL); rect(9 + MX, MY - 1, 1, 2, OL);
-    if (expr === 'happy' || expr === 'wow' || expr === 'love') {
-      rr(-8 + MX, MY + 1, 16, 4, 2, '#6d2434'); rect(-7 + MX, MY + 1, 14, 1, '#f6f2e0');
-      rr(-4 + MX, MY + 3, 8, 2, 1, '#d2607e');
-    } else if (wobble) { for (let k = 0; k < 5; k++) rect(-6 + MX + k * 3, MY + 1 + (k % 2), 3, 1, OL); }
-    else rect(-8 + MX, MY + 1, 16, 1, p.sk[1]);
+    rect(-7 + MX, MY, 14, 1, OL);
+    if (expr === 'happy' || expr === 'wow') rr(-5 + MX, MY + 1, 10, 3, 1, '#6d2434');
   }
-  else if (expr === 'scared' || expr === 'shocked') {                 // a long open gasp
-    rr(-4 + MX, MY - 1, 9, 8, 4, OL); rr(-3 + MX, MY, 7, 6, 3, '#5d2430');
-    rr(-2 + MX, MY + 3, 5, 2, 1, '#d2607e');
-  }
-  else if (expr === 'panic') {                                        // wobbly scream
-    rr(-5 + MX, MY - 2, 11, 10, 5, OL); rr(-4 + MX, MY - 1, 9, 8, 4, '#5d2430');
-    rect(-3 + MX, MY, 7, 1, '#f6f2e0');
-    rr(-2 + MX, MY + 4, 5, 3, 1, '#d2607e');
-  }
-  else if (expr === 'wow') { rr(-2 + MX, MY, 5, 5, 2, '#5d2430'); rr(-1 + MX, MY + 2, 3, 2, 1, '#d2607e'); }
-  else if (expr === 'mad' || expr === 'grit') {
-    rr(-4 + MX, MY, 9, 4, 1, '#4a1c26'); rect(-3 + MX, MY, 7, 2, '#f6f2e0');
-    for (let k = 0; k < 3; k++) rect(-2 + MX + k * 3, MY, 1, 2, '#b8b2a0');
-  }
-  else if (expr === 'worry' || expr === 'sad') { rect(-2 + MX, MY + 2, 5, 1, OL); rect(-3 + MX, MY + 1, 1, 1, OL); rect(3 + MX, MY + 1, 1, 1, OL); }
-  else if (expr === 'sleepy') { rr(-1, MY, 3, 3, 1, '#5d2430'); }
-  else if (expr === 'smug') { rect(-3, MY + 1, 5, 1, OL); rect(2, MY, 2, 1, OL); }
-  else if (expr === 'talk') {                                         // jaw flaps on dialogue
-    const o3 = Math.abs(Math.sin(tNow * 12 + phase));
-    const h = 1 + Math.round(o3 * 4);
-    rr(-3, MY, 7, h + 1, 2, OL); rr(-2, MY, 5, h, 2, '#5d2430');
-    if (h > 2) rect(-1, MY + h - 1, 3, 1, '#d2607e');
-  }
-  else {   // the little w-shaped critter smile
-    rect(-4, MY, 1, 1, OL); rect(-3, MY + 1, 3, 1, OL);
-    rect(0, MY, 1, 1, OL); rect(1, MY + 1, 3, 1, OL); rect(4, MY, 1, 1, OL);
-    if (expr === 'happy' || expr === 'love') { rr(-3, MY + 2, 7, 3, 2, '#5d2430'); rect(-2, MY + 2, 5, 1, '#f6f2e0'); }
-  }
-  if (p.gold && expr !== 'sleepy') rect(3, MY + 1, 1, 2, '#ffd54a');
-  // blush
+  else if (expr === 'wow' || expr === 'shocked' || expr === 'scared') { rr(-2 + MX, MY, 5, 5, 2, '#5d2430'); }
+  else if (expr === 'panic') { rr(-3 + MX, MY - 1, 7, 7, 3, '#5d2430'); }
+  else if (expr === 'mad' || expr === 'grit') { rect(-3 + MX, MY + 1, 7, 1, OL); rect(-4 + MX, MY, 1, 1, OL); rect(4 + MX, MY, 1, 1, OL); }
+  else if (expr === 'worry' || expr === 'sad') { rect(-2, MY + 1, 5, 1, OL); }
+  else if (expr === 'sleepy') { rr(-1, MY, 3, 2, 1, '#5d2430'); }
+  else if (expr === 'smug') { rect(-3, MY, 5, 1, OL); rect(2, MY - 1, 2, 1, OL); }
+  else if (expr === 'talk') { const o3 = Math.abs(Math.sin(tNow * 11 + phase)); rr(-2, MY, 5, 1 + Math.round(o3 * 3), 2, '#5d2430'); }
+  else { rect(-2, MY, 5, 1, OL); rect(-3, MY - 1, 1, 1, OL); rect(3, MY - 1, 1, 1, OL); }
+  if (p.gold && expr !== 'sleepy') rect(3, MY, 1, 1, '#ffd54a');
+  // a flat dab of blush, no gradient
   if (expr !== 'mad' && expr !== 'grit' && expr !== 'sad') {
-    ctx.save(); ctx.globalAlpha = (expr === 'scared' || expr === 'panic') ? 0.2 : 0.4;
-    [-1, 1].forEach(s2 => { rect(s2 * (EX + 4) - 2, MY - 2, 5, 2, '#ef7f94'); rect(s2 * (EX + 4) - 1, MY - 3, 3, 1, '#ef7f94'); });
+    ctx.save(); ctx.globalAlpha = 0.3;
+    [-1, 1].forEach(s2 => rect(s2 * (EX + 3) - 1, MY - 2, 3, 2, '#ef7f94'));
     ctx.restore();
   }
 }
@@ -4634,27 +4564,29 @@ function drawCroc(closeT, opts) {
     if (squeeze) {
       rect(ex + 2, ey + 8, 18, 3, st.d);
     } else {
-      const blink = (tNow % 4.3) > 4.15 || (st.sleepy && (tNow % 4.3) > 3.9);
-      const openF = clamp(MD.open, 0, 1.4);
-      const eh = Math.round(12 * Math.min(1.12, openF));
-      const eyTop = ey + 4 + Math.round((12 - eh) / 2);
-      rr(ex + 3, eyTop, 16, eh, 3, st.redEye ? '#e8b0a0' : st.sclera);
-      if (MD.cross) {                                  // knocked silly
-        for (let k = 0; k < 7; k++) { rect(ex + 5 + k, eyTop + 1 + k, 2, 2, '#1b1408'); rect(ex + 11 - k, eyTop + 1 + k, 2, 2, '#1b1408'); }
-      } else if (blink) {
-        rect(ex + 3, eyTop, 16, eh, st.a);
+      // the opening is always the same size; a LID slides down over it, so the
+      // eye can never vanish into the socket the way it used to
+      const EO = { x: ex + 3, y: ey + 4, w: 16, h: 12 };
+      rr(EO.x, EO.y, EO.w, EO.h, 3, st.redEye ? '#e8b0a0' : st.sclera);
+      if (MD.cross) {
+        for (let k = 0; k < 7; k++) { rect(EO.x + 2 + k, EO.y + 2 + k, 2, 2, '#1b1408'); rect(EO.x + 8 - k, EO.y + 2 + k, 2, 2, '#1b1408'); }
       } else {
         const dx = clamp((mx - (ex + 11)) / 60, -1, 1) * 3 + sacX * 2;
         const dy = clamp((my - (ey + 10)) / 60, -1, 1) * 2 + sacY * 1.5;
         const pw = Math.max(2, Math.round(4 * MD.pupil)), ph2 = Math.max(4, Math.round(8 * MD.pupil));
-        rect(ex + 11 - (pw >> 1) + dx, eyTop + (eh >> 1) - (ph2 >> 1) + dy, pw, ph2, st.redEye ? '#8a1010' : '#1b1408');
-        rect(ex + 12 - (pw >> 1) + dx, eyTop + (eh >> 1) - (ph2 >> 1) + 1 + dy, 1, 2, '#fff');
-        if (MD.squint > 0) {                            // lids drop in from above
-          const lh = Math.round(eh * MD.squint * 0.6);
-          if (lh > 0) { rect(ex + 3, eyTop, 16, lh, st.a); rect(ex + 3, eyTop + lh, 16, 1, st.d); }
-        }
-        if (st.sleepy) rect(ex + 3, eyTop, 16, 5, st.a);
+        rect(EO.x + 8 - (pw >> 1) + dx, EO.y + 6 - (ph2 >> 1) + dy, pw, ph2, st.redEye ? '#8a1010' : '#1b1408');
+        rect(EO.x + 9 - (pw >> 1) + dx, EO.y + 7 - (ph2 >> 1) + dy, 1, 2, '#fff');
       }
+      // one lid value from every source, so they can never fight each other
+      const blinkT = (tNow + (side ? 0.07 : 0)) % 4.3;
+      const blink = blinkT > 4.15 ? clamp((blinkT - 4.15) / 0.075, 0, 1) : 0;
+      const lidAmt = clamp(Math.max(blink, (1 - clamp(MD.open, 0, 1)) * 0.8, MD.squint * 0.5, st.sleepy ? 0.55 : 0), 0, 1);
+      if (lidAmt > 0.02) {
+        const lh = Math.round(lidAmt * (EO.h + 2));
+        rr(EO.x - 1, EO.y - 1, EO.w + 2, lh, 3, st.a);       // the lid, in hide colour
+        rect(EO.x - 1, EO.y - 1 + lh, EO.w + 2, 1, st.d);    // lash line under its edge
+      }
+      rect(EO.x, EO.y + EO.h - 1, EO.w, 1, st.b);            // lower lid crease
     }
     // brow ridge: angles with the mood, inner end leading
     const bl = side === 0 ? 1 : -1;
@@ -6901,81 +6833,67 @@ function drawMenu(dt) {
     return;
   }
 
-  // ===== PLAY BUTTON = the gator's open mouth (HIDDEN when the mouth shuts) =====
+  // ============ THE WHOLE MENU LIVES INSIDE THE OPEN JAWS =============
   const maw = mouthLayout().maw;
-  const mcx = maw.x + maw.w / 2, mcy = maw.y + maw.h - 22;
-  const open = chomp < 0.45;                      // jaws open enough to press
-  const vis = clamp((0.55 - chomp) / 0.22, 0, 1); // fade the button as they close
-  if (vis > 0.02) {
-    ctx.save(); ctx.globalAlpha = vis;
-    const hov = open && mx >= maw.x && mx < maw.x + maw.w && my >= maw.y - 4 && my < maw.y + maw.h;
-    const gl = 0.35 + Math.sin(tNow * 3) * 0.2 + (hov ? 0.3 : 0);
-    ctx.save(); ctx.globalAlpha = vis * gl * 0.6; rr(mcx - 54, mcy - 13, 108, 28, 6, '#ffcf3a'); ctx.restore();
-    rr(mcx - 50, mcy - 11, 100, 24, 5, '#3a1008');
-    rr(mcx - 48, mcy - 10, 96, 21, 5, hov ? '#f0662e' : '#c83a16');
-    rect(mcx - 46, mcy - 9, 92, 2, '#ff9a5a');
-    drawTextCSh('NEW RUN', mcx, mcy - 6, '#fff2d0', 2, '#5a1408');
-    drawTextC('STEP INTO THE JAWS', mcx, mcy + 5, '#ffd9a0', 1);
-    ctx.restore();
-  }
-  // only clickable while the mouth is open - shut jaws hide the button
-  if (open) hit(maw.x, maw.y - 4, maw.w, maw.h + 4, { id: 'start', cursor: true, tip: 'NEW RUN|Step into the jaws', cb: diveIn });
+  const mcx = maw.x + maw.w / 2;
+  const sway = Math.sin(tNow * 1.1) * 1.4;
 
-  // ===== rusty title sign - the croc's snout physically shoves it UP =====
-  // the snout top mirrors drawCroc's jaw: highest (small y) when the mouth is
-  // wide open, so an open chomp drives the sign upward, then it drops + bounces.
-  const breathe = Math.sin(tNow * 1.6) * 1;
-  const snoutTop = maw.y - 58 + chomp * (maw.h - 26) + breathe;
-  const signBottom = 66;                       // sign's resting bottom edge (screen y)
-  if (!G.sign) G.sign = { dy: 0, vy: 0, psn: snoutTop };
-  const sg = G.sign;
-  const headVy = (snoutTop - sg.psn) / Math.max(dt, 0.001); // snout's vertical speed
-  sg.psn = snoutTop;
-  // hang physics: a springy chain pulls the board back down to rest (dy=0)
-  sg.vy += (-52 * sg.dy - 8.5 * sg.vy) * dt;
-  sg.dy += sg.vy * dt;
-  // hard contact: the snout cannot pass through the board - it lifts it
-  const contactDy = snoutTop - signBottom;     // negative => board shoved up
-  if (contactDy < sg.dy) { sg.dy = contactDy; if (headVy < sg.vy) sg.vy = headVy; }
-  sg.dy = clamp(sg.dy, -26, 7);                // rides up hard, tiny droop on the drop
-  if (sg.dy < -4 && Math.sin(tNow * 12) > 0.6) burst(W / 2 + Math.sin(tNow) * 40, signBottom + sg.dy, '#c8a060', 3, 40);
-  drawRustySign(W / 2, 6, sg.dy);
-
-  // ===== weathered info + utility row =====
-  ensureDaily();
-  (function statPlate() {
-    const px = 6, py = 142, pw = 106, phh = best > 0 ? 48 : 38;
-    ctx.save(); ctx.globalAlpha = 0.9;
-    panel(px, py, pw, phh, { face: '#231a10ee', edge: '#6a5230', r: 3, studs: 1 });
-    ctx.restore();
-    rect(px + 4, py + 4, pw - 8, 1, '#00000055');
-    drawTextSh('QUESTS DONE: ' + ((meta.qb && meta.qb.done) || 0), px + 6, py + 7, '#b8a888', 1);
-    ICONS.cookie(px + 4, py + 16);
-    drawTextSh(fmt(meta.rp || 0) + ' COOKIES', px + 20, py + 19, C.gold, 1);
-    if (best > 0) drawTextSh('BEST ANTE: ' + best, px + 6, py + 33, '#8fa6a8', 1);
-    hit(px, py, pw, 14, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall|Accept up to 2 quests', cb: () => { G.state = 'pass'; sfx.click(2); } });
+  // ---- the title, on an enamel sign swinging from the palate ----
+  (function sign() {
+    const sw = 186, sh = 40, sx = mcx - sw / 2, sy = maw.y + 6 + sway;
+    [sx + 26, sx + sw - 30].forEach(chx => {
+      for (let k = 0; k < 6; k++) { rect(chx, maw.y - 4 + k * 2, 2, 2, k % 2 ? '#8fa8b4' : '#5f7884'); }
+    });
+    ctx.save(); ctx.globalAlpha = 0.3; rr(sx + 3, sy + 5, sw, sh, 6, '#12020a'); ctx.restore();
+    plasticBox(sx, sy, sw, sh, 6, ['#0d2a14', '#16441f', '#1f6a2c', '#2f9a3f', '#7fe08a']);
+    plasticBox(sx + 4, sy + 4, sw - 8, sh - 8, 4, ['#0a2010', '#123a1a', '#1a5424', '#26803a', '#63d66a'], { noShine: 1 });
+    drawTextCSh('BITE DOWN', mcx, sy + 9, '#ffd23f', 3, '#06180b');
+    drawTextC('A PRESS-YOUR-LUCK DENTAL ROGUELIKE', mcx, sy + 30, '#9fe8ac', 1);
+    [[sx + 4, sy + 4], [sx + sw - 8, sy + 4], [sx + 4, sy + sh - 8], [sx + sw - 8, sy + sh - 8]].forEach(([bx2, by2]) => {
+      rect(bx2, by2, 4, 4, '#8fa8b4'); rect(bx2, by2, 2, 2, '#dfeaee');
+    });
+    ctx.save(); ctx.globalAlpha = 0.14; for (let k = 0; k < sh - 8; k++) rect(sx + 12 + k * 0.7, sy + 4 + k, 10, 1, '#ffffff'); ctx.restore();
   })();
 
-  // rusted utility buttons (weathered browns) along the bottom
+  // ---- NEW RUN, a big brass plaque on the tongue ----
+  const pw2 = 138, phh2 = 34, pxx = mcx - pw2 / 2, pyy = maw.y + maw.h - 46 + sway * 0.5;
+  const hov = mx >= pxx && mx < pxx + pw2 && my >= pyy && my < pyy + phh2;
+  ctx.save(); ctx.globalAlpha = 0.24 + Math.sin(tNow * 4) * 0.07; rr(pxx - 5, pyy - 5, pw2 + 10, phh2 + 10, 8, '#ffcf3a'); ctx.restore();
+  plaque(pxx, pyy + (hov ? 1 : 0), pw2, phh2, { tint: hov ? '#f0662e' : '#d94f30', r: 5 });
+  drawTextCSh('NEW RUN', mcx, pyy + 7 + (hov ? 1 : 0), '#fff2d0', 3, '#5a1408');
+  drawTextC('STEP INTO THE JAWS', mcx, pyy + 24 + (hov ? 1 : 0), '#ffd9a0', 1);
+  hit(pxx - 4, pyy - 4, pw2 + 8, phh2 + 8, { id: 'start', cursor: true, tip: 'NEW RUN|Step into the jaws', cb: diveIn });
+
+  // ---- the shift log, clipped to the lower jaw ----
+  ensureDaily();
+  (function board() {
+    const bx = 14, by = 150, bw = 118, bh = 58;
+    plasticBox(bx, by, bw, bh, 4, ['#140c04', '#3a2716', '#5f4326', '#7d5c38', '#9a7548'], { noShine: 1 });
+    plasticBox(bx + 4, by + 4, bw - 8, bh - 8, 2, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
+    rect(bx + 8, by + 14, bw - 16, 1, '#c9bfa4');
+    drawText('SHIFT LOG', bx + 9, by + 8, '#8a7a58', 1);
+    drawText('QUESTS  ' + ((meta.qb && meta.qb.done) || 0), bx + 9, by + 19, '#2a1d12', 1);
+    ICONS.cookie(bx + 7, by + 27);
+    drawText(fmt(meta.rp || 0) + ' COOKIES', bx + 22, by + 30, '#7a5a10', 1);
+    drawText('BEST ANTE  ' + best, bx + 9, by + 41, '#2a1d12', 1);
+    plasticBox(bx + bw - 12, by - 4, 8, 8, 2, ['#5a1a10', '#8a2a16', '#c23a2a', '#e06a5a', '#ffb0a0'], { noShine: 1 });
+    hit(bx, by, bw, bh, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall', cb: () => { G.state = 'pass'; sfx.click(2); } });
+  })();
+
+  // ---- utility tiles, lined up along the lower jaw ----
   const idxAll = indexEntries();
   const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
   const UBTN = [
-    ['SKINS', '#6a4a30', '#3a2614', () => { G.state = 'skins'; sfx.click(2); }, 'skinsbtn', 'DRESS UP'],
-    ['INDEX', '#3a5e5a', '#1e3634', () => { G.state = 'index'; sfx.click(2); }, 'idxbtn', idxNew ? '+' + idxNew + ' NEW' : (idxAll.filter(e => meta.index.seen[e.key]).length + '/' + idxAll.length)],
-    ['GACHA', '#5e4a6a', '#332844', () => { ensureDaily(); G.state = 'pass'; }, 'passbtn', fmt(meta.rp || 0) + ' CK'],
-    ['SETTINGS', '#4a4438', '#28241c', () => { G.overlay = 'settings'; }, 'setbtn', null],
-    ['CREDITS', '#4a4438', '#28241c', () => { G.overlay = 'credits'; }, 'credbtn', null],
+    ['SKINS', '#8a5f28', 'DRESS UP', 'skinsbtn', () => { G.state = 'skins'; sfx.click(2); }],
+    ['INDEX', '#2c7c92', idxNew ? '+' + idxNew + ' NEW' : (idxAll.filter(e => meta.index.seen[e.key]).length + '/' + idxAll.length), 'idxbtn', () => { G.state = 'index'; sfx.click(2); }],
+    ['GACHA', '#7a4fd0', fmt(meta.rp || 0) + ' CK', 'passbtn', () => { ensureDaily(); G.state = 'pass'; }],
+    ['SETUP', '#4a6a58', null, 'setbtn', () => { G.overlay = 'settings'; }],
+    ['CREDITS', '#5a5442', null, 'credbtn', () => { G.overlay = 'credits'; }],
   ];
-  UBTN.forEach(([label, c1, c2, cb, id, sub], i) => {
-    const bx = 102 + i * 56;
-    button(bx, 240, 52, 22, label, c1, c2, cb, {
-      id, sub, subCol: id === 'skinsbtn' ? '#c8b090' : id === 'idxbtn' ? (idxNew ? C.gold : '#8fd4c8') : '#c8a860',
-      tip: id === 'skinsbtn' ? 'SKINS|Dress up your dentist:|gloves, hats + face gear'
-        : id === 'idxbtn' ? 'CROC INDEX|Every variant and boss you have met|Claim SCOUT COOKIES for new finds'
-          : id === 'passbtn' ? ('SCOUT GACHA-PON|Trade cookies for prizes|' + (meta.rp || 0) + ' SCOUT COOKIES') : undefined,
-    });
-    // a couple of rivets to sell the rusted metal
-    rect(bx + 3, 243, 1, 1, '#c8a060'); rect(bx + 48, 243, 1, 1, '#c8a060');
+  const ubw = 56, ugap = 4, utot = UBTN.length * ubw + (UBTN.length - 1) * ugap;
+  UBTN.forEach(([label, col, sub, id, cb], i) => {
+    const bx = Math.round(W / 2 - utot / 2 + i * (ubw + ugap)), by = 234;
+    button(bx, by, ubw, sub ? 24 : 20, label, col, mixHex(col, '#000000', 0.45), cb, { id, sub, subCol: '#ffe6b0' });
   });
 }
 // first NEW RUN runs the tutorial once, then goes to ranger select
@@ -7221,9 +7139,74 @@ const IV_QS = [
 ];
 const IV_TIME = 9;
 
+const IV_LESSONS = [
+  {
+    title: 'THE MOUTH',
+    body: 'Every gator holds a row of teeth. Press one and its value goes on the board. Press another, and another - they stack.',
+    say: "First, the job itself. You press teeth. The mouth pays you for each one.",
+    art: 'press',
+  },
+  {
+    title: 'THE SNAPPER',
+    body: 'One tooth in that mouth is a SNAPPER. Press it and the jaws slam. Everything you had not banked is gone.',
+    say: "Now the part that costs rangers their fingers. One tooth always bites.",
+    art: 'snap',
+  },
+  {
+    title: 'MIRROR AND LEDGER',
+    body: 'X-RAY shows you whether one tooth is safe. BANK locks your score in before the jaws move. Use both.',
+    say: "Two tools. The mirror looks. The ledger keeps. Greed keeps neither.",
+    art: 'tools',
+  },
+];
+// the little diagram on each lesson card
+function ivLessonArt(kind, x, y, w, h, t) {
+  const gum = ['#3a0a16', '#5a1020', '#8a2438', '#b8405a', '#d4587a'];
+  const jaw = ['#1b4a14', '#2f7d22', '#4aa832', '#6fd04a', '#9ae86a'];
+  const tooth = ['#8f8468', '#c8bfa0', '#e8e0c4', '#fdfaec', '#ffffff'];
+  plasticBox(x, y, w, h, 4, ['#12100a', '#1a2630', '#243038', '#33454e', '#6f8b98'], { noShine: 1 });
+  const cx2 = x + w / 2, my2 = y + h / 2;
+  if (kind === 'press') {
+    plasticBox(x + 10, my2 - 22, w - 20, 12, 3, jaw, { noShine: 1 });
+    plasticBox(x + 10, my2 + 14, w - 20, 12, 3, jaw, { noShine: 1 });
+    plasticBox(x + 10, my2 - 10, w - 20, 24, 3, gum, { noShine: 1 });
+    const pressed = (t * 1.4 | 0) % 4;
+    for (let k = 0; k < 4; k++) {
+      const tx = x + 18 + k * ((w - 36) / 4), on = k === pressed;
+      plasticBox(tx, my2 - 8 + (on ? 5 : 0), 16, on ? 13 : 18, 3, tooth, { noShine: 1 });
+      if (!on) drawTextC('' + (3 + k), tx + 8, my2, '#6d5c3a', 1);
+    }
+    const fy = (t * 40) % 40;
+    ctx.save(); ctx.globalAlpha = 1 - fy / 40;
+    drawTextC('+' + (3 + pressed), x + 26 + pressed * ((w - 36) / 4), my2 - 14 - fy, '#63d66a', 1);
+    ctx.restore();
+  } else if (kind === 'snap') {
+    const bite = Math.max(0, Math.sin(t * 2)) * 14;
+    plasticBox(x + 10, my2 - 24 + bite, w - 20, 12, 3, jaw, { noShine: 1 });
+    plasticBox(x + 10, my2 + 16 - bite, w - 20, 12, 3, jaw, { noShine: 1 });
+    plasticBox(x + 10, my2 - 12 + bite, w - 20, 28 - bite * 2, 3, gum, { noShine: 1 });
+    for (let k = 0; k < 4; k++) {
+      const tx = x + 18 + k * ((w - 36) / 4), bad = k === 2;
+      plasticBox(tx, my2 - 8 + bite, 16, Math.max(4, 16 - bite), 3,
+        bad ? ['#3a0c0c', '#7a1f1f', '#c23a2a', '#e86a4a', '#ffb0a0'] : tooth, { noShine: 1 });
+      if (bad && bite < 4) drawTextC('!', tx + 8, my2 - 4, '#fff', 1);
+    }
+    if (bite > 10) { ctx.save(); ctx.globalAlpha = 0.8; drawTextC('SNAP!', cx2, my2 - 2, '#ff6a4a', 2); ctx.restore(); }
+  } else {
+    plasticBox(x + 12, my2 - 18, w - 24, 22, 4, ['#0f2540', '#1e4fa3', '#3f8cff', '#77b4ff', '#cfe6ff'], { noShine: 1 });
+    drawTextC('X-RAY', cx2, my2 - 11, '#ffffff', 1);
+    plasticBox(x + 12, my2 + 8, w - 24, 22, 4, ['#123014', '#2b6b2c', '#63d66a', '#96eb9c', '#dcffd8'], { noShine: 1 });
+    drawTextC('BANK BITE', cx2, my2 + 15, '#0f2a0f', 1);
+    const bl = Math.sin(t * 4) > 0;
+    ctx.save(); ctx.globalAlpha = bl ? 0.9 : 0.3;
+    rect(x + 6, my2 - 10, 5, 2, '#9fe8ff'); rect(x + w - 11, my2 + 16, 5, 2, '#a8f0a0');
+    ctx.restore();
+  }
+}
+
 function startTutorial() {
-  G.iv = { phase: 'intro', q: 0, t: 0, timeLeft: IV_TIME, picked: -1, score: 0, mark: 0, drill: null, said: '' };
-  ivSay("Sit down. Four questions, then the practical. Clock is running.");
+  G.iv = { phase: 'teach', lesson: 0, q: 0, t: 0, timeLeft: IV_TIME, picked: -1, score: 0, mark: 0, drill: null, said: '' };
+  ivSay(IV_LESSONS[0].say);
   G.state = 'tutorial';
   sfx.whoosh();
 }
@@ -7255,10 +7238,32 @@ function drawTutorial(dt) {
     rect(bx - 4, by + 16, 5, 4, '#e8e0cc');
   })();
 
+  // ------------------------------------------------------ lessons --------
+  if (iv.phase === 'teach') {
+    const L = IV_LESSONS[iv.lesson];
+    const px = 238, py = 36, pw = 234, phh = 184;
+    plasticBox(px, py, pw, phh, 4, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
+    drawText('LESSON ' + (iv.lesson + 1) + ' OF ' + IV_LESSONS.length, px + 8, py + 7, '#8a7a58', 1);
+    drawTextC(L.title, px + pw / 2, py + 18, '#2a1d12', 2);
+    rect(px + 8, py + 30, pw - 16, 1, '#c9bfa4');
+    ivLessonArt(L.art, px + 16, py + 36, pw - 32, 70, iv.t);
+    drawSmallWrapped(L.body, px + 10, py + 114, pw - 20, '#2a1d12');
+    // progress pips
+    IV_LESSONS.forEach((q, i) => {
+      plasticBox(px + pw / 2 - (IV_LESSONS.length * 11) / 2 + i * 11, py + phh - 34, 8, 6, 2,
+        i <= iv.lesson ? [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]] : ['#2a1d12', '#9a8f76', '#b8ad92', '#ddd4bd', '#ffffff'], { noShine: 1 });
+    });
+    if (iv.t > 1.2) {
+      const last = iv.lesson >= IV_LESSONS.length - 1;
+      button(px + pw / 2 - 56, py + phh - 24, 112, 20, last ? 'I AM READY >' : 'GO ON >', '#d94f30', '#8a2a16', () => {
+        if (last) { iv.phase = 'quiz'; iv.q = 0; iv.t = 0; iv.picked = -1; iv.timeLeft = IV_TIME; ivSay('Good. Four questions. The clock is running.'); }
+        else { iv.lesson++; iv.t = 0; ivSay(IV_LESSONS[iv.lesson].say); }
+        sfx.click(2);
+      }, { id: 'ivnext' });
+    }
+  }
   // ---------------------------------------------------- oral exam --------
-  if (iv.phase === 'intro') {
-    if (iv.t > 2.2) { iv.phase = 'quiz'; iv.t = 0; iv.timeLeft = IV_TIME; ivSay(IV_QS[0].q); }
-  } else if (iv.phase === 'quiz') {
+  else if (iv.phase === 'quiz') {
     const Q = IV_QS[iv.q];
     if (iv.picked < 0) {
       iv.timeLeft -= dt;
@@ -7661,66 +7666,122 @@ function drawOwlet(x, y, o) {
 }
 
 // --------------------------------------------------------- the office ----
+// the HQ front office, dressed properly
 function drawOfficeRoom() {
-  // wall: painted board with a dado rail
-  rect(0, 0, W, 190, '#3f5a52');
-  rect(0, 0, W, 96, '#476357');
-  for (let x = 0; x < W; x += 20) { rect(x, 0, 1, 190, '#36504a'); rect(x + 1, 0, 1, 190, '#4e6b5f'); }
-  rect(0, 96, W, 3, '#5d7d6c'); rect(0, 99, W, 2, '#2e4640');
-  rect(0, 178, W, 12, '#2c4038'); rect(0, 178, W, 2, '#3f5a52');
-  // window onto the swamp
+  const WL = ['#2a4038', '#36504a', '#3f5a52', '#4e6b5f', '#5d7d6c'];
+  rect(0, 0, W, 186, WL[2]);
+  for (let x = 0; x < W; x += 22) { rect(x, 0, 1, 186, WL[1]); rect(x + 1, 0, 1, 186, WL[3]); }
+  rect(0, 0, W, 8, WL[4]);                                  // cornice
+  rect(0, 8, W, 2, WL[0]);
+  rect(0, 96, W, 4, WL[4]); rect(0, 100, W, 2, WL[0]);       // dado rail
+  rect(0, 102, W, 84, WL[1]);                                 // wainscot below it
+  for (let x = 0; x < W; x += 26) { rect(x + 2, 106, 22, 76, WL[2]); rect(x + 2, 106, 22, 1, WL[3]); rect(x + 2, 181, 22, 1, WL[0]); }
+  rect(0, 178, W, 8, WL[0]); rect(0, 178, W, 2, WL[3]);       // skirting
+
+  // ---- window onto the moonlit swamp, with a light shaft ----
   (function win2() {
-    const wx = 22, wy = 18, ww = 132, wh = 74;
-    plasticBox(wx - 4, wy - 4, ww + 8, wh + 8, 4, ['#1c1208', '#4a3520', '#6a4f30', '#8a6a42', '#a98a5c'], { noShine: 1 });
-    rect(wx, wy, ww, wh, '#16303c');
-    for (let i = 0; i < wh; i += 2) rect(wx, wy + i, ww, 2, mixHex('#1d4a5e', '#0d2430', i / wh));
-    for (let k = 0; k < 7; k++) { const tx = wx + 6 + k * 19, th = 16 + (k % 3) * 8; rect(tx, wy + wh - th - 10, 3, th, '#0d2018'); rr(tx - 5, wy + wh - th - 16, 13, 10, 4, '#0d2018'); }
-    rect(wx, wy + wh - 12, ww, 12, '#123a46');
-    for (let k = 0; k < 9; k++) rect(wx + 4 + k * 15, wy + wh - 9 + (k % 3), 8, 1, '#3f8ea8');
-    fillCircle(wx + ww - 24, wy + 16, 8, '#f6f2d0'); glow(wx + ww - 24, wy + 16, 22, '#ffe9a0', 0.3);
-    rect(wx + ww / 2 - 1, wy, 2, wh, '#6a4f30'); rect(wx, wy + wh / 2 - 1, ww, 2, '#6a4f30');
-    ctx.save(); ctx.globalAlpha = 0.12; for (let k = 0; k < wh; k++) rect(wx + 10 + k * 0.8, wy + k, 14, 1, '#ffffff'); ctx.restore();
+    const wx = 18, wy = 16, ww = 118, wh = 70;
+    plasticBox(wx - 5, wy - 5, ww + 10, wh + 10, 3, ['#140c04', '#3a2716', '#5f4326', '#7d5c38', '#9a7548'], { noShine: 1 });
+    rect(wx, wy, ww, wh, '#0e2430');
+    for (let i = 0; i < wh; i += 2) rect(wx, wy + i, ww, 2, mixHex('#1d4a5e', '#0a1c26', i / wh));
+    for (let k = 0; k < 6; k++) { const tx = wx + 8 + k * 20, th = 14 + (k % 3) * 9; rect(tx, wy + wh - th - 12, 3, th, '#081418'); rr(tx - 6, wy + wh - th - 18, 15, 11, 4, '#081418'); }
+    rect(wx, wy + wh - 14, ww, 14, '#10323e');
+    for (let k = 0; k < 8; k++) rect(wx + 4 + k * 15, wy + wh - 11 + (k % 3) * 3, 9, 1, '#3f8ea8');
+    fillCircle(wx + ww - 22, wy + 15, 7, '#f6f2d0');
+    rect(wx + ww / 2 - 1, wy, 2, wh, '#5f4326'); rect(wx, wy + wh / 2 - 1, ww, 2, '#5f4326');
+    ctx.save(); ctx.globalAlpha = 0.07;                       // shaft of moonlight on the floor
+    for (let k = 0; k < 90; k++) rect(wx + 6 + k * 1.1, wy + wh + k, 40, 1, '#cfe8f0');
+    ctx.restore();
   })();
-  // noticeboard
-  (function board() {
-    const bx = 300, by = 16, bw = 130, bh = 66;
-    plasticBox(bx - 3, by - 3, bw + 6, bh + 6, 3, ['#1c1208', '#4a3520', '#6a4f30', '#8a6a42', '#a98a5c'], { noShine: 1 });
-    rect(bx, by, bw, bh, '#8a6a42');
-    const notes = [['#e8dfc2', 6, 6, 36, 24], ['#cfe3d6', 50, 4, 32, 20], ['#f0d6a8', 90, 8, 34, 26], ['#dfe8f0', 14, 36, 40, 24], ['#efd0d0', 62, 32, 30, 28], ['#dbe8c8', 98, 40, 26, 20]];
-    notes.forEach(([c, nx, ny, nw, nh], i) => {
-      ctx.save(); ctx.translate(bx + nx + nw / 2, by + ny + nh / 2); ctx.rotate((i % 2 ? 1 : -1) * 0.04);
-      rect(-nw / 2 + 1, -nh / 2 + 2, nw, nh, '#00000044');
-      rect(-nw / 2, -nh / 2, nw, nh, c);
-      for (let l = 0; l < 3; l++) rect(-nw / 2 + 3, -nh / 2 + 4 + l * 5, nw - 8 - (l % 2) * 6, 1, '#00000033');
-      rect(-2, -nh / 2 - 1, 3, 3, ['#c23a4a', '#3f8cff', '#63d66a', '#ffd54a'][i % 4]);
-      ctx.restore();
-    });
+
+  // ---- park map, clock, framed photo, certificate ----
+  (function wall() {
+    // laminated park map
+    plasticBox(150, 14, 74, 54, 2, ['#140c04', '#3a2716', '#5f4326', '#7d5c38', '#9a7548'], { noShine: 1 });
+    rect(154, 18, 66, 46, '#d8cfa8');
+    rect(154, 18, 66, 8, '#8fae68');
+    drawText('PARK', 158, 20, '#2a3a1c', 1);
+    for (let k = 0; k < 5; k++) rect(158 + k * 12, 30 + (k % 3) * 9, 9, 6, '#7fb0c8');
+    for (let k = 0; k < 8; k++) rect(156 + (k * 13) % 60, 28 + (k * 7) % 30, 2, 2, '#c23a4a');
+    for (let k = 0; k < 20; k++) rect(156 + k * 3, 44 + Math.round(Math.sin(k * 0.6) * 5), 3, 1, '#4a7a58');
+    // wall clock with real hands
+    const cx2 = 246, cy2 = 30;
+    fillCircle(cx2, cy2, 13, '#2a1d12'); fillCircle(cx2, cy2, 12, '#e8e0cc'); fillCircle(cx2, cy2, 10, '#f8f2e4');
+    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; rect(cx2 + Math.cos(a) * 9 - 0.5, cy2 + Math.sin(a) * 9 - 0.5, 1, 1, '#6a5a3a'); }
+    const ha = tNow * 0.09, ma = tNow * 1.05;
+    rect(cx2, cy2, Math.round(Math.cos(ha) * 5), Math.round(Math.sin(ha) * 5) || 1, '#2a1d12');
+    rect(cx2, cy2, Math.round(Math.cos(ma) * 8), Math.round(Math.sin(ma) * 8) || 1, '#2a1d12');
+    rect(cx2 - 1, cy2 - 1, 2, 2, '#8a2a16');
+    // framed photo of a very large gator
+    plasticBox(268, 16, 52, 38, 2, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
+    rect(272, 20, 44, 30, '#1d3a2a');
+    rr(276, 34, 36, 10, 3, '#2f7d22'); rr(276, 28, 36, 6, 2, '#4aa832');
+    for (let k = 0; k < 6; k++) rect(279 + k * 6, 34, 3, 3, '#fdfaec');
+    rect(282, 24, 4, 4, '#f6f2dc'); rect(303, 24, 4, 4, '#f6f2dc');
+    rect(283, 25, 2, 2, '#141010'); rect(304, 25, 2, 2, '#141010');
+    // certificate
+    plasticBox(330, 16, 44, 34, 2, ['#2a1d12', '#8a7a58', '#c9bfa4', '#e8e0cc', '#ffffff'], { noShine: 1 });
+    rect(334, 20, 36, 26, '#f6f0e0');
+    for (let k = 0; k < 4; k++) rect(338, 26 + k * 4, 28 - (k % 2) * 8, 1, '#a89468');
+    fillCircle(360, 42, 4, '#c23a4a'); rect(358, 44, 4, 4, '#8a2a16');
   })();
-  // filing cabinets + a hat stand
+
+  // ---- water cooler, coat rack, filing cabinets, potted palm ----
   (function props() {
-    plasticBox(170, 44, 52, 48, 3, ['#131c22', '#33454e', '#4c626f', '#6f8b98', '#a8c0cc'], { noShine: 1 });
-    for (let k = 0; k < 3; k++) { rect(174, 48 + k * 15, 44, 13, '#3f5560'); rect(174, 48 + k * 15, 44, 1, '#6f8b98'); rect(190, 53 + k * 15, 12, 3, '#c8d2d8'); }
-    plasticBox(240, 56, 44, 36, 3, ['#131c22', '#33454e', '#4c626f', '#6f8b98', '#a8c0cc'], { noShine: 1 });
-    for (let k = 0; k < 2; k++) { rect(244, 60 + k * 15, 36, 13, '#3f5560'); rect(258, 65 + k * 15, 10, 3, '#c8d2d8'); }
-    rect(250, 46, 24, 10, '#2a3a30'); rect(252, 42, 20, 6, '#63d66a');   // a potted fern on top
-    rect(454, 30, 3, 62, '#3a2a18');
-    rect(444, 30, 24, 3, '#3a2a18');
-    drawHatArt(448, 34, 'ranger', 1); drawHatArt(464, 34, 'straw', 1);
+    // water cooler
+    const wx = 386, wy = 92;
+    plasticBox(wx, wy, 26, 46, 3, ['#131c22', '#33454e', '#4c626f', '#7b95a3', '#c3d8e2'], { noShine: 1 });
+    plasticBox(wx + 3, wy - 24, 20, 26, 6, ['#0d2a30', '#1d5060', '#2f7d90', '#5fb0c4', '#bfeef2'], { noShine: 1 });
+    ctx.save(); ctx.globalAlpha = 0.5; rect(wx + 6, wy - 20, 4, 16, '#dff8ff'); ctx.restore();
+    const bb = (tNow * 1.2) % 1;
+    fillCircle(wx + 13, wy - 4 - bb * 16, 2, '#9fe8ff');
+    rect(wx + 6, wy + 12, 14, 4, '#1d3038'); rect(wx + 10, wy + 16, 6, 4, '#8fa8b4');
+    for (let k = 0; k < 3; k++) rect(wx + 4, wy + 26 + k * 5, 8, 4, '#dfeaee');
+    // coat rack with hats
+    rect(430, 40, 3, 74, '#3a2a18'); rect(420, 40, 24, 3, '#3a2a18');
+    rect(418, 42, 4, 4, '#5a4028'); rect(442, 42, 4, 4, '#5a4028');
+    drawHatArt(424, 46, 'ranger', 1); drawHatArt(442, 46, 'straw', 1);
+    rect(424, 60, 14, 22, '#2c4436'); rect(424, 60, 14, 3, '#3d5c49');   // a spare vest
+    // filing cabinets
+    plasticBox(150, 86, 46, 52, 3, ['#131c22', '#33454e', '#4c626f', '#7b95a3', '#c3d8e2'], { noShine: 1 });
+    for (let k = 0; k < 3; k++) { rect(154, 90 + k * 16, 38, 14, '#3f5560'); rect(154, 90 + k * 16, 38, 1, '#7b95a3'); rect(168, 95 + k * 16, 10, 3, '#c8d2d8'); }
+    rect(156, 80, 34, 6, '#2a3a30'); rect(158, 74, 30, 8, '#3a5a44');
+    for (let k = 0; k < 5; k++) { rect(160 + k * 6, 68, 3, 8, '#63d66a'); rect(159 + k * 6, 64, 5, 5, '#4aa832'); }   // fern on top
+    // stack of crates
+    plasticBox(206, 104, 36, 34, 2, ['#241405', '#40230c', '#5c3413', '#74441c', '#8f5a28'], { noShine: 1 });
+    rect(210, 108, 28, 2, '#40230c'); rect(210, 122, 28, 2, '#40230c');
+    plasticBox(212, 84, 26, 22, 2, ['#241405', '#40230c', '#5c3413', '#74441c', '#8f5a28'], { noShine: 1 });
+    drawText('HQ', 220, 92, '#2a1a08', 1);
     // ceiling fan
     const fa = tNow * 3.1;
-    rect(236, 0, 2, 10, '#2a3a34');
-    ctx.save(); ctx.translate(237, 11);
-    for (let k = 0; k < 4; k++) { const a = fa + k * 1.571; rect(Math.cos(a) * 4, Math.sin(a) * 2 - 1, Math.round(Math.cos(a) * 22), 3, '#5a4a30'); }
+    rect(236, 0, 2, 9, '#2a3a34');
+    ctx.save(); ctx.translate(237, 10);
+    for (let k = 0; k < 4; k++) { const a = fa + k * 1.571; rect(Math.cos(a) * 4, Math.sin(a) * 2 - 1, Math.round(Math.cos(a) * 24), 3, '#5a4a30'); }
     ctx.restore();
-    fillCircle(237, 11, 3, '#3a2a18');
+    fillCircle(237, 10, 3, '#3a2a18');
+    // hanging lamp over the desk
+    rect(96, 0, 2, 16, '#241708');
+    rr(86, 16, 22, 5, 2, '#2c7d3a'); rr(88, 16, 18, 3, 2, '#63d66a');
+    rr(92, 21, 10, 4, 1, '#fff6c8');
+    glow(97, 24, 40, '#ffcc6a', 0.26);
   })();
-  // floor + rug
-  rect(0, 190, W, H - 190, '#5a4026');
-  rect(0, 190, W, 3, '#7a5a38');
-  for (let x = 0; x < W; x += 34) rect(x, 193, 1, H - 193, '#46301c');
-  rr(120, 214, 250, 42, 6, '#3a5a4a');
-  rr(126, 218, 238, 34, 5, '#4a7060');
-  rect(132, 224, 226, 3, '#3a5a4a'); rect(132, 240, 226, 3, '#3a5a4a');
+
+  // ---- floor, rug, dust ----
+  rect(0, 186, W, H - 186, '#5a4026');
+  rect(0, 186, W, 3, '#7a5a38');
+  for (let x = -20; x < W; x += 36) { rect(x + 8, 189, 1, H - 189, '#46301c'); }
+  for (let y = 196; y < H; y += 18) rect(0, y, W, 1, '#4e3620');
+  rr(96, 206, 300, 52, 6, '#2f4a3e');
+  rr(102, 210, 288, 44, 5, '#3f6454');
+  rect(110, 216, 272, 3, '#2f4a3e'); rect(110, 246, 272, 3, '#2f4a3e');
+  for (let k = 0; k < 9; k++) rect(118 + k * 32, 224, 16, 16, '#4e7a66');
+  ctx.save();
+  for (let d = 0; d < 16; d++) {
+    const f = ((tNow / (7 + (d % 4) * 2)) + d * 0.17) % 1;
+    ctx.globalAlpha = (0.26 - f * 0.2);
+    rect(22 + ((d * 61) % 120), 20 + f * 150, 1, 1, '#cfe8f0');
+  }
+  ctx.restore();
 }
 
 // the desk that Mrs Owlet sits behind
@@ -7731,9 +7792,9 @@ function drawOwletDesk() {
   plasticBox(dx + 10, dy + 20, 54, 34, 2, ['#1c1208', '#3a2a18', '#57402a', '#6f5436', '#8a6a42'], { noShine: 1 });
   for (let k = 0; k < 2; k++) { rect(dx + 14, dy + 24 + k * 15, 46, 12, '#43301c'); rect(dx + 32, dy + 29 + k * 15, 12, 3, UGOLD[2]); }
   // nameplate
-  plasticBox(dx + 84, dy - 18, 96, 16, 2, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
-  drawTextC('MRS OWLET', dx + 132, dy - 15, '#3a2606', 1);
-  drawTextC('PARK MANAGER', dx + 132, dy - 8, '#6a4f10', 1);
+  plasticBox(dx + 88, dy - 12, 96, 14, 2, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
+  drawTextC('MRS OWLET', dx + 136, dy - 10, '#3a2606', 1);
+  drawTextC('PARK MANAGER', dx + 136, dy - 4, '#6a4f10', 1);
   // mug + paper stack + stamp
   plasticBox(dx + 152, dy - 34, 14, 12, 3, ['#2a1018', '#7a2a36', '#a8384a', '#d05a6a', '#f09aa6'], { noShine: 1 });
   rect(dx + 166, dy - 31, 4, 6, '#a8384a'); rect(dx + 154, dy - 34, 10, 2, '#f0e8d8');
@@ -7763,92 +7824,123 @@ let owletSay = null;   // {txt, t}
 function owletTalk(txt) { owletSay = { txt, t: 0 }; }
 
 // ------------------------------------------- HQ: the job application -----
+let rangerSlide = { from: 0, t: 1, dir: 1 };
+function rangerStep(d) {
+  const i = RANGER_ORDER.indexOf(rangerFocus);
+  const n = (i + d + RANGER_ORDER.length) % RANGER_ORDER.length;
+  rangerSlide = { from: i, t: 0, dir: d };
+  rangerFocus = RANGER_ORDER[n];
+  sfx.click(2);
+  owletTalk(choice(OWLET_LINES.pick));
+}
+
+// ------------------------------------------- HQ: the job application -----
+// One applicant at a time, stood on the rug in front of the desk.  Swipe or
+// use the arrows to flick through the file, then sign on.
 function drawRangerSelect() {
   if (G.summer) { G.summer = false; G.mut = null; }
   if (!rangerFocus) rangerFocus = meta.ranger || 'scout';
   if (!owletSay) owletTalk(choice(OWLET_LINES.idle));
   owletSay.t += 1 / 60;
+  rangerSlide.t = Math.min(1, rangerSlide.t + 1 / 12);
 
   drawOfficeRoom();
+  const idx = RANGER_ORDER.indexOf(rangerFocus);
   const r = RANGERS[rangerFocus];
   const focusOpen = rangerUnlocked(rangerFocus);
   const lvl = masteryLvl(rangerFocus);
 
-  // ---- Mrs Owlet behind her desk ----
+  // ---- Mrs Owlet at her desk on the left ----
   const talking = owletSay.t < owletSay.txt.length / 30 + 0.3;
-  drawOwlet(38, 86, { expr: focusOpen ? (talking ? 'calm' : 'happy') : 'stern', talk: talking });
+  drawOwlet(6, 84, { expr: focusOpen ? (talking ? 'calm' : 'happy') : 'stern', talk: talking });
   drawOwletDesk();
-  // her speech, on office letterhead
   (function bubble() {
-    const bw = 106, bx = 124, by = 80;
-    const shown = owletSay.txt.slice(0, Math.floor(owletSay.t * 30));
-    plasticBox(bx, by, bw, 54, 4, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
-    rect(bx + 4, by + 4, bw - 8, 1, '#c9bfa4');
-    drawText('EVERGLADES HQ', bx + 6, by + 6, '#8a7a58', 1);
-    drawSmallWrapped(shown, bx + 6, by + 15, bw - 12, '#2a1d12');
-    rect(bx - 4, by + 12, 5, 4, '#e8e0cc'); rect(bx - 8, by + 14, 5, 4, '#e8e0cc');
-    hit(bx, by, bw, 54, { id: 'owlet', cursor: true, cb: () => owletTalk(choice(OWLET_LINES.idle)) });
+    const bw = 112, bx = 88, by = 62;
+    plasticBox(bx, by, bw, 50, 4, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
+    drawText('MRS OWLET', bx + 6, by + 5, '#8a7a58', 1);
+    rect(bx + 4, by + 12, bw - 8, 1, '#c9bfa4');
+    drawSmallWrapped(owletSay.txt.slice(0, Math.floor(owletSay.t * 30)), bx + 6, by + 16, bw - 12, '#2a1d12');
+    rect(bx - 4, by + 18, 5, 4, '#e8e0cc');
+    hit(bx, by, bw, 50, { id: 'owlet', cursor: true, cb: () => owletTalk(choice(OWLET_LINES.idle)) });
   })();
 
-  drawTextCSh('APPLICATION FOR FIELD DUTY', W / 2, 6, C.gold, 2);
+  drawTextCSh('APPLICATION FOR FIELD DUTY', W / 2, 5, C.gold, 2);
 
-  // ---- the clipboard of applicants ----
-  const cbx = 238, cby = 36, cbw = 236, cbh = 208;
-  plasticBox(cbx, cby, cbw, cbh, 4, ['#1c1208', '#4a3520', '#6a4f30', '#8a6a42', '#a98a5c'], { noShine: 1 });
-  plasticBox(cbx + 5, cby + 12, cbw - 10, cbh - 18, 2, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
-  plasticBox(cbx + cbw / 2 - 20, cby - 6, 40, 14, 3, ['#131c22', '#33454e', '#4c626f', '#7b95a3', '#c3d8e2'], { noShine: 1 });
-  drawText('APPLICANTS', cbx + 12, cby + 17, '#8a7a58', 1);
-  drawText('MASTERY', cbx + cbw - 76, cby + 17, '#8a7a58', 1);
-  rect(cbx + 10, cby + 24, cbw - 20, 1, '#c9bfa4');
-
-  RANGER_ORDER.forEach((key, i) => {
-    const rr2 = RANGERS[key], open = rangerUnlocked(key), sel = rangerFocus === key;
-    const ry = cby + 28 + i * 34, rx = cbx + 10, rw = cbw - 20;
-    if (sel) { plasticBox(rx - 2, ry - 2, rw + 4, 32, 3, ['#8a6510', '#c8a83a', '#e8d27a', '#f6e9b4', '#ffffff'], { noShine: 1 }); }
-    else if (open) rect(rx, ry, rw, 28, '#e2d9c4');
-    drawRangerBadge(rx + 1, ry - 1, key, { sc: 1.05, locked: !open, wob: sel });
-    const tx = rx + 34;
-    drawText(open ? rr2.name : 'SEALED FILE', tx, ry + 2, open ? '#2a1d12' : '#8a2a16', 1);
-    drawText(open ? rr2.animal : '- - -', tx, ry + 11, '#6a5a3a', 1);
-    if (open) {
-      const l = masteryLvl(key), nx = masteryNext(key);
-      drawText(MASTERY_TIER[l], tx, ry + 19, MASTERY_COL[l], 1);
-      const bx2 = rx + rw - 54;
-      segBar(bx2, ry + 3, 52, 7, nx ? (masteryXp(key) - nx.from) / Math.max(1, nx.need - nx.from) : 1, { tint: MASTERY_COL[l], tintL: '#ffffff' });
-      drawTextC(nx ? (masteryXp(key) - nx.from) + '/' + (nx.need - nx.from) : 'MAXED', bx2 + 26, ry + 13, '#6a5a3a', 1);
-    } else {
-      const a2 = ACHS.find(q => q.id === rr2.ach);
-      drawText(a2 ? 'EARN: ' + a2.name : 'LOCKED', tx, ry + 19, '#a86a4a', 1);
-    }
-    hit(rx - 2, ry - 2, rw + 4, 32, {
-      id: 'app' + key, cursor: true,
-      cb: () => { if (rangerFocus !== key) { rangerFocus = key; sfx.click(2); owletTalk(choice(OWLET_LINES.pick)); } },
-      tip: open ? rr2.name + '|' + rr2.lines.join('|') : 'SEALED FILE|' + (ACHS.find(q => q.id === rr2.ach) || {}).desc,
-    });
+  // ---- the applicant, centre stage ----
+  const stageX = 322, footY = 196;
+  ctx.save(); ctx.globalAlpha = 0.28; ctx.scale(1, 0.24); fillCircle(stageX, footY / 0.24, 30, '#000'); ctx.restore();
+  const slide = 1 - easeOut(rangerSlide.t);
+  ctx.save();
+  ctx.translate(slide * rangerSlide.dir * -90, 0);
+  ctx.globalAlpha = 1 - slide * 0.8;
+  if (!focusOpen) ctx.globalAlpha *= 0.4;
+  drawBobble(stageX, footY, rangerFocus, {
+    sc: 1.75, expr: focusOpen ? 'happy' : 'sleepy', act: focusOpen ? 'idle' : 'idle',
+    hat: meta.hat, gear: meta.gear, glove: meta.glove,
   });
+  ctx.restore();
+  // their badge on a little stand beside them
+  drawRangerBadge(stageX + 44, footY - 78, rangerFocus, { sc: 1.5, locked: !focusOpen, wob: 1 });
+  drawTextC(focusOpen ? MASTERY_TIER[lvl] : 'SEALED', stageX + 65, footY - 34, focusOpen ? MASTERY_COL[lvl] : '#8a2a16', 1);
 
-  // ---- the perks of the post, written on the form ----
-  // ---- the duties, on a slip of HQ paper laid on the desk ----
-  plasticBox(6, 188, 216, 52, 3, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
-  rect(10, 192, 208, 1, '#c9bfa4');
+  // ---- name plate + dossier under them ----
+  plasticBox(240, 200, 166, 48, 4, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
+  drawTextC(focusOpen ? r.name : 'SEALED FILE', 323, 204, focusOpen ? '#2a1d12' : '#8a2a16', 1);
+  drawTextC(focusOpen ? r.animal : '- - -', 323, 213, '#7a6a4a', 1);
+  rect(246, 221, 154, 1, '#c9bfa4');
   if (focusOpen) {
-    r.lines.forEach((l, k) => {
-      const ly = 196 + k * 9;
-      rect(11, ly + 1, 4, 4, r.col);
-      drawText(l.slice(0, 38), 19, ly, '#2a1d12', 1);
-    });
-    drawText("'" + r.flav.slice(0, 40) + "'", 11, 216, '#7a6a4a', 1);
-    drawText('BADGE RANK: ' + MASTERY_TIER[lvl], 11, 228, mixHex(MASTERY_COL[lvl], '#000000', 0.35), 1);
+    const nx = masteryNext(rangerFocus);
+    segBar(248, 224, 150, 8, nx ? (masteryXp(rangerFocus) - nx.from) / Math.max(1, nx.need - nx.from) : 1, { tint: MASTERY_COL[lvl], tintL: '#ffffff' });
+    drawTextC(nx ? 'MASTERY  ' + (masteryXp(rangerFocus) - nx.from) + ' / ' + (nx.need - nx.from) : 'MASTERY MAXED', 323, 235, '#6a5a3a', 1);
   } else {
-    drawSmallWrapped('FILE SEALED BY ORDER OF THE PARK MANAGER.', 11, 198, 206, '#8a2a16');
+    const a2 = ACHS.find(q => q.id === r.ach);
+    drawTextC(a2 ? 'EARN: ' + a2.name : 'LOCKED', 323, 227, '#8a2a16', 1);
   }
 
-  button(W - 132, H - 26, 120, 22, focusOpen ? 'SIGN ON >' : 'LOCKED', '#d94f30', '#8a2a16',
-    () => { if (!focusOpen) { sfx.error(); return; } owletTalk(OWLET_LINES.hire[0]); meta.ranger = rangerFocus; saveMeta(); startTransition(() => { newRun(rangerFocus); startIntro(); }); },
-    { id: 'hire', disabled: !focusOpen, sc: 1 });
-  button(W - 262, H - 26, 60, 22, 'DRILL', '#3a6a8a', '#204458', () => { startTutorial(); }, { id: 'tutbtn', tip: 'REFRESHER DRILL|Mrs Owlet runs you through the basics' });
-  button(6, H - 26, 56, 22, '< BACK', '#4a4438', '#28241c', () => { G.state = 'menu'; sfx.click(2); }, { id: 'rback' });
+  // ---- the duties, on HQ paper ----
+  plasticBox(8, 196, 214, 56, 3, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
+  drawText('DUTIES OF THE POST', 13, 200, '#8a7a58', 1);
+  rect(12, 208, 206, 1, '#c9bfa4');
+  if (focusOpen) {
+    r.lines.forEach((l, k) => { rect(13, 213 + k * 9, 4, 4, r.col); drawText(l.slice(0, 38), 21, 212 + k * 9, '#2a1d12', 1); });
+    drawText("'" + r.flav.slice(0, 40) + "'", 13, 234, '#7a6a4a', 1);
+  } else drawSmallWrapped('FILE SEALED BY ORDER OF THE PARK MANAGER.', 13, 214, 200, '#8a2a16');
+
+  // ---- the roster, as a row of file tabs ----
+  // ---- carousel pips under the applicant ----
+  RANGER_ORDER.forEach((k, i) => {
+    const on = i === idx, open = rangerUnlocked(k);
+    const px = 323 - (RANGER_ORDER.length * 11) / 2 + i * 11;
+    plasticBox(px, 190, 8, 6, 2, on ? [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]]
+      : open ? ['#1a2620', '#3a5045', '#547265', '#6f9384', '#9fc0b0'] : ['#1a1a1a', '#2c2c2c', '#3c3c3c', '#4c4c4c', '#6a6a6a'], { noShine: 1 });
+    hit(px - 1, 187, 10, 12, { id: 'pip' + k, cursor: true, cb: () => { if (k !== rangerFocus) { rangerSlide = { from: idx, t: 0, dir: i > idx ? 1 : -1 }; rangerFocus = k; sfx.click(2); owletTalk(choice(OWLET_LINES.pick)); } }, tip: RANGERS[k].name });
+  });
+
+  // ---- arrows, and a swipe anywhere on the stage ----
+  const arrow = (ax, dir, id) => {
+    const hov = mx >= ax && mx < ax + 30 && my >= 120 && my < 170;
+    plasticBox(ax, 126 + (hov ? -2 : 0), 30, 40, 5, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
+    for (let k = 0; k < 9; k++) { const hh = 2 + k * 2; rect(ax + 15 + dir * (8 - k) - 1, 146 - hh / 2 + (hov ? -2 : 0), 2, hh, '#3a2606'); }
+    hit(ax, 120, 30, 52, { id, cursor: true, cb: () => rangerStep(dir) });
+  };
+  arrow(240, -1, 'prevr'); arrow(432, 1, 'nextr');
+  if (down && down.hit && down.hit.id === 'swipe') {
+    const dxs = mx - down.x;
+    if (Math.abs(dxs) > 34) { rangerStep(dxs < 0 ? 1 : -1); down = null; }
+  }
+  hit(238, 60, 232, 150, { id: 'swipe', cursor: true, click: () => { }, tip: 'SWIPE OR USE THE ARROWS' });
+  drawTextCSh('< SWIPE TO MEET THE PATROL >', 323, 56, '#e8dfc2', 1, '#1a2620');
+
+  button(W - 122, H - 24, 116, 20, focusOpen ? 'SIGN ON >' : 'LOCKED', '#d94f30', '#8a2a16',
+    () => {
+      if (!focusOpen) { sfx.error(); return; }
+      owletTalk(OWLET_LINES.hire[0]); meta.ranger = rangerFocus; saveMeta();
+      startTransition(() => { newRun(rangerFocus); startIntro(); });
+    }, { id: 'hire', disabled: !focusOpen });
+  button(W - 244, H - 24, 60, 20, 'DRILL', '#3a6a8a', '#204458', () => { startTutorial(); }, { id: 'tutbtn', tip: 'REFRESHER DRILL|Mrs Owlet runs you through the basics' });
+  button(6, H - 24, 54, 20, '< BACK', '#4a4438', '#28241c', () => { G.state = 'menu'; sfx.click(2); }, { id: 'rback' });
 }
+
 
 
 // tiny pictogram chips for node modifiers (icon, not an ugly bar)
