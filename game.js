@@ -259,6 +259,45 @@ function rr(x, y, w, h, r, c) {
   }
   ctx.fillRect(x, y + r, w, h - 2 * r);
 }
+// ======================= PLASTIC TOY SHADING ==============================
+//  The whole game is moulded from the same shiny plastic: a flat base colour,
+//  one face turned away from the light, one turned toward it, and a single
+//  hard specular blob.  No gradients, no dithering, no surface texture - the
+//  silhouette and the gloss do all the work.
+//  Every ramp is [outline, shade, base, light, shine].
+// ==========================================================================
+function plasticBox(x, y, w, h, r, ramp, o) {
+  o = o || {};
+  x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
+  if (w < 2 || h < 2) return;
+  const ri = Math.max(1, r - 1);
+  rr(x, y, w, h, r, ramp[0]);                                     // moulded edge
+  rr(x + 1, y + 1, w - 2, h - 2, ri, ramp[1]);                    // shade face
+  rr(x + 1, y + 1, w - 2, Math.max(2, h - 2 - Math.round(h * 0.2)), ri, ramp[2]);
+  if (!o.flat) rr(x + 2, y + 2, Math.max(2, w - 4 - Math.round(w * 0.24)), Math.max(2, Math.round(h * 0.42)), ri, ramp[3]);
+  if (!o.noShine && w > 7 && h > 7) {
+    const sw = Math.max(2, Math.round(w * 0.16)), sh = Math.max(2, Math.round(h * 0.13));
+    rr(x + 3, y + 3, sw, sh, 1, ramp[4]);
+    if (w > 14) rect(x + 3 + sw + 1, y + 3, 1, 1, ramp[4]);
+  }
+}
+function plasticRound(cx, cy, rad, ramp, o) {
+  o = o || {};
+  cx = Math.round(cx); cy = Math.round(cy);
+  fillCircle(cx, cy, rad, ramp[0]);
+  fillCircle(cx, cy, rad - 1, ramp[1]);
+  fillCircle(cx, cy - 1, rad - 2, ramp[2]);
+  if (!o.flat && rad > 4) fillCircle(cx - 1, cy - 2, Math.max(1, rad - 4), ramp[3]);
+  if (!o.noShine && rad > 3) rect(cx - rad + 2, cy - rad + 2, 2, 2, ramp[4]);
+}
+// a hard gloss sweep across a panel, the cheap plastic "sheen"
+function plasticGloss(x, y, w, h, a) {
+  ctx.save(); ctx.globalAlpha = a === undefined ? 0.16 : a;
+  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  for (let k = 0; k < h; k++) rect(x + Math.round(w * 0.18) + k * 0.7, y + k, Math.max(2, Math.round(w * 0.14)), 1, '#ffffff');
+  ctx.restore();
+}
+
 // ======================== GOLD & WOOD UI KIT ==============================
 //  One house style for every frame in the game: a dark-outlined brass band
 //  with scroll filigree at the corners, wrapped around an oiled-wood field.
@@ -303,12 +342,9 @@ function goldFrame(x, y, w, h, o) {
   const b = o.thin ? 2 : 3;
   rr(x + b, y + b, w - b * 2, h - b * 2, Math.max(1, r - 2), UGOLD[0]);
   rr(x + b + 1, y + b + 1, w - b * 2 - 2, h - b * 2 - 2, Math.max(1, r - 2), F);
-  if (!o.flat) {                                        // oiled sheen in the field
-    ctx.save(); ctx.globalAlpha = 0.5;
+  if (!o.flat) {                                        // one flat lit face, plastic style
     rr(x + b + 1, y + b + 1, w - b * 2 - 2, Math.max(2, (h - b * 2) >> 2), Math.max(1, r - 2), FL);
-    ctx.globalAlpha = 0.35;
     rect(x + b + 1, y + h - b - 3, w - b * 2 - 2, 2, FD);
-    ctx.restore();
   }
   if (w >= 26 && h >= 26) {
     goldCurl(x + 2, y + 2, 1, 1); goldCurl(x + w - 3, y + 2, -1, 1);
@@ -345,9 +381,6 @@ function woodBanner(x, y, w, h, label, o) {
   rr(x + 1, y + 1, w - 2, h - 2, 2, UWOOD[2]);
   rect(x + 2, y + 1, w - 4, 1, UWOOD[4]);
   rect(x + 2, y + h - 2, w - 4, 1, UWOOD[1]);
-  ctx.save(); ctx.globalAlpha = 0.2;                     // grain
-  for (let k = 0; k < Math.max(2, w / 14); k++) rect(x + 4 + (k * 27) % Math.max(1, w - 10), y + 2 + (k % 3) * 2, 8 + (k % 4) * 3, 1, UWOOD[0]);
-  ctx.restore();
   [x + 1, x + w - 8].forEach(sx => {                     // steel straps
     rr(sx, y - 1, 7, h + 2, 1, USTEEL[0]);
     rr(sx + 1, y, 5, h, 1, USTEEL[2]);
@@ -403,8 +436,8 @@ function panel(x, y, w, h, opts) {
   ctx.globalAlpha = 0.24;
   rect(x + 2, y + h - 2, w - 4, 1, '#000000');        // shaded bottom edge
   rect(x + w - 2, y + 2, 1, h - 4, '#000000');
-  ctx.globalAlpha = 0.07;                              // faint inner glow near the top
-  for (let k = 0; k < Math.min(6, h - 4); k++) rect(x + 2, y + 2 + k, w - 4, 1, '#ffffff');
+  ctx.globalAlpha = 0.09;                              // one flat lit band
+  rect(x + 2, y + 2, w - 4, Math.min(4, Math.max(1, h - 4)), '#ffffff');
   ctx.restore();
   if (opts.studs) {                                    // brass corner studs
     [[x + 2, y + 2], [x + w - 4, y + 2], [x + 2, y + h - 4], [x + w - 4, y + h - 4]].forEach(([sx, sy]) => {
@@ -916,36 +949,18 @@ function bobShape(spans, y0, ramp, o) {
   o = o || {};
   const n = spans.length, ox = o.ox || 0;
   let maxw = 0; for (let i = 0; i < n; i++) maxw = Math.max(maxw, spans[i]);
-  // outline: every row widened by one, plus caps
-  for (let i = 0; i < n; i++) rect(ox - spans[i] - 1, y0 + i, spans[i] * 2 + 2, 1, ramp[0]);
+  for (let i = 0; i < n; i++) {
+    const hw = spans[i], y = y0 + i, t = i / (n - 1);
+    rect(ox - hw - 1, y, hw * 2 + 2, 1, ramp[0]);           // moulded edge
+    rect(ox - hw, y, hw * 2, 1, t > 0.62 ? ramp[1] : ramp[2]);
+    if (t < 0.5) { const lw = Math.round(hw * 1.15); if (lw > 0) rect(ox - hw, y, Math.min(lw, hw * 2), 1, ramp[3]); }
+    if (t > 0.5 && t <= 0.62) rect(ox + hw - Math.round(hw * 0.5), y, Math.round(hw * 0.5), 1, ramp[1]);
+  }
   rect(ox - spans[0], y0 - 1, spans[0] * 2, 1, ramp[0]);
   rect(ox - spans[n - 1], y0 + n, spans[n - 1] * 2, 1, ramp[0]);
-  // key light sits up and to the left of centre
-  const Lx = ox - maxw * (o.lx === undefined ? 0.42 : o.lx);
-  const Ly = y0 + n * (o.ly === undefined ? 0.26 : o.ly);
-  const ra = maxw * 1.22, rb = n * 0.62;
-  for (let i = 0; i < n; i++) {
-    const hw = spans[i], y = y0 + i;
-    const dy = (y - Ly) / rb;
-    const run = (d0, col, dith) => {
-      const k = d0 * d0 - dy * dy; if (k <= 0) return;
-      const w = ra * Math.sqrt(k);
-      const a = Math.max(ox - hw, Math.round(Lx - w)), b = Math.min(ox + hw, Math.round(Lx + w));
-      if (b > a) rect(a, y, b - a, 1, col);
-      if (dith && (i & 1)) { if (b < ox + hw) rect(b, y, 1, 1, col); if (a > ox - hw) rect(a - 1, y, 1, 1, col); }
-    };
-    rect(ox - hw, y, hw * 2, 1, ramp[1]);   // shade everywhere...
-    run(1.24, ramp[2], 1);                  // ...then the lit ellipses on top
-    run(0.86, ramp[3], 1);
-    run(0.40, ramp[4], 0);
-  }
-  if (!o.norim) { // cool bounce light licking the shaded edge
-    ctx.save(); ctx.globalAlpha = 0.55;
-    const rim = mixHex(ramp[1], '#a8cdf0', 0.62);
-    for (let i = (n * 0.22) | 0; i < n - (n * 0.2 | 0); i++) rect(ox + spans[i] - 1, y0 + i, 1, 1, rim);
-    ctx.globalAlpha = 0.35;
-    for (let i = n - 5; i < n - 1; i++) rect(ox - spans[i], y0 + i, Math.min(4, spans[i]), 1, mixHex(ramp[1], '#ffe3b0', 0.4));
-    ctx.restore();
+  if (!o.noShine && maxw > 6) {                               // one hard highlight
+    const sy = y0 + Math.round(n * 0.14);
+    rr(ox - Math.round(maxw * 0.62), sy, Math.max(2, Math.round(maxw * 0.34)), Math.max(2, Math.round(n * 0.14)), 1, ramp[4]);
   }
 }
 
@@ -1058,87 +1073,71 @@ function bobFace(p, expr, phase, look, opt) {
 function bobHead(key, expr, phase, look, lean) {
   const p = BOB[key] || BOB.scout, OL = p.sk[0];
   lean = lean || 0;
-  // ---- ears / stalks BEHIND the skull ----
-  if (p.otter) {   // small round otter ears set high on the sides
-    [-1, 1].forEach(s => {
-      const tw = Math.round(Math.sin(tNow * 1.6 + s * 2 + phase) * 0.7);
-      fillCircle(s * 11, -11 + tw, 6, OL);
-      fillCircle(s * 11, -11 + tw, 5, p.ear[1]);
-      fillCircle(s * 11 - s, -11 + tw, 3, p.ear[0]);
-      fillCircle(s * 11 - s * 2, -12 + tw, 2, p.ear[2]);
+  const earR = k => [p.sk[0], k[0], k[1], k[2], mixHex(k[2], '#ffffff', 0.45)];
+  // ---- ears / stalks BEHIND the skull, all moulded blocks ----
+  if (p.otter) {
+    [-1, 1].forEach(s2 => {
+      const tw = Math.round(Math.sin(tNow * 1.6 + s2 * 2 + phase) * 0.7);
+      plasticBox(s2 * 11 - 5, -17 + tw, 10, 9, 3, earR(p.ear));
+      rect(s2 * 11 - 2, -14 + tw, 4, 3, p.ear[0]);
     });
   }
   if (key === 'medic') {
-    [-1, 1].forEach(s => {
-      const tw = Math.round(Math.sin(tNow * 1.5 + s * 2 + phase) * 0.8);
-      fillCircle(s * 10, -10 + tw, 7, OL); fillCircle(s * 10, -10 + tw, 6, p.sk[2]);
-      fillCircle(s * 10 - s * 2, -11 + tw, 4, p.sk[3]);
-      fillCircle(s * 10 - s, -10 + tw, 4, p.ear[1]); fillCircle(s * 10 - s, -11 + tw, 2, p.ear[2]);
+    [-1, 1].forEach(s2 => {
+      const tw = Math.round(Math.sin(tNow * 1.5 + s2 * 2 + phase) * 0.8);
+      plasticBox(s2 * 11 - 6, -18 + tw, 12, 11, 4, [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]]);
+      plasticBox(s2 * 11 - 3, -15 + tw, 6, 6, 2, [OL, p.ear[0], p.ear[1], p.ear[2], '#ffd8e2'], { noShine: 1 });
     });
   }
   if (key === 'trader') {
-    [-1, 1].forEach(s => {
-      const tw = Math.round(Math.sin(tNow * 1.3 + s + phase) * 0.7);
-      fillCircle(s * 11, -12 + tw, 7, OL); fillCircle(s * 11, -12 + tw, 6, p.ear[2]);
-      fillCircle(s * 11 - s, -12 + tw, 4, p.ear[0]);
-      rect(s * 11 - 3, -15 + tw, 6, 1, p.sk[3]);
+    [-1, 1].forEach(s2 => {
+      const tw = Math.round(Math.sin(tNow * 1.3 + s2 + phase) * 0.7);
+      plasticBox(s2 * 11 - 5, -19 + tw, 11, 10, 3, earR(p.ear));
+      rect(s2 * 11 - 2, -16 + tw, 5, 4, p.ear[0]);
     });
   }
   if (key === 'frog') {
-    [-1, 1].forEach(s => { fillCircle(s * 9, -11, 8, OL); fillCircle(s * 9, -11, 7, p.sk[2]); fillCircle(s * 9 - s * 2, -13, 4, p.sk[3]); fillCircle(s * 9 - s * 3, -14, 2, p.sk[4]); });
+    [-1, 1].forEach(s2 => plasticBox(s2 * 9 - 7, -19, 14, 13, 5, [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]]));
   }
-  if (key === 'snail') {  // two short nubs, barely moving
-    [-1, 1].forEach(s => {
-      const sw = Math.sin(tNow * 1.1 + s * 1.4 + phase) * 1;
-      for (let k = 0; k <= 8; k++) {
-        const f = k / 8, sx2 = s * 6 + s * f * 2 + sw * f;
-        rect(sx2 - 2, -14 - k, 4, 1, OL);
-        rect(sx2 - 1, -14 - k, 2, 1, k > 4 ? p.sk[3] : p.sk[2]);
-      }
-      const tx = s * 8 + sw, ty = -24;
-      fillCircle(tx, ty, 4, OL); fillCircle(tx, ty, 3, p.sk[4]);
-      rect(tx - 1 + Math.round(clamp(look.x, -1, 1)), ty - 1, 2, 2, OL);
-      rect(tx - 1, ty - 2, 1, 1, '#ffffff');
+  if (key === 'snail') {
+    [-1, 1].forEach(s2 => {
+      const sw = Math.round(Math.sin(tNow * 1.1 + s2 * 1.4 + phase) * 1);
+      rect(s2 * 6 - 1, -22, 3, 10, OL);
+      rect(s2 * 6, -22, 1, 10, p.sk[2]);
+      plasticBox(s2 * 8 + sw - 4, -26, 8, 8, 3, [OL, p.sk[1], p.sk[2], p.sk[4], '#ffffff']);
+      rect(s2 * 8 + sw - 1 + Math.round(clamp(look.x, -1, 1)), -24, 2, 2, OL);
     });
   }
-  // ---- skull ----
-  bobShape(HEADSPAN, -14, p.sk);
+  // ---- the skull: one moulded cube ----
+  plasticBox(-13, -14, 26, 24, 5, p.sk);
   if (key === 'trader') {
-    rect(-12, -6, 24, 8, p.mask[1]); rect(-12, -6, 24, 1, p.mask[2]);
-    rect(-11, 2, 22, 1, p.mask[0]);
-    for (let k = -5; k < 6; k += 2) rect(k * 2, -7, 2, 1, p.mask[1]);
+    rect(-12, -7, 24, 8, p.mask[1]); rect(-12, -7, 24, 1, p.mask[2]); rect(-12, 1, 24, 1, p.mask[0]);
   }
-  if (p.otter) {   // cream bib running up the throat into the muzzle
-    rr(-9, 1, 18, 11, 5, p.muz[0]);
-    rr(-8, 1, 16, 8, 4, p.muz[1]);
-  } else if (p.muz) { rr(-7, 2, 14, 8, 4, p.muz[0]); rr(-6, 2, 12, 6, 3, p.muz[1]); rect(-5, 3, 9, 2, p.muz[2]); }
-  if (key === 'frog') { ctx.save(); ctx.globalAlpha = 0.4; rect(-11, 2, 22, 5, p.sk[4]); ctx.restore(); }
+  if (p.otter) plasticBox(-9, 0, 18, 10, 4, [OL, p.muz[0], p.muz[1], p.muz[2], '#ffffff'], { noShine: 1 });
+  else if (p.muz) plasticBox(-7, 1, 14, 9, 4, [OL, p.muz[0], p.muz[1], p.muz[2], '#ffffff'], { noShine: 1 });
+  if (key === 'frog') rect(-11, 3, 22, 5, p.sk[4]);
   bobFace(p, expr, phase, look, { wide: !!p.wide, topeyes: !!p.topeyes, gold: !!p.gold });
-  // ---- little button noses IN FRONT of the face ----
+  // ---- moulded button nose ----
   if (p.nose) {
     const ny = p.otter ? 3 : 4;
-    rr(-3, ny, 7, 4, 2, p.nose[0]);
-    rr(-3, ny, 6, 3, 2, p.nose[1]);
-    rect(-2, ny, 3, 1, p.nose[2]);
-    rect(0, ny + 4, 1, 2, p.sk[1]);        // philtrum
+    plasticBox(-3, ny, 7, 5, 2, [p.nose[0], p.nose[0], p.nose[1], p.nose[2], '#ffffff'], { noShine: 1 });
+    rect(-2, ny + 1, 3, 1, p.nose[2]);
   }
   if (key === 'frog') { rect(-5, -2, 2, 1, p.sk[1]); rect(3, -2, 2, 1, p.sk[1]); }
   if (p.whisk) {
-    ctx.save(); ctx.globalAlpha = 0.5;
+    ctx.save(); ctx.globalAlpha = 0.45;
     const wc = p.otter ? '#f0e2c8' : '#e4e4ee';
-    [0, 1].forEach(k => { rect(-13, 4 + k * 3, 5, 1, wc); rect(9, 4 + k * 3, 5, 1, wc); });
+    rect(-14, 5, 5, 1, wc); rect(9, 5, 5, 1, wc);
     ctx.restore();
   }
-  // ---- neckerchief, small and tucked under the chin ----
+  // ---- neckerchief: a flat moulded band ----
   const trail = Math.round(clamp(-lean * 12, -2, 2));
-  rr(-8, 9, 16, 5, 2, OL);
-  rr(-7, 9, 14, 4, 2, p.ac);
-  rect(-6, 10, 12, 1, '#ffffff4a');
-  rect(-6, 12, 12, 1, p.acD);
-  rr(-2 + trail, 12, 5, 4, 2, OL); rr(-2 + trail, 12, 4, 3, 2, p.ac);
-  rect(-1 + trail, 13, 2, 1, '#ffffff55');
-  if (p.cross) { rect(-2, 9, 4, 2, C.red); rect(-1, 8, 2, 4, C.red); rect(-1, 8, 1, 1, '#ff8a7a'); }
+  plasticBox(-9, 9, 18, 6, 2, [OL, p.acD, p.ac, mixHex(p.ac, '#ffffff', 0.34), '#ffffff'], { noShine: 1 });
+  rect(-8, 10, 16, 1, mixHex(p.ac, '#ffffff', 0.5));
+  plasticBox(-3 + trail, 13, 6, 5, 2, [OL, p.acD, p.ac, mixHex(p.ac, '#ffffff', 0.3), '#ffffff'], { noShine: 1 });
+  if (p.cross) { rect(-2, 10, 4, 2, C.red); rect(-1, 9, 2, 4, C.red); }
 }
+
 
 // ----------------------------------------------------------- full body ----
 // o = { sc, expr, act, flip, t, phase, hat, gear, glove }
@@ -1186,47 +1185,39 @@ function drawBobble(cx, gy, key, o) {
   ctx.restore();
   if (dust) { for (let d = 0; d < 5; d++) { const a = -0.3 + d * 0.22; ctx.save(); ctx.globalAlpha = 0.3; fillCircle(Math.cos(a) * 13, -2 - Math.abs(Math.sin(a)) * 3, 2, '#c8bda0'); ctx.restore(); } }
 
-  // ---------------- the otter's tail: one tapered piece ------------------
+  // ---------------- the otter's tail: two moulded blocks -----------------
   if (p.tail) {
     const sw = Math.round(Math.sin(t * 1.1) * 1.5);
     const ty = hop * 0.3;
-    rr(9, -12 + ty, 10, 7, 3, p.tail[0]);
-    rr(10, -11 + ty, 8, 5, 2, p.tail[1]);
-    rr(16, -9 + sw + ty, 7, 5, 2, p.tail[0]);
-    rr(17, -8 + sw + ty, 5, 3, 2, p.tail[2]);
-    rect(11, -10 + ty, 4, 1, p.sk[3]);
+    const tR = [OL, p.tail[0], p.tail[1], p.tail[2], mixHex(p.tail[2], '#ffffff', 0.4)];
+    plasticBox(9, -13 + ty, 11, 8, 3, tR, { noShine: 1 });
+    plasticBox(17, -10 + sw + ty, 8, 6, 2, tR, { noShine: 1 });
   }
 
   // ---------------- legs + boots ----------------------------------------
   const legY = -13 + hop * 0.3;
+  const clR = [OL, p.cl[1], p.cl[2], p.cl[3], p.cl[4]];
+  const btR = [BOOT[0], BOOT[1], BOOT[2], BOOT[3], BOOT[4]];
   [[-5, stride], [4, -stride]].forEach(([lx, s2]) => {
     const lift = act === 'walk' ? Math.max(0, s2) * 0.4 : 0;
-    rr(lx - 1, legY - lift, 7, 10, 3, OL);
-    rr(lx, legY - lift, 5, 9, 2, p.cl[2]);
-    rect(lx, legY - lift, 2, 6, p.cl[3]);
-    const by2 = -5 + s2 * 0.26 - lift;
-    rr(lx - 3, by2, 10, 6, 2, OL);
-    rr(lx - 2, by2, 8, 4, 2, BOOT[2]);
-    rect(lx - 2, by2, 5, 1, BOOT[3]);
-    rect(lx - 3, by2 + 4, 10, 2, BOOT[1]);
+    plasticBox(lx - 1, legY - lift, 7, 10, 2, clR, { noShine: 1 });
+    plasticBox(lx - 3, -5 + s2 * 0.26 - lift, 10, 6, 2, btR, { noShine: 1 });
   });
 
-  // ---------------- torso -----------------------------------------------
+  // ---------------- torso: one moulded block ----------------------------
   const by = -29 + hop;
   ctx.save();
   ctx.translate(0, by + 9); ctx.scale(1 / sq, sq); ctx.translate(0, -(by + 9)); ctx.rotate(lean * 0.3);
-  rr(-10, by, 21, 18, 7, OL);                       // jacket
-  rr(-9, by + 1, 19, 16, 6, p.cl[2]);
-  rr(-9, by + 1, 11, 9, 5, p.cl[3]);                // one lit shoulder
-  rect(5, by + 4, 5, 12, p.cl[1]);                  // one shade side
-  rr(-4, by + 3, 9, 14, 3, '#e6dfc6');              // shirt front
-  rect(-4, by + 3, 9, 2, '#f8f4e4');
-  rect(-10, by + 12, 21, 3, BOOT[1]);               // belt
-  rect(-2, by + 11, 5, 5, UGOLD[1]); rect(-2, by + 11, 5, 4, UGOLD[3]);
-  rr(5, by + 3, 5, 5, 2, p.acD); rr(5, by + 3, 4, 4, 2, p.ac);
+  plasticBox(-10, by, 21, 18, 5, clR);
+  plasticBox(-4, by + 3, 9, 14, 3, ['#0f120e', '#cfc7ab', '#e6dfc6', '#f6f2e2', '#ffffff'], { noShine: 1 });
+  rect(-10, by + 12, 21, 3, BOOT[1]);
+  rect(-10, by + 12, 21, 1, BOOT[3]);
+  plasticBox(-2, by + 11, 6, 5, 1, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
+  plasticBox(5, by + 3, 5, 5, 1, [OL, p.acD, p.ac, mixHex(p.ac, '#ffffff', 0.4), '#ffffff'], { noShine: 1 });
 
   // ---------------- arms ------------------------------------------------
   const g = GLOVES[(o.glove && gloveUnlocked(o.glove)) ? o.glove : 'bare'] || GLOVES.bare;
+  const gR = [OL, mixHex(g.skin, '#000000', 0.4), g.skin, mixHex(g.skin, '#ffffff', 0.32), '#ffffff'];
   const pose = (side) => {
     if (act === 'cheer') return { x: side * 11, y: by - 2 + Math.sin(t * 5) * 1.5, r: side * (1.7 + Math.sin(t * 5) * 0.14) };
     if (act === 'row') return { x: side * 10, y: by + 5 + Math.sin(t * 2.2) * 2, r: side * (0.3 + Math.sin(t * 2.2) * 0.34) };
@@ -1239,11 +1230,8 @@ function drawBobble(cx, gy, key, o) {
   [-1, 1].forEach(side => {
     const a2 = pose(side);
     ctx.save(); ctx.translate(a2.x, a2.y); ctx.rotate(a2.r);
-    rr(-3, -2, 6, 10, 3, OL);                        // sleeve
-    rr(-2, -1, 4, 8, 2, p.cl[2]);
-    rr(-4, 6, 8, 7, 3, OL);                          // mitt
-    rr(-3, 7, 6, 5, 2, g.skin);
-    rect(-3, 7, 4, 2, mixHex(g.skin, '#ffffff', 0.35));
+    plasticBox(-3, -2, 6, 10, 2, clR, { noShine: 1 });
+    plasticBox(-4, 6, 8, 7, 3, gR, { noShine: 1 });
     ctx.restore();
   });
   ctx.restore(); // squash
@@ -1674,79 +1662,65 @@ function drawNpcFace(x, y, key) {
   }
 }
 
-// ======================= RANGER MERIT BADGES ==============================
-//  A deliberately different art style from the shaded bobble actors: these are
-//  embroidered patches.  Flat three-tone portraits with a heavy outline, sewn
-//  onto a felt disc with a stitched rim, a chevron banner and merit pips.
-//  drawRangerBadge(x, y, key, o) fills a 28x28 box from (x, y); o.sc scales it.
+// ======================= RANGER BADGES =====================================
+//  Moulded plastic pin badges: a flat coloured puck with a hard gloss sweep,
+//  a cube-headed bust stamped into it and three raised rank pips.  Same toy
+//  language as the characters - no felt, no filigree, no texture.
 // ==========================================================================
 const BADGEPAL = {
-  scout: { felt: '#2f6b3a', feltD: '#1a4423', feltL: '#49915a', thread: '#ffe089', fur: ['#2a1608', '#8c5c33', '#cfa370'], cream: '#f0dcbc' },
-  medic: { felt: '#26606e', feltD: '#143a44', feltL: '#3d8896', thread: '#dff4ff', fur: ['#1c1820', '#9d9dab', '#e2e2ee'], cream: '#fbfbff' },
-  trader: { felt: '#7a5a14', feltD: '#4a3608', feltL: '#a8811f', thread: '#ffe089', fur: ['#191510', '#8a8171', '#cfc6b2'], cream: '#efe8d4' },
-  frog: { felt: '#7a3320', feltD: '#4a1c10', feltL: '#a8492c', thread: '#ffe089', fur: ['#12200c', '#68a744', '#b4e688'], cream: '#e2f4c0' },
-  snail: { felt: '#4a3a66', feltD: '#2c2240', feltL: '#6b5790', thread: '#f0dcbc', fur: ['#1a1510', '#d5c2a0', '#fcf2e0'], cream: '#fcf2e0' },
+  scout: { base: '#2f6b3a', dark: '#17452a', lite: '#4f9a5c', shine: '#8fd89a', fur: ['#2a1608', '#6a4222', '#8c5c33', '#cfa370'], cream: '#f0dcbc' },
+  medic: { base: '#26606e', dark: '#123c48', lite: '#3f8d9e', shine: '#88d4e4', fur: ['#1c1820', '#767683', '#9d9dab', '#e2e2ee'], cream: '#fbfbff' },
+  trader: { base: '#8a6512', dark: '#513a06', lite: '#b8901f', shine: '#ffd977', fur: ['#191510', '#665e51', '#8a8171', '#cfc6b2'], cream: '#efe8d4' },
+  frog: { base: '#8a3620', dark: '#551d10', lite: '#bb5130', shine: '#ff9068', fur: ['#12200c', '#478230', '#68a744', '#b4e688'], cream: '#e2f4c0' },
+  snail: { base: '#4a3a66', dark: '#2b2040', lite: '#6d5a92', shine: '#ab97d4', fur: ['#1a1510', '#b6a284', '#d5c2a0', '#fcf2e0'], cream: '#fcf2e0' },
 };
 
-// flat, symmetrical, two-tone animal busts - patch art, not sprite art
+// A flat, chunky bust: cube head, block ears, dot eyes.  Two tones only.
 function badgeBust(key, P) {
-  const [OL, MID, LIT] = P.fur;
+  const [OL, SH, MID, LIT] = P.fur;
+  const head = [OL, SH, MID, LIT, mixHex(LIT, '#ffffff', 0.4)];
   if (key === 'scout') {                       // otter
-    fillCircle(-6, -6, 4, OL); fillCircle(6, -6, 4, OL);          // ears
-    fillCircle(-6, -6, 3, MID); fillCircle(6, -6, 3, MID);
-    fillCircle(-6, -6, 1, OL); fillCircle(6, -6, 1, OL);
-    rr(-8, -6, 17, 15, 7, OL); rr(-7, -5, 15, 13, 6, MID);
-    rr(-6, -5, 8, 6, 4, LIT);                                     // lit crown
-    rr(-5, 1, 11, 7, 4, P.cream);                                  // muzzle bib
-    rect(-4, 3, 4, 1, OL); rect(2, 3, 4, 1, OL);                   // whiskers
-    rr(-2, 0, 5, 3, 1, OL);                                        // nose
-    rect(-1, 0, 2, 1, MID);
-    rect(-5, -3, 3, 3, OL); rect(3, -3, 3, 3, OL);                 // eyes
-    rect(-5, -3, 1, 1, '#ffffff'); rect(3, -3, 1, 1, '#ffffff');
+    plasticBox(-8, -8, 5, 5, 2, head, { noShine: 1 });
+    plasticBox(3, -8, 5, 5, 2, head, { noShine: 1 });
+    plasticBox(-8, -6, 16, 15, 4, head);
+    plasticBox(-5, 1, 10, 7, 3, [OL, mixHex(P.cream, '#000000', 0.25), P.cream, '#ffffff', '#ffffff'], { noShine: 1 });
+    rect(-2, 1, 5, 3, OL);
+    rect(-5, -3, 3, 3, OL); rect(2, -3, 3, 3, OL);
+    rect(-5, -3, 1, 1, '#ffffff'); rect(2, -3, 1, 1, '#ffffff');
   } else if (key === 'medic') {                // opossum
-    fillCircle(-7, -6, 5, OL); fillCircle(7, -6, 5, OL);
-    fillCircle(-7, -6, 4, '#c87a90'); fillCircle(7, -6, 4, '#c87a90');
-    rr(-8, -6, 17, 14, 6, OL); rr(-7, -5, 15, 12, 5, MID);
-    rr(-6, -5, 8, 5, 4, LIT);
-    rr(-5, -1, 11, 9, 5, P.cream);
-    rr(-2, 2, 5, 3, 1, '#c8708a'); rect(-1, 2, 2, 1, '#f0a8bc');
-    rect(-5, -2, 3, 3, OL); rect(3, -2, 3, 3, OL);
-    rect(-5, -2, 1, 1, '#ffffff'); rect(3, -2, 1, 1, '#ffffff');
+    plasticBox(-10, -9, 7, 7, 3, [OL, '#8a5666', '#c87a90', '#f0a8bc', '#ffd8e2'], { noShine: 1 });
+    plasticBox(3, -9, 7, 7, 3, [OL, '#8a5666', '#c87a90', '#f0a8bc', '#ffd8e2'], { noShine: 1 });
+    plasticBox(-8, -6, 16, 15, 4, head);
+    plasticBox(-5, 0, 10, 8, 3, [OL, mixHex(P.cream, '#000000', 0.22), P.cream, '#ffffff', '#ffffff'], { noShine: 1 });
+    rect(-2, 2, 5, 3, '#c8708a');
+    rect(-5, -3, 3, 3, OL); rect(2, -3, 3, 3, OL);
+    rect(-5, -3, 1, 1, '#ffffff'); rect(2, -3, 1, 1, '#ffffff');
   } else if (key === 'trader') {               // raccoon
-    fillCircle(-7, -7, 4, OL); fillCircle(7, -7, 4, OL);
-    fillCircle(-7, -7, 3, MID); fillCircle(7, -7, 3, MID);
-    rr(-8, -6, 17, 14, 6, OL); rr(-7, -5, 15, 12, 5, MID);
-    rect(-7, -5, 15, 2, LIT);
-    rect(-7, -3, 15, 5, OL);                                       // bandit mask
-    rr(-4, 2, 9, 6, 3, P.cream);
-    rr(-2, 3, 5, 3, 1, OL);
-    rect(-5, -2, 3, 3, P.cream); rect(3, -2, 3, 3, P.cream);
-    rect(-4, -2, 1, 1, OL); rect(4, -2, 1, 1, OL);
-    rect(6, 5, 1, 2, '#ffd54a');                                   // gold tooth
+    plasticBox(-9, -10, 6, 6, 2, head, { noShine: 1 });
+    plasticBox(3, -10, 6, 6, 2, head, { noShine: 1 });
+    plasticBox(-8, -6, 16, 15, 4, head);
+    rect(-8, -4, 16, 6, OL);
+    plasticBox(-4, 2, 8, 6, 3, [OL, mixHex(P.cream, '#000000', 0.22), P.cream, '#ffffff', '#ffffff'], { noShine: 1 });
+    rect(-2, 3, 5, 3, OL);
+    rect(-5, -3, 3, 3, P.cream); rect(2, -3, 3, 3, P.cream);
+    rect(-4, -3, 1, 1, OL); rect(3, -3, 1, 1, OL);
   } else if (key === 'frog') {                 // bullfrog
-    fillCircle(-6, -6, 5, OL); fillCircle(6, -6, 5, OL);
-    fillCircle(-6, -6, 4, MID); fillCircle(6, -6, 4, MID);
-    rect(-8, -7, 4, 3, LIT); rect(4, -7, 4, 3, LIT);
-    rect(-7, -7, 3, 3, '#f8f4e0'); rect(4, -7, 3, 3, '#f8f4e0');
-    rect(-6, -7, 2, 2, OL); rect(5, -7, 2, 2, OL);
-    rr(-9, -3, 19, 11, 5, OL); rr(-8, -2, 17, 9, 4, MID);
-    rr(-7, -2, 9, 4, 3, LIT);
-    rect(-7, 3, 15, 1, OL); rect(-8, 2, 1, 2, OL); rect(8, 2, 1, 2, OL);  // wide mouth
-    rr(-5, 5, 11, 3, 1, P.cream);
-    rect(-3, 0, 2, 1, OL); rect(2, 0, 2, 1, OL);                   // nostrils
+    plasticBox(-10, -10, 8, 8, 3, head, { noShine: 1 });
+    plasticBox(2, -10, 8, 8, 3, head, { noShine: 1 });
+    rect(-8, -8, 4, 4, '#f8f4e0'); rect(4, -8, 4, 4, '#f8f4e0');
+    rect(-7, -7, 2, 2, OL); rect(5, -7, 2, 2, OL);
+    plasticBox(-9, -3, 18, 12, 4, head);
+    rect(-7, 3, 14, 1, OL);
+    plasticBox(-5, 5, 10, 4, 2, [OL, mixHex(P.cream, '#000000', 0.2), P.cream, '#ffffff', '#ffffff'], { noShine: 1 });
   } else {                                     // snail
-    fillCircle(7, 2, 8, OL); fillCircle(7, 2, 7, '#ab7c44');
-    fillCircle(6, 1, 5, '#d0a668'); fillCircle(5, 0, 3, '#efd6a2');
-    fillCircle(6, 2, 2, '#7d5528');
-    rect(-7, -10, 2, 7, OL); rect(-2, -12, 2, 9, OL);
-    fillCircle(-6, -11, 3, OL); fillCircle(-6, -11, 2, MID);
-    fillCircle(-1, -13, 3, OL); fillCircle(-1, -13, 2, MID);
-    rect(-7, -12, 1, 1, '#ffffff'); rect(-2, -14, 1, 1, '#ffffff');
-    rr(-10, -4, 13, 13, 6, OL); rr(-9, -3, 11, 11, 5, MID);
-    rr(-8, -3, 6, 5, 3, LIT);
-    rect(-7, 1, 2, 3, OL); rect(-2, 1, 2, 3, OL);
-    rect(-7, 1, 1, 1, '#ffffff'); rect(-2, 1, 1, 1, '#ffffff');
-    rect(-6, 6, 4, 1, OL);
+    plasticBox(1, -6, 15, 15, 6, [OL, '#7d5528', '#ab7c44', '#d0a668', '#efd6a2']);
+    rect(6, -1, 5, 5, '#7d5528');
+    rect(-7, -12, 2, 7, OL); rect(-2, -14, 2, 9, OL);
+    plasticBox(-9, -15, 5, 5, 2, head, { noShine: 1 });
+    plasticBox(-4, -17, 5, 5, 2, head, { noShine: 1 });
+    plasticBox(-10, -4, 13, 13, 5, head);
+    rect(-7, 0, 3, 3, OL); rect(-2, 0, 3, 3, OL);
+    rect(-7, 0, 1, 1, '#ffffff'); rect(-2, 0, 1, 1, '#ffffff');
   }
 }
 
@@ -1759,28 +1733,22 @@ function drawRangerBadge(x, y, key, o) {
   ctx.translate((x + 14 * sc) | 0, (y + 14 * sc) | 0);
   if (sc !== 1) ctx.scale(sc, sc);
   if (o.wob) ctx.rotate(Math.sin(tNow * 1.2 + key.length) * 0.02);
-  // brass-framed plate over tinted wood, matching the item tiles
-  goldFrame(-14, -14, 28, 28, {
-    field: mixHex(UWOOD[2], P.felt, 0.34),
-    fieldD: mixHex(UWOOD[1], P.feltD, 0.34),
-    fieldL: mixHex(UWOOD[3], P.feltL, 0.34),
-    r: 4, glow: o.wob ? 0.2 + Math.sin(tNow * 4) * 0.06 : 0,
-  });
-  ctx.save(); ctx.globalAlpha = 0.22;                    // a pool of light behind the bust
-  fillCircle(0, -1, 9, P.feltL); ctx.restore();
-  ctx.save(); ctx.translate(0, -1); ctx.scale(0.72, 0.72); badgeBust(key, P); ctx.restore();
-  // brass rank pips on the lower rail
+  if (o.wob) { ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 4) * 0.06; rr(-16, -16, 32, 32, 8, P.shine); ctx.restore(); }
+  // the moulded puck
+  plasticBox(-14, -14, 28, 28, 7, ['#12100a', P.dark, P.base, P.lite, P.shine], { noShine: 1 });
+  ctx.save(); ctx.globalAlpha = 0.5; rr(-11, -12, 9, 5, 2, P.shine); rect(-1, -12, 3, 3, P.shine); ctx.restore();
+  ctx.save(); ctx.translate(0, -1); ctx.scale(0.74, 0.74); badgeBust(key, P); ctx.restore();
+  // three raised rank pips
   for (let k = 0; k < 3; k++) {
-    const px = -4 + k * 4;
-    const pc = (key === 'medic' && k === 1) ? '#ff6a5a' : UGOLD[3];
-    rect(px, 9, 3, 1, pc); rect(px + 1, 8, 1, 3, pc);
-    rect(px + 1, 8, 1, 1, UGOLD[4]);
+    const px = -5 + k * 4;
+    const pc = (key === 'medic' && k === 1) ? '#ff6a5a' : P.shine;
+    rect(px, 9, 3, 2, P.dark); rect(px, 9, 3, 1, pc);
   }
   if (locked) {
-    ctx.save(); ctx.globalAlpha = 0.74; rr(-11, -11, 22, 22, 2, '#0b1116'); ctx.restore();
-    rr(-4, -2, 9, 8, 2, UGOLD[1]); rr(-3, -1, 7, 6, 2, UGOLD[3]);
-    rect(-2, -6, 5, 5, UGOLD[1]); rect(-1, -5, 3, 4, '#1a1206');
-    rect(-1, 1, 2, 3, UGOLD[0]);
+    ctx.save(); ctx.globalAlpha = 0.76; rr(-13, -13, 26, 26, 6, '#0f141a'); ctx.restore();
+    plasticBox(-5, -2, 10, 9, 2, ['#12100a', '#6a5a2a', '#a8902f', '#e0c455', '#fff0a0'], { noShine: 1 });
+    rect(-3, -7, 6, 6, '#6a5a2a'); rect(-2, -6, 4, 5, '#0f141a');
+    rect(-1, 1, 2, 3, '#4a3f16');
   }
   ctx.restore();
 }
@@ -1982,6 +1950,47 @@ function crocStyle() {
 }
 
 // ------------------------------------------------------------ game data ---
+
+// ---------------------------------------------------------- croc moods ----
+// The gator reacts to the fight instead of staring blankly: it sizes you up,
+// gets cocky when you are far from target, narrows its eyes as you close in,
+// and flinches when a snapper goes off.  Each mood is a set of dials the eye
+// and jaw code reads.
+const CROC_MOODS = {
+  calm:    { brow: 0, open: 1, pupil: 1, squint: 0, tilt: 0 },
+  smug:    { brow: -1, open: 0.72, pupil: 0.85, squint: 0.3, tilt: 0.04 },
+  hungry:  { brow: 1, open: 1.12, pupil: 1.35, squint: 0, tilt: -0.03, quiver: 1 },
+  angry:   { brow: 2, open: 0.8, pupil: 0.7, squint: 0.55, tilt: 0 },
+  worried: { brow: -2, open: 1.18, pupil: 1.45, squint: 0, tilt: 0.02 },
+  shocked: { brow: -3, open: 1.3, pupil: 1.6, squint: 0, tilt: 0 },
+  hurt:    { brow: 2, open: 0, pupil: 1, squint: 1, tilt: 0.06, cross: 1 },
+  sleepy:  { brow: 0, open: 0.4, pupil: 0.9, squint: 0.8, tilt: 0.03 },
+};
+let crocMoodHold = { m: 'calm', t: 0 };
+function crocMood(dt) {
+  let m = 'calm';
+  const st = crocStyle();
+  if (G.state === 'snap') m = 'angry';
+  else if (flashRed > 0.08) m = 'hurt';
+  else if (G.state === 'menu') m = (tNow % 11) < 3 ? 'smug' : 'calm';
+  else if (st && st.sleepy) m = 'sleepy';
+  else if (G.state === 'play' || G.state === 'swap') {
+    const f = G.target > 0 ? G.score / G.target : 0;
+    if (f >= 0.95) m = 'shocked';
+    else if (f >= 0.6) m = 'worried';
+    else if (G.bites <= 1) m = 'angry';
+    else if (G.round === 2 && G.boss) m = 'angry';
+    else if (f < 0.12 && G.roundPressed > 2) m = 'smug';
+    else m = 'hungry';
+  }
+  // hold a mood briefly so it cannot strobe between frames
+  if (m !== crocMoodHold.m) {
+    crocMoodHold.t += dt || 0.016;
+    if (crocMoodHold.t > 0.25 || m === 'hurt' || m === 'angry') { crocMoodHold.m = m; crocMoodHold.t = 0; }
+  } else crocMoodHold.t = 0;
+  return CROC_MOODS[crocMoodHold.m] || CROC_MOODS.calm;
+}
+
 const TOOTH_DEFS = {
   plain: { name: 'TOOTH', base: 3, desc: 'A plain tooth. Adds its value to Teeth.', flav: 'Brushed twice a day, allegedly.' },
   infected: { name: 'INFECTED TOOTH', base: 0, cost: 3, desc: '+8 MULT when pressed', flav: 'Do not look at it too long.' },
@@ -4316,7 +4325,9 @@ function drawCroc(closeT, opts) {
   const maw = L.maw;
   const bodyX = maw.x - 22, bodyW = maw.w + 44;
   const jawDrop = closeT * (maw.h - 26);
-  const breathe = (G.state === 'play' || G.state === 'menu') ? Math.sin(tNow * 1.6) * 1 : 0;
+  const MD = (opts.mood && CROC_MOODS[opts.mood]) || crocMood(opts.dt);
+  const quiver = MD.quiver ? Math.sin(tNow * 13) * 0.7 : 0;
+  const breathe = (G.state === 'play' || G.state === 'menu') ? Math.sin(tNow * 1.6) * 1.4 + quiver : 0;
   const mawC = st.maw, mawD = st.mawD;
 
   // --- tail curling out of the water behind the body ---
@@ -4348,36 +4359,17 @@ function drawCroc(closeT, opts) {
   rr(bodyX + 1, maw.y + maw.h - 6, bodyW - 2, 38, 4, st.b);
   rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, st.a);
   // belly plate bands on the chin, with scutes and pond light playing over them
-  ctx.save(); ctx.globalAlpha = 0.42;
-  for (let ry = 0; ry < 5; ry++) {
-    const sy3 = maw.y + maw.h + 8 + ry * 7, off = (ry % 2) * 5;
-    for (let sx3 = bodyX + 10 + off; sx3 < bodyX + bodyW - 10; sx3 += 10) {
-      rect(sx3, sy3, 5, 3, st.d); rect(sx3, sy3 - 1, 5, 1, st.c); rect(sx3 + 1, sy3 + 1, 3, 1, st.b);
-    }
-  }
-  ctx.restore();
-  for (let k = 0; k < 3; k++) rect(bodyX + 16, maw.y + maw.h + 14 + k * 7, bodyW - 32, 1, st.b);
+  rect(bodyX + 14, maw.y + maw.h + 16, bodyW - 28, 2, st.b);
   ctx.save(); ctx.globalAlpha = 0.18;
-  for (let k = 0; k < 16; k++) {
-    const cx3 = bodyX + ((k * 53) % (bodyW - 12));
-    const cy3 = maw.y + maw.h + 6 + ((k * 19) % 28);
-    const wob = Math.sin(tNow * 1.9 + k * 0.7) * 3;
-    rect(cx3 + wob, cy3, 8, 1, '#bfe8ff'); rect(cx3 + 2 + wob, cy3 + 1, 4, 1, '#eafcff');
-    rect(cx3 - 2 + wob * 0.6, cy3 + 3, 5, 1, '#9fd8f0');
-  }
+  rect(bodyX + 20, maw.y + maw.h + 8, Math.round(bodyW * 0.3), 4, '#eafcff');
+  rect(bodyX + 24 + Math.round(bodyW * 0.34), maw.y + maw.h + 8, 6, 4, '#eafcff');
   ctx.restore();
   if (st.skinny) { rect(bodyX + 14, maw.y + maw.h + 14, 3, 14, st.b); rect(bodyX + bodyW - 17, maw.y + maw.h + 14, 3, 14, st.b); }
 
   // --- maw interior ---
   rr(maw.x - 6, maw.y - 4, maw.w + 12, maw.h + 10, 4, mawD);
   rr(maw.x - 3, maw.y - 1, maw.w + 6, maw.h + 4, 4, mawC);
-  // palate ribs arching across the roof of the mouth
-  ctx.save(); ctx.globalAlpha = 0.34;
-  for (let k = 0; k < 6; k++) {
-    const ry2 = maw.y + 4 + k * 4, inset = k * 3;
-    rect(maw.x + 6 + inset, ry2, maw.w - 12 - inset * 2, 1, mawD);
-  }
-  ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.12; rr(maw.x + 4, maw.y + 2, maw.w - 8, 6, 3, '#ffd8e4'); ctx.restore();
   // throat shadow receding into the dark
   ctx.save(); ctx.globalAlpha = 0.5;
   rr(maw.x + maw.w / 2 - 34, maw.y + maw.h / 2 - 16, 68, 30, 10, '#2a0a14');
@@ -4392,8 +4384,12 @@ function drawCroc(closeT, opts) {
     rect(maw.x + 10 + k * 15, maw.y + maw.h - 3, 7, 2, st.paleMaw ? '#c88898' : '#7d2d42');
   }
   ctx.restore();
-  rr(maw.x + 30, maw.y + maw.h - 34, maw.w - 60, 28, 4, st.tongue);
-  rr(maw.x + 40, maw.y + maw.h - 32, maw.w - 80, 10, 3, st.tongueHi);
+  const tlick = MD.pupil > 1.2 ? Math.sin(tNow * 2.2) * 4 : Math.sin(tNow * 0.9) * 1.5;
+  rr(maw.x + 30, maw.y + maw.h - 34 + tlick * 0.4, maw.w - 60, 28, 4, st.tongue);
+  rr(maw.x + 40, maw.y + maw.h - 32 + tlick * 0.4, maw.w - 80, 10, 3, st.tongueHi);
+  ctx.save(); ctx.globalAlpha = 0.25;
+  rect(maw.x + 46, maw.y + maw.h - 30 + tlick * 0.4, Math.round(maw.w * 0.2), 3, '#ffd8e4');
+  ctx.restore();
   rect(maw.x + maw.w / 2 - 1, maw.y + maw.h - 30, 2, 22, st.paleMaw ? '#c88898' : '#a83a4e');
 
   // --- teeth ---
@@ -4457,7 +4453,7 @@ function drawCroc(closeT, opts) {
   rect(bodyX + 2, maw.y + maw.h - 2, bodyW - 4, 3, st.d);
 
   // --- upper jaw (snout) ---
-  const jy = maw.y - 58 + jawDrop + breathe;
+  const jy = maw.y - 58 + jawDrop + breathe + Math.round(MD.brow * -0.6);
   rr(bodyX - 4, jy, bodyW + 8, 62, 4, st.d);
   rr(bodyX - 3, jy + 1, bodyW + 6, 60, 4, st.b);
   rr(bodyX - 1, jy + 3, bodyW + 2, 52, 4, st.a);
@@ -4465,27 +4461,6 @@ function drawCroc(closeT, opts) {
   for (let k = 0; k < 7; k++) {
     rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, st.b);
   }
-  // osteoderm scute ridges along the snout
-  for (let k = 0; k < 6; k++) {
-    const sx2 = bodyX + 20 + k * Math.floor((bodyW - 44) / 5);
-    rect(sx2, jy + 17, 6, 3, st.b); rect(sx2 + 1, jy + 15, 4, 2, st.c);
-    rect(sx2 + 15, jy + 36, 5, 3, st.b);
-  }
-  // hide speckles
-  ctx.save(); ctx.globalAlpha = 0.35;
-  for (let k = 0; k < 9; k++) rect(bodyX + 12 + (k * 47) % (bodyW - 24), jy + 26 + (k * 31) % 22, 2, 2, st.d);
-  ctx.restore();
-  // ---- fine scale texture: a staggered micro-grid of scutes on the snout ----
-  ctx.save(); ctx.globalAlpha = 0.32;
-  for (let ry = 0; ry < 7; ry++) {
-    const sy2 = jy + 8 + ry * 7, off = (ry % 2) * 5;
-    for (let sx2 = bodyX + 8 + off; sx2 < bodyX + bodyW - 8; sx2 += 10) {
-      rect(sx2, sy2, 5, 3, st.d);          // scute plate
-      rect(sx2, sy2 - 1, 5, 1, st.c);      // lit top edge
-      rect(sx2 + 1, sy2 + 1, 3, 1, st.b);  // inner shadow
-    }
-  }
-  ctx.restore();
   // ---- nostrils flaring on the snout tip ----
   (function nostrils() {
     const flare = Math.round(Math.max(0, Math.sin(tNow * 1.6)) * 1.5);
@@ -4499,29 +4474,10 @@ function drawCroc(closeT, opts) {
       rect(px2 + 3, jy + 6 - flare, 3, 1, '#3a2418');
     });
   })();
-  // ---- jowl volume: the sides of the skull roll away from the light ----
-  ctx.save(); ctx.globalAlpha = 0.3;
-  rect(bodyX - 3, jy + 12, 8, 44, st.d); rect(bodyX + bodyW - 5, jy + 12, 8, 44, st.d);
-  ctx.globalAlpha = 0.18; rect(bodyX + 3, jy + 16, 5, 38, st.d); rect(bodyX + bodyW - 8, jy + 16, 5, 38, st.d);
-  ctx.restore();
-  // ---- neck folds behind the jaw hinge ----
-  ctx.save(); ctx.globalAlpha = 0.4;
-  for (let k = 0; k < 3; k++) {
-    rect(bodyX - 2, maw.y + maw.h + 12 + k * 7, 20, 2, st.d);
-    rect(bodyX + bodyW - 18, maw.y + maw.h + 12 + k * 7, 20, 2, st.d);
-    rect(bodyX - 2, maw.y + maw.h + 11 + k * 7, 20, 1, st.c);
-    rect(bodyX + bodyW - 18, maw.y + maw.h + 11 + k * 7, 20, 1, st.c);
-  }
-  ctx.restore();
-  // ---- rim light along the top of the skull ----
-  ctx.save(); ctx.globalAlpha = 0.3;
-  rect(bodyX + 4, jy + 1, bodyW - 8, 1, '#eafcff');
-  rect(bodyX - 2, jy + 6, 3, 34, '#eafcff'); rect(bodyX + bodyW - 1, jy + 6, 3, 34, '#eafcff');
-  ctx.restore();
-  // wet sheen sweeping the hide
-  const shx = bodyX + ((tNow * 22) % (bodyW + 60)) - 30;
-  ctx.save(); ctx.globalAlpha = 0.08;
-  rect(shx, jy + 4, 4, 50, '#eafcff'); rect(shx + 8, jy + 4, 2, 50, '#eafcff');
+  // one hard plastic gloss streak across the snout
+  ctx.save(); ctx.globalAlpha = 0.2;
+  rect(bodyX + 18, jy + 5, Math.round(bodyW * 0.34), 4, '#eafcff');
+  rect(bodyX + 18 + Math.round(bodyW * 0.38), jy + 5, 7, 4, '#eafcff');
   ctx.restore();
   // ---- drool strings + drips hanging off the upper lip ----
   if (G.state === 'play') {
@@ -4619,35 +4575,64 @@ function drawCroc(closeT, opts) {
   // gold glint tooth (loan shark) on the lip
   if (st.goldTooth) { rect(maw.x + 20, jy + 54, 8, 6, '#ffd54a'); rect(maw.x + 22, jy + 55, 2, 2, '#fff6c8'); }
 
-  // --- eyes on top --- (kept left of the charm row, which ends at x~270)
-  const squeeze = closeT > 0.5 || opts.angry;
+  // --- eyes on top: brows, pupils and lids all driven by the mood ---
+  const squeeze = (closeT > 0.5 || opts.angry) && !MD.cross;
   const exL = maw.x + 18, exR = maw.x + maw.w - 48, ey = jy - 10;
-  [exL, exR].forEach((ex) => {
-    rr(ex - 4, ey, 30, 20, 4, st.b);
-    rr(ex - 3, ey + 1, 28, 17, 4, st.a);
+  // a slow saccade: the eyes flick to a new spot every couple of seconds
+  const sac = Math.floor(tNow / 1.9);
+  const sacX = ((sac * 2654435761) % 100) / 100 - 0.5, sacY = ((sac * 40503) % 100) / 100 - 0.5;
+  [exL, exR].forEach((ex, side) => {
+    const socket = [st.d, st.b, st.a, st.c, mixHex(st.c || st.a, '#ffffff', 0.4)];
+    plasticBox(ex - 4, ey, 30, 20, 5, socket, { noShine: 1 });
     if (squeeze) {
       rect(ex + 2, ey + 8, 18, 3, st.d);
     } else {
       const blink = (tNow % 4.3) > 4.15 || (st.sleepy && (tNow % 4.3) > 3.9);
-      rr(ex + 3, ey + 4, 16, 12, 3, st.redEye ? '#e8b0a0' : st.sclera);
-      if (blink) {
-        rect(ex + 3, ey + 4, 16, 12, st.a);
+      const openF = clamp(MD.open, 0, 1.4);
+      const eh = Math.round(12 * Math.min(1.12, openF));
+      const eyTop = ey + 4 + Math.round((12 - eh) / 2);
+      rr(ex + 3, eyTop, 16, eh, 3, st.redEye ? '#e8b0a0' : st.sclera);
+      if (MD.cross) {                                  // knocked silly
+        for (let k = 0; k < 7; k++) { rect(ex + 5 + k, eyTop + 1 + k, 2, 2, '#1b1408'); rect(ex + 11 - k, eyTop + 1 + k, 2, 2, '#1b1408'); }
+      } else if (blink) {
+        rect(ex + 3, eyTop, 16, eh, st.a);
       } else {
-        const dx = clamp((mx - (ex + 11)) / 60, -1, 1) * 3;
-        const dy = clamp((my - (ey + 10)) / 60, -1, 1) * 2;
-        rect(ex + 9 + dx, ey + 6 + dy, 4, 8, st.redEye ? '#8a1010' : '#1b1408');
-        rect(ex + 10 + dx, ey + 7 + dy, 1, 2, '#fff');
-        if (st.sleepy) rect(ex + 3, ey + 4, 16, 5, st.a); // heavy lids
+        const dx = clamp((mx - (ex + 11)) / 60, -1, 1) * 3 + sacX * 2;
+        const dy = clamp((my - (ey + 10)) / 60, -1, 1) * 2 + sacY * 1.5;
+        const pw = Math.max(2, Math.round(4 * MD.pupil)), ph2 = Math.max(4, Math.round(8 * MD.pupil));
+        rect(ex + 11 - (pw >> 1) + dx, eyTop + (eh >> 1) - (ph2 >> 1) + dy, pw, ph2, st.redEye ? '#8a1010' : '#1b1408');
+        rect(ex + 12 - (pw >> 1) + dx, eyTop + (eh >> 1) - (ph2 >> 1) + 1 + dy, 1, 2, '#fff');
+        if (MD.squint > 0) {                            // lids drop in from above
+          const lh = Math.round(eh * MD.squint * 0.6);
+          if (lh > 0) { rect(ex + 3, eyTop, 16, lh, st.a); rect(ex + 3, eyTop + lh, 16, 1, st.d); }
+        }
+        if (st.sleepy) rect(ex + 3, eyTop, 16, 5, st.a);
       }
     }
-    rect(ex - 2, ey - 2, 26, 3, st.d);
-    if (st.bags) { rect(ex + 2, ey + 17, 18, 2, '#3a2a4a'); rect(ex + 4, ey + 19, 14, 1, '#3a2a4a'); }
+    // brow ridge: angles with the mood, inner end leading
+    const bl = side === 0 ? 1 : -1;
+    const bw = 26, bh = 3;
+    for (let k = 0; k < bw; k++) {
+      const f = k / (bw - 1);
+      const lift = Math.round((side === 0 ? (1 - f) : f) * MD.brow);
+      rect(ex - 2 + k, ey - 2 - lift, 1, bh + Math.max(0, lift), st.d);   // stays welded to the socket
+      if (lift > 0) rect(ex - 2 + k, ey - 2 - lift, 1, 1, st.c);
+    }
+    if (st.bags) { rect(ex + 2, ey + 17, 18, 2, '#3a2a4a'); }
     if (st.teary) { rect(ex + 4, ey + 16, 2, 3, '#7fd4e8'); rect(ex + 5, ey + 19 + ((tNow * 6 | 0) % 3), 1, 2, '#7fd4e8'); }
-    // back scutes flanking each eye
-    [[ex - 12, ey + 4], [ex + 28, ey + 6]].forEach(([sx, sy]) => {
-      rect(sx, sy, 5, 6, st.b); rect(sx + 1, sy - 3, 3, 3, st.b); rect(sx + 2, sy - 5, 1, 2, st.b);
-    });
+    rect(ex - 10, ey + 6, 5, 6, st.b); rect(ex + 27, ey + 8, 5, 5, st.b);
+    void bl;
   });
+  // a puff of angry breath from the nostrils when it is riled
+  if (MD.brow >= 2 && G.state !== 'menu') {
+    const nx0 = bodyX + bodyW / 2;
+    [-1, 1].forEach(sd => {
+      const f = (tNow * 1.4 + (sd > 0 ? 0.5 : 0)) % 1;
+      ctx.save(); ctx.globalAlpha = 0.3 * (1 - f);
+      fillCircle(nx0 + sd * 15, jy + 12 + f * 12, 2 + f * 5, '#cfe8f0');
+      ctx.restore();
+    });
+  }
   // second, smaller pair of eyes (two-timer)
   if (st.twinEyes) {
     const tx2 = maw.x + maw.w / 2 - 14, ty2 = ey + 6;
@@ -5395,15 +5380,6 @@ function shopWall() {
     rect(x, 0, 15, 216, v === 0 ? P[2] : v === 1 ? P[3] : P[1]);
     rect(x, 0, 1, 216, P[4]);                 // lit bevel
     rect(x + 14, 0, 2, 216, P[0]);            // groove shadow
-    // grain
-    ctx.save(); ctx.globalAlpha = 0.16;
-    for (let g = 0; g < 5; g++) rect(x + 2 + ((x * 7 + g * 13) % 11), (g * 47 + x) % 210, 1, 18 + (x % 13), P[0]);
-    ctx.restore();
-    if ((x / 16) % 4 === 1) { // knot
-      const ky = 30 + (x * 13) % 150;
-      fillCircle(x + 7, ky, 3, P[1]); fillCircle(x + 7, ky, 2, P[0]); rect(x + 6, ky - 1, 1, 1, P[3]);
-    }
-    rect(x + 7, 8, 1, 1, P[0]); rect(x + 7, 206, 1, 1, P[0]); // nails
   }
   // wainscot + chair rail along the bottom of the wall
   const Wn = SHOPW.wains;
@@ -5427,10 +5403,7 @@ function shopFloor() {
     const h = 11 + row * 2;
     rect(0, y, W, h, row % 2 ? F[2] : F[3]);
     rect(0, y + h - 1, W, 1, F[0]);
-    for (let x = ((row * 37) % 60); x < W; x += 60) { rect(x, y, 1, h, F[1]); rect(x + 2, y + 2, 1, 1, F[0]); rect(x + 2, y + h - 3, 1, 1, F[0]); }
-    ctx.save(); ctx.globalAlpha = 0.12;
-    for (let g = 0; g < 12; g++) rect((g * 43 + row * 17) % W, y + 2 + (g % 3) * 3, 14 + (g % 5) * 4, 1, F[0]);
-    ctx.restore();
+    for (let x = ((row * 37) % 60); x < W; x += 60) rect(x, y, 1, h, F[1]);
     row++;
   }
   ctx.save(); ctx.globalAlpha = 0.16; // worn walking path down the aisle
@@ -5441,9 +5414,6 @@ function shopFloor() {
   for (let k = 0; k < 8; k++) rect(174 + k * 22, 234, 20, 20, k % 2 ? '#a5604a' : '#8a4a32');
   for (let k = 0; k < 8; k++) rect(174 + k * 22, 240, 20, 3, k % 2 ? '#c88a6a' : '#6a3524');
   rect(171, 232, 178, 1, '#b8735a'); rect(171, 255, 178, 1, '#3a1a10');
-  ctx.save(); ctx.globalAlpha = 0.25;
-  for (let k = 0; k < 20; k++) rect(172 + (k * 29) % 176, 233 + (k * 7) % 22, 2, 1, '#2a1208');
-  ctx.restore();
 }
 
 // swinging enamel pendant lamp
@@ -5636,7 +5606,6 @@ function drawShop() {
     rr(kx, ky + 3, kw, kh, 2, '#00000077');
     rr(kx, ky, kw, kh, 2, Wd[0]); rr(kx + 1, ky + 1, kw - 2, kh - 3, 2, Wd[2]);
     for (let px = kx + 8; px < kx + kw; px += 13) { rect(px, ky + 4, 1, kh - 7, Wd[1]); rect(px + 1, ky + 4, 1, kh - 7, Wd[3]); }
-    ctx.save(); ctx.globalAlpha = 0.18; for (let g = 0; g < 8; g++) rect(kx + 3 + (g * 17) % 68, ky + 6 + (g % 4) * 5, 9, 1, '#2a1a0c'); ctx.restore();
     rect(kx, ky, kw, 4, S[3]); rect(kx, ky, kw, 1, S[4]); rect(kx, ky + 4, kw, 1, S[0]);
     // brass till
     rr(kx + 5, ky + 6, 24, 20, 3, '#241708'); rr(kx + 6, ky + 7, 22, 18, 2, BRS[1]);
@@ -7560,36 +7529,7 @@ function drawLake() {
     rect(gx + off - 5, yy, 11, 1, P.glint);
     ctx.restore();
   }
-  // ---- scrolling wave dashes ----
-  for (let r = 0; r < 12; r++) {
-    const yy = top + 8 + r * 13;
-    ctx.save(); ctx.globalAlpha = 0.22 + (r / 12) * 0.2;
-    for (let d = 0; d < 9; d++) {
-      const sp = 7 + r * 1.6;
-      const xx = L.x + ((d * 47 + r * 19 + tNow * sp) % (L.w + 40)) - 20;
-      rect(xx, yy + Math.sin(tNow * 1.3 + d + r) * 1, 7 + (r % 3) * 2, 1, P.foam);
-    }
-    ctx.restore();
-  }
-  // ---- drifting mist ribbons ----
-  ctx.save(); ctx.globalAlpha = 0.07;
-  for (let m = 0; m < 5; m++) {
-    const yy = top + 10 + m * 32, xx = L.x + ((tNow * (5 + m * 3)) % (L.w + 160)) - 140;
-    rr(xx, yy, 120, 7, 3, '#cfe8f0'); rr(xx + 30, yy + 4, 70, 4, 2, '#cfe8f0');
-  }
   ctx.restore();
-  // ---- fish shadows cruising under the surface ----
-  for (let f = 0; f < 5; f++) {
-    const per = 11 + f * 2.6, ph = (tNow / per + f * 0.31) % 1;
-    const dir = f % 2 ? 1 : -1;
-    const fx2 = dir > 0 ? L.x - 20 + ph * (L.w + 40) : L.x + L.w + 20 - ph * (L.w + 40);
-    const fy2 = top + 26 + ((f * 37) % (wh - 50)) + Math.sin(tNow * 1.4 + f) * 3;
-    ctx.save(); ctx.globalAlpha = 0.3;
-    rr(fx2, fy2, 9, 3, 1, '#06121a');
-    rect(fx2 + (dir > 0 ? -3 : 9), fy2, 3, 3, '#06121a');       // tail
-    ctx.globalAlpha = 0.16; rect(fx2 + 2, fy2 - 2, 4, 1, P.foam); // surface wake
-    ctx.restore();
-  }
   // ---- lily pads hugging the left and right margins ----
   const pads = [[14, 30], [30, 78], [12, 124], [34, 168], [20, 200], [352, 36], [370, 92], [344, 148], [362, 192], [336, 214], [58, 212], [300, 218]];
   pads.forEach(([px2, py2], i) => {

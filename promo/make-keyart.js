@@ -26,7 +26,7 @@ window.grabCroc = function (Z) {
   G.mut = null;
   const th = THEMES.night;
   drawSceneBack(th);
-  drawCroc(0.02);                      // jaws all the way open
+  drawCroc(0.02, { mood: 'hungry' });  // jaws wide, pupils blown, brows up
   drawSceneFront(th);
   const off = document.createElement('canvas');
   off.width = canvas.width; off.height = canvas.height;
