@@ -240,7 +240,7 @@ function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x | 0, y | 0, w |
 // big radii actually round instead of falling back to a square.
 const RCUT = (() => {
   const t = {};
-  for (let r = 1; r <= 20; r++) {
+  for (let r = 1; r <= 48; r++) {
     const a = [];
     for (let i = 0; i < r; i++) a.push(Math.ceil(r - Math.sqrt(r * r - (r - i) * (r - i))));
     t[r] = a;
@@ -10244,45 +10244,141 @@ function sparkle(x, y, col, period, phase) {
 // shared stage: 40..440 x 26..190; controls drawn under it. each game is
 // {init(s), update(s,dt), tap(s), draw(s), idle(s)} over G.event.s
 const STAGE = { x: 40, y: 26, w: 400, h: 164 };
-function stageNight(water) {
-  // starry sky bands + water line inside the stage
-  const { x, y, w, h } = STAGE;
-  ['#0a1626', '#0c1c2e', '#0f2434', '#132c3c'].forEach((c, i) => rect(x, y + i * (h / 4), w, h / 4 + 1, c));
-  for (let i = 0; i < 22; i++) {
-    const sx = x + (i * 97 + 13) % w, sy = y + (i * 53 + 7) % (h * 0.5);
-    const tw = Math.sin(tNow * 1.7 + i * 2.3);
-    if (tw > -0.2) { ctx.save(); ctx.globalAlpha = 0.25 + tw * 0.25; rect(sx, sy, 1, 1, '#cfe8f0'); ctx.restore(); }
+const NIGHT = ['#050a16', '#08101e', '#0b1626', '#0e1c2e', '#122436', '#172c3e', '#1e3646'];
+// ---- the moonlit swamp: painted once per water tint, then cached ----------
+function stageNightStatic(water) {
+  const w = STAGE.w, h = STAGE.h, hz = Math.round(h * 0.62);
+  // sky: dithered night bands, a faint milky way, a speckle of stars
+  for (let y = 0; y < hz; y++) {
+    const f = (y / hz) * (NIGHT.length - 1), i = Math.floor(f), fr = f - i;
+    rect(0, y, w, 1, NIGHT[i]);
+    if (i + 1 < NIGHT.length && fr > 0.5) for (let x = (y & 1); x < w; x += 2) rect(x, y, 1, 1, NIGHT[i + 1]);
   }
-  fillCircle(x + w - 44, y + 26, 13, '#e8e8d0');
-  ctx.save(); ctx.globalAlpha = 0.2; fillCircle(x + w - 44, y + 26, 17, '#e8e8d0'); ctx.restore();
-  for (let tx2 = x; tx2 < x + w; tx2 += 6) {
-    const h1 = 16 + ((Math.sin(tx2 * 0.13) * 7) | 0) + ((tx2 * 7) % 7);
-    rect(tx2, y + Math.round(h * 0.62) - h1, 6, h1, '#0d2028');
+  for (let k = 0; k < 900; k++) {
+    const t = hash2(k, 11), px = Math.floor(t * w), py = Math.floor(hash2(k, 12) * hz * 0.7);
+    const band = Math.abs(py - (hz * 0.55 - px * 0.18)) < 16;
+    if (band && hash2(k, 13) < 0.5) rect(px, py, 1, 1, '#1e2a44');
+  }
+  for (let k = 0; k < 120; k++) { const px = Math.floor(hash2(k, 21) * w), py = Math.floor(hash2(k, 22) * hz * 0.75), b = hash2(k, 23); rect(px, py, 1, 1, b > 0.9 ? '#ffffff' : b > 0.6 ? '#b8c8e0' : '#6a7a98'); if (b > 0.96) { rect(px - 1, py, 3, 1, '#8a9ab8'); rect(px, py - 1, 1, 3, '#8a9ab8'); } }
+  // the moon, with craters and a dithered halo (games reflect it at x+w-44)
+  const mx0 = w - 44, my0 = 26;
+  for (let r = 24; r > 14; r -= 2) for (let a = 0; a < 60; a++) { const an = a / 60 * Math.PI * 2; if (hash2(a, r) < 0.4 - (r - 14) / 30) rect(mx0 + Math.cos(an) * r, my0 + Math.sin(an) * r, 1, 1, '#3a4a66'); }
+  fillCircle(mx0, my0, 13, '#c8ccb8'); fillCircle(mx0 - 1, my0 - 1, 12, '#e8e8d4'); fillCircle(mx0 - 3, my0 - 3, 6, '#f8f8e8');
+  [[4, 3, 2], [-5, 4, 2], [2, -5, 1], [-2, 7, 1], [7, -2, 1]].forEach(([dx, dy, r]) => { fillCircle(mx0 + dx, my0 + dy, r, '#c0c4ae'); rect(mx0 + dx - r, my0 + dy - r, 1, 1, '#f8f8e8'); });
+  // wispy clouds across the moon
+  [[w - 110, 20, 60], [w - 70, 36, 44], [40, 30, 70], [150, 16, 50]].forEach(([cx, cy, cw]) => { rect(cx, cy, cw, 1, '#26344a'); rect(cx + 6, cy + 1, cw - 14, 1, '#1e2a3e'); rect(cx + 10, cy - 1, cw - 26, 1, '#34445e'); });
+  // far treeline, bluish and hazy
+  for (let x = 0; x < w; x++) { const th = 10 + Math.floor(vnoise(x, 0, 14, 5) * 12) + (hash2(x >> 3, 4) > 0.8 ? 6 : 0); rect(x, hz - th, 1, th, '#12202e'); }
+  ctx.save(); ctx.globalAlpha = 0.4; for (let y = hz - 10; y < hz; y++) for (let x = (y & 1); x < w; x += 2) rect(x, y, 1, 1, '#2a3a4e'); ctx.restore();
+  // near cypress with moss curtains
+  [[20, 1.1], [70, 0.8], [128, 0.95], [196, 0.7], [262, 1.0], [318, 0.75]].forEach(([tx, ts], n) => {
+    const top = Math.round(hz - 62 * ts), tw = Math.max(2, Math.round(3 * ts));
+    rect(tx - tw, top + 8, tw * 2, hz - top - 6, '#060c12');
+    for (let k = 0; k < 5; k++) rect(tx - tw - k, hz - 5 + k, tw * 2 + k * 2, 1, '#060c12');
+    for (let c = 0; c < 3; c++) {
+      const cw = Math.round((10 + c * 6) * ts), cy = top + c * Math.round(9 * ts);
+      rect(tx - cw, cy, cw * 2, 3, '#08101a'); rect(tx - cw + 2, cy - 1, cw * 2 - 4, 1, '#08101a');
+      rect(tx - cw + 1, cy, cw - 2, 1, '#1a2a3a');                                            // moonlit edge
+      for (let m = 0; m < cw * 2; m += 2) { const ml = 2 + Math.floor(hash2(m + n * 30, c) * 10 * ts); for (let j = 0; j < ml; j++) if (hash2(m, j + c) > 0.2) rect(tx - cw + m, cy + 3 + j, 1, 1, j > ml - 3 ? '#2a3a44' : '#18242e'); }
+    }
+  });
+  // water: the given tint, deepening toward the viewer, with tree reflections
+  for (let y = hz; y < h; y++) {
+    const f = (y - hz) / (h - hz);
+    rect(0, y, w, 1, mixC(water, '#02060a', f * 0.5));
+    if (f < 0.5 && f > 0.1) for (let x = (y & 1); x < w; x += 2) if (hash2(x, y) < 0.3) rect(x, y, 1, 1, mixC(water, '#2a4a5a', 0.3));
+  }
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for (let x = 0; x < w; x++) { const th = 3 + Math.floor(vnoise(x, 0, 14, 5) * 5); rect(x, hz, 1, th, '#08121a'); }
+  ctx.restore();
+  // lily pads on the far water and cattails at the right edge
+  for (let k = 0; k < 10; k++) { const lx = 130 + Math.floor(hash2(k, 41) * 240), ly = hz + 3 + Math.floor(hash2(k, 42) * 10); rr(lx, ly, 6 + (k % 3), 2, 1, '#14301e'); rect(lx + 1, ly, 3, 1, '#22482c'); }
+  for (let k = 0; k < 14; k++) { const cx = w - 22 + Math.floor(hash2(k, 51) * 22), ch = 14 + Math.floor(hash2(k, 52) * 26); rect(cx, h - ch, 1, ch, '#081410'); if (k % 3 === 0) rr(cx - 1, h - ch - 6, 3, 7, 1, '#2a1a10'); }
+  for (let k = 0; k < 8; k++) { const cx = Math.floor(hash2(k, 61) * 14), ch = 8 + Math.floor(hash2(k, 62) * 14); rect(cx, h - ch, 1, ch, '#081410'); }
+}
+function stageNight(water) {
+  const { x, y, w, h } = STAGE;
+  water = water || '#0a2028';
+  paintCached('stageN' + water, x, y, w, h, () => stageNightStatic(water));
+  // stars twinkle, fireflies drift, mist slides across the water line
+  for (let i = 0; i < 16; i++) {
+    const sx = x + Math.floor(hash2(i, 21) * w), sy = y + Math.floor(hash2(i, 22) * h * 0.46);
+    const tw = Math.sin(tNow * 1.7 + i * 2.3);
+    if (tw > 0.5) { ctx.save(); ctx.globalAlpha = (tw - 0.5) * 2; rect(sx, sy, 1, 1, '#ffffff'); ctx.restore(); }
   }
   const wy = y + Math.round(h * 0.62);
-  rect(x, wy, w, y + h - wy, water || '#0a2028');
+  ctx.save(); ctx.globalAlpha = 0.07;
+  for (let k = 0; k < 4; k++) { const mx2 = x + ((tNow * (5 + k * 2) + k * 110) % (w + 120)) - 60; rr(mx2, wy - 8 + k * 3, 70, 5, 2, '#cfe8f0'); }
+  ctx.restore();
   for (let k = 0; k < 4; k++) {
     const yy = wy + 5 + k * 12, off = Math.sin(tNow * 0.8 + k * 2.2) * 8;
     ctx.save(); ctx.globalAlpha = 0.3;
-    for (let d = 0; d < 5; d++) rect(x + ((d * 90 + off + k * 31) % w), yy, 11, 1, '#1e4a52');
+    for (let d = 0; d < 5; d++) rect(x + ((d * 90 + off + k * 31 + w * 4) % w), yy, 11, 1, '#2e5a62');
     ctx.restore();
+  }
+  for (let i = 0; i < 5; i++) {
+    const on = Math.sin(tNow * 2.4 + i * 1.9);
+    if (on > 0.2) { const fx = x + 30 + ((hash2(i, 71) * 340 + Math.sin(tNow * 0.5 + i) * 14)), fy = wy - 30 + Math.sin(tNow * 0.9 + i * 2) * 10 - hash2(i, 72) * 30; ctx.save(); ctx.globalAlpha = on * 0.35; rect(fx - 1, fy - 1, 3, 3, '#e8f080'); ctx.globalAlpha = on; rect(fx, fy, 1, 1, '#fffcc0'); ctx.restore(); }
   }
   return wy;
 }
-function stageCamp() {
-  // pine-night camp clearing with big fire glow
-  const { x, y, w, h } = STAGE;
-  ['#0c1420', '#101a28', '#141f30'].forEach((c, i) => rect(x, y + i * (h / 3), w, h / 3 + 1, c));
-  for (let i = 0; i < 18; i++) { ctx.save(); ctx.globalAlpha = 0.5; rect(x + (i * 89 + 7) % w, y + (i * 41 + 5) % (h / 2), 1, 1, '#cfe8f0'); ctx.restore(); }
-  // pines
-  for (let k = 0; k < 7; k++) {
-    const px2 = x + 12 + k * (w / 7), ph2 = 34 + (k * 13) % 18, py2 = y + h - 48 - ph2;
-    for (let s2 = 0; s2 < 4; s2++) { const ww = 18 - s2 * 4; rect(px2 - ww / 2, py2 + s2 * (ph2 / 4), ww, ph2 / 4 + 1, '#0e2018'); }
-    rect(px2 - 2, y + h - 50, 4, 4, '#1c1208');
+// ---- the camp clearing: pines, a tent, a canoe, string lights ------------
+function stageCampStatic() {
+  const w = STAGE.w, h = STAGE.h, gy = h - 48;
+  for (let y = 0; y < gy; y++) {
+    const f = (y / gy) * (NIGHT.length - 2), i = Math.floor(f), fr = f - i;
+    rect(0, y, w, 1, NIGHT[i]);
+    if (fr > 0.5) for (let x = (y & 1); x < w; x += 2) rect(x, y, 1, 1, NIGHT[i + 1]);
   }
-  rect(x, y + h - 48, w, 48, '#1a2416'); // grass
-  for (let k = 0; k < 12; k++) rect(x + (k * 67 + 11) % w, y + h - 46 + (k * 29) % 42, 2, 1, '#28381e');
-  return y + h - 48;
+  for (let k = 0; k < 110; k++) { const px = Math.floor(hash2(k, 81) * w), py = Math.floor(hash2(k, 82) * gy * 0.6), b = hash2(k, 83); rect(px, py, 1, 1, b > 0.85 ? '#ffffff' : '#7a8aa8'); }
+  fillCircle(60, 24, 9, '#d8dcc8'); fillCircle(58, 22, 8, '#eeeee0'); fillCircle(63, 24, 7, NIGHT[1]);    // crescent
+  // rolling hills far back
+  for (let x = 0; x < w; x++) { const hh = 18 + Math.round(Math.sin(x / 50) * 6 + vnoise(x, 3, 20, 9) * 8); rect(x, gy - 24 - hh, 1, hh + 24, '#0e1a26'); }
+  // three depths of pines, fogged between
+  [[0.6, '#0e1c24', 44, 26], [0.8, '#0a1620', 58, 18], [1.0, '#060e14', 70, 22]].forEach(([sc, col, base, step], layer) => {
+    for (let px = -10 + layer * 7; px < w + 10; px += step + Math.floor(hash2(px, layer) * 10)) {
+      const ph = Math.round((base + hash2(px, layer + 9) * 20) * sc), top = gy - ph;
+      for (let r = 0; r < ph; r++) { const ww = Math.round((r / ph) * 11 * sc) + 1 + ((r % 6) < 2 ? 1 : 0); rect(px - ww, top + r, ww * 2 + 1, 1, col); }
+      if (layer === 2) for (let r = 4; r < ph; r += 6) rect(px - Math.round((r / ph) * 11), top + r, 3, 1, '#16283a');      // moonlit tips
+      rect(px - 1, gy - 4, 3, 4, '#1a1208');
+    }
+    ctx.save(); ctx.globalAlpha = 0.18; rect(0, gy - 30 + layer * 8, w, 14, '#2a3a4e'); ctx.restore();
+  });
+  // ground: dark grass with a trodden dirt patch around the fire
+  rect(0, gy, w, h - gy, '#1a2414');
+  for (let y = gy; y < h; y++) for (let x = (y & 1); x < w; x += 2) { const q = hash2(x, y); if (q < 0.12) rect(x, y, 1, 1, '#24321a'); else if (q > 0.95) rect(x, y, 1, 1, '#0e160a'); }
+  for (let y = gy + 6; y < h; y++) { const hw = Math.round(90 * Math.sqrt(1 - Math.pow((y - gy - 26) / 26, 2) || 0)); if (hw > 0) for (let x = 200 - hw; x < 200 + hw + 60; x++) if (hash2(x, y) < 0.7) rect(x, y, 1, 1, hash2(y, x) < 0.2 ? '#3a2e1c' : '#2e2616'); }
+  for (let k = 0; k < 60; k++) { const gx = Math.floor(hash2(k, 91) * w), gy2 = gy + Math.floor(hash2(k, 92) * 44); rect(gx, gy2 - 2, 1, 3, '#2e4420'); rect(gx + 1, gy2 - 1, 1, 2, '#24361a'); }
+  for (let k = 0; k < 20; k++) { const sx = Math.floor(hash2(k, 93) * w), sy = gy + 8 + Math.floor(hash2(k, 94) * 38); rr(sx, sy, 3, 2, 1, '#3a3a36'); rect(sx, sy, 2, 1, '#5a5a52'); }
+  // the tent, a glowing lantern inside
+  const tx = 30, ty = gy - 2;
+  for (let r = 0; r < 34; r++) { const hw = Math.round(r * 0.9); rect(tx + 34 - hw, ty - 34 + r, hw * 2, 1, r < 3 ? '#8a6a3a' : '#5a4a2a'); rect(tx + 34 - hw, ty - 34 + r, 1, 1, '#2a1e10'); rect(tx + 33 + hw, ty - 34 + r, 1, 1, '#2a1e10'); }
+  for (let r = 10; r < 34; r++) { const hw = Math.round((r - 10) * 0.45); rect(tx + 34 - hw, ty - 34 + r, hw * 2, 1, r < 14 ? '#c89a4a' : '#e8b858'); }
+  rect(tx + 33, ty - 36, 2, 36, '#2a1e10');
+  pxLine(tx + 2, ty, tx - 6, ty + 4, '#8a7a5a'); pxLine(tx + 66, ty, tx + 74, ty + 4, '#8a7a5a');
+  // a canoe leaning against the last tree, paddle beside it
+  for (let k = 0; k < 48; k++) { const cx = 356 + k * 0.5, cy = gy - 44 + k; rect(cx, cy, 6 - Math.abs(k - 24) / 8, 1, k % 6 ? '#8a3a2a' : '#c85a3a'); }
+  pxLine(372, gy - 40, 380, gy + 4, '#6a4a2a', 2); rr(378, gy - 2, 5, 8, 2, '#6a4a2a');
+  // a stacked woodpile and a stump
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 4 - r; k++) { const lx = 312 + k * 7 + r * 3, ly = gy + 4 - r * 5; fillCircle(lx, ly, 3, '#4a3018'); fillCircle(lx, ly, 2, '#8a6a3a'); rect(lx, ly, 1, 1, '#5a3a1a'); }
+  rr(96, gy + 16, 16, 8, 2, '#3a2412'); rr(97, gy + 16, 14, 3, 1, '#8a6a3a'); ringPx(104, gy + 17, 3, '#5a3a1a', 0, Math.PI);
+  // camp sign
+  rect(118, gy - 22, 2, 24, '#3a2410'); rr(108, gy - 26, 26, 10, 1, '#1a0e06'); rr(109, gy - 25, 24, 8, 1, '#8a6a3a'); drawTextC('CAMP 7', 121, gy - 23, '#2a1808', 1);
+}
+function stageCamp() {
+  const { x, y, w, h } = STAGE;
+  paintCached('stageCamp', x, y, w, h, stageCampStatic);
+  const gy = y + h - 48;
+  // string lights swag between the pines
+  for (let k = 0; k < 2; k++) {
+    const a = x + 20 + k * 180, b = a + 170;
+    for (let px = a; px < b; px++) { const f = (px - a) / (b - a), sag = Math.round(Math.sin(f * Math.PI) * 10); rect(px, y + 44 + sag, 1, 1, '#2a2a2a'); }
+    for (let i = 1; i < 10; i++) { const f = i / 10, px = a + f * (b - a), sag = Math.round(Math.sin(f * Math.PI) * 10), on = Math.sin(tNow * 3 + i + k * 5) > -0.3; ctx.save(); ctx.globalAlpha = on ? 0.3 : 0.1; fillCircle(px, y + 47 + sag, 3, ['#ffd860', '#ff8a6a', '#8ae8ff', '#a8f080'][i % 4]); ctx.restore(); rect(px, y + 46 + sag, 1, 2, ['#ffd860', '#ff8a6a', '#8ae8ff', '#a8f080'][i % 4]); }
+  }
+  // the tent lantern breathes
+  ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(tNow * 5) * 0.03; fillCircle(x + 64, gy - 12, 18, '#ffc860'); ctx.restore();
+  for (let i = 0; i < 6; i++) { const on = Math.sin(tNow * 2 + i * 1.7); if (on > 0.3) { const fx = x + 20 + hash2(i, 5) * 360 + Math.sin(tNow * 0.6 + i) * 10, fy = gy - 20 - hash2(i, 6) * 50; ctx.save(); ctx.globalAlpha = on; rect(fx, fy, 1, 1, '#fffcc0'); ctx.globalAlpha = on * 0.3; rect(fx - 1, fy - 1, 3, 3, '#e8f080'); ctx.restore(); } }
+  return gy;
 }
 function drawCampfire(cx, cy, heat) {
   // heat 0..1 scales the flame
@@ -10605,13 +10701,39 @@ const GAMES = {
     },
     draw(s) {
       const { x, y, w, h } = STAGE;
-      // carnival booth: striped awning, dark stage, wave rails
-      rect(x, y, w, h, '#141020');
-      for (let k = 0; k < Math.ceil(w / 24); k++) { rect(x + k * 24, y, 24, 14, k % 2 ? '#c23a4a' : '#e8e4d0'); rect(x + k * 24, y + 14, 24, 2, '#00000055'); }
-      drawTextCSh('* DUCK GALLERY *', x + w / 2, y + 20, '#ffe089', 1);
-      // back curtain with lit fold seams
-      dither(x, y + 24, w, 80, '#1a1230', '#241838');
-      for (let k = 0; k * 40 < w; k++) rect(x + 40 * k, y + 24, 1, 80, '#2e2044');
+      // carnival booth: velvet drapes, painted swamp flat, scalloped awning
+      paintCached('duckBooth', x, y, w, h, () => {
+        rect(0, 0, w, h, '#120c1a');
+        // the painted backdrop flat: a cartoon swamp in poster colours
+        for (let yy = 24; yy < 110; yy++) rect(0, yy, w, 1, mixC('#2a1a4a', '#6a3a6a', (yy - 24) / 86));
+        fillCircle(w / 2, 96, 30, '#e8a04a'); fillCircle(w / 2, 96, 24, '#f8d070');
+        for (let k = 0; k < 9; k++) { const tx = 20 + k * 46, th = 34 + (k * 17) % 22; rect(tx - 2, 110 - th, 4, th, '#1a1030'); rect(tx - 12, 110 - th, 24, 4, '#1a1030'); rect(tx - 8, 110 - th - 3, 16, 3, '#1a1030'); }
+        grainRect(0, 24, w, 86, '#1a1030', null, 0.015, 5);
+        // velvet side drapes with deep folds
+        [[0, 1], [w - 44, -1]].forEach(([dx, sd]) => {
+          for (let xx = 0; xx < 44; xx++) {
+            const f = (xx % 11) / 11, tone = f < 0.25 ? '#3a0a18' : f < 0.5 ? '#6a1428' : f < 0.8 ? '#8a2038' : '#a83048';
+            const bottom = h - 4 - Math.round(Math.max(0, (sd > 0 ? xx : 43 - xx) - 20) * 0.8);
+            rect(dx + xx, 14, 1, bottom - 14, tone);
+          }
+          rect(dx + (sd > 0 ? 30 : 4), 90, 10, 4, UGOLD[2]); rect(dx + (sd > 0 ? 30 : 4), 90, 10, 1, UGOLD[4]);
+        });
+        // striped awning with a scalloped hem
+        for (let k = 0; k < Math.ceil(w / 24); k++) {
+          const col = k % 2 ? '#c23a4a' : '#ece6d2', dk = k % 2 ? '#8a1e2e' : '#b8b09a';
+          rect(k * 24, 0, 24, 14, col); rect(k * 24 + 18, 0, 6, 14, dk); rect(k * 24, 0, 24, 2, k % 2 ? '#e05a6a' : '#ffffff');
+          for (let j = 0; j < 5; j++) rect(k * 24 + 2 + j, 14 + j, 20 - j * 2, 1, col);
+        }
+        grainRect(0, 0, w, 14, '#00000022', null, 0.08, 3);
+        rect(0, 12, w, 1, '#00000055');
+        // a painted marquee board
+        plasticBox(w / 2 - 62, 16, 124, 12, 3, UGOLD, { noShine: 1 });
+        drawTextC('* DUCK GALLERY *', w / 2, 19, '#5a1a0a', 1);
+        // stage floor planks
+        for (let r = 0; r < 3; r++) { rect(0, h - 14 + r * 5, w, 5, r % 2 ? '#3a2412' : '#4a3018'); rect(0, h - 14 + r * 5, w, 1, '#6a4a28'); }
+      });
+      // bulbs around the marquee chase each other
+      for (let k = 0; k < 12; k++) { const on = ((tNow * 8 | 0) + k) % 3 === 0; rect(x + w / 2 - 60 + k * 11, y + 29, 2, 2, on ? '#fff6c8' : '#6a5a2a'); }
       // two sweeping spotlight cones
       godRay(x + 120, y + 22, y + 140, 4, 26, Math.sin(tNow * 0.6) * 40, '#fff2c0', 0.04);
       godRay(x + 280, y + 22, y + 140, 4, 26, Math.sin(tNow * 0.6 + 2) * -40, '#fff2c0', 0.04);
@@ -10838,10 +10960,31 @@ const GAMES = {
     draw(s) {
       const { x, y, w, h } = STAGE;
       // scrolling night channel: banks top and bottom, open water between
-      ['#0a1626', '#0d1c2e'].forEach((c, i) => rect(x, y + i * 20, w, 20, c));
-      rect(x, y + 40, w, h - 80, '#0c2430');
-      rect(x, y + h - 40, w, 40, '#12261a');
       const sc = s ? s.scroll : tNow * 60;
+      paintCached('boatSky', x, y, w, 40, () => {
+        for (let yy = 0; yy < 40; yy++) { rect(0, yy, w, 1, NIGHT[Math.min(NIGHT.length - 1, Math.floor(yy / 7))]); }
+        for (let k = 0; k < 60; k++) rect(Math.floor(hash2(k, 3) * w), Math.floor(hash2(k, 4) * 30), 1, 1, k % 5 ? '#6a7a98' : '#ffffff');
+      });
+      for (let yy = y + 40; yy < y + h - 40; yy++) rect(x, yy, w, 1, mixC('#0c2430', '#061218', (yy - y - 40) / (h - 80)));
+      // the far bank of sawgrass and the near bank, both scrolling past
+      const bank = (key, bh, spd, yy, flip) => {
+        const strip = getCached(key, w, bh, () => {
+          for (let xx = 0; xx < w; xx++) {
+            const top = flip ? bh - 6 - Math.floor(vnoise(xx, 0, 9, 3) * 6) : Math.floor(vnoise(xx, 0, 9, 3) * 6);
+            for (let j = 0; j < bh; j++) {
+              const inside = flip ? j < top : j > top;
+              if (!inside) continue;
+              const q = hash2(xx >> 1, j >> 2), blade = (xx + (j >> 3)) % 3 === 0;
+              rect(xx, j, 1, 1, blade ? (j % 7 < 2 ? '#2e5a2e' : '#1e4222') : q < 0.1 ? '#0c1c12' : '#16301c');
+            }
+            if (hash2(xx, 9) < 0.3) { const bl = 4 + Math.floor(hash2(xx, 8) * 7); for (let j = 0; j < bl; j++) rect(xx, flip ? top + j : top - j, 1, 1, j === bl - 1 ? '#5a8a3a' : '#2a5a2a'); }
+          }
+        });
+        const off = ((sc * spd) % w + w) % w;
+        ctx.drawImage(strip, x - off, yy, w, bh); ctx.drawImage(strip, x - off + w, yy, w, bh);
+      };
+      bank('boatBankTop', 16, 0.9, y + 30, 1);
+      bank('boatBankBot', 44, 1.25, y + h - 44, 0);
       // far treeline (slow parallax) + moon glimmer + channel caustics
       for (let tx2 = x; tx2 < x + w; tx2 += 6) { const th2 = 8 + ((Math.sin((tx2 - sc * 0.4) * 0.1) * 5) | 0) + ((tx2 * 7) % 5); rect(tx2, y + 40 - th2, 6, th2, '#0d2028'); }
       fillCircle(x + w - 40, y + 20, 10, '#e8e8d0'); reflect(x + w - 40, y + 40, y + h, 3, '#e8e8d0', 2, 1.3);
@@ -10995,23 +11138,35 @@ const GAMES = {
       caustics(cx - 70, cy - 24, 150, 50, '#7fb8c8', 0.14);
       for (let k = 0; k < 6; k++) { const sx = STAGE.x + 40 + k * 60; ctx.save(); ctx.globalAlpha = 0.07; rr(sx + Math.sin(tNow * 1.5 + k) * 4, wy - 20 - (tNow * 8 + k * 20) % 40, 10, 8, 4, '#cfe8f0'); ctx.restore(); }
       const clean = s ? clamp(s.cleared / 18, 0, 1) : 0;
-      // rim-lit manatee (the hero)
-      rr(cx + 58, cy - 8, 24, 22, 9, '#4a555b'); rr(cx + 59, cy - 7, 22, 20, 9, '#7a868c'); // paddle tail
-      rr(cx - 67, cy - 25, 132, 50, 20, '#4a555b'); rr(cx - 66, cy - 24, 130, 48, 20, '#8a969c'); // outline + body
-      rr(cx - 62, cy - 20, 122, 20, 18, '#9aa6ac'); rect(cx - 58, cy - 21, 116, 1, '#b8c4ca'); // upper light + top rim
-      rect(cx - 58, cy + 18, 116, 3, '#7a868c'); // belly shadow
-      for (let i = 0; i < 3; i++) rect(cx - 30 + i * 24, cy - 16, 10, 1, '#7a868c'); // back wrinkles
-      [[cx - 20, cy - 8], [cx + 24, cy - 4]].forEach(([bxp, byp]) => { fillCircle(bxp, byp, 2, '#c8c2b2'); rect(bxp, byp, 1, 1, '#8a8478'); }); // barnacles
-      rr(cx - 42, cy + 16, 15, 11, 5, '#4a555b'); rr(cx - 41, cy + 16, 14, 10, 5, '#7a868c'); rr(cx + 22, cy + 16, 15, 11, 5, '#7a868c'); // flippers
-      rr(cx - 80, cy - 10, 22, 22, 9, '#8a969c'); rect(cx - 79, cy - 9, 20, 1, '#9aa6ac'); // snout
-      rect(cx - 76, cy + 3, 3, 2, '#5a646c'); rect(cx - 70, cy + 4, 3, 2, '#5a646c'); // whisker snout
-      // brightening shine grows as it's cleaned
-      if (clean > 0) { ctx.save(); ctx.globalAlpha = clean * 0.4; dither(cx - 60, cy - 18, 120, 36, '#9aa6ac', '#b8c4ca', (tNow * 2 | 0)); ctx.restore(); }
-      if (clean > 0.85) { rect(cx - 76, cy - 5, 4, 1, '#1b1408'); rect(cx - 75, cy - 6, 1, 1, '#1b1408'); rect(cx - 67, cy - 5, 4, 1, '#1b1408'); rect(cx - 66, cy - 6, 1, 1, '#1b1408'); } // content ^^ eyes
-      else { critterEye(cx - 74, cy - 5, 5, 6, '#8a969c', '#f4f2e4', '#1b1408', 0); critterEye(cx - 65, cy - 5, 5, 6, '#8a969c', '#f4f2e4', '#1b1408', 1.5); }
-      // growing happy blush + curving smile
-      ctx.save(); ctx.globalAlpha = clean * 0.7; fillCircle(cx - 78, cy + 2, 2 + clean * 2, '#f0a0b0'); fillCircle(cx - 58, cy + 3, 1 + clean * 2, '#f0a0b0'); ctx.restore();
-      rect(cx - 74, cy + 6 + Math.round(clean), 6, 1, '#5a646c'); if (clean > 0.4) { rect(cx - 75, cy + 5 + Math.round(clean), 1, 1, '#5a646c'); rect(cx - 68, cy + 5 + Math.round(clean), 1, 1, '#5a646c'); }
+      // the manatee, lolling at the surface: textured hide, open bead eyes
+      const MH = ['#1e262c', '#56636c', '#76858e', '#97a6ae', '#c4d2d8'];
+      ctx.save(); ctx.globalAlpha = 0.3; rr(cx - 80, cy + 22, 170, 8, 4, '#02080c'); ctx.restore();
+      plasticBox(cx + 56, cy - 10, 28, 24, 10, MH, { seed: 3 });                               // paddle tail
+      rect(cx + 60, cy - 2, 20, 1, MH[1]); rect(cx + 62, cy + 4, 16, 1, MH[1]);
+      plasticBox(cx - 68, cy - 26, 134, 52, 22, MH, { seed: 7 });                               // body
+      for (let i = 0; i < 4; i++) rect(cx - 36 + i * 22, cy - 18 + (i % 2), 12, 1, MH[1]);      // back wrinkles
+      for (let i = 0; i < 3; i++) rect(cx - 30 + i * 26, cy - 10 + (i % 2) * 2, 9, 1, MH[1]);
+      [[cx - 20, cy - 8], [cx + 24, cy - 4], [cx + 6, cy - 16]].forEach(([bxp, byp]) => { fillCircle(bxp, byp, 2, '#c8c2b2'); rect(bxp - 1, byp - 1, 1, 1, '#f0ece0'); rect(bxp, byp, 1, 1, '#8a8478'); });   // barnacles
+      plasticBox(cx - 44, cy + 12, 16, 14, 6, MH, { noShine: 1, seed: 1 }); plasticBox(cx + 20, cy + 12, 16, 14, 6, MH, { noShine: 1, seed: 2 });   // flippers
+      plasticBox(cx - 84, cy - 12, 26, 26, 10, MH, { seed: 5 });                               // the big soft snout
+      rr(cx - 82, cy + 1, 20, 10, 4, MH[3]); rect(cx - 80, cy + 2, 14, 1, MH[4]);
+      for (let k = 0; k < 6; k++) rect(cx - 80 + (k % 3) * 5, cy + 4 + ((k / 3) | 0) * 3, 1, 1, MH[1]);   // whisker pores
+      ctx.save(); ctx.globalAlpha = 0.5; [[-1, 0], [1, 1]].forEach(([s2, j]) => { pxLine(cx - 72 + s2 * 12, cy + 5 + j, cx - 72 + s2 * 20, cy + 3 + j * 3, '#e0e8ec'); }); ctx.restore();
+      if (clean > 0) { ctx.save(); ctx.globalAlpha = clean * 0.35; dither(cx - 60, cy - 20, 120, 20, MH[3], MH[4], (tNow * 2 | 0)); ctx.restore(); }
+      // eyes stay open - happiness shows in the sparkle, the blush and the grin
+      [[cx - 77, 0], [cx - 67, 1]].forEach(([ex]) => {
+        const lx = clamp(Math.round((mx - ex) / 80), -1, 1);
+        rr(ex - 1, cy - 7, 4, 5, 1, '#120b05'); rect(ex + lx, cy - 6, 1, 1, '#ffffff');
+        if (clean > 0.6) rect(ex + 2, cy - 4, 1, 1, '#ffffff');
+      });
+      rect(cx - 79, cy - 10, 5, 1, MH[0]); rect(cx - 69, cy - 10, 5, 1, MH[0]);
+      ctx.save(); ctx.globalAlpha = clean * 0.7; rect(cx - 83, cy - 1, 4 + Math.round(clean * 2), 2, '#f0a0b0'); rect(cx - 64, cy - 1, 3 + Math.round(clean * 2), 2, '#f0a0b0'); ctx.restore();
+      const sm = Math.round(clean * 2);
+      rect(cx - 76, cy + 8, 8, 1, MH[0]); rect(cx - 77, cy + 7 - sm, 1, 1 + sm, MH[0]); rect(cx - 68, cy + 7 - sm, 1, 1 + sm, MH[0]);
+      if (clean > 0.85) for (let k = 0; k < 3; k++) sparkle(cx - 90 + k * 30, cy - 30 + (k % 2) * 6, '#ffffff', 5, k * 2);
+      // the spring water laps over its lower half
+      ctx.save(); ctx.globalAlpha = 0.42; rect(STAGE.x, wy + 4, STAGE.w, STAGE.y + STAGE.h - wy - 4, '#0e3a44'); ctx.restore();
+      for (let k = 0; k < 7; k++) { const rx = cx - 90 + k * 26 + Math.sin(tNow * 1.4 + k) * 3; rect(rx, wy + 3 + (k % 2), 14, 1, '#7ab8c4'); }
       if (s) {
         s.spots.forEach(sp => { if (sp.life <= 0) return; ctx.save(); ctx.globalAlpha = 0.35 + sp.life * 0.55; fillCircle(sp.x, sp.y, sp.r + 1, '#264a1c'); fillCircle(sp.x, sp.y, sp.r, '#5aa03a'); rect(sp.x - 1, sp.y - 1, 1, 1, '#a8e878'); ctx.restore(); });
         s.bub.forEach(b => { const wob = Math.sin(b.t * 8) * 0.5; ctx.save(); ctx.globalAlpha = 1 - b.t / 0.6; fillCircle(b.x + wob, b.y, 2, '#cfe8f0'); rect(b.x + wob - 1, b.y - 1, 1, 1, '#ffffff'); ctx.restore(); });
@@ -11039,7 +11194,7 @@ function drawEvent(dt) {
 
   drawTextCSh('SWAMP EVENT: ' + def.name, W / 2, 6, C.gold, 2);
   // the stage
-  panel(STAGE.x - 4, STAGE.y - 4, STAGE.w + 8, STAGE.h + 8, { face: '#0a1215', edge: '#5d7a86' });
+  goldFrame(STAGE.x - 5, STAGE.y - 5, STAGE.w + 10, STAGE.h + 10, { field: '#0a1215', fieldD: '#0a1215', fieldL: '#0a1215', flat: 1, thin: 1 });
   ctx.save();
   ctx.beginPath(); ctx.rect(STAGE.x, STAGE.y, STAGE.w, STAGE.h); ctx.clip();
   game.draw(ev.phase === 'intro' ? null : ev.s);
