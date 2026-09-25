@@ -6922,7 +6922,7 @@ function drawGameOver() {
   st('MONEY EARNED', '$' + G.stats.moneyEarned);
   st('BEST ANTE EVER', best);
   if (G.runRP > 0) drawTextCSh('+' + G.runRP + ' SCOUT COOKIES EARNED', W / 2, 186, C.green, 1);
-  button(W / 2 - 55, 196, 110, 26, 'NEW RUN', '#d94f30', '#8a2a16', () => { G.state = 'ranger'; }, { id: 'newrun' });
+  button(W / 2 - 55, 196, 110, 26, 'NEW RUN', '#d94f30', '#8a2a16', () => { startRun(); }, { id: 'newrun' });
   button(W / 2 - 45, 230, 90, 18, 'MENU', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'tomenu' });
 }
 
@@ -6956,51 +6956,6 @@ function drawWin() {
 // old, rusted, half-broken title sign hung from chains. dy = vertical push
 // (negative = shoved up by the croc's snout). No swaying - it rides straight up
 // on the head, then drops back and bounces on its chains.
-function drawRustySign(cx, py, dy) {
-  ctx.save();
-  ctx.translate(cx, py + dy);
-  const bw = 236, bh = 44, bx = -bw / 2, by = 18;
-  // --- support chains from the pivot beam down to the board corners ---
-  // chains stretch as the board rides up (more links show when dy is negative)
-  const links = clamp(4 + Math.round(-dy / 4), 4, 9);
-  for (let k = 0; k < links; k++) { const ly = k * (by / links); rr(-88, ly, 5, 4, 2, '#2a2018'); rr(-87, ly + 1, 3, 2, 1, '#6a5238'); }
-  for (let k = 0; k < Math.min(2, links); k++) { const ly = k * (by / links); rr(88, ly, 5, 4, 2, '#2a2018'); rr(89, ly + 1, 3, 2, 1, '#6a5238'); }
-  rect(90, Math.min(11, by - 5), 2, 5, '#8a4a20'); // dangling broken link stub (right chain snapped)
-  // --- the plate: dark rim + rusted iron face ---
-  rr(bx + 2, by + 4, bw, bh, 3, '#00000080');
-  rr(bx, by, bw, bh, 3, '#241810');
-  rr(bx + 2, by + 2, bw - 4, bh - 4, 3, '#7a5230');
-  rect(bx + 4, by + 3, bw - 8, 2, '#9a6a3e'); // top light lip
-  rect(bx + 4, by + bh - 5, bw - 8, 2, '#3a2614'); // bottom shade
-  // --- rust patches + grime speckle ---
-  ctx.save(); ctx.globalAlpha = 0.55;
-  for (let k = 0; k < 26; k++) { const rx = bx + 8 + (k * 53) % (bw - 16), ry = by + 6 + (k * 37) % (bh - 12); rect(rx, ry, 2 + (k % 3), 2, k % 2 ? '#8a3e1a' : '#a85a2a'); }
-  ctx.restore();
-  // --- cracks across the metal ---
-  rect(bx + 60, by + 6, 1, 18, '#241810'); rect(bx + 61, by + 12, 10, 1, '#241810');
-  rect(bx + 150, by + 20, 1, 16, '#241810'); rect(bx + 140, by + 22, 12, 1, '#241810');
-  // --- broken/chipped bottom-right corner ---
-  rr(bx + bw - 20, by + bh - 12, 22, 14, 2, '#1a120a');
-  rect(bx + bw - 16, by + bh - 8, 4, 3, '#3a2614'); rect(bx + bw - 10, by + bh - 5, 3, 3, '#3a2614');
-  // --- rivets (bottom-right one popped out) ---
-  [[bx + 8, by + 7], [bx + bw - 10, by + 7], [bx + 8, by + bh - 9]].forEach(([rx, ry]) => { fillCircle(rx, ry, 2, '#3a2a18'); rect(rx - 1, ry - 1, 1, 1, '#c8a060'); });
-  fillCircle(bx + bw - 10, by + bh - 9, 2, '#160f08'); // empty rivet hole
-  // --- weathered title text (rust-eaten) ---
-  drawTextCSh('BITE', -60, by + 9, '#d8a838', 5, '#2a1a0c');
-  drawTextCSh('DOWN', 64, by + 9, '#4f9a44', 5, '#2a1a0c');
-  ctx.save(); ctx.globalAlpha = 0.4; for (let k = 0; k < 10; k++) rect(-104 + (k * 41) % 208, by + 12 + (k * 17) % 18, 2, 2, '#3a2614'); ctx.restore();
-  // --- tagline plank: hangs LEVEL from two short links under the sign ---
-  const pw2 = 190, px2 = -pw2 / 2, py2 = by + bh + 5;
-  rect(px2 + 18, py2 - 4, 2, 4, '#2a2018'); rect(px2 + pw2 - 20, py2 - 4, 2, 4, '#2a2018');
-  rr(px2 + 1, py2 + 2, pw2, 13, 2, '#00000066');
-  rr(px2, py2, pw2, 13, 2, '#3a2614'); rr(px2 + 1, py2 + 1, pw2 - 2, 11, 2, '#5a3a20');
-  rect(px2 + 3, py2 + 2, pw2 - 6, 1, '#7a5230');
-  rect(px2 + 62, py2 + 2, 1, 9, '#2a1810'); // weathered split
-  drawTextC('A RUST-YOUR-LUCK DENTAL ROGUELIKE', 0, py2 + 3, '#c8b090', 1);
-  [px2 + 5, px2 + pw2 - 6].forEach(bx2 => { fillCircle(bx2, py2 + 6, 2, '#2a1c10'); rect(bx2 - 1, py2 + 5, 1, 1, '#c8a060'); });
-  ctx.restore();
-}
-
 // pick a fresh title-mascot look: a random croc variant + a full mouth of teeth
 // Rolled ONCE per page load, so the title mascot is the same gator for the
 // whole session (reload for a new one). A special variant is a rare treat.
@@ -7021,117 +6976,430 @@ function rollMenuLook() {
   look.teeth = teeth;
   G.menuLook = look;
 }
-function drawMenu(dt) {
-  if (G.summer) { G.summer = false; } // a summer run is over once we're back at the title
-  G.mut = null;
-  if (!G.menuLook) rollMenuLook(); // once per page load only - never mid-session
-  G.mouth = G.menuLook.teeth; // a full mouth of teeth (random variant)
-  const th = THEMES.night;
-  drawSceneBack(th);
-  // a distant airboat crosses the far water now and then
-  const abT = (tNow % 18) / 18;
-  if (abT < 0.4) {
-    const ax = lerp(-70, W + 70, abT / 0.4);
-    ctx.save(); ctx.translate(ax, 205); ctx.scale(0.45, 0.45); drawAirboat(0, 0, true, undefined); ctx.restore();
+// =========================== THE TITLE SCREEN ==============================
+//  Sundown on the Everglades.  A bald cypress frames the left of the shot
+//  and holds the carved title sign; the ranger station stands on stilts
+//  across the water with its windows lit; a gator lurks in the shallows
+//  (and now and then shows you exactly what the job is); the menu itself is
+//  a trail signpost on the boardwalk, one painted arrow per destination.
+// ==========================================================================
+const MENU_HZ = 160;                                   // horizon line
+const MENU_SUN = { x: 300, y: 150, r: 26 };
+function menuStatic() {
+  // ---- sky: long dithered bands ----
+  for (let y = 0; y < MENU_HZ; y++) {
+    const f = Math.pow(y / MENU_HZ, 1.2) * (DUSK.length - 1), i = Math.floor(f), fr = f - i;
+    rect(0, y, W, 1, DUSK[i]);
+    if (i + 1 < DUSK.length) {
+      if (fr > 0.66) { for (let x = (y & 1); x < W; x += 2) rect(x, y, 1, 1, DUSK[i + 1]); }
+      else if (fr > 0.33) { for (let x = (y & 1) * 2; x < W; x += 4) rect(x, y, 1, 1, DUSK[i + 1]); }
+    }
   }
-  // the jaws never shut any more - the whole title screen lives in its mouth
-  const chomp = 0.05 + Math.max(0, Math.sin(tNow * 0.85)) * 0.28;
+  for (let k = 0; k < 90; k++) { const sx = Math.floor(hash2(k, 3) * W), sy = Math.floor(hash2(k, 5) * 56); rect(sx, sy, 1, 1, k % 7 ? '#a898c8' : '#ffffff'); }
+  // ---- the sun, with a halo of dithered rings ----
+  const S = MENU_SUN;
+  for (let r = S.r + 22; r > S.r; r -= 2) for (let a = 0; a < 90; a++) { const an = a / 90 * Math.PI * 2, px = S.x + Math.cos(an) * r, py = S.y + Math.sin(an) * r; if (py < MENU_HZ && hash2(a, r) < 0.55 - (r - S.r) / 50) rect(px, py, 1, 1, '#fcd48a'); }
+  fillCircle(S.x, S.y, S.r + 3, '#f8b060'); fillCircle(S.x, S.y, S.r, '#fde0a0'); fillCircle(S.x, S.y, S.r - 5, '#fff2cc'); fillCircle(S.x - 5, S.y - 6, S.r - 14, '#fffae8');
+  // ---- clouds, lit from beneath ----
+  [[20, 44, 120], [150, 30, 90], [260, 60, 150], [390, 38, 100], [60, 92, 110], [330, 108, 140], [180, 120, 70]].forEach(([cx, cy, cw], n) => {
+    const lit = cy > 80 ? '#f8b870' : '#d87a8a', dark = cy > 80 ? '#a4527a' : '#5a3a6a';
+    for (let r = 0; r < 4; r++) {
+      const ww = cw - r * 18, xx = cx + r * 9 + Math.floor(hash2(n, r) * 8);
+      rect(xx, cy + r * 2, ww, 2, r < 2 ? dark : mixC(dark, lit, 0.5));
+    }
+    rect(cx + 6, cy + 8, cw - 30, 1, lit); rect(cx + 14, cy + 9, cw - 50, 1, '#fde0a0');
+  });
+  // ---- birds far off ----
+  // ---- far treeline and a hammock of cypress ----
+  for (let x = 0; x < W; x++) {
+    const th = 5 + Math.floor(hash2(x >> 1, 7) * 5) + (hash2(x >> 3, 9) > 0.72 ? 7 : 0) + (hash2(x >> 4, 2) > 0.8 ? 10 : 0);
+    rect(x, MENU_HZ - th, 1, th, '#3a2848'); rect(x, MENU_HZ - th, 1, 1, '#54385e');
+  }
+  [[150, 0.8], [196, 1.1], [236, 0.7], [420, 0.9], [462, 1.2]].forEach(([tx, ts], n) => {
+    const top = Math.round(MENU_HZ - 64 * ts), tw = Math.max(2, Math.round(2.5 * ts));
+    rect(tx - tw, top + 6, tw * 2, MENU_HZ - top - 4, '#261a34');
+    for (let c = 0; c < 3; c++) {
+      const cw = Math.round((10 + c * 6) * ts), cy = top + c * Math.round(9 * ts);
+      rect(tx - cw, cy, cw * 2, 3, '#2e2040'); rect(tx - cw + 2, cy - 1, cw * 2 - 4, 1, '#2e2040');
+      for (let m = 0; m < cw * 2; m += 3) rect(tx - cw + m, cy + 3, 1, 2 + Math.floor(hash2(m + n * 40, c) * 8 * ts), '#40345a');
+    }
+  });
+  // ---- water: the sky flipped and darkened, with long calm streaks ----
+  for (let y = MENU_HZ; y < H; y++) {
+    const f = (1 - (y - MENU_HZ) / (H - MENU_HZ)) * (DUSK.length - 2) + 0.5, i = clamp(Math.floor(f), 0, DUSK.length - 1);
+    rect(0, y, W, 1, mixC(DUSK[i], '#081018', 0.42 + (y - MENU_HZ) / 300));
+  }
+  for (let k = 0; k < 40; k++) { const yy = MENU_HZ + 3 + Math.floor(hash2(k, 1) * 100), xx = Math.floor(hash2(k, 2) * W); rect(xx, yy, 8 + (k % 5) * 6, 1, '#5a3a5e'); }
+  // treeline reflection
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for (let x = 0; x < W; x += 1) { const th = 3 + Math.floor(hash2(x >> 1, 7) * 4); rect(x, MENU_HZ, 1, th, '#1e1426'); }
+  ctx.restore();
+
+  // ---- the ranger station on stilts ----
+  const RX = 344, RY = 118;
+  // stilts + reflection
+  [RX + 6, RX + 40, RX + 76, RX + 110].forEach(sx => { rect(sx, RY + 64, 4, 44, '#1e140e'); rect(sx, RY + 64, 1, 44, '#3a2a1a'); ctx.save(); ctx.globalAlpha = 0.4; rect(sx, RY + 108, 4, 20, '#1e140e'); ctx.restore(); });
+  rect(RX - 14, RY + 60, 144, 6, '#2a1c12'); rect(RX - 14, RY + 60, 144, 1, '#5a4028');                      // deck
+  for (let x = RX - 12; x < RX + 128; x += 6) rect(x, RY + 61, 1, 4, '#1a100a');
+  // porch rail
+  for (let x = RX - 14; x < RX + 6; x += 5) rect(x, RY + 46, 2, 14, '#3a2a1a');
+  rect(RX - 14, RY + 46, 22, 2, '#5a4028');
+  // walls: board and batten, sun-bleached green
+  const WL = ['#101810', '#2a3a2c', '#34483a', '#405846', '#5a7a60'];
+  rect(RX, RY + 16, 124, 44, WL[2]);
+  for (let x = RX; x < RX + 124; x += 6) { rect(x, RY + 16, 1, 44, WL[1]); rect(x + 1, RY + 16, 1, 44, WL[3]); }
+  grainRect(RX, RY + 16, 124, 44, WL[1], WL[3], 0.05, 4);
+  rect(RX + 124, RY + 16, 2, 44, WL[0]);
+  // tin roof, rusted
+  for (let r = 0; r < 18; r++) { const inset = 18 - r; rect(RX - 10 + inset, RY - 2 + r, 144 - inset * 2, 1, r < 2 ? '#8a5a3a' : r % 3 ? '#6a4a3a' : '#5a3a2e'); }
+  for (let x = RX - 8; x < RX + 134; x += 5) rect(x, RY + 8, 1, 8, '#4a2e22');
+  grainRect(RX - 6, RY + 2, 136, 14, '#8a3a1a', '#a8704a', 0.05, 7);
+  rect(RX - 12, RY + 16, 148, 2, '#2a1810');
+  // sign board on the roof
+  rr(RX + 24, RY - 12, 76, 13, 2, '#1a120a'); rr(RX + 25, RY - 11, 74, 11, 2, '#e8dcc0');
+  drawTextC('RANGER STN', RX + 62, RY - 8, '#2a4a2a', 1);
+  // windows (the light itself is live) + door
+  [[RX + 14, RY + 24], [RX + 84, RY + 24]].forEach(([wx, wy]) => { rect(wx - 2, wy - 2, 26, 22, '#1a120a'); rect(wx - 2, wy + 20, 26, 2, '#8a6a4a'); });
+  rr(RX + 50, RY + 26, 22, 34, 1, '#1a120a'); rr(RX + 51, RY + 27, 20, 33, 1, '#6a3a1a');
+  for (let k = 0; k < 3; k++) rect(RX + 53, RY + 30 + k * 10, 16, 8, '#5a3016');
+  rect(RX + 66, RY + 44, 2, 2, '#e8c040');
+  // chimney pipe
+  rect(RX + 104, RY - 20, 6, 22, '#2a2a2a'); rect(RX + 102, RY - 22, 10, 3, '#3a3a3a');
+  // tied up skiff
+  rr(RX + 6, RY + 100, 46, 7, 3, '#1a100a'); rr(RX + 7, RY + 100, 44, 5, 2, '#6a4a2a'); rect(RX + 9, RY + 100, 40, 1, '#8a6a3a');
+  pxLine(RX + 12, RY + 100, RX + 8, RY + 66, '#c8b890');
+
+  // ---- the great cypress framing the left ----
+  const T = ['#0c0810', '#1a1220', '#241a2c', '#30243a', '#403250'];
+  for (let y = 0; y < 238; y++) {
+    const flare = y > 180 ? Math.round(Math.pow((y - 180) / 58, 2) * 22) : 0;
+    const w2 = 26 + flare + Math.round(Math.sin(y / 17) * 2);
+    rect(0, y, w2, 1, T[2]); rect(w2 - 6, y, 5, 1, T[3]); rect(w2 - 1, y, 1, 1, T[0]);
+    if (y % 7 === 0) rect(4 + (y % 3) * 3, y, 10, 1, T[1]);
+    if (hash2(y, 4) < 0.3) rect(w2 - 3, y, 1, 1, '#6a4a5e');                         // sunset rim light
+  }
+  for (let k = 0; k < 6; k++) { const kx = 20 + k * 11, kh = 8 + (k % 3) * 5; rect(kx, 238 - kh, 5, kh, T[2]); rect(kx + 3, 238 - kh, 2, kh, T[3]); rect(kx, 238 - kh, 5, 1, T[0]); }
+  // the long bough across the top, with moss curtains
+  for (let x = 0; x < 330; x++) {
+    const by = 8 + Math.round(Math.sin(x / 60) * 3 + x * 0.02), th = Math.max(3, 9 - Math.floor(x / 45));
+    rect(x, by, 1, th, T[2]); rect(x, by, 1, 1, T[4]); rect(x, by + th - 1, 1, 1, T[0]);
+  }
+  for (let x = 0; x < 340; x += 2) {
+    const by = 8 + Math.round(Math.sin(x / 60) * 3 + x * 0.02) + Math.max(3, 9 - Math.floor(x / 45));
+    const ml = 4 + Math.floor(hash2(x, 17) * (x < 60 ? 46 : 24));
+    for (let j = 0; j < ml; j++) if (hash2(x, j) > 0.18) rect(x + Math.round(Math.sin(j / 5 + x) * 1), by + j, 1, 1, j > ml - 4 ? '#5a6a58' : (x + j) % 3 ? '#3a4a3e' : '#4a5a4a');
+  }
+  // cypress needles along the bough
+  for (let k = 0; k < 120; k++) { const nx = Math.floor(hash2(k, 8) * 330), ny = 6 + Math.round(Math.sin(nx / 60) * 3 + nx * 0.02) - Math.floor(hash2(k, 9) * 6); rect(nx, ny, 3, 1, k % 2 ? '#2a3a2a' : '#1e2e22'); }
+
+  // ---- the boardwalk along the bottom ----
+  const BW = ['#1a0e06', '#3a2412', '#4e3218', '#644022', '#7c5430'];
+  for (let r = 0; r < 5; r++) {
+    const y = 236 + r * 7, h2 = 7;
+    rect(0, y, 250 - r * 4, h2, r % 2 ? BW[2] : BW[3]);
+    rect(0, y, 250 - r * 4, 1, BW[4]); rect(0, y + h2 - 1, 250 - r * 4, 1, BW[0]);
+    woodGrain(0, y + 1, 250 - r * 4, h2 - 2, BW[1], BW[4], r * 9);
+    for (let x = (r * 31) % 44; x < 240; x += 44) { rect(x, y + 2, 1, 1, '#8a8a8a'); rect(x, y + 4, 1, 1, '#8a8a8a'); }
+  }
+  rect(0, 234, 252, 2, BW[0]);
+  [20, 120, 232].forEach(px => { rect(px, 222, 8, 48, BW[1]); rect(px, 222, 2, 48, BW[3]); rect(px, 222, 8, 2, BW[4]); rr(px - 1, 226, 10, 3, 1, '#c8b890'); });
+  // rope between the posts
+  [[24, 124], [124, 236]].forEach(([a, b]) => { for (let x = a; x <= b; x++) { const f = (x - a) / (b - a); rect(x, 227 + Math.round(Math.sin(f * Math.PI) * 6), 1, 2, '#b8a070'); } });
+  // lily pads in the open water
+  [[272, 216], [300, 232], [258, 248], [330, 226], [316, 258], [440, 238], [470, 252]].forEach(([lx, ly], i) => {
+    rr(lx - 6, ly - 2, 13, 5, 2, '#1a3a24'); rr(lx - 5, ly - 2, 11, 3, 2, '#2e5a34'); rect(lx - 3, ly - 2, 4, 1, '#4a8a4a'); rect(lx, ly - 1, 1, 2, '#1a3a24');
+    if (i % 3 === 0) { rr(lx - 2, ly - 5, 5, 3, 1, '#e8a8c8'); rect(lx - 1, ly - 6, 3, 1, '#f8d8e8'); rect(lx, ly - 4, 1, 1, '#f0e060'); }
+  });
+  // reeds at the right edge
+  for (let k = 0; k < 40; k++) { const rx = 400 + Math.floor(hash2(k, 51) * 80), rh = 10 + Math.floor(hash2(k, 52) * 24); rect(rx, 262 - rh, 1, rh, k % 3 ? '#1a2418' : '#2a3a26'); if (k % 5 === 0) rr(rx - 1, 262 - rh - 5, 3, 7, 1, '#4a2a18'); }
+}
+
+// ---- the title sign: carved letters, painted enamel, extruded ----
+function menuLogo() {
+  const w = 272, h = 76;
+  // the carved board
+  rr(2, 4, w - 4, h - 20, 5, '#00000066');
+  plasticBox(0, 0, w - 4, h - 22, 5, ['#140a04', '#3a2210', '#50301a', '#684024', '#8a5a32'], { seed: 19 });
+  woodGrain(4, 4, w - 12, h - 30, '#3a2210', '#684024', 5);
+  rr(6, 5, w - 16, h - 32, 3, '#2a1808');
+  rr(7, 6, w - 18, h - 34, 3, '#3a2412');
+  // iron corner brackets
+  [[2, 2], [w - 18, 2], [2, h - 36], [w - 18, h - 36]].forEach(([bx, by]) => { rr(bx, by, 12, 12, 2, '#1a1a1a'); rr(bx + 1, by + 1, 10, 10, 2, '#4a4a4a'); rect(bx + 2, by + 2, 8, 1, '#7a7a7a'); fillCircle(bx + 6, by + 6, 1, '#1a1a1a'); });
+  // letters: extrusion and ink outline on the board...
+  const text = 'BITE DOWN', sc = 5, tx = Math.round((w - 4 - textW(text, sc)) / 2), ty = 11;
+  for (let d = 4; d >= 1; d--) drawText(text, tx + Math.round(d * 0.5), ty + d, d > 2 ? '#1a0e06' : '#5a3a18', sc);
+  [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1], [2, 0], [-2, 0], [0, 2]].forEach(([ox, oy]) => drawText(text, tx + ox, ty + oy, '#1a0e06', sc));
+  // ...then the enamel paint on its own layer, so the lighting only touches paint
+  const paint = getCached('menulogoPaint', textW(text, sc) + 2, 5 * sc + 2, () => {
+    drawText('BITE', 0, 0, '#f4ecd4', sc);
+    drawText('DOWN', textW('BITE ', sc) + 1, 0, '#7ed05a', sc);
+    ctx.save(); ctx.globalCompositeOperation = 'source-atop';
+    for (let y = 0; y < 5 * sc; y++) {
+      const f = y / (5 * sc);
+      if (f < 0.2) { ctx.globalAlpha = 0.7; rect(0, y, textW(text, sc), 1, '#ffffff'); }
+      else if (f < 0.28 && (y & 1)) { ctx.globalAlpha = 0.5; for (let x = 0; x < textW(text, sc); x += 2) rect(x + (y & 2 ? 1 : 0), y, 1, 1, '#ffffff'); }
+      else if (f > 0.8) { ctx.globalAlpha = 0.55; rect(0, y, textW(text, sc), 1, '#3a2a10'); }
+    }
+    ctx.globalAlpha = 0.45;
+    for (let k = 0; k < 200; k++) rect(Math.floor(hash2(k, 71) * textW(text, sc)), Math.floor(hash2(k, 72) * 5 * sc), 1, 1, k % 3 ? '#6a5a30' : '#ffffff');
+    // enamel teeth: a notch of gum-pink at the foot of BITE
+    ctx.globalAlpha = 0.8; for (let x = 0; x < textW('BITE', sc); x += 5) rect(x + 2, 5 * sc - 2, 2, 2, '#d8707e');
+    ctx.restore();
+  });
+  ctx.drawImage(paint, tx, ty, paint.width / RS, paint.height / RS);
+  // tagline plank
+  const pw = 200, px = Math.round((w - 4 - pw) / 2), py = h - 20;
+  rect(px + 20, py - 4, 2, 5, '#b8a070'); rect(px + pw - 22, py - 4, 2, 5, '#b8a070');
+  rr(px + 1, py + 2, pw, 14, 2, '#00000066');
+  plasticBox(px, py, pw, 14, 2, ['#1a0e06', '#5a3a1a', '#7a522a', '#946638', '#b08050'], { seed: 23, noShine: 1 });
+  drawTextC('A SWAMP DENTISTRY ROGUELIKE', px + pw / 2, py + 4, '#f4e2b8', 1);
+}
+
+// two small icons only the title screen needs
+ICONS.gearic = (x, y) => {
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; rect(x + 5 + Math.round(Math.cos(a) * 4.5), y + 5 + Math.round(Math.sin(a) * 4.5), 2, 2, '#b8c4ca'); }
+  fillCircle(x + 6, y + 6, 4, '#8a969c'); fillCircle(x + 6, y + 6, 3, '#c8d4da'); fillCircle(x + 6, y + 6, 1, '#2a1808'); rect(x + 4, y + 3, 2, 1, '#ffffff');
+};
+ICONS.scrollic = (x, y) => {
+  rr(x + 1, y + 2, 10, 8, 1, '#c8a870'); rect(x + 2, y + 3, 8, 6, '#f0e0b8'); rr(x, y + 1, 3, 10, 1, '#a88850'); rr(x + 9, y + 1, 3, 10, 1, '#a88850');
+  rect(x + 4, y + 4, 4, 1, '#8a6a3a'); rect(x + 4, y + 6, 3, 1, '#8a6a3a');
+};
+// a painted arrow plank on the signpost - the menu buttons
+function signPlank(x, y, w, h, dir, label, col, cb, o) {
+  o = o || {};
+  const id = o.id || label;
+  const hov = mx >= x - 4 && mx < x + w + 4 && my >= y && my < y + h;
+  const pressed = hov && down && down.hit && down.hit.id === id;
+  const wig = hov ? Math.round(Math.sin(tNow * 14) * 1) : 0;
+  const yy = y + (pressed ? 2 : 0) + wig, xx = x + (hov ? dir * 3 : 0);
+  const P = [mixC(col, '#000000', 0.72), mixC(col, '#000000', 0.38), col, mixC(col, '#ffffff', 0.18), mixC(col, '#ffffff', 0.42)];
+  const tip = Math.floor(h / 2);
+  if (hov) { ctx.save(); ctx.globalAlpha = 0.25 + Math.sin(tNow * 6) * 0.08; rr(xx - 6, yy - 4, w + 12, h + 8, 6, '#ffd890'); ctx.restore(); }
+  // drop shadow then the arrow-shaped board, row by row
+  for (let j = 0; j < h; j++) {
+    const cut = Math.abs(j - (h - 1) / 2), inset = Math.round(cut * tip / ((h - 1) / 2)) - tip + tip;
+    const x0 = dir > 0 ? xx : xx + inset, x1 = dir > 0 ? xx + w - inset : xx + w;
+    rect(x0 + 2, yy + j + 3, x1 - x0, 1, '#00000066');
+  }
+  for (let j = 0; j < h; j++) {
+    const cut = Math.abs(j - (h - 1) / 2), inset = Math.round(cut * tip / ((h - 1) / 2));
+    const x0 = dir > 0 ? xx : xx + inset, x1 = dir > 0 ? xx + w - inset : xx + w;
+    const tone = j === 0 || j === h - 1 ? P[0] : j === 1 ? P[4] : j < h * 0.35 ? P[3] : j > h * 0.75 ? P[1] : P[2];
+    rect(x0, yy + j, x1 - x0, 1, tone);
+    rect(x0, yy + j, 1, 1, P[0]); rect(x1 - 1, yy + j, 1, 1, P[0]);
+    // weathered paint: bare wood showing through, plank grain
+    for (let i = x0 + 2; i < x1 - 2; i++) {
+      const q = hash2(i - x + w, j + id.length * 7);
+      if (q < 0.035) rect(i, yy + j, 2, 1, '#8a6034');
+      else if (q > 0.93) rect(i, yy + j, 1, 1, P[1]);
+    }
+  }
+  for (let j = 3; j < h - 3; j += 3) { const gx = xx + 6 + Math.floor(hash2(j, w) * (w - 30)); rect(gx, yy + j, 10 + (j % 7), 1, P[1]); }
+  // nail heads and the rope lashing at the post end
+  const ne = dir > 0 ? xx + 5 : xx + w - 7;
+  rect(ne, yy + 3, 2, 2, '#2a2a2a'); rect(ne, yy + 3, 1, 1, '#9a9a9a'); rect(ne, yy + h - 5, 2, 2, '#2a2a2a'); rect(ne, yy + h - 5, 1, 1, '#9a9a9a');
+  const sc = o.sc || 1;
+  const tw = textW(label, sc), lx = xx + (w - tip) / 2 + (dir > 0 ? 0 : tip) - tw / 2 + (o.icon ? 7 : 0);
+  if (o.icon) { const ix = lx - 16, iy = yy + Math.floor((h - 12) / 2); (ICONS[o.icon] || ICONS.star)(ix, iy); }
+  const ty = yy + Math.floor((h - 5 * sc) / 2) - (o.sub ? 3 : 0);
+  drawText(label, lx + 1, ty + 1, P[0], sc);
+  drawText(label, lx, ty, o.tcol || '#fff4dc', sc);
+  if (o.sub) drawTextC(o.sub, lx + tw / 2, ty + 5 * sc + 2, mixC(col, '#ffffff', 0.6), 1);
+  hit(x - 4, y, w + 8, h, { id, cursor: true, cb, tip: o.tip });
+}
+// small square wooden tile with an icon (settings, credits, sound)
+function woodTile(x, y, s, icon, cb, o) {
+  o = o || {};
+  const hov = mx >= x && mx < x + s && my >= y && my < y + s;
+  const yy = y + (hov ? -1 : 0);
+  rr(x + 1, yy + 3, s, s, 3, '#00000066');
+  plasticBox(x, yy, s, s, 3, ['#140a04', '#4a2c14', '#6a4222', '#86582e', '#a8743e'], { seed: x });
+  rr(x + 3, yy + 3, s - 6, s - 6, 2, '#2a1808');
+  if (hov) { ctx.save(); ctx.globalAlpha = 0.3; rr(x + 3, yy + 3, s - 6, s - 6, 2, '#ffd890'); ctx.restore(); }
+  (ICONS[icon] || ICONS.star)(x + (s - 12) / 2, yy + (s - 12) / 2);
+  hit(x, y, s, s, { id: o.id || icon, cursor: true, cb, tip: o.tip });
+}
+
+// the lurking gator: eyes, snout and back scutes breaking the surface.
+// Every so often it rears up and snaps at a dragonfly.
+let menuGator = { t: 0, snapAt: 9, snapped: false, poke: 0 };
+function drawMenuGator(dt) {
+  const g = menuGator;
+  g.t += dt;
+  const cyc = 13, ct = g.t % cyc;
+  const gx = 262 + Math.sin(g.t * 0.12) * 8, wy = 210;
+  let rise = 0, jaw = 0;
+  if (ct > 9 && ct < 12) {
+    const k = ct - 9;
+    rise = k < 0.6 ? easeOut(k / 0.6) * 10 : k < 2.2 ? 10 : 10 * (1 - (k - 2.2) / 0.8);
+    jaw = k < 0.6 ? 0 : k < 1.6 ? easeOut((k - 0.6) / 1) : k < 1.75 ? 1 - (k - 1.6) / 0.15 : 0;
+    if (k > 1.75 && !g.snapped) { g.snapped = true; sfx.snap(); shake = Math.max(shake, 3); for (let i = 0; i < 12; i++) parts.push({ x: gx - 30 + rnd() * 30, y: wy - 2, vx: (rnd() - 0.5) * 80, vy: -40 - rnd() * 70, t: 0, life: 0.8, col: '#bfe0f0', sz: 2, g: 240 }); addRipple(gx - 20, wy + 2); }
+  } else g.snapped = false;
+  if (g.poke > 0) { g.poke -= dt; }
+  const HD = ['#0c140a', '#1e3016', '#2a4420', '#3e5e2e', '#5a7e40'];
+  const y0 = wy - Math.round(rise);
+  ctx.save(); ctx.translate(gx, wy); ctx.scale(1.5, 1.5); ctx.translate(-gx, -wy);
+  // reflection and ripples ring around the head
+  ctx.save(); ctx.globalAlpha = 0.35;
+  for (let r = 0; r < 3; r++) { const rw = 50 + r * 18 + Math.sin(tNow * 1.5 + r) * 3; rect(gx - rw / 2 - 16, wy + 2 + r * 3, rw, 1, '#8a6a8e'); }
+  ctx.restore();
+  // the back: a line of scutes trailing off to the right
+  for (let k = 0; k < 6; k++) {
+    const bx = gx + 30 + k * 8, bh = 3 - (k > 5 ? 1 : 0) + (k % 2);
+    rect(bx, wy - bh, 5, bh, HD[1]); rect(bx + 1, wy - bh, 3, 1, HD[3]); rect(bx, wy - bh, 1, bh, HD[0]);
+  }
+  rect(gx + 78, wy - 1, 12, 1, HD[1]);                  // the tail wake
+  // lower jaw only shows when it rears
+  if (jaw > 0.05) {
+    const open = Math.round(jaw * 16);
+    for (let x = 0; x < 56; x++) {
+      const yt = y0 + 2 + Math.round((x / 56) * open * 0.3), yb = y0 + 2 + Math.round((1 - x / 56) * 2) + open * (1 - x / 70) * 0.9;
+      rect(gx - 50 + x, yt, 1, Math.max(1, yb - yt), x < 50 ? '#a83a4a' : '#6a1a2a');
+    }
+    for (let k = 0; k < 7; k++) { const tx = gx - 46 + k * 7; rect(tx, y0 + 2, 2, 3, '#f4ecd4'); }
+    for (let x = 0; x < 58; x++) { const yb = y0 + 3 + Math.round(open * (1 - x / 70) * 0.9); rect(gx - 52 + x, yb, 1, 4, HD[2]); rect(gx - 52 + x, yb + 3, 1, 1, '#c8b890'); }
+  }
+  // the snout
+  const lift = Math.round(jaw * 12);
+  for (let x = 0; x < 64; x++) {
+    const f = x / 64, top = y0 - 4 - Math.round(Math.sin(f * Math.PI * 0.9) * 2) - Math.round((1 - f) * lift);
+    rect(gx - 52 + x, top, 1, y0 + 2 - top - (x < 58 ? Math.round((1 - f) * lift * 0.2) : 0), HD[2]);
+    rect(gx - 52 + x, top, 1, 1, HD[3]);
+    if (hash2(x, 3) < 0.3) rect(gx - 52 + x, top + 2, 1, 1, HD[1]);
+  }
+  rr(gx - 52, y0 - 6 - lift, 7, 4, 1, HD[2]); rect(gx - 50, y0 - 6 - lift, 2, 1, '#0a0806');           // nostril bump
+  if (jaw > 0.05) for (let k = 0; k < 7; k++) { const tx = gx - 46 + k * 7; rect(tx, y0 + 1 - Math.round((1 - k / 7) * lift * 0.8), 2, 3, '#f4ecd4'); }
+  // the eyes: two domes, yellow, slit pupils, always watching the cursor
+  [[gx + 6, 0], [gx + 18, 1]].forEach(([ex, i]) => {
+    rr(ex - 5, y0 - 10, 11, 9, 4, HD[0]); rr(ex - 4, y0 - 9, 9, 8, 3, HD[2]); rect(ex - 3, y0 - 9, 5, 1, HD[4]);
+    const px = clamp(Math.round((mx - ex) / 60), -2, 2);
+    rr(ex - 3, y0 - 7, 7, 4, 1, '#d8c030'); rect(ex - 2, y0 - 7, 3, 1, '#f8e880');
+    rect(ex + px, y0 - 7, 1, 4, '#0a0806'); rect(ex - 2, y0 - 6, 1, 1, '#ffffff');
+  });
+  ctx.restore();
+  // bubbles
+  if (Math.sin(tNow * 1.7) > 0.96) addRipple(gx - 30 + rnd() * 20, wy + 3);
+  hit(gx - 84, wy - 26, 120, 34, { id: 'menugator', cursor: true, tip: 'THE GATOR|It is watching you', cb: () => { if (ct < 8.5) menuGator.t = Math.floor(menuGator.t / cyc) * cyc + 9; } });
+}
+
+function drawMenu(dt) {
+  if (G.summer) { G.summer = false; }
+  G.mut = null;
+  if (!G.menuLook) rollMenuLook();
+  G.mouth = G.menuLook.teeth;
   const dv = G.dive;
   if (dv) dv.t += dt;
-  const dk = dv ? clamp(dv.t / 0.95, 0, 1) : 0;
-  const maw0 = mouthLayout().maw;
-  const dcx = maw0.x + maw0.w / 2, dcy = maw0.y + maw0.h * 0.62;
-  if (dv) { const z = 1 + easeIn(dk) * 7; ctx.save(); ctx.translate(dcx, dcy); ctx.scale(z, z); ctx.translate(-dcx, -dcy); }
-  drawCroc(chomp, dv ? { mood: 'hungry' } : undefined);
-  drawSceneFront(th);
+  const dk = dv ? clamp(dv.t / 1.0, 0, 1) : 0;
+  const zc = { x: 406, y: 160 };                       // the ranger station door
+  if (dv) { const z = 1 + easeIn(dk) * 6; ctx.save(); ctx.translate(zc.x, zc.y); ctx.scale(z, z); ctx.translate(-zc.x, -zc.y); }
+
+  paintCached('menu', 0, 0, W, H, menuStatic);
+  // ---- live sky: birds crossing the sun ----
+  for (let k = 0; k < 5; k++) {
+    const bt = ((tNow * 0.03 + k * 0.07) % 1), bx = W + 20 - bt * (W + 60) + k * 9, by = 70 + k * 5 + Math.sin(tNow * 2 + k) * 2;
+    const fl = Math.sin(tNow * 8 + k) > 0;
+    rect(bx, by, 2, 1, '#2a1a30'); rect(bx - 2, by + (fl ? -1 : 1), 2, 1, '#2a1a30'); rect(bx + 2, by + (fl ? -1 : 1), 2, 1, '#2a1a30');
+  }
+  // ---- sun glitter and slow ripples on the water ----
+  for (let r = 0; r < 44; r++) {
+    const yy = MENU_HZ + 1 + r * 2, ww = Math.max(2, 22 - r * 0.45);
+    const off = Math.round(Math.sin(tNow * 1.2 + r * 1.9) * (2 + r * 0.08));
+    ctx.save(); ctx.globalAlpha = Math.max(0.1, 0.8 - r * 0.018);
+    if ((r + Math.floor(tNow * 3)) % 4 !== 0) rect(MENU_SUN.x - ww / 2 + off, yy, ww, 1, r < 4 ? '#fff4d0' : '#f8b870');
+    ctx.restore();
+  }
+  ctx.save(); ctx.globalAlpha = 0.3;
+  for (let k = 0; k < 10; k++) { const yy = MENU_HZ + 6 + k * 9, xx = ((tNow * (4 + k) + k * 61) % (W + 40)) - 20; rect(xx, yy, 10 + k, 1, '#d89a9a'); }
+  ctx.restore();
+  // ---- station lights: flickering windows, lanterns, chimney smoke, flag ----
+  const RX = 344, RY = 118;
+  [[RX + 14, RY + 24], [RX + 84, RY + 24]].forEach(([wx, wy], i) => {
+    const fl = 0.9 + Math.sin(tNow * 7 + i * 3) * 0.05 + Math.sin(tNow * 13 + i) * 0.04;
+    ctx.save(); ctx.globalAlpha = fl; rect(wx, wy, 22, 18, '#f8c860'); rect(wx, wy, 22, 5, '#fde098'); ctx.restore();
+    rect(wx + 10, wy, 2, 18, '#3a2410'); rect(wx, wy + 8, 22, 2, '#3a2410');
+    ctx.save(); ctx.globalAlpha = 0.18 * fl; rect(wx - 4, wy + 116, 30, 22, '#f8c860'); ctx.restore();   // reflection on the water
+  });
+  // her silhouette crosses the left window
+  const ow = (tNow * 0.15) % 2;
+  if (ow < 1) { const sx = RX + 14 + ow * 22; ctx.save(); ctx.beginPath(); ctx.rect(RX + 14, RY + 24, 22, 18); ctx.clip(); rr(sx - 5, RY + 28, 10, 14, 4, '#3a2a18'); rect(sx - 5, RY + 26, 2, 3, '#3a2a18'); rect(sx + 3, RY + 26, 2, 3, '#3a2a18'); ctx.restore(); }
+  [[RX - 12, RY + 36], [RX + 128, RY + 36]].forEach(([lx, ly], i) => {
+    const sw = Math.round(Math.sin(tNow * 1.4 + i) * 1);
+    rect(lx, ly - 4, 1, 4, '#2a2a2a');
+    ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 9 + i * 2) * 0.05; fillCircle(lx + sw, ly + 4, 9, '#ffc860'); ctx.restore();
+    rr(lx - 2 + sw, ly, 5, 7, 1, '#1a1a1a'); rect(lx - 1 + sw, ly + 1, 3, 5, '#ffe090');
+  });
+  for (let k = 0; k < 6; k++) { const st = (tNow * 0.25 + k / 6) % 1; ctx.save(); ctx.globalAlpha = 0.4 * (1 - st); fillCircle(RX + 107 + Math.sin(st * 5 + k) * 4 + st * 14, RY - 24 - st * 40, 2 + st * 5, '#8a7a8a'); ctx.restore(); }
+  // flag on the roof
+  rect(RX + 4, RY - 30, 1, 30, '#c8c8c8');
+  for (let x = 0; x < 16; x++) { const wv = Math.round(Math.sin(tNow * 5 - x * 0.5) * 1.5); rect(RX + 5 + x, RY - 30 + wv, 1, 9, x < 5 ? '#2a4a8a' : (x % 4 < 2 ? '#c83a2a' : '#f4ecd4')); }
+  drawRipples && drawRipples();
+
+  // ---- the gator ----
+  drawMenuGator(dt);
+
+  // ---- fireflies over the water and the dock ----
+  for (let k = 0; k < 18; k++) {
+    const fx = (hash2(k, 81) * W + Math.sin(tNow * 0.3 + k) * 20 + W) % W, fy = 150 + hash2(k, 82) * 90 + Math.sin(tNow * 0.8 + k * 2) * 6;
+    const on = Math.sin(tNow * 2 + k * 1.7);
+    if (on > 0.3) { ctx.save(); ctx.globalAlpha = on * 0.3; rect(fx - 1, fy - 1, 3, 3, '#f8f080'); ctx.globalAlpha = on; rect(fx, fy, 1, 1, '#fffcc0'); ctx.restore(); }
+  }
+  // ---- the moss sways a touch in the evening breeze ----
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for (let x = 6; x < 330; x += 14) { const by = 16 + Math.round(Math.sin(x / 60) * 3 + x * 0.02), ml = 10 + Math.floor(hash2(x, 17) * 16), sw = Math.round(Math.sin(tNow * 1.1 + x) * 1.5); for (let j = 0; j < ml; j += 2) rect(x + Math.round(sw * j / ml), by + j, 1, 2, '#4e5e4c'); }
+  ctx.restore();
+
   if (dv) {
     ctx.restore();
-    // rushing speed lines down the throat, then the swallow
-    ctx.save();
-    ctx.globalAlpha = Math.min(0.7, dk * 1.3);
-    for (let k = 0; k < 26; k++) {
-      const a = (k / 26) * 6.283 + tNow * 2;
-      const r0 = 20 + dk * 180, r1 = r0 + 30 + dk * 90;
-      rect(dcx + Math.cos(a) * r0, dcy + Math.sin(a) * r0, Math.cos(a) * (r1 - r0), Math.sin(a) * (r1 - r0) + 1, '#ffd8c0');
-    }
-    ctx.globalAlpha = dk * dk; rect(0, 0, W, H, '#0a0206');
-    ctx.restore();
+    ctx.save(); ctx.globalAlpha = dk * dk; rect(0, 0, W, H, '#0a0604'); ctx.restore();
     if (dk >= 1) { const cb = dv.cb; G.dive = null; if (cb) cb(); }
     return;
   }
 
-  // ============ THE WHOLE MENU LIVES INSIDE THE OPEN JAWS =============
-  const maw = mouthLayout().maw;
-  const mcx = maw.x + maw.w / 2;
-  const sway = Math.sin(tNow * 1.1) * 1.4;
+  // ---- the title sign, hanging from the bough on two ropes ----
+  const lx = 156, ly = 30 + Math.round(Math.sin(tNow * 0.9) * 1.5);
+  [lx + 34, lx + 232].forEach(rx => { const top = 12 + Math.round(Math.sin(rx / 60) * 3 + rx * 0.02); for (let y = top; y < ly + 3; y += 2) { rect(rx, y, 2, 2, (y >> 1) & 1 ? '#c8b080' : '#a08858'); } });
+  paintCached('menulogo', lx, ly, 272, 76, menuLogo);
+  // glint racing across the letters
+  const gl = (tNow * 0.35) % 2.2;
+  if (gl < 1) { ctx.save(); ctx.globalAlpha = 0.5; const gx2 = lx + 20 + gl * 230; for (let k = 0; k < 22; k++) rect(gx2 + k * 0.4, ly + 13 + k, 2, 1, '#ffffff'); ctx.restore(); }
 
-  // ---- the title, on an enamel sign swinging from the palate ----
-  (function sign() {
-    const sw = 186, sh = 40, sx = mcx - sw / 2, sy = maw.y + 6 + sway;
-    [sx + 26, sx + sw - 30].forEach(chx => {
-      for (let k = 0; k < 6; k++) { rect(chx, maw.y - 4 + k * 2, 2, 2, k % 2 ? '#8fa8b4' : '#5f7884'); }
-    });
-    ctx.save(); ctx.globalAlpha = 0.3; rr(sx + 3, sy + 5, sw, sh, 6, '#12020a'); ctx.restore();
-    plasticBox(sx, sy, sw, sh, 6, ['#0d2a14', '#16441f', '#1f6a2c', '#2f9a3f', '#7fe08a']);
-    plasticBox(sx + 4, sy + 4, sw - 8, sh - 8, 4, ['#0a2010', '#123a1a', '#1a5424', '#26803a', '#63d66a'], { noShine: 1 });
-    drawTextCSh('BITE DOWN', mcx, sy + 9, '#ffd23f', 3, '#06180b');
-    drawTextC('A PRESS-YOUR-LUCK DENTAL ROGUELIKE', mcx, sy + 30, '#9fe8ac', 1);
-    [[sx + 4, sy + 4], [sx + sw - 8, sy + 4], [sx + 4, sy + sh - 8], [sx + sw - 8, sy + sh - 8]].forEach(([bx2, by2]) => {
-      rect(bx2, by2, 4, 4, '#8fa8b4'); rect(bx2, by2, 2, 2, '#dfeaee');
-    });
-    ctx.save(); ctx.globalAlpha = 0.14; for (let k = 0; k < sh - 8; k++) rect(sx + 12 + k * 0.7, sy + 4 + k, 10, 1, '#ffffff'); ctx.restore();
-  })();
-
-  // ---- NEW RUN, a big brass plaque on the tongue ----
-  const pw2 = 138, phh2 = 34, pxx = mcx - pw2 / 2, pyy = maw.y + maw.h - 46 + sway * 0.5;
-  const hov = mx >= pxx && mx < pxx + pw2 && my >= pyy && my < pyy + phh2;
-  ctx.save(); ctx.globalAlpha = 0.24 + Math.sin(tNow * 4) * 0.07; rr(pxx - 5, pyy - 5, pw2 + 10, phh2 + 10, 8, '#ffcf3a'); ctx.restore();
-  plaque(pxx, pyy + (hov ? 1 : 0), pw2, phh2, { tint: hov ? '#f0662e' : '#d94f30', r: 5 });
-  drawTextCSh('NEW RUN', mcx, pyy + 7 + (hov ? 1 : 0), '#fff2d0', 3, '#5a1408');
-  drawTextC('STEP INTO THE JAWS', mcx, pyy + 24 + (hov ? 1 : 0), '#ffd9a0', 1);
-  hit(pxx - 4, pyy - 4, pw2 + 8, phh2 + 8, { id: 'start', cursor: true, tip: 'NEW RUN|Step into the jaws', cb: diveIn });
-
-  // ---- the shift log, clipped to the lower jaw ----
+  // ---- the signpost: every menu option is a painted trail arrow ----
+  const PX = 128;
+  rect(PX - 4, 92, 9, 150, '#1a0e06'); rect(PX - 3, 92, 7, 150, '#4e3218'); rect(PX - 3, 92, 2, 150, '#6a4a28'); woodGrain(PX - 1, 94, 4, 140, '#3a2412', '#7c5430', 3);
+  rr(PX - 6, 86, 13, 8, 2, '#1a0e06'); rr(PX - 5, 87, 11, 6, 2, '#6a4a28');
   ensureDaily();
-  (function board() {
-    const bx = 14, by = 150, bw = 118, bh = 58;
-    plasticBox(bx, by, bw, bh, 4, ['#140c04', '#3a2716', '#5f4326', '#7d5c38', '#9a7548'], { noShine: 1 });
-    plasticBox(bx + 4, by + 4, bw - 8, bh - 8, 2, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
-    rect(bx + 8, by + 14, bw - 16, 1, '#c9bfa4');
-    drawText('SHIFT LOG', bx + 9, by + 8, '#8a7a58', 1);
-    drawText('QUESTS  ' + ((meta.qb && meta.qb.done) || 0), bx + 9, by + 19, '#2a1d12', 1);
-    ICONS.cookie(bx + 7, by + 27);
-    drawText(fmt(meta.rp || 0) + ' COOKIES', bx + 22, by + 30, '#7a5a10', 1);
-    drawText('BEST ANTE  ' + best, bx + 9, by + 41, '#2a1d12', 1);
-    plasticBox(bx + bw - 12, by - 4, 8, 8, 2, ['#5a1a10', '#8a2a16', '#c23a2a', '#e06a5a', '#ffb0a0'], { noShine: 1 });
-    hit(bx, by, bw, bh, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned at the GACHA hall', cb: () => { G.state = 'pass'; sfx.click(2); } });
-  })();
-
-  // ---- utility tiles, lined up along the lower jaw ----
   const idxAll = indexEntries();
   const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
-  const UBTN = [
-    ['SKINS', '#8a5f28', 'DRESS UP', 'skinsbtn', () => { G.state = 'skins'; sfx.click(2); }],
-    ['INDEX', '#2c7c92', idxNew ? '+' + idxNew + ' NEW' : (idxAll.filter(e => meta.index.seen[e.key]).length + '/' + idxAll.length), 'idxbtn', () => { G.state = 'index'; sfx.click(2); }],
-    ['GACHA', '#7a4fd0', fmt(meta.rp || 0) + ' CK', 'passbtn', () => { ensureDaily(); G.state = 'pass'; }],
-    ['SETUP', '#4a6a58', null, 'setbtn', () => { G.overlay = 'settings'; }],
-    ['CREDITS', '#5a5442', null, 'credbtn', () => { G.overlay = 'credits'; }],
-  ];
-  const ubw = 56, ugap = 4, utot = UBTN.length * ubw + (UBTN.length - 1) * ugap;
-  UBTN.forEach(([label, col, sub, id, cb], i) => {
-    const bx = Math.round(W / 2 - utot / 2 + i * (ubw + ugap)), by = 234;
-    button(bx, by, ubw, sub ? 24 : 20, label, col, mixHex(col, '#000000', 0.45), cb, { id, sub, subCol: '#ffe6b0' });
-  });
+  signPlank(PX - 30, 98, 176, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
+  signPlank(PX - 118, 134, 124, 20, -1, 'WARDROBE', '#3a6a8a', () => { G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, gear and gloves' });
+  signPlank(PX - 4, 158, 124, 20, 1, 'FIELD GUIDE', '#3a7a44', () => { G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'FIELD GUIDE|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator you have met') });
+  signPlank(PX - 118, 182, 124, 20, -1, 'GACHA HALL', '#7a4a9a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: 'GACHA HALL|' + fmt(meta.rp || 0) + ' scout cookies' });
+  if (idxNew) { const bx = PX + 110, by = 156; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
+  woodTile(PX - 2, 208, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
+  woodTile(PX + 24, 208, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
+
+  // ---- the shift log, pinned to the pier post ----
+  (function board() {
+    const bx = 372, by = 206, bw = 102, bh = 56;
+    rect(bx + 46, by - 12, 8, 14, '#2a1c12');
+    paperSheet(bx, by, bw, bh, { ruled: 1, ruledTop: 16 });
+    pushPin(bx + bw / 2, by + 2, PINS[2]);
+    drawText('SHIFT LOG', bx + 6, by + 6, '#8a5a1a', 1);
+    drawText('QUESTS DONE ' + ((meta.qb && meta.qb.done) || 0), bx + 6, by + 18, '#241a10', 1);
+    drawText(fmt(meta.rp || 0) + ' COOKIES', bx + 6, by + 26, '#7a5a10', 1);
+    drawText('BEST ANTE ' + best, bx + 6, by + 34, '#241a10', 1);
+    drawText('RANGERS ' + RANGER_ORDER.filter(rangerUnlocked).length + '/5', bx + 6, by + 42, '#241a10', 1);
+    hit(bx, by, bw, bh, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned in the GACHA hall', cb: () => { G.state = 'pass'; sfx.click(2); } });
+  })();
 }
-// first NEW RUN runs the tutorial once, then goes to ranger select
+// the title screen hands you off to HQ
 function startRun() { lobby = null; G.state = 'ranger'; sfx.whoosh(); }
-// the title-screen gator swallows you into the office
 function diveIn() {
   if (G.dive) return;
   G.dive = { t: 0, cb: startRun };
-  sfx.whoosh(); sfx.snap();
-  shake = Math.max(shake, 6);
+  sfx.whoosh();
 }
+
 // ------------------------------------------------------------- INDEX -------
 // A field journal of every croc variant, boss, badge and tooth you have met.
 // Each fresh find can be cashed in for SCOUT COOKIES, plus a completion bonus.
