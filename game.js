@@ -3211,7 +3211,7 @@ function genMap() {
     const canMut = G.summer || n.type !== 'boss';
     n.mut = canMut ? rollMutation(true) : null;
   });
-  G.map = { stages: [s0, s1, [boss]], stage: 0, picked: [] };
+  G.map = { stages: [s0, s1, [boss]], stage: 0, picked: [], id: ri(1, 999999) };
   G.boat = null;
 }
 const nodeModOn = id => (G.nodeMods || []).includes(id);
@@ -9542,11 +9542,6 @@ function drawModChip(x, y, m) {
 }
 
 // ------------------------------------------------------------ swamp map ---
-function nodePos(stage, k, count) {
-  const xs = [190, 292, 394];
-  const ys = count === 1 ? [150] : count === 2 ? [104, 190] : [84, 148, 206];
-  return { x: xs[stage], y: ys[k] };
-}
 function drawMiniGator(x, y, type, mut) {
   const cols = { small: ['#6cbe4c', '#4a9636'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
   // in the OCEAN the map shows SHARKS, in the swamp GATORS - never mixed up
@@ -9593,72 +9588,299 @@ function drawMiniGator(x, y, type, mut) {
     rect(gx - 1, gy, 1, 1, '#ffffffcc');
   }
 }
-// ------------------------------------------------------------- THE LAKE ----
-// A full pixel-art lake the trail crosses: layered depth bands, a glitter
-// path, drifting mist, lily pads, reed beds, cruising fish and a live shore.
-const LAKE = { x: 64, y: 44, w: 382, h: 186 };
-function lakePal() {
-  return G.summer
-    ? { deep: '#0a3446', mid: '#11566a', shal: '#1d8298', foam: '#9ff0ff', glint: '#d6fbff', lily: '#2fa07c', lilyD: '#1c6f56', bank: '#c8b078', bankD: '#8f7a48', tree: '#0d4256', reed: '#3aa88a' }
-    : { deep: '#0e2b36', mid: '#1a4a5e', shal: '#2a7286', foam: '#8ad8e4', glint: '#c8f4ff', lily: '#4a9a4e', lilyD: '#2c6632', bank: '#3d5434', bankD: '#22361d', tree: '#0d2a20', reed: '#6fae56' };
+// ============================ THE FIELD CHART ==============================
+//  The trail is a ranger's hand-inked chart spread out on the station's map
+//  table: a parchment sheet with burnt edges and fold creases, the swamp
+//  painted on it in ink and wash - keys and hammocks of cypress, sawgrass
+//  hatching, depth contours, a compass rose - and the route to the boss
+//  drawn in dotted ink between wax-seal stops.  The geography is generated
+//  per ante and cached, so every ante is a new stretch of swamp.
+// ==========================================================================
+const CHART = { x: 12, y: 24, w: 456, h: 226 };
+const MAP_DOCK = { x: 84, y: 164 };
+function nodePos(stage, k, count) {
+  const xs = [178, 284, 390];
+  const ys = count === 1 ? [134] : count === 2 ? [88, 176] : [72, 134, 196];
+  return { x: xs[stage], y: ys[k] };
 }
-function drawLake() {
-  const L = LAKE, P = lakePal();
-  ctx.save();
-  ctx.beginPath(); ctx.rect(L.x, L.y, L.w, L.h); ctx.clip();
-  // ---- far bank + treeline silhouette along the top ----
-  rect(L.x, L.y, L.w, 16, G.summer ? '#1b6f86' : '#0b1f26');
-  for (let x = L.x; x < L.x + L.w; x += 5) {
-    const h = 6 + ((Math.sin(x * 0.17) * 4) | 0) + ((x * 7) % 5);
-    rect(x, L.y + 16 - h, 5, h, P.tree);
-    if ((x / 5 | 0) % 4 === 0) { rect(x + 1, L.y + 12 - h, 3, 4, P.tree); rect(x + 2, L.y + 9 - h, 1, 4, P.tree); }
+const boatPark = p => ({ x: p.x, y: p.y + 22 });
+function routeCtl(ax, ay, bx, by) { return { x: (ax + bx) / 2, y: (ay + by) / 2 + Math.sin((ax + bx) * 0.05) * 12 }; }
+function mapRoutes() {
+  const legs = [];
+  G.map.stages.forEach((opts, s) => opts.forEach((node, k) => {
+    const to = boatPark(nodePos(s, k, opts.length));
+    const froms = s === 0 ? [{ p: MAP_DOCK, j: 0 }] : G.map.stages[s - 1].map((_, j) => ({ p: boatPark(nodePos(s - 1, j, G.map.stages[s - 1].length)), j }));
+    froms.forEach(f => legs.push({ s, k, j: f.j, a: f.p, b: to }));
+  }));
+  return legs;
+}
+// smooth value noise from the fixed hash
+function vnoise(x, y, cell, seed) {
+  const gx = Math.floor(x / cell), gy = Math.floor(y / cell), fx = x / cell - gx, fy = y / cell - gy;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash2(gx + seed, gy), b = hash2(gx + 1 + seed, gy), c = hash2(gx + seed, gy + 1), d = hash2(gx + 1 + seed, gy + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy || 1;
+  const t = clamp(((px - ax) * dx + (py - ay) * dy) / l, 0, 1);
+  return Math.hypot(px - ax - dx * t, py - ay - dy * t);
+}
+function chartPalette() {
+  return G.summer
+    ? { paper: ['#6a5230', '#c8b088', '#e2cfa4', '#eee0bc', '#f8f0d8'], water: ['#0e4a66', '#1e6e8e', '#3a92ae', '#76c0d2'], land: ['#a08a50', '#c4ac6c', '#dcc890'], ink: '#3a2410', tree: '#2e6a3a', label: 'HERE BE SHARKS' }
+    : { paper: ['#5a4424', '#b89e70', '#d6c092', '#e6d4aa', '#f4e8c8'], water: ['#123e44', '#1e5a5a', '#347a70', '#62a08a'], land: ['#5a6428', '#76823a', '#949c4e'], ink: '#2a1a0a', tree: '#24401e', label: 'HERE BE GATORS' };
+}
+function chartStatic() {
+  const C2 = CHART, P = chartPalette(), seed = ((G.map && G.map.id) || 0) % 9973 + G.ante * 13 + (G.summer ? 500 : 0);
+  // ---- the map table ----
+  rect(0, 0, W, H, UWOOD[1]);
+  for (let y = 0; y < H; y += 9) { rect(0, y, W, 1, UWOOD[0]); woodGrain(0, y + 1, W, 8, UWOOD[0], UWOOD[2], y); }
+  // ---- the parchment sheet, with a ragged burnt edge ----
+  const edge = (x, y) => {
+    const d = Math.min(x - C2.x, C2.x + C2.w - x, y - C2.y, C2.y + C2.h - y);
+    return d + (vnoise(x, y, 6, 3) - 0.5) * 7;
+  };
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for (let y = C2.y - 4; y < C2.y + C2.h + 6; y += 2) for (let x = C2.x - 4; x < C2.x + C2.w + 6; x += 2) if (edge(x - 3, y - 4) > 0 && edge(x, y) <= 0) rect(x, y, 2, 2, '#000000');
+  ctx.restore();
+  const legs = mapRoutes();
+  const nodes = [MAP_DOCK];
+  G.map.stages.forEach((opts, s) => opts.forEach((_, k) => nodes.push(nodePos(s, k, opts.length))));
+  for (let y = C2.y - 3; y < C2.y + C2.h + 3; y += 2) for (let x = C2.x - 3; x < C2.x + C2.w + 3; x += 2) {
+    const e = edge(x, y);
+    if (e <= 0) continue;
+    // land or water: noise, pushed to water along the routes and to land at each stop
+    let h = vnoise(x, y, 34, seed) * 0.65 + vnoise(x, y, 13, seed + 7) * 0.35;
+    let rd = 99; legs.forEach(L => { const c = routeCtl(L.a.x, L.a.y, L.b.x, L.b.y); rd = Math.min(rd, segDist(x, y, L.a.x, L.a.y, c.x, c.y), segDist(x, y, c.x, c.y, L.b.x, L.b.y)); });
+    if (rd < 13) h -= (13 - rd) / 13 * 0.5;
+    nodes.forEach(n => { const d = Math.hypot(x - n.x, (y - n.y) * 1.3); if (d < 20) h = Math.max(h, 0.62 + (20 - d) / 60); });
+    if (x > C2.x + C2.w - 44) h -= 0.08;                 // open water toward the uncharted east
+    const land = h > 0.58, shal = !land && h > 0.5;
+    let col;
+    if (land) col = h > 0.72 ? P.land[2] : h > 0.64 ? P.land[1] : P.land[0];
+    else col = shal ? P.water[3] : h < 0.32 ? P.water[0] : h < 0.42 ? P.water[1] : P.water[2];
+    // wash the colour into the paper so it reads as ink on parchment
+    const base = e < 5 ? P.paper[1] : e < 9 ? P.paper[2] : P.paper[3];
+    rect(x, y, 2, 2, mixC(base, col, e < 6 ? 0.3 : 0.8));
+    if (hash2(x, y) < 0.07) rect(x + (y & 1), y, 1, 1, P.paper[e < 6 ? 0 : 1]);
+    // shoreline ink: a thin line wherever land meets water
+    const hr = vnoise(x + 2, y, 34, seed) * 0.65 + vnoise(x + 2, y, 13, seed + 7) * 0.35;
+    const hd = vnoise(x, y + 2, 34, seed) * 0.65 + vnoise(x, y + 2, 13, seed + 7) * 0.35;
+    const hn = 0;
+    if (e > 6 && rd >= 13 && ((hr > 0.58) !== land || (hd > 0.58) !== land)) rect(x + 1, y + 1, 1, 1, mixC(P.ink, col, 0.25));
+    if (e > 6 && land && hd <= 0.58 && rd >= 13) rect(x, y + 2, 2, 1, mixC(P.water[3], '#ffffff', 0.25));   // a lit lip of foam
+    // sawgrass hatching on land, wave ticks on open water
+    if (land && e > 8 && hash2(x >> 1, y >> 1) < 0.08) { rect(x, y, 1, 2, P.tree); rect(x + 1, y - 1, 1, 2, P.tree); }
+    if (!land && !shal && e > 8 && hash2(x, y + 9) < 0.012) { rect(x, y, 2, 1, P.water[3]); rect(x + 2, y - 1, 2, 1, P.water[3]); rect(x + 4, y, 2, 1, P.water[3]); }
+    void hn;
   }
-  rect(L.x, L.y + 15, L.w, 2, G.summer ? '#0e4a5c' : '#071418');
-  // ---- water: depth bands, lightest in the shallows nearest the viewer ----
-  const bands = 9, top = L.y + 17, wh = L.h - 17;
-  for (let i = 0; i < bands; i++) {
-    const f = i / (bands - 1);
-    const col = f < 0.5 ? mixHex(P.deep, P.mid, f * 2) : mixHex(P.mid, P.shal, (f - 0.5) * 2);
-    rect(L.x, top + Math.floor(wh * i / bands), L.w, Math.ceil(wh / bands) + 1, col);
+  // depth contours: dotted rings in the deep water
+  for (let y = C2.y + 8; y < C2.y + C2.h - 8; y += 3) for (let x = C2.x + 8; x < C2.x + C2.w - 8; x += 3) {
+    const h = vnoise(x, y, 34, seed) * 0.65 + vnoise(x, y, 13, seed + 7) * 0.35;
+    if (Math.abs(h - 0.4) < 0.008 || Math.abs(h - 0.3) < 0.008) rect(x, y, 1, 1, mixC(P.water[0], P.paper[3], 0.3));
   }
-  // ---- moon/sun glitter column ----
-  const gx = L.x + L.w * 0.72;
-  for (let i = 0; i < 26; i++) {
-    const yy = top + 4 + i * 6, spread = 4 + i * 1.6;
-    const off = Math.sin(tNow * 1.1 + i * 0.9) * spread;
-    ctx.save(); ctx.globalAlpha = 0.10 + 0.14 * Math.abs(Math.sin(tNow * 1.6 + i));
-    rect(gx + off - 5, yy, 11, 1, P.glint);
+  // cypress hammocks: stamped tree symbols on the higher ground
+  for (let k = 0; k < 140; k++) {
+    const tx = C2.x + 14 + Math.floor(hash2(k, seed) * (C2.w - 28)), ty = C2.y + 14 + Math.floor(hash2(seed, k) * (C2.h - 28));
+    const h = vnoise(tx, ty, 34, seed) * 0.65 + vnoise(tx, ty, 13, seed + 7) * 0.35;
+    if (h < 0.66) continue;
+    if (nodes.some(n => Math.hypot(tx - n.x, ty - n.y) < 20)) continue;
+    rect(tx, ty + 3, 1, 3, P.ink);
+    rr(tx - 3, ty - 2, 7, 6, 2, P.ink); rr(tx - 2, ty - 1, 5, 4, 2, P.tree); rect(tx - 1, ty - 1, 2, 1, mixC(P.tree, '#ffffff', 0.3));
+  }
+  // lily pad clusters and a doodled gator in the channel
+  for (let k = 0; k < 16; k++) {
+    const lx = C2.x + 20 + Math.floor(hash2(k + 50, seed) * (C2.w - 60)), ly = C2.y + 20 + Math.floor(hash2(seed, k + 50) * (C2.h - 40));
+    const h = vnoise(lx, ly, 34, seed) * 0.65 + vnoise(lx, ly, 13, seed + 7) * 0.35;
+    if (h > 0.55 || h < 0.44) continue;
+    rr(lx, ly, 4, 3, 1, '#4a7a3a'); rr(lx + 4, ly + 2, 3, 2, 1, '#4a7a3a');
+  }
+  const dg = { x: C2.x + 150 + Math.floor(hash2(seed, 99) * 140), y: C2.y + C2.h - 22 };
+  pxLine(dg.x, dg.y, dg.x + 26, dg.y - 2, P.ink); pxLine(dg.x + 26, dg.y - 2, dg.x + 32, dg.y, P.ink);
+  for (let k = 0; k < 5; k++) rect(dg.x + 4 + k * 5, dg.y - 2 - (k % 2), 2, 2, P.ink);
+  rect(dg.x + 24, dg.y - 4, 2, 2, P.ink); rect(dg.x - 6, dg.y, 6, 1, P.ink);
+  drawText(P.label, dg.x - 12, dg.y + 4, mixC(P.ink, P.paper[2], 0.3), 1);
+  // fold creases
+  ctx.save(); ctx.globalAlpha = 0.25;
+  for (let y = C2.y + 4; y < C2.y + C2.h - 4; y++) { rect(C2.x + C2.w / 2, y, 1, 1, '#ffffff'); rect(C2.x + C2.w / 2 + 1, y, 1, 1, P.paper[0]); }
+  for (let x = C2.x + 4; x < C2.x + C2.w - 4; x++) { rect(x, C2.y + C2.h / 2, 1, 1, '#ffffff'); rect(x, C2.y + C2.h / 2 + 1, 1, 1, P.paper[0]); }
+  ctx.restore();
+  // coffee ring and an ink blot
+  ctx.save(); ctx.globalAlpha = 0.28; ringPx(C2.x + 60, C2.y + C2.h - 40, 13, '#5a3a1a'); ringPx(C2.x + 60, C2.y + C2.h - 40, 12, '#5a3a1a', 0, 4); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.6; rr(C2.x + C2.w - 70, C2.y + 36, 6, 5, 2, P.ink); rect(C2.x + C2.w - 63, C2.y + 40, 2, 2, P.ink); ctx.restore();
+  // uncharted east: cross-hatch fading out
+  for (let y = C2.y + 6; y < C2.y + C2.h - 6; y += 2) for (let x = C2.x + C2.w - 40; x < C2.x + C2.w - 4; x += 2) {
+    const f = (x - (C2.x + C2.w - 40)) / 36;
+    if (((x + y) % 6 === 0 || (x - y + 600) % 6 === 0) && hash2(x, y) < f) rect(x, y, 1, 1, mixC(P.ink, P.paper[3], 0.4));
+  }
+  ctx.save(); ctx.translate(C2.x + C2.w - 20, C2.y + C2.h / 2); ctx.rotate(-Math.PI / 2); drawTextC('UNCHARTED', 0, -2, mixC(P.ink, P.paper[3], 0.35), 1); ctx.restore();
+  // compass rose, bottom right
+  const cx = C2.x + C2.w - 70, cy = C2.y + C2.h - 34;
+  ringPx(cx, cy, 14, P.ink); ringPx(cx, cy, 12, mixC(P.ink, P.paper[3], 0.5));
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 - Math.PI / 2; for (let r = 0; r < 18; r++) { const w2 = Math.max(0, 3 - Math.floor(r / 6)); rect(cx + Math.round(Math.cos(a) * r) - (k % 2 ? 0 : w2 >> 1), cy + Math.round(Math.sin(a) * r) - (k % 2 ? w2 >> 1 : 0), k % 2 ? 1 : Math.max(1, w2), k % 2 ? Math.max(1, w2) : 1, k === 0 ? '#a83a2a' : P.ink); } }
+  for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; pxLine(cx, cy, cx + Math.cos(a) * 9, cy + Math.sin(a) * 9, mixC(P.ink, P.paper[3], 0.4)); }
+  drawTextC('N', cx + 1, cy - 26, '#a83a2a', 1);
+  // scale bar, bottom left
+  const sx0 = C2.x + 20, sy0 = C2.y + C2.h - 16;
+  for (let k = 0; k < 4; k++) rect(sx0 + k * 10, sy0, 10, 3, k % 2 ? P.paper[3] : P.ink);
+  rect(sx0, sy0, 40, 1, P.ink); rect(sx0, sy0 + 3, 40, 1, P.ink);
+  drawText('1 MILE (ISH)', sx0 + 44, sy0 - 1, mixC(P.ink, P.paper[3], 0.25), 1);
+  // the dock where every ante starts
+  rr(MAP_DOCK.x - 16, MAP_DOCK.y - 4, 26, 6, 1, P.ink); rr(MAP_DOCK.x - 15, MAP_DOCK.y - 3, 24, 4, 1, '#8a6a3a');
+  for (let k = 0; k < 4; k++) rect(MAP_DOCK.x - 13 + k * 6, MAP_DOCK.y - 3, 1, 4, '#5a3a1a');
+  rect(MAP_DOCK.x - 20, MAP_DOCK.y - 26, 16, 20, P.ink); rect(MAP_DOCK.x - 19, MAP_DOCK.y - 25, 14, 18, '#6a8a6a');                // ranger tower icon
+  for (let k = 0; k < 3; k++) rect(MAP_DOCK.x - 22 + k, MAP_DOCK.y - 28 - k, 20 - k * 2, 1, '#8a3a2a');
+  rect(MAP_DOCK.x - 16, MAP_DOCK.y - 20, 4, 4, '#f0d070'); rect(MAP_DOCK.x - 10, MAP_DOCK.y - 20, 4, 4, '#f0d070');
+  drawTextC('HQ DOCK', MAP_DOCK.x - 12, MAP_DOCK.y + 12, P.ink, 1);
+}
+
+// a stop on the trail: a wax-seal medallion pinned into the chart
+function drawMapStop(node, p, st) {
+  const d = NODE_DEFS[node.type];
+  const P = chartPalette();
+  const bob = st.reachable ? Math.round(Math.sin(tNow * 4 + p.x) * 1.5) : 0;
+  const x = p.x, y = p.y - bob;
+  const mu = node.mut && MUTATIONS[node.mut];
+  const rim = node.type === 'boss' ? ['#2a0806', '#6a1410', '#a8261e', '#d84a3a', '#ff9a8a']
+    : node.type === 'gold' ? UGOLD
+      : node.type === 'event' ? ['#1a0c26', '#4a2a6a', '#7a4aa8', '#a878d8', '#dcc0ff']
+        : node.type === 'big' ? ['#0c1a0a', '#1e4a1c', '#2e6a2a', '#4a8a3a', '#8ac86a']
+          : ['#0c1a0a', '#2a6a2a', '#3e8a3a', '#62b04e', '#a8e88a'];
+  // shadow and glow
+  ctx.save(); ctx.globalAlpha = 0.35; ctx.scale(1, 0.5); fillCircle(x + 2, (p.y + 16) / 0.5, 14, '#000'); ctx.restore();
+  if (st.reachable) { ctx.save(); ctx.globalAlpha = 0.28 + Math.sin(tNow * 4) * 0.12; fillCircle(x, y, 20, mu ? mu.col : rim[3]); ctx.restore(); }
+  if (st.hov) { ctx.save(); ctx.globalAlpha = 0.4; fillCircle(x, y, 22, '#fff4c0'); ctx.restore(); }
+  // the wax seal: lumpy rim, pressed face
+  // wax drips
+  [[0.6, 4], [2.3, 3], [4.1, 3]].forEach(([a, r2]) => { const dx = Math.round(Math.cos(a + x) * 13), dy = Math.round(Math.sin(a + x) * 13); fillCircle(x + dx, y + dy, r2, rim[0]); fillCircle(x + dx, y + dy, r2 - 1, rim[2]); });
+  fillCircle(x, y, 15, rim[0]); fillCircle(x, y, 14, rim[1]); fillCircle(x - 1, y - 1, 13, rim[2]); fillCircle(x, y, 11, rim[1]); fillCircle(x, y, 10, rim[2]);
+  ringPx(x, y, 12, rim[3], Math.PI * 1.05, Math.PI * 1.6);
+  rect(x - 6, y - 10, 5, 1, rim[4]); rect(x - 8, y - 8, 2, 1, rim[4]);
+  if (st.passed && !st.visited) { ctx.save(); ctx.globalAlpha = 0.55; fillCircle(x, y, 15, P.paper[2]); ctx.restore(); }
+  // the emblem pressed into the wax
+  if (node.type === 'event') { drawTextCSh('?', x + 1, y - 5, '#f4e8ff', 2, rim[0]); }
+  else drawMiniGator(x - 11, y - 7, node.type, node.mut);
+  if (node.type === 'boss') { rect(x - 7, y - 14, 15, 3, '#e8c040'); rect(x - 7, y - 17, 3, 3, '#e8c040'); rect(x - 1, y - 18, 3, 4, '#e8c040'); rect(x + 5, y - 17, 3, 3, '#e8c040'); rect(x - 6, y - 14, 13, 1, '#fff0a0'); }
+  if (mu) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 4 + x) * 0.15; ringPx(x, y, 16, mu.col); ringPx(x, y, 17, mu.col); ctx.restore(); }
+  // the paper tag under it
+  const seaLbl = { small: 'REEF', big: 'TIGER', gold: 'GOLD', boss: 'MEGALODON' };
+  const lbl = mu ? mu.name : node.type === 'boss' ? (G.summer ? 'MEGALODON' : 'BOSS') : G.summer ? (seaLbl[node.type] || node.type.toUpperCase()) : node.type === 'event' ? 'EVENT' : node.type.toUpperCase();
+  const tw = textW(lbl, 1) + 8;
+  paperSheet(x - tw / 2, y + 15, tw, 10, { noCorner: 1, ramp: ['#3a2a14', '#d8c8a0', '#f0e4c4', '#f8f0dc', '#ffffff'] });
+  drawTextC(lbl, x, y + 17, st.visited ? '#2a6a2a' : mu ? mixC(mu.col, '#000000', 0.35) : st.reachable ? '#241a10' : '#8a7a5a', 1);
+  (node.mods || []).forEach((m, mi) => { const n2 = node.mods.length; drawModChip(x - (n2 * 13) / 2 + mi * 13 + 1, y + 27, m); });
+  if (st.visited) {                                    // inked X over the stop you took
+    ctx.save(); ctx.globalAlpha = 0.85;
+    for (let k = -8; k <= 8; k++) { rect(x + k, y + k, 2, 2, '#a8261e'); rect(x + k, y - k, 2, 2, '#a8261e'); }
     ctx.restore();
   }
-  ctx.restore();
-  // ---- lily pads hugging the left and right margins ----
-  const pads = [[14, 30], [30, 78], [12, 124], [34, 168], [20, 200], [352, 36], [370, 92], [344, 148], [362, 192], [336, 214], [58, 212], [300, 218]];
-  pads.forEach(([px2, py2], i) => {
-    const x = L.x + px2, y = top + (py2 % (wh - 6)) + Math.sin(tNow * 1.1 + i * 1.7) * 1.2;
-    const r = 6 + (i % 3);
-    ctx.save(); ctx.globalAlpha = 0.22; fillCircle(x + 1, y + 2, r, '#04101a'); ctx.restore();
-    fillCircle(x, y, r, P.lilyD); fillCircle(x, y - 1, r - 1, P.lily);
-    rect(x, y - 1, r, 2, P.lilyD);                                   // notch
-    rect(x - r + 2, y - 2, 3, 1, '#ffffff22');
-    if (i % 3 === 0) { fillCircle(x + 2, y - 3, 2, '#f8e0ec'); rect(x + 1, y - 4, 2, 1, '#ffd54a'); } // flower
-  });
-  // ---- reed beds along the bottom shoreline ----
-  rect(L.x, L.y + L.h - 10, L.w, 10, P.bankD);
-  rect(L.x, L.y + L.h - 12, L.w, 3, P.bank);
-  for (let x = L.x; x < L.x + L.w; x += 6) {
-    const sway = Math.sin(tNow * 1.5 + x * 0.09) * 1.5;
-    const h = 8 + ((x * 13) % 9);
-    rect(x + 1, L.y + L.h - 12 - h, 1, h, P.reed);
-    rect(x + 1 + sway, L.y + L.h - 12 - h - 3, 1, 3, P.reed);
-    if ((x / 6 | 0) % 5 === 0) rect(x + 1 + sway, L.y + L.h - 12 - h - 6, 2, 3, '#6a5a2a'); // cattail
-  }
-  // ---- foam line where water meets the bank ----
-  ctx.save(); ctx.globalAlpha = 0.4;
-  for (let x = L.x; x < L.x + L.w; x += 4) rect(x, L.y + L.h - 13 + Math.sin(tNow * 2 + x * 0.2) * 1, 3, 1, P.foam);
-  ctx.restore();
-  ctx.restore();
 }
-// A proper little rowboat: hull, ribs, oars mid-stroke, wake and the ranger.
+
+function drawMap() {
+  const P = chartPalette();
+  const key = 'chart_' + G.ante + '_' + (G.summer ? 's' : 'g') + '_' + (G.map.id || 0) + '_' + G.map.stages.map(o => o.length).join('');
+  if (G._chartKey !== key) { for (const k in PAINT_CACHE) if (k.startsWith('chart_')) delete PAINT_CACHE[k]; G._chartKey = key; }
+  paintCached(key, 0, 0, W, H, chartStatic);
+  // lantern light pooling on the table from the top left
+  ctx.save(); ctx.globalAlpha = 0.06 + Math.sin(tNow * 7) * 0.01 + Math.sin(tNow * 13) * 0.008;
+  for (let r = 0; r < 5; r++) fillCircle(60, 40, 90 + r * 40, '#ffd890');
+  ctx.restore();
+  // ---- the route: dotted ink between stops, reachable legs march ----
+  mapRoutes().forEach(L => {
+    const lit = L.s === G.map.stage && (L.s === 0 || G.map.picked[L.s - 1] === L.j);
+    const done = L.s < G.map.stage && G.map.picked[L.s] === L.k && (L.s === 0 || G.map.picked[L.s - 1] === L.j);
+    const dead = !lit && !done && L.s <= G.map.stage;
+    const c = routeCtl(L.a.x, L.a.y, L.b.x, L.b.y);
+    const n = 20, march = lit ? (tNow * 1.2) % 1 : 0;
+    for (let i = 1; i < n; i++) {
+      const t = (i + march) / n, u = 1 - t;
+      if (t > 0.94) continue;
+      const px = u * u * L.a.x + 2 * u * t * c.x + t * t * L.b.x, py = u * u * L.a.y + 2 * u * t * c.y + t * t * L.b.y;
+      if (done) rect(px, py, 2, 2, '#a8261e');
+      else if (lit) { rect(px, py, 2, 2, (i & 1) ? '#a8261e' : '#d8503a'); }
+      else if (!dead) { if (i % 2) rect(px, py, 1, 1, mixC(P.ink, P.paper[3], 0.5)); }
+      else if (i % 3 === 0) rect(px, py, 1, 1, mixC(P.ink, P.paper[3], 0.65));
+    }
+  });
+  // a gator surfaces in a channel now and then (drawn in ink, of course)
+  const gs = (tNow * 0.08) % 1;
+  if (gs < 0.35) {
+    const gx = CHART.x + 120 + gs * 700 % 260, gy = CHART.y + 140 + Math.sin(gs * 20) * 20;
+    ctx.save(); ctx.globalAlpha = Math.sin(gs / 0.35 * Math.PI) * 0.8;
+    rect(gx, gy, 3, 2, P.ink); rect(gx + 5, gy, 3, 2, P.ink); rect(gx + 1, gy, 1, 1, '#e8c040'); rect(gx + 6, gy, 1, 1, '#e8c040');
+    rect(gx - 5, gy + 2, 18, 1, mixC(P.water[3], '#ffffff', 0.3));
+    ctx.restore();
+  }
+  // ---- the stops ----
+  let hovNode = null;
+  G.map.stages.forEach((opts, s) => opts.forEach((node, k) => {
+    const p = nodePos(s, k, opts.length);
+    const reachable = s === G.map.stage && !G.boat;
+    const hov = reachable && Math.hypot(mx - p.x, my - p.y) < 18;
+    if (hov) hovNode = node;
+    drawMapStop(node, p, { reachable: s === G.map.stage, visited: G.map.picked[s] === k, passed: s < G.map.stage, hov });
+    if (reachable) hit(p.x - 18, p.y - 18, 36, 46, {
+      id: 'node' + s + '_' + k, cursor: true, tip: nodeTip(node),
+      cb: () => {
+        const from2 = s === 0 ? MAP_DOCK : boatPark(nodePos(s - 1, G.map.picked[s - 1], G.map.stages[s - 1].length));
+        const to = boatPark(p);
+        const dist = Math.hypot(to.x - from2.x, to.y - from2.y);
+        G.boat = { x: from2.x, y: from2.y, sx: from2.x, sy: from2.y, tx: to.x, ty: to.y, t: 0, k, dur: clamp(dist / 110, 0.8, 1.6), lean: 0 };
+        sfx.splash(); addRipple(from2.x, from2.y + 4, false);
+      },
+    });
+  }));
+  // ---- the boat token, ranger aboard ----
+  const bpos = G.boat ? G.boat : G.map.stage === 0 ? MAP_DOCK : boatPark(nodePos(G.map.stage - 1, G.map.picked[G.map.stage - 1] || 0, G.map.stages[G.map.stage - 1].length));
+  const bob = Math.round(Math.sin(tNow * 2.2) * 1);
+  const lean = G.boat ? Math.round(G.boat.lean || 0) : 0;
+  ctx.save(); ctx.translate(bpos.x, bpos.y + bob); ctx.scale(0.8, 0.8); ctx.translate(-bpos.x, -(bpos.y + bob));
+  drawRowBoat(bpos.x, bpos.y + bob, lean, !!G.boat);
+  drawBobble(bpos.x + lean * 0.4, bpos.y + 1 + bob, G.ranger, { sc: 0.42, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  ctx.restore();
+  drawRipples(0.6);
+
+  // ---- the title ribbon across the top edge ----
+  const tt = G.summer ? 'THE OPEN OCEAN' : 'THE SWAMP TRAIL';
+  const rw = textW(tt, 2) + 40, rx = W / 2 - rw / 2;
+  [[rx - 14, 1], [rx + rw - 2, -1]].forEach(([ex, s]) => { for (let j = 0; j < 16; j++) { const w2 = 16 - Math.abs(j - 8) * (s > 0 ? 1 : 1); rect(s > 0 ? ex + 16 - w2 : ex, 8 + j, w2, 1, j < 1 || j > 14 ? '#3a0a08' : '#7a1a14'); } });
+  plasticBox(rx, 4, rw, 20, 3, ['#2a0806', '#7a1a14', '#a8261e', '#c8403a', '#f08a7a'], { noShine: 1 });
+  drawTextCSh(tt, W / 2, 8, '#fff0d8', 2, '#3a0a08');
+  const an = G.summer ? 'ANTE ' + G.ante + '  -  ENDLESS SEAS' : 'ANTE ' + G.ante + (G.ante <= 8 ? ' OF 8  -  ' + ANTE_NAMES[G.ante - 1] : '  -  ENDLESS');
+  const aw = textW(an, 1) + 12;
+  paperSheet(W / 2 - aw / 2, 26, aw, 11, { noCorner: 1 });
+  drawTextC(an, W / 2, 29, P.ink, 1);
+
+  // ---- money pouch, pinned top left ----
+  plasticBox(16, 28, 62, 18, 3, ['#1a0e06', '#5a3418', '#7a4a24', '#946032', '#b8804a'], { noShine: 1 });
+  ICONS.coin(20, 31); drawText(curLabel(G.money), 36, 34, '#ffe089', 1);
+  // ---- the quest note ----
+  ensureDaily();
+  const actQ = activeQuests();
+  paperSheet(16, 50, 94, 20 + Math.max(1, Math.min(QUEST_MAX, actQ.length)) * 15, {});
+  pushPin(63, 51, PINS[0]);
+  drawText('QUESTS', 21, 55, '#6a3a8a', 1);
+  if (!actQ.length) { drawText('NONE TAKEN', 21, 66, '#8a7a5a', 1); drawText('SEE THE BOARD', 21, 74, '#8a7a5a', 1); }
+  actQ.slice(0, QUEST_MAX).forEach((q, i) => {
+    const qy = 66 + i * 15;
+    rect(20, qy, 4, 4, NPCS[q.npc] ? NPCS[q.npc].col : C.gold);
+    drawText(q.name.slice(0, 13), 27, qy - 1, '#241a10', 1);
+    rect(27, qy + 6, 56, 3, '#c8b890');
+    const pr = clamp(q.prog / q.goal, 0, 1);
+    if (pr > 0) rect(27, qy + 6, Math.floor(56 * pr), 3, '#3a8a3a');
+    drawText(q.prog + '/' + q.goal, 86, qy + 4, '#6a5a3a', 1);
+    hit(18, qy - 2, 90, 14, { id: 'qtrack' + q.id, tip: q.name + '|' + q.prog + '/' + q.goal + '  (+' + q.rp + ' COOKIES)' });
+  });
+  // ---- a brass compass and a pencil on the table ----
+  fillCircle(452, 24, 13, '#1a1206'); fillCircle(452, 24, 12, UGOLD[1]); fillCircle(452, 24, 10, '#f0e8d0');
+  const na = Math.sin(tNow * 0.7) * 0.25 - Math.PI / 2;
+  pxLine(452, 24, 452 + Math.cos(na) * 8, 24 + Math.sin(na) * 8, '#c8301f', 2); pxLine(452, 24, 452 - Math.cos(na) * 7, 24 - Math.sin(na) * 7, '#3a3a3a', 1);
+  rect(451, 23, 2, 2, UGOLD[0]); rect(446, 14, 4, 1, '#ffffff');
+  pxLine(398, 258, 446, 246, '#1a1206', 4); pxLine(399, 257, 445, 245, '#e8b830', 2); rect(446, 244, 4, 4, '#e87a8a'); rect(396, 258, 3, 2, '#3a2a1a');
+  drawTextC(G.boat ? 'ROWING...' : hovNode ? 'CLICK TO ROW THERE' : 'PICK YOUR NEXT STOP', W / 2, H - 12, '#f4e2b8', 1);
+}
+
 function drawRowBoat(x, y, lean, moving) {
   const stroke = moving ? Math.sin(tNow * 4.6) : Math.sin(tNow * 1.2) * 0.25;
   ctx.save();
@@ -9699,186 +9921,6 @@ function drawRowBoat(x, y, lean, moving) {
   ctx.restore();
 }
 
-function drawMap() {
-  const th = themeNow();
-  drawSceneBack(th);
-  drawSceneFront(th);
-  overlayDim(0.35);
-  drawTextCSh(G.summer ? 'THE OPEN OCEAN' : 'THE SWAMP TRAIL', W / 2, 10, G.summer ? '#7fe0f0' : C.gold, 3);
-  drawTextCSh(G.summer ? 'ANTE ' + G.ante + ' - ENDLESS SEAS' : 'ANTE ' + G.ante + (G.ante <= 8 ? ' OF 8' : ' - ENDLESS'), W / 2, 34, C.white, 1);
-  drawLake();
-  rr(LAKE.x - 2, LAKE.y - 2, LAKE.w + 4, LAKE.h + 4, 4, '#00000000');
-  // thin frame so the lake reads as a chart window
-  rect(LAKE.x, LAKE.y, LAKE.w, 1, '#3a5a50'); rect(LAKE.x, LAKE.y + LAKE.h - 1, LAKE.w, 1, '#3a5a50');
-  rect(LAKE.x, LAKE.y, 1, LAKE.h, '#3a5a50'); rect(LAKE.x + LAKE.w - 1, LAKE.y, 1, LAKE.h, '#3a5a50');
-  // money + ranger chip
-  panel(66, 24, 74, 18, { face: '#26321e', edge: '#5a7a3a' });
-  ICONS.coin(72, 28);
-  drawText(curLabel(G.money), 88, 29, C.gold, 1);
-  // the wooden launch dock the trail starts from
-  rr(78, 136, 34, 6, 2, '#3a2818'); rr(79, 135, 32, 5, 2, '#6a4a28');
-  for (let k = 0; k < 4; k++) rect(82 + k * 8, 135, 1, 5, '#4a3320');
-  rect(84, 141, 3, 12, '#3a2818'); rect(104, 141, 3, 12, '#3a2818');
-  drawTextC('DOCK', 95, 156, '#7a8a84', 1);
-  // live quest tracker (top-left corner of the chart): your 3 accepted posts
-  ensureDaily();
-  panel(68, 52, 100, 60, { face: '#10181ecc', edge: '#3a5a50', r: 2 });
-  drawText('QUESTS', 74, 56, C.purple, 1);
-  const actQ = activeQuests();
-  if (!actQ.length) {
-    drawText('NONE ACCEPTED', 74, 68, C.dim, 1);
-    drawText('VISIT THE', 74, 80, '#8a9a9a', 1);
-    drawText('QUEST BOARD!', 74, 90, '#8a9a9a', 1);
-  }
-  actQ.slice(0, QUEST_MAX).forEach((p, i) => {
-    const qy = 65 + i * 15;
-    rect(72, qy, 5, 5, NPCS[p.npc] ? NPCS[p.npc].col : C.gold);
-    drawText(p.name.slice(0, 12), 81, qy - 1, '#b8c8c8', 1);
-    rect(81, qy + 6, 60, 3, '#0a1215');
-    const pr = clamp(p.prog / p.goal, 0, 1);
-    if (pr > 0) rect(81, qy + 6, Math.floor(60 * pr), 3, C.gold);
-    drawText(p.prog + '/' + p.goal, 144, qy + 3, C.dim, 1);
-    hit(70, qy - 2, 96, 14, { id: 'qtrack' + p.id, tip: p.name + '|' + p.prog + '/' + p.goal + '  (+' + p.rp + ' COOKIES)' });
-  });
-  // fog of the next ante on the right
-  for (let k = 0; k < 5; k++) {
-    ctx.globalAlpha = 0.15 + k * 0.14;
-    rect(422 + k * 5, 50, 5, 174, '#060d10');
-    ctx.globalAlpha = 1;
-  }
-  drawTextC('NEXT', 436, 122, '#41565e', 1);
-  drawTextC('ANTE', 436, 132, '#41565e', 1);
-  // path lines: dock -> stage0 -> stage1 -> boss
-  const dotLine = (x1, y1, x2, y2, lit) => {
-    const n = 7;
-    const march = lit ? (tNow * 1.4) % 1 : 0; // dots flow along active routes
-    for (let k = 0; k < n; k++) {
-      const f = (k + march) / n;
-      if (f <= 0.05 || f >= 0.95) continue;
-      const px2 = x1 + (x2 - x1) * f, py2 = y1 + (y2 - y1) * f;
-      rect(px2, py2, 2, 2, lit ? '#ffc843aa' : '#3a5a5066');
-    }
-  };
-  // a pair of eyes surfaces in the channel now and then
-  if (Math.sin(tNow * 0.35 + 2.1) > 0.55) {
-    const ex2 = 240 + Math.sin(tNow * 0.1) * 60;
-    const ey2 = 148 + Math.sin(ex2 * 0.03) * 26 - 6;
-    [0, 9].forEach(o => {
-      rr(ex2 + o, ey2, 7, 5, 2, '#1a3a30');
-      rect(ex2 + o + 2, ey2 + 1, 2, 3, '#ffe089');
-    });
-  }
-  // faint web of all routes; the reachable legs glow
-  G.map.stages.forEach((opts, s) => {
-    opts.forEach((node, k) => {
-      const p = nodePos(s, k, opts.length);
-      const froms = s === 0
-        ? [{ x: 110, y: 148, picked: true }]
-        : G.map.stages[s - 1].map((_, j) => Object.assign(nodePos(s - 1, j, G.map.stages[s - 1].length),
-          { picked: G.map.picked[s - 1] === j || G.map.picked[s - 1] === undefined }));
-      froms.forEach(from => {
-        dotLine(from.x + 14, from.y, p.x - 20, p.y, from.picked && s === G.map.stage);
-      });
-    });
-  });
-  G.map.stages.forEach((opts, s) => {
-    opts.forEach((node, k) => {
-      const p = nodePos(s, k, opts.length);
-      const d = NODE_DEFS[node.type];
-      const reachable = s === G.map.stage;
-      const visited = G.map.picked[s] === k;
-      const passed = s < G.map.stage;
-      const pulse = reachable ? Math.round(Math.sin(tNow * 4) * 1.5) : 0;
-      // watery reflection under the island
-      ctx.globalAlpha = 0.22;
-      rr(p.x - 16, p.y + 20, 32, 5, 2, '#0d2830');
-      ctx.globalAlpha = 1;
-      // colored glow ring for reachable nodes
-      if (s === G.map.stage) {
-        ctx.globalAlpha = 0.3 + Math.sin(tNow * 4) * 0.15;
-        rr(p.x - 25, p.y - 17 - pulse, 50, 38, 4, d.col);
-        ctx.globalAlpha = 1;
-      }
-      // sandy rim
-      rr(p.x - 23, p.y + 14 - pulse, 46, 5, 2, '#8a7a58');
-      // island pad
-      rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, passed && !visited ? '#101c1e' : '#16302a');
-      rr(p.x - 20, p.y - 12 - pulse, 40, 28, 4, visited ? '#26321e' : reachable ? '#1e3c34' : '#14262a');
-      if (reachable) rr(p.x - 22, p.y - 14 - pulse, 44, 32, 4, '#ffc84300');
-      // a MUTATION node gets a pulsing halo in its variant colour (like gold's shine)
-      const mu = node.mut && MUTATIONS[node.mut];
-      if (mu) {
-        ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 4 + p.x) * 0.14;
-        rr(p.x - 24, p.y - 16 - pulse, 48, 36, 5, mu.col); ctx.restore();
-      }
-      // node art
-      if (node.type === 'event') {
-        drawTextC('?', p.x, p.y - 8 - pulse, C.purple, 2);
-      } else {
-        drawMiniGator(p.x - 11, p.y - 10 - pulse, node.type, node.mut);
-      }
-      // variant name banner above the island, else the plain node type below
-      if (mu) drawTextCSh(mu.name, p.x, p.y - 26 - pulse, mu.col, 1, '#0a1215');
-      const seaLbl = { small: 'REEF', big: 'TIGER', gold: 'GOLD', boss: 'MEGALODON' };
-      const lbl = node.type === 'boss' ? (G.summer ? 'MEGALODON' : 'BOSS')
-        : G.summer ? (seaLbl[node.type] || node.type.toUpperCase()) : node.type.toUpperCase();
-      drawTextC(lbl, p.x, p.y + 8 - pulse, visited ? C.green : mu ? mu.col : reachable ? d.col : '#41565e', 1);
-      (node.mods || []).forEach((m, mi) => {
-        const md = NODE_MODS[m];
-        const n2 = node.mods.length;
-        drawModChip(p.x - (n2 * 13) / 2 + mi * 13 + 1, p.y + 16 - pulse, m);
-      });
-      if (visited) drawTextC('*', p.x + 24, p.y - 10, C.gold, 1);
-      // island dressing: palm on boss, flowers on events, sparkle on gold
-      if (node.type === 'boss') {
-        rect(p.x + 24, p.y - 22 - pulse, 2, 10, '#4a3320');
-        rect(p.x + 20, p.y - 26 - pulse, 5, 3, '#2c5a24'); rect(p.x + 26, p.y - 26 - pulse, 5, 3, '#2c5a24');
-        rect(p.x + 23, p.y - 29 - pulse, 4, 3, '#2c5a24');
-      }
-      if (node.type === 'event') { rect(p.x - 19, p.y + 10 - pulse, 2, 2, '#e8a0c0'); rect(p.x + 17, p.y + 8 - pulse, 2, 2, '#ffe089'); }
-      if (node.type === 'gold' && (tNow % 1.2) < 0.2) { rect(p.x + 16, p.y - 12 - pulse, 2, 2, '#fff6c8'); }
-      if (reachable && !G.boat) {
-        hit(p.x - 22, p.y - 14, 44, 32, {
-          id: 'node' + s + '_' + k, cursor: true,
-          tip: nodeTip(node),
-          cb: () => {
-            const from2 = s === 0 ? { x: 97, y: 158 } : (() => { const q = nodePos(s - 1, G.map.picked[s - 1], G.map.stages[s - 1].length); return { x: q.x, y: q.y + 20 }; })();
-            const dist = Math.hypot(p.x - from2.x, p.y + 20 - from2.y);
-            G.boat = { x: from2.x, y: from2.y, sx: from2.x, sy: from2.y, tx: p.x, ty: p.y + 20, t: 0, k, dur: clamp(dist / 130, 0.7, 1.5), lean: 0 };
-            sfx.splash(); addRipple(from2.x, from2.y + 4, false);
-          },
-        });
-      }
-    });
-  });
-  // boat token (ranger aboard)
-  const bpos = G.boat ? G.boat
-    : G.map.stage === 0 ? { x: 97, y: 158 }
-      : (() => { const q = nodePos(G.map.stage - 1, G.map.picked[G.map.stage - 1] || 0, G.map.stages[G.map.stage - 1].length); return { x: q.x, y: q.y + 20 }; })();
-  const bob = Math.round(Math.sin(tNow * 2.2) * 1.5);
-  const lean = G.boat ? Math.round(G.boat.lean || 0) : 0;
-  // wake vee while cruising
-  if (G.boat) {
-    ctx.save(); ctx.globalAlpha = 0.4;
-    const dir = G.boat.tx > G.boat.sx ? -1 : 1;
-    for (let k = 1; k <= 4; k++) {
-      rect(bpos.x + dir * (12 + k * 6), bpos.y + 4 - k, 5 - k + 2, 1, '#1e4a52');
-      rect(bpos.x + dir * (12 + k * 6), bpos.y + 4 + k, 5 - k + 2, 1, '#1e4a52');
-    }
-    ctx.restore();
-  }
-  drawRowBoat(bpos.x, bpos.y + bob, lean, !!G.boat);
-  drawBobble(bpos.x + lean * 0.4, bpos.y + 1 + bob, G.ranger, {
-    sc: 0.42, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle',
-    hat: meta.hat, gear: meta.gear, glove: meta.glove,
-  });
-  // the equipped cosmetic GEAR + HAT ride on the traveler
-  const gearKey = (meta.gear && gearUnlocked(meta.gear)) ? meta.gear : 'none';
-  if (gearKey !== 'none') drawGearArt(bpos.x + lean, bpos.y - 18 + bob, gearKey, 1);
-  const hatKey = (meta.hat && hatUnlocked(meta.hat)) ? meta.hat : 'none';
-  if (hatKey !== 'none') drawHatArt(bpos.x + lean, bpos.y - 20 + bob, hatKey, 1);
-  drawTextC(G.boat ? '. . .' : 'PICK YOUR NEXT STOP', W / 2, 234, C.dim, 1);
-}
 function nodeTip(node) {
   const d = NODE_DEFS[node.type];
   if (node.type === 'event') return 'SWAMP EVENT|Something is waiting in the reeds...|No fight. No shop. A choice.';
@@ -9902,8 +9944,7 @@ function updateBoat(dt) {
   const f = clamp(b.t / b.dur, 0, 1);
   const e = f < 0.5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2; // easeInOut
   // quadratic bezier: the midpoint dips onto the winding channel line
-  const mx2 = (b.sx + b.tx) / 2;
-  const my2 = 148 + Math.sin(mx2 * 0.03) * 26 + 8;
+  const ctl = routeCtl(b.sx, b.sy, b.tx, b.ty), mx2 = ctl.x, my2 = ctl.y;
   const u = 1 - e;
   b.x = u * u * b.sx + 2 * u * e * mx2 + e * e * b.tx;
   b.y = u * u * b.sy + 2 * u * e * my2 + e * e * b.ty;
