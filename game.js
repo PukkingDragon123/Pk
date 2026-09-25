@@ -1191,26 +1191,27 @@ function bobFace(p, expr, phase, look, opt) {
 }
 
 // the head alone, drawn about its own centre (used for portraits + the body)
-function bobHead(key, expr, phase, look, lean) {
+function bobHead(key, expr, phase, look, lean, ho) {
+  ho = ho || {};
   const p = BOB[key] || BOB.scout, OL = p.sk[0];
   lean = lean || 0;
   const earR = k => [p.sk[0], k[0], k[1], k[2], mixHex(k[2], '#ffffff', 0.45)];
   // ---- ears / stalks BEHIND the skull, all moulded blocks ----
-  if (p.otter) {
+  if (p.otter && !ho.noEars) {
     [-1, 1].forEach(s2 => {
       const tw = Math.round(Math.sin(tNow * 1.6 + s2 * 2 + phase) * 0.7);
       plasticBox(s2 * 11 - 5, -17 + tw, 10, 9, 3, earR(p.ear));
       rect(s2 * 11 - 2, -14 + tw, 4, 3, p.ear[0]);
     });
   }
-  if (key === 'medic') {
+  if (key === 'medic' && !ho.noEars) {
     [-1, 1].forEach(s2 => {
       const tw = Math.round(Math.sin(tNow * 1.5 + s2 * 2 + phase) * 0.8);
       plasticBox(s2 * 11 - 6, -18 + tw, 12, 11, 4, [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]]);
       plasticBox(s2 * 11 - 3, -15 + tw, 6, 6, 2, [OL, p.ear[0], p.ear[1], p.ear[2], '#ffd8e2'], { noShine: 1 });
     });
   }
-  if (key === 'trader') {
+  if (key === 'trader' && !ho.noEars) {
     [-1, 1].forEach(s2 => {
       const tw = Math.round(Math.sin(tNow * 1.3 + s2 + phase) * 0.7);
       plasticBox(s2 * 11 - 5, -19 + tw, 11, 10, 3, earR(p.ear));
@@ -1337,23 +1338,44 @@ function drawBobble(cx, gy, key, o) {
   // ---------------- legs + boots ----------------------------------------
   const legY = -13 + hop * 0.3;
   const clR = [OL, p.cl[1], p.cl[2], p.cl[3], p.cl[4]];
-  const btR = [BOOT[0], BOOT[1], BOOT[2], BOOT[3], BOOT[4]];
+  // ---- the outfit: shirt / pants / shoes / costume (only on your own ranger) ----
+  const FT = o.fit || null;
+  const pick = (cat) => { const k = FT && FT[cat]; return k && FITS[k] && fitUnlocked(k) && FITS[k].src !== 'free' ? FITS[k] : null; };
+  const suit = pick('suit'), shirt = suit ? null : pick('shirt'), pants = suit ? null : pick('pants'), shoes = pick('shoes');
+  const skR = [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]];
+  const legR = suit ? rampOf(suit.col) : pants ? rampOf(pants.col) : clR;
+  const topR = suit ? rampOf(suit.col) : shirt ? rampOf(shirt.col) : clR;
   [[-5, stride], [4, -stride]].forEach(([lx, s2]) => {
     const lift = act === 'walk' ? Math.max(0, s2) * 0.4 : 0;
-    plasticBox(lx - 1, legY - lift, 7, 10, 2, clR, { noShine: 1 });
-    plasticBox(lx - 3, -5 + s2 * 0.26 - lift, 10, 6, 2, btR, { noShine: 1 });
+    plasticBox(lx - 1, legY - lift, 7, 10, 2, legR, { noShine: 1 });
+    if (pants && pants.pat) fitPattern(pants, lx - 1, legY - lift, 7, 10, lx);
+    if (pants && pants.shorts) plasticBox(lx - 1, legY - lift + 5, 7, 5, 2, skR, { noShine: 1 });
+    if (suit && suit.pat) fitPattern(suit, lx - 1, legY - lift, 7, 10, lx);
+    fitShoe(shoes, lx - 3, Math.round(-5 + s2 * 0.26 - lift), 1);
   });
+  if (pants && pants.kilt) { plasticBox(-10, legY - 1, 21, 8, 2, legR, { noShine: 1 }); fitPattern(pants, -10, legY - 1, 21, 8, 0); }
 
   // ---------------- torso: one moulded block ----------------------------
   const by = -29 + hop;
   ctx.save();
   ctx.translate(0, by + 9); ctx.scale(1 / sq, sq); ctx.translate(0, -(by + 9)); ctx.rotate(lean * 0.3);
-  plasticBox(-10, by, 21, 18, 5, clR);
-  plasticBox(-4, by + 3, 9, 14, 3, ['#0f120e', '#cfc7ab', '#e6dfc6', '#f6f2e2', '#ffffff'], { noShine: 1 });
-  rect(-10, by + 12, 21, 3, BOOT[1]);
-  rect(-10, by + 12, 21, 1, BOOT[3]);
-  plasticBox(-2, by + 11, 6, 5, 1, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
-  plasticBox(5, by + 3, 5, 5, 1, [OL, p.acD, p.ac, mixHex(p.ac, '#ffffff', 0.4), '#ffffff'], { noShine: 1 });
+  if (suit) suitBack(suit, by);
+  plasticBox(-10, by, 21, 18, 5, topR);
+  if (suit) {
+    if (suit.pat) fitPattern(suit, -10, by, 21, 18, 0);
+    suitFront(suit, by);
+  } else if (shirt) {
+    if (shirt.pat) fitPattern(shirt, -10, by, 21, 18, 0);
+    fitShirtFront(shirt, by);
+    const wb = pants ? rampOf(pants.col) : BOOT;
+    rect(-10, by + 14, 21, 2, wb[1]); rect(-10, by + 14, 21, 1, wb[3]);
+  } else {
+    plasticBox(-4, by + 3, 9, 14, 3, ['#0f120e', '#cfc7ab', '#e6dfc6', '#f6f2e2', '#ffffff'], { noShine: 1 });
+    rect(-10, by + 12, 21, 3, BOOT[1]);
+    rect(-10, by + 12, 21, 1, BOOT[3]);
+    plasticBox(-2, by + 11, 6, 5, 1, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
+    plasticBox(5, by + 3, 5, 5, 1, [OL, p.acD, p.ac, mixHex(p.ac, '#ffffff', 0.4), '#ffffff'], { noShine: 1 });
+  }
 
   // ---------------- arms ------------------------------------------------
   const g = GLOVES[(o.glove && gloveUnlocked(o.glove)) ? o.glove : 'bare'] || GLOVES.bare;
@@ -1370,7 +1392,8 @@ function drawBobble(cx, gy, key, o) {
   [-1, 1].forEach(side => {
     const a2 = pose(side);
     ctx.save(); ctx.translate(a2.x, a2.y); ctx.rotate(a2.r);
-    plasticBox(-3, -2, 6, 10, 2, clR, { noShine: 1 });
+    plasticBox(-3, -2, 6, 10, 2, topR, { noShine: 1 });
+    if (shirt && shirt.pat === 'stripes') for (let j = 0; j < 8; j += 3) rect(-2, j, 4, 1, shirt.col2);
     plasticBox(-4, 6, 8, 7, 3, gR, { noShine: 1 });
     ctx.restore();
   });
@@ -1381,7 +1404,9 @@ function drawBobble(cx, gy, key, o) {
   ctx.save();
   ctx.translate(0, hy + Math.sin(t * 1.3 + 1.2) * 0.3); ctx.rotate(tilt);
   ctx.save(); ctx.globalAlpha = 0.25; ctx.scale(1, 0.4); fillCircle(0, 14 / 0.4, 9, '#000'); ctx.restore();
-  bobHead(key, expr, o.phase || 0, look, tilt);
+  if (suit) suitHoodBack(suit);
+  bobHead(key, expr, o.phase || 0, look, tilt, { noEars: !!(suit && suit.hood) });
+  if (suit) suitHoodFront(suit, !!p.topeyes);
   const gk = o.gear && gearUnlocked(o.gear) ? o.gear : 'none';
   if (gk !== 'none') drawGearArt(0, -1, gk, 1);
   const hk = o.hat && hatUnlocked(o.hat) ? o.hat : 'none';
@@ -2409,8 +2434,18 @@ const HATS = {
   halo: { name: 'MARSH ANGEL', rar: 4, gacha: true, ico: 'halo', col: '#ffe089', col2: '#fff6c8', flav: 'Blessed be the bicuspid.' },
   party: { name: 'PARTY CONE', rar: 5, shop: true, ico: 'party', col: '#ff8ab0', col2: '#4ef0c8', flav: 'Every bank is a birthday.' },
   flame: { name: 'SWAMP FIRE', rar: 5, gacha: true, ico: 'flame', col: '#ff6a20', col2: '#ffe089', flav: 'The hottest take in the bog.' },
+  beanie: { name: 'KNIT BEANIE', rar: 1, shop: true, ico: 'beanie', col: '#d8503a', col2: '#f4ecd4', flav: 'Toasty ears, cold hands.' },
+  chef: { name: 'CHEF TOQUE', rar: 1, shop: true, ico: 'chef', col: '#f8f6f0', col2: '#c8c4b8', flav: 'Gumbo expert. Dentist second.' },
+  mushroom: { name: 'MUSHROOM CAP', rar: 2, shop: true, ico: 'mushroom', col: '#d8303a', col2: '#fff4e8', flav: 'Spotted in the damp.' },
+  propeller: { name: 'PROPELLER BEANIE', rar: 2, shop: true, ico: 'propeller', col: '#3a8ae8', col2: '#f8d030', flav: 'Almost achieves lift.' },
+  bunnyears: { name: 'BUNNY EARS', rar: 2, booth: true, ico: 'bunnyears', col: '#f4eef0', col2: '#f0a0b8', flav: 'Hop hop, open wide.' },
+  viking: { name: 'VIKING HELM', rar: 3, shop: true, ico: 'viking', col: '#8a98a0', col2: '#f4ecd4', flav: 'Raid the molars.' },
+  gatorcap: { name: 'GATOR MERCH CAP', rar: 3, booth: true, ico: 'gatorcap', col: '#3a8a3a', col2: '#f4ecd4', flav: 'Official BITE DOWN merch. Chomp on your head.' },
+  flowers: { name: 'LILY CROWN', rar: 3, booth: true, ico: 'flowers', col: '#f0a0c8', col2: '#5aa84a', flav: 'Picked fresh from the bayou.' },
+  wombat: { name: 'WOMBAT HAT', rar: 4, itch: true, ico: 'wombat', col: '#8a6a4a', col2: '#d8b890', flav: 'A gift from Wombaton Studios for following on itch.io.' },
+  owlbun: { name: "OWLET'S BUN", rar: 5, owl: true, ico: 'owlbun', col: '#9c968e', col2: '#e8b830', flav: 'Pencil included. Grumpiness sold separately.' },
 };
-const HAT_ORDER = ['none', 'straw', 'cap', 'bandana', 'ranger', 'cowboy', 'top', 'wizard', 'crown', 'pirate', 'halo', 'party', 'flame'];
+const HAT_ORDER = ['none', 'straw', 'cap', 'bandana', 'beanie', 'chef', 'ranger', 'cowboy', 'mushroom', 'propeller', 'bunnyears', 'top', 'wizard', 'crown', 'viking', 'gatorcap', 'flowers', 'pirate', 'halo', 'wombat', 'party', 'flame', 'owlbun'];
 const hatUnlocked = k => HATS[k].free || !!meta.hatOwn[k] || (HATS[k].ach ? !!meta.ach[HATS[k].ach] : false);
 
 // ------------------------------------------- GEAR (worn on the face) --------
@@ -2570,6 +2605,60 @@ function drawHatArt(cx, by, key, sc) {
       R(-4, -5, 8, 3, col); R(-3, -8, 6, 3, col); R(-1, -11, 3, 3, col); R(0, -13, 2, 2, '#ffd54a'); // cone
       R(-3, -4, 2, 1, '#fff'); R(1, -7, 1, 1, '#fff'); R(-1, -10, 1, 1, c2); // confetti stripes
       R(-4, -5, 1, 1, HLW); R(-6, -1, 12, 1, SH); R(2, -8, 1, 3, SH);
+      break;
+    case 'beanie':
+      R(-6, -6, 12, 5, col); R(-5, -7, 10, 1, col); R(-6, -2, 12, 2, c2);
+      for (let k = 0; k < 5; k++) R(-5 + k * 2, -6, 1, 4, SH);
+      R(-2, -10, 4, 3, c2); R(-1, -11, 2, 1, c2); R(-5, -6, 1, 1, HLW);
+      break;
+    case 'chef':
+      R(-5, -4, 10, 3, col); R(-5, -2, 10, 1, c2);
+      R(-7, -11, 6, 7, col); R(-2, -13, 5, 9, col); R(2, -11, 6, 7, col);
+      R(-6, -10, 1, 1, HLW); R(-1, -12, 1, 1, HLW); R(4, -8, 1, 3, SH); R(-3, -5, 1, 2, c2); R(2, -5, 1, 2, c2);
+      break;
+    case 'mushroom':
+      R(-9, -3, 18, 2, '#8a1a1a'); R(-8, -6, 16, 3, col); R(-6, -8, 12, 2, col); R(-3, -9, 6, 1, col);
+      R(-5, -7, 2, 2, c2); R(1, -8, 3, 2, c2); R(4, -5, 2, 2, c2); R(-7, -4, 2, 1, c2);
+      R(-6, -8, 1, 1, HLW); R(-9, -1, 18, 1, SH);
+      break;
+    case 'propeller': {
+      R(-6, -5, 12, 4, col); R(-5, -6, 10, 1, col); R(-6, -2, 12, 1, '#f84a4a');
+      R(-6, -5, 3, 3, '#f84a4a'); R(3, -5, 3, 3, '#5ac86a');
+      R(0, -9, 1, 3, '#3a3a3a');
+      const sp = Math.cos(tNow * 18), pw = Math.max(1, Math.round(Math.abs(sp) * 6));
+      R(-pw, -10, pw * 2, 1, c2); R(-5, -5, 1, 1, HLW);
+      break;
+    }
+    case 'bunnyears':
+      R(-7, -3, 14, 2, '#c8c0c8');
+      R(-6, -14, 4, 11, col); R(2, -14, 4, 11, col); R(-5, -13, 2, 9, c2); R(3, -13, 2, 9, c2);
+      R(-6, -14, 1, 1, HLW); R(5, -12, 1, 8, SH);
+      break;
+    case 'viking':
+      R(-6, -6, 12, 5, col); R(-5, -7, 10, 1, col); R(-6, -2, 12, 2, '#6a5a3a');
+      R(-10, -9, 3, 2, c2); R(-9, -7, 3, 2, c2); R(-8, -5, 2, 2, c2); R(7, -9, 3, 2, c2); R(6, -7, 3, 2, c2); R(6, -5, 2, 2, c2);
+      R(-1, -7, 2, 5, '#6a7880'); R(-5, -6, 1, 1, HLW); R(4, -6, 1, 4, SH);
+      break;
+    case 'gatorcap':
+      R(-6, -6, 12, 5, col); R(-5, -7, 10, 1, col); R(-10, -2, 9, 2, col); R(-10, -1, 7, 1, dk);
+      for (let k = 0; k < 4; k++) R(-10 + k * 2, 0, 1, 1, c2);
+      R(-4, -9, 3, 3, col); R(2, -9, 3, 3, col); R(-3, -8, 1, 2, '#f0d040'); R(3, -8, 1, 2, '#f0d040');
+      R(-5, -6, 1, 1, HLW); R(-5, -2, 10, 1, SH);
+      break;
+    case 'flowers':
+      R(-7, -3, 14, 2, c2);
+      [-6, -2, 2, 6].forEach((fx, i) => { const fc = ['#f0a0c8', '#f8f0f0', '#f8d040', '#c8a0f8'][i]; R(fx - 1, -5, 3, 1, fc); R(fx, -6, 1, 3, fc); R(fx, -5, 1, 1, '#f8d040'); });
+      break;
+    case 'wombat':
+      R(-7, -7, 14, 7, col); R(-6, -8, 12, 1, col);
+      R(-8, -10, 3, 3, col); R(5, -10, 3, 3, col); R(-7, -9, 1, 1, c2); R(6, -9, 1, 1, c2);
+      R(-3, -5, 6, 3, c2); R(-1, -5, 2, 1, '#2a1a0c'); R(-4, -6, 1, 1, '#1a1208'); R(3, -6, 1, 1, '#1a1208');
+      R(-7, -1, 14, 1, SH); R(-6, -7, 1, 1, HLW);
+      break;
+    case 'owlbun':
+      R(-5, -8, 10, 7, col); R(-4, -9, 8, 1, col); R(-4, -6, 8, 1, '#7c7670'); R(-3, -4, 6, 1, '#7c7670');
+      R(-9, -10, 16, 1, '#1e150c'); R(-8, -10, 14, 1, c2); R(-10, -11, 2, 2, '#e87a8a'); R(6, -10, 1, 1, '#2a2016');
+      R(-4, -8, 1, 1, HLW);
       break;
     case 'flame': {
       const f = tNow * 9;
@@ -2987,6 +3076,731 @@ if (!meta.index) meta.index = { seen: {}, claimed: {} };
 // per-ranger MASTERY: field hours logged, which rank up into exclusive badges
 if (!meta.mastery) meta.mastery = {};
 function saveMeta() { try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
+
+// ============================== OUTFITS ====================================
+//  Four more wardrobe slots on top of hats, face gear and gloves: SHIRTS,
+//  PANTS, SHOES and full-body SUITS (costumes with a hood).  Every piece has
+//  a rarity and a place it is sold - the run shop's closet ($), Mrs Owlet's
+//  trading booth (cookies), her owl-only specials, or a follow reward.
+//  src: 'free' | 'shop' | 'booth' | 'owl' | 'itch' | 'tiktok'
+// ==========================================================================
+const ITCH_URL = 'https://pukkingdragon123.itch.io/';
+const TIKTOK_URL = 'https://www.tiktok.com/@wombaton.studios?_r=1&_t=ZS-9A1PY11nWLM';
+const FIT_CATS = ['shirt', 'pants', 'shoes', 'suit'];
+const FITS = {
+  // ---------------------------------------------------------------- SHIRTS
+  rangershirt: { cat: 'shirt', name: 'RANGER JACKET', rar: 0, src: 'free', flav: 'Standard issue. Smells of swamp.' },
+  plaintee: { cat: 'shirt', name: 'PLAIN TEE', rar: 0, src: 'shop', col: '#e8e4d8', pat: 'none', flav: 'A blank canvas for gator spit.' },
+  sailor: { cat: 'shirt', name: 'SAILOR STRIPES', rar: 1, src: 'shop', col: '#f0ece0', col2: '#2a4a8a', pat: 'stripes', flav: 'Ahoy, molars.' },
+  flannel: { cat: 'shirt', name: 'SWAMP FLANNEL', rar: 1, src: 'shop', col: '#b83a2a', col2: '#3a1410', pat: 'plaid', flav: 'Chops wood. Pulls teeth.' },
+  hoodie: { cat: 'shirt', name: 'COZY HOODIE', rar: 2, src: 'shop', col: '#8a98a8', col2: '#5a6878', pat: 'hoodie', flav: 'Hood up, worries down.' },
+  hawaiian: { cat: 'shirt', name: 'BAYOU HAWAIIAN', rar: 2, src: 'shop', col: '#2aa8a0', col2: '#ff8ab0', pat: 'flowers', flav: 'Vacation mode: permanent.' },
+  gatortee: { cat: 'shirt', name: 'BITE DOWN MERCH TEE', rar: 2, src: 'booth', col: '#3a8a3a', col2: '#f4ecd4', pat: 'gatorlogo', flav: 'Official. Mostly.' },
+  jersey: { cat: 'shirt', name: 'GATORS #8 JERSEY', rar: 3, src: 'shop', col: '#e8c040', col2: '#2a6a2a', pat: 'jersey', flav: 'Undefeated at the bank.' },
+  tiedye: { cat: 'shirt', name: 'TIE-DYE TEE', rar: 3, src: 'booth', col: '#ff8a4a', col2: '#4ab8e8', pat: 'tiedye', flav: 'Far out, gator.' },
+  tux: { cat: 'shirt', name: 'BLACK TIE', rar: 4, src: 'booth', col: '#1e2226', col2: '#f4f0e8', pat: 'tux', flav: 'For extractions of the utmost class.' },
+  wombattee: { cat: 'shirt', name: 'WOMBAT TEE', rar: 4, src: 'tiktok', col: '#6a8ad0', col2: '#8a6a4a', pat: 'wombat', flav: 'Wombaton Studios, represent.' },
+  galaxytee: { cat: 'shirt', name: 'GALAXY TEE', rar: 5, src: 'owl', col: '#2a1a4a', col2: '#c8a8f8', pat: 'galaxy', flav: 'Mrs Owlet found it in lost property.' },
+  owlknit: { cat: 'shirt', name: "OWLET'S KNIT", rar: 5, src: 'owl', col: '#673660', col2: '#a8739c', pat: 'knit', flav: 'She knitted it. She will know if you spill.' },
+  // ----------------------------------------------------------------- PANTS
+  rangerpants: { cat: 'pants', name: 'RANGER TROUSERS', rar: 0, src: 'free', flav: 'Pockets for teeth.' },
+  jeans: { cat: 'pants', name: 'BLUE JEANS', rar: 0, src: 'shop', col: '#3a5a9a', col2: '#8aa8d8', pat: 'denim', flav: 'Pre-ripped by a gator.' },
+  cargo: { cat: 'pants', name: 'CARGO SHORTS', rar: 1, src: 'shop', col: '#9a8a5a', col2: '#6a5a34', pat: 'cargo', shorts: 1, flav: 'Seven pockets. All wet.' },
+  plaidshorts: { cat: 'pants', name: 'PLAID SHORTS', rar: 1, src: 'shop', col: '#c85a3a', col2: '#f4d060', pat: 'plaid', shorts: 1, flav: 'Loud. Proud.' },
+  camo: { cat: 'pants', name: 'SWAMP CAMO', rar: 2, src: 'shop', col: '#5a6a3a', col2: '#2e3a1e', pat: 'camo', flav: 'The gators cannot see you. Probably.' },
+  polka: { cat: 'pants', name: 'POLKA PANTS', rar: 2, src: 'booth', col: '#e84a6a', col2: '#fff4f0', pat: 'dots', flav: 'Dot dot dot.' },
+  pajama: { cat: 'pants', name: 'STARRY PAJAMAS', rar: 2, src: 'booth', col: '#3a4a8a', col2: '#ffe089', pat: 'stars', flav: 'Straight out of bed, onto the job.' },
+  kilt: { cat: 'pants', name: 'BAYOU KILT', rar: 3, src: 'shop', col: '#2a6a4a', col2: '#c83a2a', pat: 'plaid', kilt: 1, flav: 'Breezy.' },
+  gatorprint: { cat: 'pants', name: 'GATOR PRINT', rar: 3, src: 'booth', col: '#4a8a3a', col2: '#2a5a24', pat: 'scales', flav: 'Wear the enemy.' },
+  rainbow: { cat: 'pants', name: 'RAINBOW LEGGINGS', rar: 4, src: 'booth', col: '#e84a4a', pat: 'rainbow', flav: 'Every colour of the marsh at sunset.' },
+  goldpants: { cat: 'pants', name: 'GILDED SLACKS', rar: 5, src: 'owl', col: '#e8b830', col2: '#fff0a0', pat: 'shine', flav: 'Heavy. Very heavy.' },
+  // ----------------------------------------------------------------- SHOES
+  rangerboots: { cat: 'shoes', name: 'RANGER BOOTS', rar: 0, src: 'free', flav: 'Waterproof on a good day.' },
+  sneakers: { cat: 'shoes', name: 'SWAMP SNEAKERS', rar: 0, src: 'shop', col: '#e8e4dc', col2: '#d83a3a', style: 'sneaker', flav: 'Squeak on the boardwalk.' },
+  rainboots: { cat: 'shoes', name: 'RAIN BOOTS', rar: 1, src: 'shop', col: '#f0c030', col2: '#a87a10', style: 'tall', flav: 'Puddles fear you.' },
+  flipflops: { cat: 'shoes', name: 'FLIP FLOPS', rar: 1, src: 'shop', col: '#4ab8e8', col2: '#f0e0a0', style: 'flip', flav: 'Flip. Flop. Flee.' },
+  flippers: { cat: 'shoes', name: 'SWIM FLIPPERS', rar: 2, src: 'shop', col: '#3ac86a', col2: '#1a7a3a', style: 'flipper', flav: 'Fast in water. Hilarious on land.' },
+  cowboy: { cat: 'shoes', name: 'COWBOY BOOTS', rar: 2, src: 'shop', col: '#8a5a2a', col2: '#c8a060', style: 'cowboy', flav: 'Spurs sold separately.' },
+  bunny: { cat: 'shoes', name: 'BUNNY SLIPPERS', rar: 3, src: 'booth', col: '#f8d8e0', col2: '#e87a9a', style: 'bunny', flav: 'Hop to it.' },
+  clown: { cat: 'shoes', name: 'CLOWN SHOES', rar: 3, src: 'booth', col: '#d83a3a', col2: '#f4f0e8', style: 'clown', flav: 'Honk honk, dentist.' },
+  gatorslip: { cat: 'shoes', name: 'GATOR SLIPPERS', rar: 3, src: 'booth', col: '#4a9a3a', col2: '#f4ecd4', style: 'gator', flav: 'Official merch. They bite back.' },
+  skates: { cat: 'shoes', name: 'ROLLER SKATES', rar: 4, src: 'booth', col: '#e84a8a', col2: '#f8e060', style: 'skate', flav: 'Roll up to the maw in style.' },
+  goldkicks: { cat: 'shoes', name: 'GOLDEN KICKS', rar: 5, src: 'owl', col: '#e8b830', col2: '#fff4b0', style: 'sneaker', shine: 1, flav: 'Mrs Owlet wore them in 1971.' },
+  // ----------------------------------------------------------------- SUITS
+  nosuit: { cat: 'suit', name: 'NO COSTUME', rar: 0, src: 'free', flav: 'Just the uniform.' },
+  bee: { cat: 'suit', name: 'BUSY BEE', rar: 2, src: 'shop', col: '#f0c030', col2: '#1e1a14', pat: 'stripes', hood: '#1e1a14', extra: 'bee', flav: 'Bzz. Open wide.' },
+  ducky: { cat: 'suit', name: 'RUBBER DUCKY', rar: 2, src: 'shop', col: '#f8d840', col2: '#f08a2a', hood: '#f8d840', extra: 'duck', flav: 'Floats. Squeaks. Pulls teeth.' },
+  pumpkin: { cat: 'suit', name: 'PUMPKIN PAL', rar: 2, src: 'shop', col: '#e87a2a', col2: '#a84a10', pat: 'ridges', extra: 'pumpkin', flav: 'Carved with love.' },
+  shark: { cat: 'suit', name: 'SHARK ONESIE', rar: 3, src: 'shop', col: '#6a8aa8', col2: '#f0f0f0', hood: '#6a8aa8', extra: 'shark', belly: 1, flav: 'The other apex predator.' },
+  banana: { cat: 'suit', name: 'BANANA SUIT', rar: 3, src: 'booth', col: '#f8e050', col2: '#c8a820', hood: '#f8e050', extra: 'banana', flav: 'Peak potassium performance.' },
+  hotdog: { cat: 'suit', name: 'HOT DOG', rar: 3, src: 'booth', col: '#c8503a', col2: '#e8b870', extra: 'hotdog', flav: 'Relish the moment.' },
+  crocsuit: { cat: 'suit', name: 'CROC MERCH ONESIE', rar: 4, src: 'booth', col: '#4a9a3a', col2: '#e8dca8', pat: 'scales', hood: '#4a9a3a', extra: 'croc', belly: 1, flav: 'Official BITE DOWN merch. Very soft.' },
+  dino: { cat: 'suit', name: 'DINO SUIT', rar: 4, src: 'booth', col: '#8a5ad0', col2: '#f0a030', hood: '#8a5ad0', extra: 'dino', belly: 1, flav: 'Rawr means open wide in dinosaur.' },
+  knight: { cat: 'suit', name: 'MARSH KNIGHT', rar: 4, src: 'shop', col: '#a8b4bc', col2: '#5a6a74', pat: 'plates', hood: '#8a98a0', extra: 'knight', flav: 'Tooth fairy? No. Tooth KNIGHT.' },
+  astronaut: { cat: 'suit', name: 'ASTRO RANGER', rar: 5, src: 'owl', col: '#eceae4', col2: '#d8603a', hood: '#eceae4', extra: 'astro', flav: 'One small press for a ranger.' },
+};
+const FIT_ORDER = {};
+FIT_CATS.forEach(c => { FIT_ORDER[c] = Object.keys(FITS).filter(k => FITS[k].cat === c); });
+const FIT_DEFAULT = { shirt: 'rangershirt', pants: 'rangerpants', shoes: 'rangerboots', suit: 'nosuit' };
+if (!meta.fit) meta.fit = Object.assign({}, FIT_DEFAULT);
+if (!meta.fitOwn) meta.fitOwn = {};
+const fitUnlocked = k => !!FITS[k] && (FITS[k].src === 'free' || !!meta.fitOwn[k]);
+// everything the player's own ranger is wearing, spread into drawBobble opts
+function myFit() { return { hat: meta.hat, gear: meta.gear, glove: meta.glove, fit: meta.fit }; }
+const rampOf = c => [mixC(c, '#000000', 0.72), mixC(c, '#000000', 0.38), c, mixC(c, '#ffffff', 0.2), mixC(c, '#ffffff', 0.45)];
+
+// a surface pattern painted inside a piece of clothing
+function fitPattern(f, x, y, w, h, phase) {
+  const c2 = f.col2 || mixC(f.col, '#000000', 0.4);
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 1, y + 1, w - 2, h - 2); ctx.clip();
+  switch (f.pat) {
+    case 'stripes': for (let j = 1; j < h; j += 3) rect(x, y + j, w, 1, c2); break;
+    case 'plaid': for (let j = 1; j < h; j += 4) rect(x, y + j, w, 1, c2); for (let i = 1; i < w; i += 4) rect(x + i, y, 1, h, c2); for (let j = 3; j < h; j += 4) for (let i = 3; i < w; i += 4) rect(x + i, y + j, 1, 1, mixC(f.col, '#ffffff', 0.4)); break;
+    case 'dots': for (let j = 1; j < h; j += 3) for (let i = 1 + (j % 2); i < w; i += 3) rect(x + i, y + j, 1, 1, c2); break;
+    case 'stars': for (let k = 0; k < w * h / 14; k++) { const sx = x + 1 + Math.floor(hash2(k, 3) * (w - 2)), sy = y + 1 + Math.floor(hash2(k, 4) * (h - 2)); rect(sx, sy, 1, 1, c2); } break;
+    case 'flowers': for (let k = 0; k < w * h / 18; k++) { const sx = x + 1 + Math.floor(hash2(k, 5) * (w - 3)), sy = y + 1 + Math.floor(hash2(k, 6) * (h - 3)); rect(sx, sy + 1, 3, 1, c2); rect(sx + 1, sy, 1, 3, c2); rect(sx + 1, sy + 1, 1, 1, '#ffe060'); } break;
+    case 'camo': for (let k = 0; k < w * h / 8; k++) { const sx = x + Math.floor(hash2(k, 7) * w), sy = y + Math.floor(hash2(k, 8) * h); rect(sx, sy, 2 + (k % 2), 2, k % 3 ? c2 : '#8a8a4a'); } break;
+    case 'scales': for (let j = 1; j < h; j += 3) for (let i = (j % 2) * 2; i < w; i += 4) { rect(x + i, y + j, 3, 1, c2); } break;
+    case 'denim': for (let i = 2; i < w; i += 3) rect(x + i, y, 1, h, mixC(f.col, '#ffffff', 0.15)); rect(x + (w >> 1), y, 1, h, c2); break;
+    case 'cargo': rect(x + 1, y + 3, w - 2, 3, c2); rect(x + 1, y + 3, w - 2, 1, mixC(f.col, '#ffffff', 0.3)); break;
+    case 'rainbow': ['#e84a4a', '#f89a3a', '#f8e050', '#5ac86a', '#4a9ae8', '#9a6ad8'].forEach((c, i) => rect(x, y + Math.floor(i * h / 6), w, Math.ceil(h / 6), c)); break;
+    case 'shine': rect(x + 1, y + 1, 1, h - 2, '#ffffff'); if (Math.sin(tNow * 4 + phase) > 0.6) rect(x + 2, y + 2, 1, 1, '#ffffff'); break;
+    case 'tiedye': for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const d = Math.hypot(i - w / 2, j - h / 2); rect(x + i, y + j, 1, 1, ['#ff8a4a', '#f8e050', '#5ac86a', '#4ab8e8', '#c86ad8'][Math.floor(d / 2) % 5]); } break;
+    case 'galaxy': for (let k = 0; k < w * h / 10; k++) { const sx = x + Math.floor(hash2(k, 9) * w), sy = y + Math.floor(hash2(k, 10) * h); rect(sx, sy, 1, 1, k % 4 ? c2 : '#ffffff'); } rect(x + 2, y + (h >> 1), w - 4, 1, mixC(f.col, c2, 0.5)); break;
+    case 'knit': for (let j = 0; j < h; j += 2) for (let i = 0; i < w; i += 2) { rect(x + i, y + j + ((i >> 1) & 1), 1, 1, mixC(f.col, '#000000', 0.3)); rect(x + i + 1, y + j + 1 - ((i >> 1) & 1), 1, 1, c2); } break;
+    case 'ridges': for (let i = 2; i < w; i += 4) rect(x + i, y, 1, h, c2); break;
+    case 'plates': for (let j = 3; j < h; j += 5) { rect(x, y + j, w, 1, c2); rect(x, y + j + 1, w, 1, '#e8f0f4'); } break;
+  }
+  ctx.restore();
+}
+// the chest decoration that sits on top of a shirt's fabric
+function fitShirtFront(f, by) {
+  const c2 = f.col2 || '#ffffff';
+  if (f.pat === 'tux') {
+    for (let r = 0; r < 12; r++) rect(-Math.max(0, 4 - (r >> 1)), by + 1 + r, Math.max(1, 9 - r), 1, c2);
+    rect(-3, by + 1, 7, 1, c2); rr(-3, by + 1, 7, 3, 1, '#c8303a'); rect(0, by + 2, 1, 1, '#801818');
+    rect(0, by + 6, 1, 1, '#1a1a1a'); rect(0, by + 9, 1, 1, '#1a1a1a');
+  } else if (f.pat === 'hoodie') {
+    rr(-5, by + 8, 11, 5, 2, c2); rect(-4, by + 8, 9, 1, mixC(f.col, '#ffffff', 0.25));
+    rect(-2, by + 1, 1, 5, '#f0f0f0'); rect(2, by + 1, 1, 5, '#f0f0f0');
+  } else if (f.pat === 'jersey') {
+    rect(-10, by + 3, 21, 2, c2); drawText('8', -2, by + 7, c2, 1);
+  } else if (f.pat === 'gatorlogo') {
+    rr(-4, by + 4, 9, 6, 1, '#2a6a2a'); rect(-3, by + 3, 2, 2, '#2a6a2a'); rect(2, by + 3, 2, 2, '#2a6a2a');
+    rect(-3, by + 3, 1, 1, '#f8e060'); rect(3, by + 3, 1, 1, '#f8e060');
+    for (let k = 0; k < 4; k++) rect(-3 + k * 2, by + 8, 1, 1, c2);
+  } else if (f.pat === 'wombat') {
+    fillCircle(0, by + 7, 4, c2); rect(-4, by + 3, 2, 2, c2); rect(3, by + 3, 2, 2, c2);
+    rr(-2, by + 7, 5, 3, 1, '#d8b890'); rect(-2, by + 6, 1, 1, '#1a1208'); rect(2, by + 6, 1, 1, '#1a1208'); rect(0, by + 7, 1, 1, '#1a1208');
+  }
+}
+// a pair of shoes on one foot at (x, y) - w/h match the old boot box
+function fitShoe(f, x, y, sc) {
+  if (!f || f.src === 'free') { plasticBox(x, y, 10, 6, 2, BOOT, { noShine: 1 }); return; }
+  const R = rampOf(f.col), c2 = f.col2 || '#ffffff';
+  switch (f.style) {
+    case 'sneaker':
+      plasticBox(x, y, 10, 6, 2, R, { noShine: 1, seed: 3 }); rect(x + 1, y + 4, 9, 2, '#f8f8f4'); rect(x + 1, y + 5, 9, 1, '#b8b8b0');
+      rect(x + 3, y + 1, 1, 2, c2); rect(x + 5, y + 1, 1, 2, c2); rect(x + 7, y + 2, 2, 1, c2);
+      if (f.shine && Math.sin(tNow * 5 + x) > 0.5) rect(x + 2, y + 1, 1, 1, '#ffffff');
+      break;
+    case 'tall': plasticBox(x, y - 3, 10, 9, 2, R, { seed: 5 }); rect(x + 1, y + 4, 9, 2, R[1]); rect(x + 2, y - 2, 1, 5, R[4]); break;
+    case 'flip': rect(x, y + 4, 10, 2, R[0]); rect(x + 1, y + 4, 9, 1, c2); rect(x + 4, y + 1, 1, 3, R[2]); rect(x + 3, y + 1, 3, 1, R[2]); break;
+    case 'flipper': plasticBox(x - 1, y + 2, 15, 4, 2, R, { noShine: 1 }); for (let k = 0; k < 3; k++) rect(x + 5 + k * 3, y + 3, 1, 2, R[1]); plasticBox(x, y, 7, 4, 1, R, { noShine: 1 }); break;
+    case 'cowboy': plasticBox(x, y - 2, 10, 8, 2, R, { noShine: 1 }); rect(x + 8, y + 3, 3, 3, R[2]); rect(x + 1, y + 5, 3, 1, '#1a1208'); rect(x + 3, y, 5, 1, c2); rect(x + 3, y + 2, 5, 1, c2); break;
+    case 'bunny': plasticBox(x - 1, y, 12, 6, 3, R, { noShine: 1 }); rect(x + 1, y - 4, 2, 5, R[2]); rect(x + 5, y - 4, 2, 5, R[2]); rect(x + 1, y - 3, 1, 3, c2); rect(x + 5, y - 3, 1, 3, c2); rect(x + 8, y + 2, 1, 1, '#1a1208'); rect(x + 9, y + 3, 1, 1, c2); break;
+    case 'clown': plasticBox(x - 2, y, 15, 6, 3, R, { seed: 2 }); rect(x + 6, y + 1, 3, 2, c2); break;
+    case 'gator': plasticBox(x - 1, y, 13, 6, 2, R, { noShine: 1 }); rect(x + 6, y - 1, 2, 2, R[2]); rect(x + 9, y - 1, 2, 2, R[2]); rect(x + 6, y - 1, 1, 1, '#f8e060'); rect(x + 9, y - 1, 1, 1, '#f8e060'); for (let k = 0; k < 4; k++) rect(x + 3 + k * 2, y + 4, 1, 1, c2); break;
+    case 'skate': plasticBox(x, y - 2, 10, 6, 2, R, { noShine: 1 }); rect(x, y + 4, 10, 1, '#8a8a8a'); fillCircle(x + 2, y + 6, 1, c2); fillCircle(x + 8, y + 6, 1, c2); break;
+    default: plasticBox(x, y, 10, 6, 2, R, { noShine: 1 });
+  }
+}
+// hooded costumes: the back of the hood (drawn before the head)...
+function suitHoodBack(f) {
+  if (!f.hood) return;
+  const R = rampOf(f.hood);
+  plasticBox(-16, -19, 32, 31, 11, R, { seed: 11 });
+  if (f.extra === 'banana') { for (let k = 0; k < 3; k++) { const px = -12 + k * 10; plasticBox(px, 4, 7, 14, 3, R, { noShine: 1 }); } }
+  if (f.extra === 'astro') { ringPx(0, -3, 16, '#1a1a1a'); ringPx(0, -3, 15, '#9ac8e8'); }
+}
+// ...and the front: a brow band framing the face, plus the costume's trimmings
+function suitHoodFront(f, topeyes) {
+  if (!f.hood) return;
+  const R = rampOf(f.hood);
+  if (!topeyes) plasticBox(-15, -20, 30, 9, 5, R, { noShine: 1, seed: 12 });
+  const e = f.extra;
+  if (e === 'banana') { rect(-1, -26, 3, 6, '#6a4a14'); rect(0, -27, 1, 1, '#3a2a0a'); rect(-10, -18, 20, 1, f.col2); }
+  if (e === 'croc') {
+    [-8, 8].forEach(sx => { plasticBox(sx - 4, -25, 9, 7, 3, R, { noShine: 1 }); rr(sx - 2, -24, 5, 4, 1, '#f0d040'); rect(sx, -24, 1, 4, '#1a1206'); });
+    for (let k = 0; k < 7; k++) { rect(-12 + k * 4, -12, 2, 2, '#f8f4e8'); rect(-11 + k * 4, -10, 1, 1, '#f8f4e8'); }
+  }
+  if (e === 'shark') { for (let r = 0; r < 8; r++) rect(-1 - (r >> 1), -28 + r, 2 + (r >> 1), 1, R[r < 2 ? 3 : 2]); for (let k = 0; k < 7; k++) rect(-12 + k * 4, -12, 2, 2, '#f8f8f8'); }
+  if (e === 'dino') { for (let k = 0; k < 4; k++) { const sx = -9 + k * 6; rect(sx, -23, 3, 3, f.col2); rect(sx + 1, -25, 1, 2, f.col2); } }
+  if (e === 'bee') { [-5, 5].forEach(sx => { pxLine(sx, -20, sx * 1.6, -28, '#1e1a14'); fillCircle(sx * 1.6, -29, 2, '#1e1a14'); }); }
+  if (e === 'duck') { rr(-5, -14, 11, 4, 2, f.col2); rect(-4, -14, 9, 1, mixC(f.col2, '#ffffff', 0.4)); rect(-9, -19, 2, 2, '#1a1a1a'); rect(8, -19, 2, 2, '#1a1a1a'); }
+  if (e === 'knight') { rect(-2, -30, 4, 10, '#c8303a'); rect(-3, -31, 6, 3, '#e84a4a'); for (let k = 0; k < 5; k++) rect(-10 + k * 5, -16, 1, 2, R[1]); }
+  if (e === 'astro') { ctx.save(); ctx.globalAlpha = 0.25; rect(-12, -14, 4, 10, '#ffffff'); rect(-7, -16, 2, 4, '#ffffff'); ctx.restore(); rect(-2, -20, 4, 2, f.col2); }
+}
+// trimmings behind the body (wings, spikes, the other half of the bun)
+function suitBack(f, by) {
+  const e = f.extra;
+  if (e === 'bee') { ctx.save(); ctx.globalAlpha = 0.6; [-1, 1].forEach(s => { const fl = Math.sin(tNow * 30) * 2; rr(s * 10 - (s < 0 ? 9 : 0), by - 4 + fl, 9, 12, 4, '#e8f4ff'); }); ctx.restore(); }
+  if (e === 'dino') for (let k = 0; k < 4; k++) { rect(9, by + 2 + k * 5, 4, 3, f.col2); rect(12, by + 3 + k * 5, 2, 1, f.col2); }
+  if (e === 'hotdog') { plasticBox(-15, by - 2, 30, 22, 8, rampOf(f.col2), { seed: 4 }); }
+  if (e === 'astro') plasticBox(-12, by + 1, 24, 14, 3, ['#1a1a1a', '#8a8a8a', '#c8c8c8', '#e0e0e0', '#ffffff'], { noShine: 1 });
+  if (e === 'croc' || e === 'shark') { rect(8, by + 12, 8, 4, rampOf(f.col)[2]); rect(14, by + 13, 4, 2, rampOf(f.col)[1]); }
+}
+// and the costume's front details over the torso
+function suitFront(f, by) {
+  const e = f.extra;
+  if (f.belly) { rr(-5, by + 3, 11, 13, 4, f.col2); for (let j = by + 5; j < by + 15; j += 3) rect(-4, j, 9, 1, mixC(f.col2, '#000000', 0.15)); }
+  if (e === 'hotdog') { for (let k = 0; k < 5; k++) { rect(-7 + k * 3, by + 6 + (k % 2), 2, 1, '#f8d020'); } }
+  if (e === 'duck') { plasticBox(-13, by + 10, 27, 6, 3, rampOf('#f08a2a'), { noShine: 1 }); rect(-12, by + 11, 25, 1, '#f8c080'); }
+  if (e === 'pumpkin') { rect(-3, by + 5, 2, 2, '#3a1a08'); rect(2, by + 5, 2, 2, '#3a1a08'); for (let k = 0; k < 5; k++) rect(-4 + k * 2, by + 10 + (k % 2), 1, 1, '#3a1a08'); }
+  if (e === 'astro') { rr(-4, by + 4, 9, 6, 1, '#3a4a5a'); rect(-3, by + 5, 2, 1, '#ff4a3a'); rect(0, by + 5, 2, 1, '#5ac86a'); rect(3, by + 5, 1, 1, '#f8e060'); rect(-6, by + 12, 13, 1, f.col2); }
+  if (e === 'knight') { rr(-3, by + 3, 7, 9, 2, '#c8a040'); rect(-1, by + 4, 3, 7, '#8a2a2a'); rect(-2, by + 6, 5, 2, '#8a2a2a'); }
+}
+
+// ======================= THE WHOLE WARDROBE CATALOGUE ======================
+//  One interface over all seven slots so the wardrobe, Mrs Owlet's booth and
+//  the run shop's closet all talk about "an item" the same way.
+// ==========================================================================
+const COS_CATS = [
+  { id: 'hat', name: 'HATS' }, { id: 'shirt', name: 'SHIRTS' }, { id: 'pants', name: 'PANTS' },
+  { id: 'shoes', name: 'SHOES' }, { id: 'suit', name: 'SUITS' }, { id: 'gear', name: 'FACE' }, { id: 'glove', name: 'GLOVES' },
+];
+const COS_SRC_NAME = {
+  free: 'STARTER GEAR', shop: "GATOR'S CLOSET - THE RUN SHOP", booth: "MRS OWLET'S TRADING BOOTH", owl: "OWLET SPECIAL - HER BOOTH ONLY",
+  itch: 'FREE: FOLLOW US ON ITCH.IO', tiktok: 'FREE: FOLLOW US ON TIKTOK', ach: 'EARNED BY AN ACHIEVEMENT',
+};
+const COOKIE_PRICE = [20, 35, 60, 100, 160, 250];
+function cosList(cat) {
+  if (cat === 'hat') return HAT_ORDER;
+  if (cat === 'gear') return GEAR_ORDER;
+  if (cat === 'glove') return GLOVE_ORDER;
+  return FIT_ORDER[cat] || [];
+}
+function cosDef(cat, k) {
+  if (cat === 'hat') return HATS[k];
+  if (cat === 'gear') return GEAR[k];
+  if (cat === 'glove') { const g = GLOVES[k]; return g && Object.assign({ rar: GLOVE_RAR[k] || 0 }, g); }
+  return FITS[k];
+}
+function cosSrc(cat, k) {
+  const d = cosDef(cat, k); if (!d) return 'free';
+  if (d.src) return d.src;
+  if (cat === 'glove') return k === 'bare' ? 'free' : d.gacha ? 'booth' : d.shop ? 'shop' : 'ach';
+  if (d.free) return 'free';
+  if (d.owl) return 'owl';
+  if (d.itch) return 'itch';
+  if (d.tiktok) return 'tiktok';
+  if (d.gacha || d.booth) return 'booth';
+  if (d.ach) return 'ach';
+  return 'shop';
+}
+function cosOwned(cat, k) {
+  if (cat === 'hat') return hatUnlocked(k);
+  if (cat === 'gear') return gearUnlocked(k);
+  if (cat === 'glove') return gloveUnlocked(k);
+  return fitUnlocked(k);
+}
+function cosWorn(cat, k) {
+  if (cat === 'hat') return meta.hat === k;
+  if (cat === 'gear') return meta.gear === k;
+  if (cat === 'glove') return meta.glove === k;
+  return (meta.fit[cat] || FIT_DEFAULT[cat]) === k;
+}
+function cosEquip(cat, k) {
+  if (cat === 'hat') meta.hat = k; else if (cat === 'gear') meta.gear = k; else if (cat === 'glove') meta.glove = k;
+  else { meta.fit[cat] = k; if (cat === 'suit' && k !== 'nosuit') { /* a costume goes over everything */ } }
+  saveMeta();
+}
+function cosGrant(cat, k, wear) {
+  if (cat === 'hat') meta.hatOwn[k] = true; else if (cat === 'gear') meta.gearOwn[k] = true; else if (cat === 'glove') meta.gachaOwn[k] = true;
+  else meta.fitOwn[k] = true;
+  if (wear) cosEquip(cat, k);
+  saveMeta();
+}
+function cosRevoke(cat, k) {
+  if (cat === 'hat') { delete meta.hatOwn[k]; if (meta.hat === k) meta.hat = 'none'; }
+  else if (cat === 'gear') { delete meta.gearOwn[k]; if (meta.gear === k) meta.gear = 'none'; }
+  else if (cat === 'glove') { delete meta.gachaOwn[k]; if (meta.glove === k) meta.glove = 'bare'; }
+  else { delete meta.fitOwn[k]; if (meta.fit[cat] === k) meta.fit[cat] = FIT_DEFAULT[cat]; }
+  saveMeta();
+}
+function cosName(cat) { const c = COS_CATS.find(q => q.id === cat); return c ? c.name.replace(/S$/, '') : 'ITEM'; }
+// the art for any wearable, centred on (cx, cy), roughly 24px across at sc 1
+function cosIcon(cat, k, cx, cy, sc) {
+  sc = sc || 1;
+  if (cat === 'hat') { if (HATS[k].ico === 'none') { rect(cx - 5 * sc, cy, 10 * sc, 2, '#54707a'); return; } drawHatArt(cx, cy + 6 * sc, k, sc); return; }
+  if (cat === 'gear') { if (k === 'none') { rect(cx - 5 * sc, cy, 10 * sc, 2, '#54707a'); return; } drawGearArt(cx, cy - 1, k, sc); return; }
+  if (cat === 'glove') { ctx.save(); ctx.translate(cx - 6 * sc, cy - 6 * sc); ctx.scale(sc, sc); ICONS.glove(0, 0, GLOVES[k].skin); ctx.restore(); return; }
+  drawFitIcon(cx, cy, k, sc * 0.9);
+}
+
+// ============================== THE WARDROBE ================================
+//  A dressing room: a tall mirror on the left shows your ranger (hover any
+//  piece to try it on), a big oak armoire on the right swings its doors open
+//  on a rail of clothes and shelves of hats and shoes.  Every piece shows its
+//  rarity, and anything you do not own tells you exactly where it is sold.
+// ==========================================================================
+function wardrobeStatic() {
+  // rose damask wallpaper
+  const WP = ['#2a1420', '#4a2434', '#5a2e40', '#6a384c', '#7e465c'];
+  rect(0, 0, W, 240, WP[2]);
+  for (let x = 0; x < W; x += 12) { rect(x, 0, 1, 240, WP[1]); rect(x + 6, 0, 1, 240, WP[3]); }
+  for (let y = 10; y < 236; y += 16) for (let x = 3 + ((y / 16) & 1) * 6; x < W; x += 12) { rect(x, y, 1, 1, WP[4]); rect(x - 1, y + 1, 3, 1, WP[3]); rect(x, y + 2, 1, 1, WP[4]); }
+  grainRect(0, 0, W, 240, WP[1], null, 0.02, 7);
+  rect(0, 0, W, 4, UWOOD[1]); rect(0, 4, W, 2, UWOOD[3]);
+  // floor + rug
+  rect(0, 238, W, 32, FLR2[2]); for (let r = 0; r < 4; r++) { rect(0, 238 + r * 8, W, 1, FLR2[0]); woodGrain(0, 239 + r * 8, W, 7, FLR2[1], FLR2[3], r); }
+  rr(14, 240, 140, 24, 6, '#3a1428'); rr(17, 242, 134, 20, 5, '#8a2a48'); for (let x = 22; x < 146; x += 10) { rect(x, 250, 5, 3, '#e8b85a'); }
+  // the standing mirror
+  rr(16, 16, 136, 222, 10, '#1a0e06');
+  plasticBox(18, 18, 132, 218, 10, UGOLD, { seed: 3 });
+  rr(26, 26, 116, 202, 8, '#0e1a22');
+  for (let y = 26; y < 228; y++) rect(27, y, 114, 1, mixC('#1e3440', '#0e1a22', Math.abs(y - 120) / 110));
+  for (let k = 0; k < 30; k++) rect(30 + (k * 4), 30 + k * 6, 2, 1, '#ffffff14');
+  [[18, 18], [146, 18], [18, 232], [146, 232]].forEach(([cx, cy]) => goldCurl(cx + (cx > 80 ? -3 : 3), cy + (cy > 100 ? -3 : 3), cx > 80 ? -1 : 1, cy > 100 ? -1 : 1));
+  // mirror bulbs
+  for (let k = 0; k < 8; k++) { fillCircle(30 + k * 15, 12, 3, '#6a5a3a'); }
+  // armoire carcass
+  rr(164, 18, 312, 222, 4, '#120a04');
+  plasticBox(166, 20, 308, 218, 4, UWOOD, { seed: 9, noShine: 1 });
+  woodGrain(168, 22, 304, 214, UWOOD[1], UWOOD[3], 13);
+  rr(174, 40, 292, 160, 3, '#2a1422');
+  for (let y = 41; y < 199; y++) for (let x = 175 + (y & 1); x < 465; x += 2) if (hash2(x, y) < 0.12) rect(x, y, 1, 1, '#3a1c30');
+  // cornice + the name plate
+  rect(160, 14, 320, 6, UWOOD[4]); rect(160, 14, 320, 1, '#c8905a'); rect(160, 20, 320, 2, UWOOD[0]);
+  // info plank frame
+  rr(174, 204, 292, 30, 3, '#1a0e06'); rr(175, 205, 290, 28, 3, '#e8dcc0'); grainRect(176, 206, 288, 26, '#d8ccb0', null, 0.05, 3);
+}
+const WD_CELL = { x0: 180, y0: 46, w: 40, h: 38, cols: 7 };
+function wdEnter() { G.wd = { cat: (G.wd && G.wd.cat) || 'hat', t: 0, cheer: 0, sel: null }; sfx.whoosh(); }
+function drawSkins() {
+  if (!G.wd) wdEnter();
+  const wd = G.wd, dt = 1 / 60;
+  wd.t += dt; wd.cheer = Math.max(0, wd.cheer - dt);
+  paintCached('wardrobe', 0, 0, W, H, wardrobeStatic);
+  // mirror bulbs twinkle
+  for (let k = 0; k < 8; k++) { const on = ((tNow * 2 + k) | 0) % 6 !== 0; fillCircle(30 + k * 15, 12, 2, on ? '#ffe9a0' : '#6a5a3a'); if (on) { ctx.save(); ctx.globalAlpha = 0.15; fillCircle(30 + k * 15, 12, 6, '#ffe9a0'); ctx.restore(); } }
+  const rkey = RANGERS[meta.ranger] && rangerUnlocked(meta.ranger) ? meta.ranger : 'scout';
+  const cat = wd.cat, list = cosList(cat);
+  // ---- which piece is under the cursor (for try-on + the info plank) ----
+  let hovK = null;
+  list.forEach((k, i) => { const cx = WD_CELL.x0 + (i % WD_CELL.cols) * WD_CELL.w, cy = WD_CELL.y0 + Math.floor(i / WD_CELL.cols) * WD_CELL.h; if (mx >= cx && mx < cx + WD_CELL.w - 2 && my >= cy && my < cy + WD_CELL.h - 2) hovK = k; });
+  // ---- the mirror: your ranger, trying the hovered piece on ----
+  const fit = myFit(); fit.fit = Object.assign({}, meta.fit);
+  let trying = false;
+  if (hovK) {
+    trying = !cosOwned(cat, hovK);
+    if (cat === 'hat') fit.hat = hovK; else if (cat === 'gear') fit.gear = hovK; else if (cat === 'glove') fit.glove = hovK; else fit.fit[cat] = hovK;
+  }
+  // try-on ignores ownership for the preview only
+  const saveOwn = { h: meta.hatOwn[fit.hat], g: meta.gearOwn[fit.gear], gl: meta.gachaOwn[fit.glove], f: {} };
+  if (trying) { if (cat === 'hat') meta.hatOwn[hovK] = 1; else if (cat === 'gear') meta.gearOwn[hovK] = 1; else if (cat === 'glove') meta.gachaOwn[hovK] = 1; else meta.fitOwn[hovK] = 1; }
+  ctx.save(); ctx.globalAlpha = 0.35; ctx.scale(1, 0.3); fillCircle(84, 222 / 0.3, 34, '#000'); ctx.restore();
+  for (let k = 0; k < 6; k++) { ctx.save(); ctx.globalAlpha = 0.05; fillCircle(84, 150, 70 - k * 10, '#ffe0b0'); ctx.restore(); }
+  drawBobble(84, 220, rkey, Object.assign({ sc: 2.3, expr: wd.cheer > 0 ? 'happy' : trying ? 'wow' : 'calm', act: wd.cheer > 0 ? 'cheer' : 'idle' }, fit));
+  if (trying) { if (cat === 'hat') { if (!saveOwn.h) delete meta.hatOwn[hovK]; } else if (cat === 'gear') { if (!saveOwn.g) delete meta.gearOwn[hovK]; } else if (cat === 'glove') { if (!saveOwn.gl) delete meta.gachaOwn[hovK]; } else delete meta.fitOwn[hovK]; }
+  if (trying) { plasticBox(44, 30, 80, 12, 3, ['#1a0606', '#8a2a1a', '#c84a38', '#e0705a', '#ffc0b0'], { noShine: 1 }); drawTextC('TRYING ON...', 84, 33, '#fff0e0', 1); }
+  woodBanner(30, 224, 108, 12, (RANGERS[rkey] || RANGERS.scout).name, { col: '#ffe6b0' });
+
+  // ---- category tabs on top of the armoire ----
+  COS_CATS.forEach((c, i) => {
+    const tx = 170 + i * 43, on = c.id === cat, tw = 41;
+    const own = cosList(c.id).filter(k => cosOwned(c.id, k)).length, tot = cosList(c.id).length;
+    plasticBox(tx, on ? 22 : 25, tw, 16, 3, on ? UGOLD : ['#1a0e06', '#4a2c14', '#6a4222', '#86582e', '#a8743e'], { noShine: 1 });
+    drawTextC(c.name, tx + tw / 2, on ? 25 : 28, on ? '#3a2606' : '#f4e2b8', 1);
+    drawTextC(own + '/' + tot, tx + tw / 2, on ? 32 : 35, on ? '#6a4a10' : '#c8a878', 1);
+    hit(tx, 22, tw, 17, { id: 'wdtab' + c.id, cursor: true, cb: () => { if (wd.cat !== c.id) { wd.cat = c.id; wd.t = Math.min(wd.t, 0.3); sfx.click(2); } } });
+  });
+
+  // ---- rails and shelves ----
+  const rows = Math.ceil(list.length / WD_CELL.cols);
+  const hanging = cat === 'shirt' || cat === 'pants' || cat === 'suit';
+  for (let r = 0; r < Math.max(4, rows); r++) {
+    const ry = WD_CELL.y0 + r * WD_CELL.h;
+    if (hanging) { rect(176, ry + 3, 288, 2, '#8a949c'); rect(176, ry + 3, 288, 1, '#d8e0e4'); }
+    else { rect(176, ry + WD_CELL.h - 5, 288, 3, UWOOD[3]); rect(176, ry + WD_CELL.h - 5, 288, 1, UWOOD[4]); rect(176, ry + WD_CELL.h - 2, 288, 1, UWOOD[0]); }
+  }
+  list.forEach((k, i) => {
+    const cx = WD_CELL.x0 + (i % WD_CELL.cols) * WD_CELL.w, cy = WD_CELL.y0 + Math.floor(i / WD_CELL.cols) * WD_CELL.h;
+    const d = cosDef(cat, k), rar = d.rar || 0, own = cosOwned(cat, k), worn = cosWorn(cat, k), hov = hovK === k;
+    const icx = cx + 19, icy = cy + 20;
+    // items pop in one after another when the doors open
+    const appear = clamp((wd.t - 0.45 - i * 0.02) * 6, 0, 1);
+    if (appear <= 0) return;
+    ctx.save();
+    const sway = hanging ? Math.sin(tNow * 1.6 + i) * 0.05 + (hov ? Math.sin(tNow * 9) * 0.06 : 0) : 0;
+    ctx.translate(icx, cy + 4); ctx.rotate(sway); ctx.scale(appear, appear); ctx.translate(-icx, -(cy + 4));
+    if (hov) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 6) * 0.1; fillCircle(icx, icy, 17, RAR_COL[rar]); ctx.restore(); }
+    if (rar >= 4 && own) sparkle(icx + 12, icy - 10, '#ffffff', 5, i);
+    if (hanging) { rect(icx - 1, cy + 2, 2, 4, '#8a949c'); pxLine(icx, cy + 6, icx - 9, cy + 11, '#c8a060'); pxLine(icx, cy + 6, icx + 9, cy + 11, '#c8a060'); }
+    ctx.save(); if (!own) ctx.globalAlpha = 0.28;
+    cosIcon(cat, k, icx, icy + (hanging ? 3 : 0), cat === 'shoes' || cat === 'hat' ? 1.3 : 1);
+    ctx.restore();
+    // rarity tag on a string
+    rr(cx + 2, cy + 26, 10, 8, 2, '#1a0e06'); rr(cx + 3, cy + 27, 8, 6, 1, RAR_COL[rar]);
+    drawText('' + (rar + 1), cx + 5, cy + 27, '#1a0e06', 1);
+    if (!own) { rr(icx + 6, cy + 24, 9, 9, 2, '#1a1206'); rect(icx + 8, cy + 25, 5, 1, '#c89a2a'); rr(icx + 7, cy + 27, 7, 5, 1, '#c89a2a'); rect(icx + 10, cy + 29, 1, 2, '#1a1206'); }
+    if (worn) { rr(icx + 5, cy + 24, 11, 9, 2, '#123014'); rect(icx + 7, cy + 28, 2, 2, '#b8f0b0'); rect(icx + 9, cy + 29, 1, 1, '#b8f0b0'); rect(icx + 10, cy + 26, 2, 3, '#b8f0b0'); }
+    ctx.restore();
+    hit(cx, cy, WD_CELL.w - 2, WD_CELL.h - 2, { id: 'wdi' + k, cursor: true, cb: () => {
+      if (own) {
+        if (worn && (cat === 'hat' || cat === 'gear' || cat === 'suit')) cosEquip(cat, cat === 'hat' ? 'none' : cat === 'gear' ? 'none' : 'nosuit');
+        else cosEquip(cat, k);
+        wd.cheer = 1.1; sfx.buy(); fxConfetti(84, 110, 14); fxStars(84, 120, RAR_COL[rar], 6, 80);
+      } else { sfx.error(); wd.sel = { k, t: 0 }; }
+    } });
+  });
+
+  // ---- the armoire doors swing open ----
+  const op = easeOut(clamp(wd.t / 0.6, 0, 1));
+  if (op < 1) {
+    const half = 146, dw = Math.round(half * (1 - op * 0.93));
+    if (wd.t < dt * 2) sfx.thunk();
+    [[174, 1], [466, -1]].forEach(([ex, s2]) => {
+      const x0 = s2 > 0 ? ex : ex - dw;
+      plasticBox(x0, 40, dw, 160, 2, UWOOD, { seed: 21 + s2, noShine: 1 });
+      if (dw > 20) { rr(x0 + 6, 48, dw - 12, 144, 2, UWOOD[1]); rr(x0 + 8, 50, dw - 16, 140, 2, UWOOD[2]); fillCircle(s2 > 0 ? x0 + dw - 8 : x0 + 8, 120, 3, UGOLD[3]); }
+    });
+    ctx.save(); ctx.globalAlpha = 0.5 * (1 - op); rect(174 + dw, 40, 292 - dw * 2, 160, '#ffe6b0'); ctx.restore();
+  }
+
+  // ---- the info plank ----
+  const infoK = hovK || (wd.sel && wd.sel.k);
+  if (infoK) {
+    const d = cosDef(cat, infoK), rar = d.rar || 0, own = cosOwned(cat, infoK), src = cosSrc(cat, infoK);
+    drawText(d.name, 180, 208, mixC(RAR_COL[rar], '#000000', 0.3), 1);
+    drawText(RAR_NAME[rar] + ' ' + cosName(cat), 460 - textW(RAR_NAME[rar] + ' ' + cosName(cat), 1), 208, mixC(RAR_COL[rar], '#000000', 0.2), 1);
+    drawText(("'" + (d.flav || '') + "'").slice(0, 56), 180, 216, '#6a5a3a', 1);
+    if (own) drawText(cosWorn(cat, infoK) ? 'WEARING IT - CLICK TO TAKE OFF' : 'OWNED - CLICK TO WEAR', 180, 224, '#2a6a2a', 1);
+    else drawText('GET IT: ' + COS_SRC_NAME[src], 180, 224, '#a83a2a', 1);
+  } else {
+    const all = COS_CATS.reduce((a, c) => a + cosList(c.id).length, 0), owned = COS_CATS.reduce((a, c) => a + cosList(c.id).filter(k => cosOwned(c.id, k)).length, 0);
+    drawTextC('HOVER A PIECE TO TRY IT ON', 320, 210, '#6a5a3a', 1);
+    drawTextC('COLLECTION ' + owned + ' / ' + all, 320, 222, '#8a5a1a', 1);
+  }
+
+  // ---- buttons ----
+  button(4, 250, 64, 16, '< BACK', '#4a4438', '#28241c', () => { G.wd = null; G.state = 'menu'; }, { id: 'skinback' });
+  button(314, 244, 92, 22, 'TRADING BOOTH', '#7a4a9a', '#4a2a6a', () => { G.wd = null; ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'wdbooth', tip: "MRS OWLET'S TRADING BOOTH|Buy new looks with cookies" });
+  button(410, 244, 66, 22, 'FREE GIFTS', '#3a8a4a', '#1c5a24', () => { G.boothOv = 'gifts'; }, { id: 'wdgifts', tip: 'FOLLOW REWARDS|A wombat hat and a wombat tee' });
+  if (G.boothOv) drawBoothOverlay();
+}
+
+// ========================= MRS OWLET'S TRADING BOOTH ========================
+//  She runs a market stall now.  Three items sit on her counter, and every
+//  five seconds she swaps them for three more (hold your cursor on one and
+//  she will wait - grudgingly).  Cosmetics, shop unlocks, perks, her own
+//  owl-only specials and, now and then, a free tin of cookies.
+// ==========================================================================
+const OWLET_BOOTH_LINES = {
+  fresh: ['Fresh stock. Do not touch unless buying.', 'New things. Same prices. Higher, actually.', 'That one is special. So is the price.', 'I found these in lost property.', 'Stop staring. Buy or leave.', 'Five seconds. Then I change my mind.'],
+  buy: ['Hm. Good choice. Barely.', 'Sold. No refunds. Ever.', 'Wear it with some dignity.', 'Pleasure doing business. It was not.'],
+  broke: ['You cannot afford that. Get more cookies.', 'Come back with cookies, not hope.'],
+  tin: ['Take the tin. Do not tell anyone.', 'Free cookies. Once. Do not get used to it.'],
+};
+const BOOTH_PERIOD = 5;
+function boothPool() {
+  const p = [];
+  COS_CATS.forEach(c => cosList(c.id).forEach(k => {
+    const src = cosSrc(c.id, k);
+    if ((src === 'booth' || src === 'owl' || src === 'shop') && !cosOwned(c.id, k)) p.push({ kind: 'cos', cat: c.id, k, rar: cosDef(c.id, k).rar || 0, owl: src === 'owl' });
+  }));
+  gachaPool().forEach(z => { if (z.kind === 'card') p.push({ kind: 'card', def: z.def, rar: z.rar }); else if (z.kind === 'perk') p.push({ kind: 'perk', k: z.k, rar: 3 }); });
+  return p;
+}
+function boothPrice(it) {
+  if (it.kind === 'tin') return 0;
+  if (it.kind === 'card') return [25, 45, 70][it.rar] || 45;
+  if (it.kind === 'perk') return 90;
+  const b = COOKIE_PRICE[it.rar] || 60;
+  return it.owl ? Math.round(b * 1.3 / 5) * 5 : it.cat && cosSrc(it.cat, it.k) === 'shop' ? Math.round(b * 1.15 / 5) * 5 : b;
+}
+function boothRoll() {
+  let pool = boothPool();
+  const out = [];
+  for (let n = 0; n < 3 && pool.length; n++) {
+    const w = pool.map(z => (z.owl ? 1.4 : 1) * ([10, 7, 5, 3, 2, 1][z.rar] || 1));
+    let r = rnd() * w.reduce((a, b) => a + b, 0), pick = pool[0];
+    for (let i = 0; i < pool.length; i++) { r -= w[i]; if (r <= 0) { pick = pool[i]; break; } }
+    pool = pool.filter(z => z !== pick);
+    out.push(Object.assign({ sold: false }, pick));
+  }
+  const tinReady = !meta.tinT || Date.now() - meta.tinT > 10 * 60 * 1000;
+  if (tinReady && rnd() < 0.12) out[Math.min(2, out.length)] = { kind: 'tin', amt: ri(15, 40), rar: 1, sold: false };
+  while (out.length < 3) out.push({ kind: 'empty', rar: 0, sold: true });
+  out.forEach(it => { it.price = boothPrice(it); });
+  return out;
+}
+function boothEnter() { G.booth = { stock: boothRoll(), t: 0, flip: 1, say: { txt: choice(OWLET_BOOTH_LINES.fresh), t: 0 }, hold: false }; }
+function boothSay(kind) { if (G.booth) G.booth.say = { txt: choice(OWLET_BOOTH_LINES[kind]), t: 0 }; }
+function boothItemName(it) {
+  if (it.kind === 'cos') return cosDef(it.cat, it.k).name;
+  if (it.kind === 'card') return it.def.name;
+  if (it.kind === 'perk') return PERKS[it.k].name;
+  if (it.kind === 'tin') return 'COOKIE TIN';
+  return '';
+}
+function boothItemDesc(it) {
+  if (it.kind === 'cos') return RAR_NAME[it.rar] + ' ' + cosName(it.cat) + (it.owl ? ' - OWL SPECIAL' : '') + '|' + (cosDef(it.cat, it.k).flav || '');
+  if (it.kind === 'card') return 'UNLOCK FOR YOUR RUN SHOP|' + it.def.desc;
+  if (it.kind === 'perk') return 'PERMANENT PERK|' + PERKS[it.k].desc;
+  if (it.kind === 'tin') return 'FREE - ONCE EVERY 10 MINUTES|+' + it.amt + ' COOKIES';
+  return '';
+}
+function boothBuy(it) {
+  if (!it || it.sold || it.kind === 'empty') return;
+  if ((meta.rp || 0) < it.price) { sfx.error(); boothSay('broke'); float(mx, my - 10, 'NOT ENOUGH COOKIES', C.red, 1); return; }
+  meta.rp -= it.price; it.sold = true;
+  if (it.kind === 'cos') { cosGrant(it.cat, it.k, true); toasts.push({ name: cosDef(it.cat, it.k).name + '!', sub: 'NOW IN YOUR WARDROBE - AND YOU ARE WEARING IT', t: 0 }); boothSay('buy'); }
+  else if (it.kind === 'card') { meta.unlocked[it.def.id] = true; toasts.push({ name: it.def.name + ' UNLOCKED!', sub: 'NOW IN YOUR SHOP POOL', t: 0 }); boothSay('buy'); }
+  else if (it.kind === 'perk') { meta.perks[it.k] = true; toasts.push({ name: PERKS[it.k].name + '!', sub: 'PERMANENT UPGRADE ACTIVE', t: 0 }); boothSay('buy'); }
+  else if (it.kind === 'tin') { meta.rp = (meta.rp || 0) + it.amt; meta.tinT = Date.now(); toasts.push({ name: '+' + it.amt + ' COOKIES', sub: 'A TIN FROM MRS OWLET', t: 0 }); boothSay('tin'); }
+  saveMeta(); sfx.buy(); sfx.coin();
+  fxConfetti(mx, my - 10, 18); fxStars(mx, my, RAR_COL[it.rar] || C.gold, 8, 90);
+}
+// draw a booth item's art centred on (cx, cy)
+function boothItemArt(it, cx, cy) {
+  if (it.kind === 'cos') { cosIcon(it.cat, it.k, cx, cy, it.cat === 'hat' || it.cat === 'shoes' ? 2 : 1.6); return; }
+  ctx.save(); ctx.translate(cx - 12, cy - 12); ctx.scale(2, 2);
+  if (it.kind === 'card') (ICONS[it.def.ico] || ICONS.star)(0, 0);
+  else if (it.kind === 'perk') (ICONS[PERKS[it.k].ico] || ICONS.star)(0, 0);
+  else if (it.kind === 'tin') { rr(1, 2, 10, 9, 2, '#1a2a4a'); rr(2, 3, 8, 7, 2, '#3a6ac8'); rect(2, 3, 8, 2, '#c8a040'); ICONS.cookie(0, -2); }
+  ctx.restore();
+}
+function boothStatic() {
+  for (let y = 0; y < H; y += 14) { rect(0, y, W, 14, ((y / 14) | 0) % 2 ? '#33241a' : '#2c1f14'); rect(0, y + 13, W, 1, '#1c1208'); woodGrain(0, y + 1, W, 12, '#241810', '#3e2c1e', y); }
+  rect(0, 218, W, H - 218, '#241708'); for (let x = 0; x < W; x += 48) rect(x, 221, 1, H - 221, '#1c1208');
+  // the stall's posts and striped awning
+  [12, 222].forEach(px => { rect(px, 46, 6, 172, '#1a0e06'); rect(px + 1, 46, 4, 172, '#6a4222'); rect(px + 1, 46, 1, 172, '#8a5a30'); });
+  for (let k = 0; k < 9; k++) {
+    const col = k % 2 ? '#c23a4a' : '#f0e8d4', dk = k % 2 ? '#8a1e2e' : '#c0b89c';
+    rect(10 + k * 24, 46, 24, 16, col); rect(28 + k * 24, 46, 6, 16, dk); rect(10 + k * 24, 46, 24, 2, k % 2 ? '#e05a6a' : '#ffffff');
+    for (let j = 0; j < 5; j++) rect(12 + k * 24 + j, 62 + j, 20 - j * 2, 1, col);
+  }
+  // hanging goods at the stall sides: bunting and a lantern hook
+  for (let k = 0; k < 10; k++) { const bx = 16 + k * 21; for (let t = 0; t < 5; t++) rect(bx + 3 + t, 70 + t, 10 - t * 2, 1, ['#e84a5a', '#ffc843', '#4fb3d9'][k % 3]); }
+  // the counter
+  rr(8, 146, 224, 60, 3, '#120a04');
+  plasticBox(10, 146, 220, 58, 3, UWOOD, { seed: 5, noShine: 1 });
+  woodGrain(12, 152, 216, 50, UWOOD[1], UWOOD[3], 3);
+  rect(6, 142, 228, 6, UWOOD[4]); rect(6, 142, 228, 1, '#c8905a'); rect(6, 148, 228, 2, UWOOD[0]);
+  for (let x = 20; x < 226; x += 36) { rr(x, 158, 30, 40, 2, UWOOD[1]); rr(x + 1, 159, 28, 38, 2, UWOOD[2]); }
+}
+function drawPassScreen(dt) {
+  ensureDaily();
+  if (!G.booth) boothEnter();
+  const B = G.booth;
+  paintCached('booth', 0, 0, W, H, boothStatic);
+  // string lights over the stall
+  for (let k = 0; k < 12; k++) { const lx = 12 + k * 42, ly = 8 + Math.round(Math.sin(k * 1.2) * 4); rect(lx, ly, 42, 1, '#1c1208'); const on = ((tNow * 2 + k) | 0) % 3 !== 0; fillCircle(lx + 20, ly + 4, 2, on ? ['#ffe089', '#ff8ab0', '#7fd4e8'][k % 3] : '#3a2c20'); if (on) { ctx.save(); ctx.globalAlpha = 0.12; fillCircle(lx + 20, ly + 5, 6, '#ffe089'); ctx.restore(); } }
+  // the sign board over the awning
+  plasticBox(26, 20, 190, 24, 3, ['#140a04', '#4a2c14', '#6a4222', '#86582e', '#a8743e'], { seed: 7 });
+  drawTextCSh("OWLET'S", 121, 23, '#f4e2b8', 1, '#1a0e06');
+  drawTextCSh('TRADING BOOTH', 121, 31, '#ffd23f', 2, '#1a0e06');
+  // cookie balance + GET COOKIES
+  plasticBox(350, 8, 124, 22, 3, ['#10180a', '#26321e', '#34462a', '#46603a', '#6a8a50'], { noShine: 1 });
+  ICONS.cookie(356, 13); drawText(fmt(meta.rp || 0) + ' COOKIES', 372, 16, C.gold, 1);
+  // ---- rotating stock ----
+  const hovIdx = B.stock.findIndex((it, i) => { const sx = 76 + i * 52; return mx >= sx && mx < sx + 48 && my >= 86 && my < 146; });
+  B.hold = hovIdx >= 0 && !G.boothOv;
+  if (!B.hold) B.t += dt;
+  if (B.t >= BOOTH_PERIOD) { B.t = 0; B.stock = boothRoll(); B.flip = 0; if (rnd() < 0.5) boothSay('fresh'); sfx.pin(); }
+  B.flip = Math.min(1, B.flip + dt * 4);
+  // Mrs Owlet behind her counter
+  B.say.t += dt;
+  const talking = B.say.t < B.say.txt.length / 40 + 0.2;
+  drawOwlet(46, 176, { expr: talking ? 'stern' : 'grump', talk: talking, look: { x: 0.8, y: 0.3 }, point: hovIdx >= 0 ? { x: 100 + hovIdx * 52, y: 118 } : null });
+  paintCached('boothCounter', 0, 140, W, 70, () => { ctx.save(); ctx.translate(0, -140); boothStatic(); ctx.restore(); });
+  hqBubble(70, 74, 150, 9 + wrapCount(B.say.txt, 140) * 7, B.say.txt, B.say.t, { tail: { x: 60, y: 120 } });
+  // the timer: how long until she swaps the stock
+  const left = BOOTH_PERIOD - B.t;
+  segBar(80, 206, 146, 7, left / BOOTH_PERIOD, { tint: B.hold ? '#7fd4e8' : left < 1.5 ? '#d94f30' : '#ffc843', tintL: '#ffffff' });
+  drawText(B.hold ? 'SHE IS WAITING...' : 'NEW STOCK IN ' + Math.ceil(left) + 'S', 80, 197, B.hold ? '#9fe8ff' : '#f4e2b8', 1);
+  B.stock.forEach((it, i) => {
+    const sx = 76 + i * 52, sy = 86, cx = sx + 24, hov = hovIdx === i;
+    // velvet cushion on the counter
+    rr(sx + 3, 134, 42, 10, 4, '#3a0a1a'); rr(sx + 4, 134, 40, 7, 3, '#8a2040'); rect(sx + 8, 135, 30, 1, '#c84a6a');
+    if (it.kind === 'empty') { drawTextC('SOLD', cx, 122, '#8a7a58', 1); return; }
+    const sq = Math.abs(Math.cos((1 - B.flip) * Math.PI / 2 + (B.flip < 1 ? 0 : 0)));
+    const lift = hov && !it.sold ? -4 + Math.sin(tNow * 8) : 0;
+    ctx.save(); ctx.translate(cx, 118 + lift); ctx.scale(B.flip < 1 ? Math.max(0.05, B.flip) : 1, 1); ctx.translate(-cx, -(118 + lift));
+    if (!it.sold) {
+      ctx.save(); ctx.globalAlpha = 0.25 + Math.sin(tNow * 3 + i) * 0.08 + (hov ? 0.15 : 0); fillCircle(cx, 116 + lift, 20, it.owl ? '#c8a8f8' : RAR_COL[it.rar] || C.gold); ctx.restore();
+      if (it.rar >= 3) { sparkle(cx - 16, 100 + lift, '#ffffff', 5, i); sparkle(cx + 15, 108 + lift, '#ffffff', 6, i + 2); }
+    }
+    ctx.save(); if (it.sold) ctx.globalAlpha = 0.3;
+    boothItemArt(it, cx, 116 + lift);
+    ctx.restore();
+    ctx.restore();
+    void sq;
+    // the paper price tag on the counter front
+    const tagCol = it.sold ? '#b8a898' : (meta.rp || 0) >= it.price ? '#f0d48a' : '#e0b8a8';
+    paperSheet(sx + 6, 150, 36, 22, { noCorner: 1, ramp: ['#3a2a14', '#c8b080', tagCol, mixC(tagCol, '#ffffff', 0.4), '#ffffff'] });
+    rect(cx - 1, 144, 2, 6, '#8a949c');
+    if (it.sold) drawTextC('SOLD!', cx, 158, '#8a2a16', 1);
+    else if (it.kind === 'tin') drawTextC('FREE!', cx, 158, '#2a6a2a', 1);
+    else { ICONS.cookie(sx + 7, 153); drawText('' + it.price, sx + 21, 157, '#3a2606', 1); }
+    const nm = fitLines(boothItemName(it), 46);
+    drawTextC(nm[0], cx, 176, '#f4e2b8', 1); if (nm[1]) drawTextC(nm[1], cx, 183, '#f4e2b8', 1);
+    if (it.owl && !it.sold) { plasticBox(sx + 2, 88, 44, 9, 2, ['#1a0c26', '#4a2a6a', '#7a4aa8', '#a878d8', '#dcc0ff'], { noShine: 1 }); drawTextC('OWL SPECIAL', cx, 90, '#ffffff', 1); }
+    if (!it.sold) hit(sx, 86, 48, 100, { id: 'booth' + i, cursor: true, tip: boothItemName(it) + '|' + boothItemDesc(it) + (it.kind === 'tin' ? '' : '|' + it.price + ' COOKIES - CLICK TO BUY'), cb: () => boothBuy(it) });
+  });
+  // ---- booth buttons ----
+  button(10, 218, 72, 20, 'GET COOKIES', '#c8901a', '#8a5a08', () => { G.boothOv = 'store'; sfx.click(2); }, { id: 'bstore', tip: 'COOKIE STORE|Cookie packs for real money' });
+  button(86, 218, 70, 20, 'TRADE IN', '#3a6a8a', '#204458', () => { G.boothOv = 'trade'; G.tradeSel = null; sfx.click(2); }, { id: 'btrade', tip: 'TRADE IN|Swap clothes you own for cookies' });
+  button(160, 218, 72, 20, 'FREE GIFTS', '#3a8a4a', '#1c5a24', () => { G.boothOv = 'gifts'; sfx.click(2); }, { id: 'bgifts', tip: 'FOLLOW REWARDS|Free wombat hat + wombat tee' });
+  drawQuestBoard();
+  drawTextC('EARN COOKIES: QUESTS, ACHIEVEMENTS, EVENTS', 352, 232, '#8a7a58', 1);
+  button(10, 246, 70, 18, '< BACK', '#4a4438', '#28241c', () => { G.booth = null; G.state = 'menu'; }, { id: 'passback' });
+  button(84, 246, 90, 18, 'WARDROBE', '#8a4a6a', '#5a2a44', () => { G.booth = null; G.state = 'skins'; }, { id: 'bwardrobe' });
+  if (G.boothOv) drawBoothOverlay();
+}
+
+// ------------------------------------------------------------ overlays ----
+const COOKIE_PACKS = [
+  { id: 'A', name: 'HANDFUL', amt: 120, price: '$0.99', art: 1 },
+  { id: 'B', name: 'COOKIE JAR', amt: 700, price: '$4.99', art: 2, tag: 'POPULAR' },
+  { id: 'C', name: 'COOKIE BARREL', amt: 1600, price: '$9.99', art: 3, tag: '+14% BONUS' },
+  { id: 'D', name: 'GOLDEN TIN', amt: 3500, price: '$19.99', art: 4, tag: 'BEST VALUE' },
+];
+const STORE_URL = ITCH_URL;
+const CODE_SALT = 'wombaton-bitedown-cookies';
+const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function fnv32(str) { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); } return h >>> 0; }
+function codeCheck(pack, body) { const h = fnv32(pack + body + CODE_SALT); return CODE_ABC[h % 32] + CODE_ABC[(h >>> 5) % 32]; }
+// BDB-7K2QXM-4F: pack letter after BD, six random symbols, two check symbols
+function redeemCode(raw) {
+  const code = ('' + (raw || '')).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 11 || code.slice(0, 2) !== 'BD') return 'THAT IS NOT A COOKIE CODE';
+  const pack = COOKIE_PACKS.find(p => p.id === code[2]);
+  const body = code.slice(3, 9), chk = code.slice(9);
+  if (!pack || codeCheck(pack.id, body) !== chk) return 'THAT CODE DOES NOT CHECK OUT';
+  if (!meta.codes) meta.codes = {};
+  if (meta.codes[code]) return 'THAT CODE WAS ALREADY USED';
+  meta.codes[code] = 1; meta.rp = (meta.rp || 0) + pack.amt; saveMeta();
+  toasts.push({ name: '+' + pack.amt + ' COOKIES', sub: pack.name + ' REDEEMED - THANK YOU!', t: 0 });
+  sfx.win(); fxConfetti(W / 2, 100, 30);
+  return null;
+}
+function claimFollow(which) {
+  const url = which === 'itch' ? ITCH_URL : TIKTOK_URL;
+  try { window.open(url, '_blank', 'noopener'); } catch (e) { }
+  if (which === 'itch' && !meta.followItch) { meta.followItch = true; meta.hatOwn.wombat = true; meta.hat = 'wombat'; toasts.push({ name: 'WOMBAT HAT!', sub: 'THANKS FOR FOLLOWING ON ITCH.IO', t: 0 }); sfx.ach(); }
+  if (which === 'tiktok' && !meta.followTiktok) { meta.followTiktok = true; meta.fitOwn.wombattee = true; meta.fit.shirt = 'wombattee'; if (meta.fit.suit !== 'nosuit') meta.fit.suit = 'nosuit'; toasts.push({ name: 'WOMBAT TEE!', sub: 'THANKS FOR FOLLOWING ON TIKTOK', t: 0 }); sfx.ach(); }
+  saveMeta();
+}
+function cookieArt(x, y, n) {
+  // a pile of cookies in a jar / barrel / tin
+  if (n === 1) { ICONS.cookie(x - 6, y - 6); ICONS.cookie(x + 2, y - 2); ICONS.cookie(x - 12, y - 1); return; }
+  if (n === 2) { rr(x - 12, y - 14, 24, 26, 6, '#5a8a9a'); rr(x - 11, y - 13, 22, 24, 5, '#b8dce8'); rect(x - 10, y - 17, 20, 4, '#8a5a2a'); for (let k = 0; k < 6; k++) ICONS.cookie(x - 10 + (k % 3) * 7, y - 6 + ((k / 3) | 0) * 8); rect(x - 9, y - 12, 2, 18, '#ffffff66'); return; }
+  if (n === 3) { rr(x - 14, y - 14, 28, 28, 5, '#3a2210'); rr(x - 13, y - 13, 26, 26, 4, '#8a5a2a'); rect(x - 13, y - 6, 26, 2, '#3a3a3a'); rect(x - 13, y + 6, 26, 2, '#3a3a3a'); for (let k = 0; k < 5; k++) ICONS.cookie(x - 12 + k * 5, y - 18 + (k % 2) * 2); return; }
+  rr(x - 16, y - 10, 32, 22, 4, '#6a4a08'); rr(x - 15, y - 9, 30, 20, 3, '#e8b830'); rect(x - 15, y - 9, 30, 4, '#fff0a0'); rect(x - 16, y - 12, 32, 4, '#c8901a');
+  for (let k = 0; k < 3; k++) ICONS.cookie(x - 12 + k * 8, y - 20); sparkle(x + 12, y - 16, '#ffffff', 5, 1);
+}
+function drawBoothOverlay() {
+  const ov = G.boothOv;
+  overlayDim(0.75);
+  hit(0, 0, W, H, { id: 'bovblock', cb: () => { } });
+  const px = 40, py = 20, pw = 400, ph = 228;
+  plasticBox(px, py, pw, ph, 5, ['#140a04', '#4a2c14', '#6a4222', '#86582e', '#a8743e'], { seed: 31, noShine: 1 });
+  paperSheet(px + 8, py + 8, pw - 16, ph - 16, {});
+  if (ov === 'store') {
+    drawTextCSh('COOKIE STORE', W / 2, py + 14, '#8a5a1a', 2, '#f4e2b8');
+    drawTextC('COOKIES BUY CLOTHES, PERKS AND UNLOCKS AT THE TRADING BOOTH', W / 2, py + 30, '#6a5a3a', 1);
+    COOKIE_PACKS.forEach((p, i) => {
+      const bx = px + 18 + i * 94, by = py + 42;
+      plasticBox(bx, by, 86, 120, 4, ['#1a0e06', '#c8a870', '#ecdcb4', '#f8eed4', '#ffffff'], { noShine: 1, flat: 1 });
+      if (p.tag) { plasticBox(bx + 8, by - 5, 70, 10, 2, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC(p.tag, bx + 43, by - 3, '#ffffff', 1); }
+      cookieArt(bx + 43, by + 36, p.art);
+      drawTextC(p.name, bx + 43, by + 60, '#3a2606', 1);
+      drawTextCSh(fmt(p.amt), bx + 43, by + 70, '#c8901a', 2, '#3a2606');
+      drawTextC('COOKIES', bx + 43, by + 83, '#6a5a3a', 1);
+      button(bx + 8, by + 94, 70, 20, 'BUY ' + p.price, '#3a8a4a', '#1c5a24', () => { try { window.open(STORE_URL, '_blank', 'noopener'); } catch (e) { } G.storeMsg = 'FINISH ON ITCH.IO - YOUR CODE COMES WITH THE PURCHASE'; }, { id: 'buypack' + p.id, tip: p.name + '|' + fmt(p.amt) + ' COOKIES FOR ' + p.price + '|Opens the store page. Enter your code here after.' });
+    });
+    button(W / 2 - 60, py + 170, 120, 20, 'REDEEM A CODE', '#7a4a9a', '#4a2a6a', () => {
+      let c = null; try { c = window.prompt('Enter your cookie code (like BDB-XXXXXX-XX):'); } catch (e) { }
+      if (c === null || c === undefined) return;
+      const err = redeemCode(c); G.storeMsg = err || 'CODE REDEEMED! ENJOY THE COOKIES.'; if (err) sfx.error();
+    }, { id: 'redeem' });
+    if (G.storeMsg) drawTextC(G.storeMsg, W / 2, py + 196, '#a83a2a', 1);
+  } else if (ov === 'gifts') {
+    drawTextCSh('FREE GIFTS', W / 2, py + 14, '#2a6a2a', 2, '#f4e2b8');
+    drawTextC('FOLLOW WOMBATON STUDIOS AND GET A FREE WOMBAT OUTFIT', W / 2, py + 30, '#6a5a3a', 1);
+    [['itch', 'ITCH.IO', 'FREE WOMBAT HAT', 'hat', 'wombat', !!meta.followItch, '#fa5c5c'], ['tiktok', 'TIKTOK', 'FREE WOMBAT TEE', 'shirt', 'wombattee', !!meta.followTiktok, '#2a2a2a']].forEach(([id, nm, gift, cat, k, done, col], i) => {
+      const bx = px + 30 + i * 180, by = py + 44;
+      plasticBox(bx, by, 160, 140, 5, rampOf(col), { seed: i });
+      rr(bx + 10, by + 10, 140, 76, 4, '#f4ecd8');
+      ctx.save(); ctx.beginPath(); ctx.rect(bx + 10, by + 10, 140, 76); ctx.clip();
+      const f = myFit(); f.fit = Object.assign({}, meta.fit);
+      const tmp = cat === 'hat' ? meta.hatOwn.wombat : meta.fitOwn.wombattee;
+      if (cat === 'hat') { meta.hatOwn.wombat = 1; f.hat = 'wombat'; } else { meta.fitOwn.wombattee = 1; f.fit.shirt = 'wombattee'; f.fit.suit = 'nosuit'; }
+      drawBobble(bx + 80, by + 84, RANGERS[meta.ranger] ? meta.ranger : 'scout', Object.assign({ sc: 1.05, expr: 'happy', act: 'wave' }, f));
+      if (cat === 'hat') { if (!tmp) delete meta.hatOwn.wombat; } else if (!tmp) delete meta.fitOwn.wombattee;
+      ctx.restore();
+      drawTextCSh('FOLLOW ON ' + nm, bx + 80, by + 92, '#ffffff', 1);
+      drawTextC(gift, bx + 80, by + 102, '#fff0c0', 1);
+      button(bx + 20, by + 114, 120, 20, done ? 'CLAIMED - VISIT AGAIN' : 'FOLLOW + CLAIM', done ? '#5a6a58' : '#3a8a4a', '#1c5a24', () => claimFollow(id), { id: 'follow' + id, tip: 'OPENS ' + nm + ' IN A NEW TAB|Your gift is added right away' });
+    });
+  } else if (ov === 'trade') {
+    drawTextCSh('TRADE IN', W / 2, py + 14, '#204458', 2, '#f4e2b8');
+    drawTextC('SWAP CLOTHES YOU OWN FOR COOKIES - 40% OF THE BOOTH PRICE', W / 2, py + 30, '#6a5a3a', 1);
+    const items = [];
+    COS_CATS.forEach(c => cosList(c.id).forEach(k => { const src = cosSrc(c.id, k); if (cosOwned(c.id, k) && ['shop', 'booth', 'owl'].includes(src)) items.push({ cat: c.id, k, rar: cosDef(c.id, k).rar || 0 }); }));
+    if (!items.length) drawTextC('NOTHING TO TRADE YET. GO BUY SOMETHING.', W / 2, py + 100, '#8a7a58', 1);
+    items.slice(0, 40).forEach((it, i) => {
+      const bx = px + 18 + (i % 10) * 37, by = py + 42 + Math.floor(i / 10) * 40;
+      const val = Math.floor((COOKIE_PRICE[it.rar] || 20) * 0.4), sel = G.tradeSel && G.tradeSel.k === it.k && G.tradeSel.cat === it.cat;
+      plasticBox(bx, by, 34, 36, 3, sel ? ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'] : ['#1a0e06', '#c8a870', '#ecdcb4', '#f8eed4', '#ffffff'], { noShine: 1, flat: 1 });
+      cosIcon(it.cat, it.k, bx + 17, by + 14, 0.9);
+      ICONS.cookie(bx + 2, by + 24); drawText('' + val, bx + 15, by + 27, sel ? '#ffffff' : '#3a2606', 1);
+      hit(bx, by, 34, 36, { id: 'trade' + it.cat + it.k, cursor: true, tip: cosDef(it.cat, it.k).name + '|' + (sel ? 'CLICK AGAIN TO TRADE FOR ' + val + ' COOKIES' : 'CLICK TO PICK'), cb: () => {
+        if (sel) { cosRevoke(it.cat, it.k); meta.rp = (meta.rp || 0) + val; saveMeta(); G.tradeSel = null; sfx.coin(); float(mx, my - 8, '+' + val, C.gold, 1); }
+        else { G.tradeSel = it; sfx.click(2); }
+      } });
+    });
+  }
+  button(W / 2 - 36, py + ph - 26, 72, 18, 'CLOSE', '#4a4438', '#28241c', () => { G.boothOv = null; G.storeMsg = null; }, { id: 'bovclose' });
+}
+
+// icon for any outfit piece, centred on (cx, cy) - a small mannequin view
+function drawFitIcon(cx, cy, k, sc) {
+  const f = FITS[k]; if (!f) return;
+  sc = sc || 1;
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc);
+  const col = f.col || (f.cat === 'shirt' ? '#2d4a34' : f.cat === 'pants' ? '#3f6748' : '#4d3a1e');
+  const R = f.src === 'free' ? (f.cat === 'shoes' ? BOOT : rampOf(col)) : rampOf(col);
+  if (f.cat === 'shirt') {
+    plasticBox(-8, -7, 16, 14, 4, R, { seed: 1 });
+    plasticBox(-12, -7, 6, 8, 2, R, { noShine: 1 }); plasticBox(6, -7, 6, 8, 2, R, { noShine: 1 });
+    if (f.pat && f.pat !== 'none') fitPattern(f, -8, -7, 16, 14, 0);
+    if (f.src === 'free') plasticBox(-3, -5, 7, 11, 2, ['#0f120e', '#cfc7ab', '#e6dfc6', '#f6f2e2', '#ffffff'], { noShine: 1 });
+    fitShirtFront(f, -8);
+    rect(-3, -7, 6, 2, R[0]);
+  } else if (f.cat === 'pants') {
+    plasticBox(-7, -8, 14, 5, 2, R, { noShine: 1 });
+    plasticBox(-7, -4, 6, f.shorts ? 6 : 12, 2, R, { noShine: 1 }); plasticBox(1, -4, 6, f.shorts ? 6 : 12, 2, R, { noShine: 1 });
+    if (f.kilt) plasticBox(-8, -6, 16, 9, 2, R, { noShine: 1 });
+    if (f.pat) { fitPattern(f, -7, -8, 14, f.shorts ? 10 : 16, 0); }
+  } else if (f.cat === 'shoes') {
+    fitShoe(f, -11, -2, 1); fitShoe(f, 1, -1, 1);
+  } else {
+    if (k === 'nosuit') { rect(-6, 0, 12, 1, '#54707a'); ctx.restore(); return; }
+    ctx.scale(0.62, 0.62);
+    if (f.hood) suitHoodBack(f);
+    suitBack(f, 8);
+    plasticBox(-10, 8, 21, 18, 5, R, { seed: 2 });
+    if (f.pat) fitPattern(f, -10, 8, 21, 18, 0);
+    suitFront(f, 8);
+    rr(-9, -10, 18, 16, 5, '#e8c8a0'); rect(-5, -4, 2, 3, '#1a1206'); rect(3, -4, 2, 3, '#1a1206');
+    suitHoodFront(f, false);
+  }
+  ctx.restore();
+}
+
 let toasts = []; // {name, sub, glove, t}
 
 // ---- CROC INDEX ------------------------------------------------------------
@@ -3913,6 +4727,8 @@ function cosmeticPool() {
     if (!GEAR[k].shop || gearUnlocked(k)) return;
     pool.push({ kind: 'gear', k, rar: GEAR[k].rar || 0 });
   });
+  // shirts, pants, shoes and costumes sold in the run shop
+  Object.keys(FITS).forEach(k => { if (FITS[k].src === 'shop' && !fitUnlocked(k)) pool.push({ kind: 'fit', k, rar: FITS[k].rar || 0 }); });
   return pool;
 }
 function weightedCosmetic(pool) {
@@ -3938,6 +4754,7 @@ function buyCosmetic(c) {
   c.sold = true;
   if (c.kind === 'glove') { meta.gachaOwn[c.k] = true; meta.glove = c.k; }
   else if (c.kind === 'gear') { meta.gearOwn[c.k] = true; meta.gear = c.k; }
+  else if (c.kind === 'fit') { cosGrant(FITS[c.k].cat, c.k, true); }
   else { meta.hatOwn[c.k] = true; meta.hat = c.k; }
   saveMeta();
   quest('buy4', 1);
@@ -5501,6 +6318,7 @@ function drawSnap() {
 // ------------------------------------------------------------ shop --------
 // preview a cosmetic (glove or hat) centered at (cx,cy) for the boutique/racks
 function drawCosmeticArt(cx, cy, kind, k) {
+  if (kind === 'fit') { drawFitIcon(cx, cy, k, 1.1); return; }
   if (kind === 'gear') {
     drawGearArt(cx, cy - 4, k, 2);
   } else if (kind === 'hat') {
@@ -5563,9 +6381,9 @@ function drawCosmeticStand(X, Y, Wc) {
     }
     drawCosmeticArt(cx, cy, c.kind, c.k);
     // name / rarity / price
-    const cdefs = { glove: GLOVES, hat: HATS, gear: GEAR };
+    const cdefs = { glove: GLOVES, hat: HATS, gear: GEAR, fit: FITS };
     const cdef = (cdefs[c.kind] || HATS)[c.k];
-    const kindLbl = c.kind === 'glove' ? 'GLOVE' : c.kind === 'gear' ? 'GEAR' : 'HAT';
+    const kindLbl = c.kind === 'glove' ? 'GLOVE' : c.kind === 'gear' ? 'GEAR' : c.kind === 'fit' ? FITS[c.k].cat.toUpperCase() : 'HAT';
     const tx = X + 48, nl2 = fitLines(cdef.name, Wc - 60);
     if (nl2.length > 1) { drawText(nl2[0], tx, sy + 6, C.white, 1); drawText(nl2[1], tx, sy + 15, C.white, 1); }
     else drawText(nl2[0], tx, sy + 8, C.white, 1);
@@ -6594,7 +7412,7 @@ function drawAirboat(cx, y, moving, dt) {
   rect(cx - 12, y - 27, 32, 2, '#e05a6a');
   drawBobble(cx + 4, y - 25, G.ranger, {
     sc: 0.62, expr: 'calm', act: 'idle',
-    hat: meta.hat, gear: meta.gear, glove: meta.glove,
+    ...myFit(),
   });
   // bow headlamp + beam
   rr(cx + 34, y - 12, 8, 7, 2, '#2a2018'); rect(cx + 40, y - 10, 3, 3, '#ffd54a');
@@ -6868,7 +7686,7 @@ function drawBossIntro() {
   goldFrame(20 + dx, 30, 132, 150, { field: '#1c2a30', fieldD: '#121c20', fieldL: '#26363e' });
   ctx.save(); ctx.beginPath(); ctx.rect(24 + dx, 34, 124, 142); ctx.clip();
   for (let k = 0; k < 8; k++) { ctx.save(); ctx.globalAlpha = 0.06; fillCircle(86 + dx, 110, 70 - k * 8, '#7fd4e8'); ctx.restore(); }
-  drawBobble(86 + dx, 168, G.ranger, { sc: 1.9, expr: 'mad', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  drawBobble(86 + dx, 168, G.ranger, { sc: 1.9, expr: 'mad', act: 'idle', ...myFit() });
   ctx.restore();
   woodBanner(26 + dx, 184, 120, 13, R.name, { col: '#ffe6b0' });
   drawTextC('THE DENTIST', 86 + dx, 200, '#7fd4e8', 1);
@@ -7176,6 +7994,10 @@ ICONS.gearic = (x, y) => {
   for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; rect(x + 5 + Math.round(Math.cos(a) * 4.5), y + 5 + Math.round(Math.sin(a) * 4.5), 2, 2, '#b8c4ca'); }
   fillCircle(x + 6, y + 6, 4, '#8a969c'); fillCircle(x + 6, y + 6, 3, '#c8d4da'); fillCircle(x + 6, y + 6, 1, '#2a1808'); rect(x + 4, y + 3, 2, 1, '#ffffff');
 };
+ICONS.giftic = (x, y) => {
+  rr(x + 1, y + 5, 10, 7, 1, '#c83a2a'); rect(x + 1, y + 4, 10, 2, '#e84a3a'); rect(x + 5, y + 4, 2, 8, '#f8d040');
+  rect(x + 3, y + 1, 3, 3, '#f8d040'); rect(x + 6, y + 1, 3, 3, '#f8d040'); rect(x + 5, y + 3, 2, 1, '#c89a20');
+};
 ICONS.scrollic = (x, y) => {
   rr(x + 1, y + 2, 10, 8, 1, '#c8a870'); rect(x + 2, y + 3, 8, 6, '#f0e0b8'); rr(x, y + 1, 3, 10, 1, '#a88850'); rr(x + 9, y + 1, 3, 10, 1, '#a88850');
   rect(x + 4, y + 4, 4, 1, '#8a6a3a'); rect(x + 4, y + 6, 3, 1, '#8a6a3a');
@@ -7387,12 +8209,14 @@ function drawMenu(dt) {
   const idxAll = indexEntries();
   const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
   signPlank(PX - 30, 98, 176, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
-  signPlank(PX - 118, 134, 124, 20, -1, 'WARDROBE', '#3a6a8a', () => { G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, gear and gloves' });
+  signPlank(PX - 118, 134, 124, 20, -1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
   signPlank(PX - 4, 158, 124, 20, 1, 'FIELD GUIDE', '#3a7a44', () => { G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'FIELD GUIDE|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator you have met') });
-  signPlank(PX - 118, 182, 124, 20, -1, 'GACHA HALL', '#7a4a9a', () => { ensureDaily(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: 'GACHA HALL|' + fmt(meta.rp || 0) + ' scout cookies' });
+  signPlank(PX - 118, 182, 124, 20, -1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
   if (idxNew) { const bx = PX + 110, by = 156; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
   woodTile(PX - 2, 208, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
   woodTile(PX + 24, 208, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
+  woodTile(PX + 50, 208, 22, 'giftic', () => { G.boothOv = 'gifts'; }, { id: 'giftbtn', tip: 'FREE GIFTS|Follow us for a wombat hat + tee' });
+  if (G.boothOv) { drawBoothOverlay(); return; }
 
   // ---- the shift log, pinned to the pier post ----
   (function board() {
@@ -7405,7 +8229,7 @@ function drawMenu(dt) {
     drawText(fmt(meta.rp || 0) + ' COOKIES', bx + 6, by + 26, '#7a5a10', 1);
     drawText('BEST ANTE ' + best, bx + 6, by + 34, '#241a10', 1);
     drawText('RANGERS ' + RANGER_ORDER.filter(rangerUnlocked).length + '/5', bx + 6, by + 42, '#241a10', 1);
-    hit(bx, by, bw, bh, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned in the GACHA hall', cb: () => { G.state = 'pass'; sfx.click(2); } });
+    hit(bx, by, bw, bh, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned by the trading booth', cb: () => { boothEnter(); G.state = 'pass'; sfx.click(2); } });
   })();
 }
 // the title screen hands you off to HQ
@@ -7550,63 +8374,6 @@ function skinRow(y, order, cur, isOpen, drawIco, tipFor, equip, rarOf) {
     if (on) { rect(gx + (s >> 1) - 3, gy + s - 2, 6, 2, UGOLD[3]); rect(gx + (s >> 1) - 2, gy + s - 2, 4, 1, UGOLD[4]); }
     hit(gx, gy, s, s, { id: 'skin' + k, cursor: true, tip: tipFor(k, open, on), cb: () => { if (open) { equip(k); saveMeta(); sfx.buy(); } else sfx.error(); } });
   });
-}
-
-function drawSkins() {
-  const th = THEMES.shop;
-  drawSceneBack(th); drawSceneFront(th);
-  overlayDim(0.72);
-  drawTextCSh('DRESSING ROOM', W / 2, 8, C.gold, 2);
-  const rkey = RANGERS[meta.ranger] ? meta.ranger : 'scout';
-  const R = RANGERS[rkey];
-
-  // ---- framed portrait: a lit vanity mirror showing just your character head ----
-  const cx = W / 2, fy = 26, fw = 118, fh = 80, fx = cx - fw / 2;
-  // vanity bulbs around the top of the frame
-  for (let k = 0; k < 7; k++) { const bx = fx + 14 + k * 16, on = ((tNow * 2 + k) | 0) % 5 !== 0; fillCircle(bx, fy - 3, 3, on ? '#ffe9a0' : '#6a5a3a'); if (on) { ctx.save(); ctx.globalAlpha = 0.16; fillCircle(bx, fy - 3, 7, '#ffe9a0'); ctx.restore(); } }
-  // ornate gold frame + mirror glass with a soft radial sheen
-  rr(fx - 4, fy + 3, fw + 8, fh + 6, 6, '#00000077');
-  rr(fx - 3, fy, fw + 6, fh, 6, '#c9941a'); rr(fx - 1, fy + 2, fw + 2, fh - 4, 5, '#ffd76a');
-  rr(fx + 3, fy + 3, fw - 6, fh - 6, 4, '#1b2a33');
-  const grd = ctx.createRadialGradient(cx, fy + fh / 2, 4, cx, fy + fh / 2, fh);
-  grd.addColorStop(0, '#2f4a56'); grd.addColorStop(1, '#12202a');
-  ctx.save(); ctx.fillStyle = grd; ctx.fillRect(fx + 3, fy + 3, fw - 6, fh - 6); ctx.restore();
-  rect(fx + 8, fy + 7, 3, fh - 16, '#ffffff12'); // glass streak
-  // pedestal shadow + the character head, scaled up, no body
-  ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, fy + fh - 10, 22, '#000'); ctx.restore();
-  drawBobble(cx, fy + fh - 7, rkey, { sc: 1.0, expr: 'happy', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
-  // name plaque
-  const gname = gloveUnlocked(meta.glove) ? GLOVES[meta.glove].name : 'BARE HANDS';
-  const hname = (meta.hat && hatUnlocked(meta.hat)) ? HATS[meta.hat].name : 'NO HAT';
-  const rname = (meta.gear && gearUnlocked(meta.gear)) ? GEAR[meta.gear].name : 'NO GEAR';
-  panel(cx - 74, fy + fh + 4, 148, 13, { face: '#2a1f14', edge: '#7a5a30', r: 3 });
-  drawTextCSh(R.name + '  -  ' + R.animal, cx, fy + fh + 7, '#ffe6b0', 1);
-
-  // ---- GLOVES row ----
-  drawText('GLOVES', 14, 126, '#c8b8a0', 1);
-  drawText(gname, 66, 126, '#8aa0a8', 1);
-  skinRow(135, GLOVE_ORDER, () => meta.glove, gloveUnlocked,
-    (ix, iy, k) => ICONS.glove(ix - 6, iy - 6, GLOVES[k].skin),
-    (k, open, on) => { const a = ACHS.find(a => a.id === GLOVES[k].ach); return open ? (GLOVES[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GLOVES[k].name + '|' + (GLOVES[k].gacha ? 'WIN IT IN THE GACHA-PON' : GLOVES[k].shop ? 'BUY AT THE SHOP CLOSET' : a ? 'ACHIEVEMENT: ' + a.name : '')); },
-    k => { meta.glove = k; }, k => GLOVE_RAR[k] || 0);
-
-  // ---- HATS row (worn on the character + the map traveler) ----
-  drawText('HATS', 14, 166, '#c8b8a0', 1);
-  drawText(hname, 50, 166, '#8aa0a8', 1);
-  skinRow(175, HAT_ORDER, () => meta.hat, hatUnlocked,
-    (ix, iy, k) => { if (HATS[k].ico === 'none') rect(ix - 4, iy, 8, 2, '#54707a'); else drawHatArt(ix, iy + 6, k, 1); },
-    (k, open, on) => open ? (HATS[k].name + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + HATS[k].name + '|' + (HATS[k].gacha ? 'WIN IT IN THE GACHA-PON' : HATS[k].ach ? 'BEAT A BOSS TO EARN IT' : 'BUY AT THE SHOP CLOSET')),
-    k => { meta.hat = k; }, k => HATS[k].rar || 0);
-
-  // ---- GEAR row (face kit: goggles, visors, lenses) ----
-  drawText('GEAR', 14, 206, '#c8b8a0', 1);
-  drawText(rname, 46, 206, '#8aa0a8', 1);
-  skinRow(215, GEAR_ORDER, () => meta.gear, gearUnlocked,
-    (ix, iy, k) => { if (k === 'none') rect(ix - 4, iy, 8, 2, '#54707a'); else drawGearArt(ix, iy - 1, k, 1); },
-    (k, open, on) => open ? (GEAR[k].name + '|' + GEAR[k].flav + (on ? '|EQUIPPED' : '|CLICK TO WEAR')) : ('LOCKED: ' + GEAR[k].name + '|' + (GEAR[k].gacha ? 'WIN IT IN THE GACHA-PON' : 'BUY AT THE SHOP CLOSET')),
-    k => { meta.gear = k; }, k => GEAR[k].rar || 0);
-
-  button(W / 2 - 45, 246, 90, 16, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'skinback' });
 }
 
 // ------------------------------------------------- interactive tutorial ----
@@ -7949,7 +8716,7 @@ function drawTutorial(dt) {
   }
   if (!owlBehind) drawOwlet(O.x, O.y, owlO);
   const rgExpr = iv.lost > 0 ? 'scared' : iv.phase === 'result' ? 'happy' : (iv.pressedN > 0 && iv.t < 1 ? 'happy' : 'calm');
-  drawBobble(R.x, 214, iv.k, { sc: 1.2, expr: rgExpr, act: R.x < 95 ? 'walk' : (iv.lost > 0 ? 'idle' : 'idle'), hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  drawBobble(R.x, 214, iv.k, { sc: 1.2, expr: rgExpr, act: R.x < 95 ? 'walk' : (iv.lost > 0 ? 'idle' : 'idle'), ...myFit() });
 
   // ------------------------------------------------------ interaction ----
   const typed = iv.sayT * 40 >= iv.said.length;
@@ -8984,7 +9751,7 @@ function drawRangerSelect() {
     ctx.save();
     if (inside) ctx.globalAlpha = 1 - inside;
     if (over || isSel) { ctx.save(); ctx.globalAlpha *= 0.28 + Math.sin(tNow * 5) * 0.08; ctx.scale(1, 0.3); fillCircle(P.x, (P.y - 1) / 0.3, 18, open ? '#ffe89a' : '#9ab0c0'); ctx.restore(); }
-    const o = { sc: sc * (1 - inside * 0.25), expr, act, flip: P.walk && P.face < 0, phase: RANGER_ORDER.indexOf(k) * 0.9, hat: open && isSel ? meta.hat : 'none', gear: open && isSel ? meta.gear : 'none', glove: open && isSel ? meta.glove : 'bare' };
+    const o = { sc: sc * (1 - inside * 0.25), expr, act, flip: P.walk && P.face < 0, phase: RANGER_ORDER.indexOf(k) * 0.9, hat: open && isSel ? meta.hat : 'none', gear: open && isSel ? meta.gear : 'none', glove: open && isSel ? meta.glove : 'bare', fit: open && isSel ? meta.fit : null };
     if (open) drawBobble(P.x, P.y, k, o);
     else {
       drawSilhouette(P.x, P.y, k, o, over || isSel ? '#24303a' : '#10161c', over || isSel ? 0.78 : 0.9);
@@ -9853,7 +10620,7 @@ function drawMap() {
   const lean = G.boat ? Math.round(G.boat.lean || 0) : 0;
   ctx.save(); ctx.translate(bpos.x, bpos.y + bob); ctx.scale(0.8, 0.8); ctx.translate(-bpos.x, -(bpos.y + bob));
   drawRowBoat(bpos.x, bpos.y + bob, lean, !!G.boat);
-  drawBobble(bpos.x + lean * 0.4, bpos.y + 1 + bob, G.ranger, { sc: 0.42, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  drawBobble(bpos.x + lean * 0.4, bpos.y + 1 + bob, G.ranger, { sc: 0.42, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle', ...myFit() });
   ctx.restore();
   drawRipples(0.6);
 
@@ -10035,48 +10802,7 @@ function pushPin(cx, cy, ramp, glint) {
   fillCircle(cx, cy, 4, ramp.d); fillCircle(cx, cy, 3, ramp.b); fillCircle(cx - 1, cy - 1, 2, ramp.l);
   ctx.save(); ctx.globalAlpha = 0.35 + 0.65 * glint; rect(cx - 1, cy - 1, 1, 1, '#ffffff'); ctx.restore();
 }
-function drawPassScreen(dt) {
-  ensureDaily();
-  // cozy back room: dark planks + string lights
-  for (let y = 0; y < H; y += 14) {
-    rect(0, y, W, 14, ((y / 14) | 0) % 2 ? '#33241a' : '#2c1f14');
-    rect(0, y + 13, W, 1, '#1c1208');
-  }
-  rect(0, 218, W, H - 218, '#241708');
-  for (let x = 0; x < W; x += 48) rect(x, 221, 1, H - 221, '#1c1208');
-  // string lights
-  for (let k = 0; k < 12; k++) {
-    const lx = 12 + k * 42, ly = 8 + Math.round(Math.sin(k * 1.2) * 4);
-    rect(lx, ly, 42, 1, '#1c1208');
-    const on = ((tNow * 2 + k) | 0) % 3 !== 0;
-    fillCircle(lx + 20, ly + 4, 2, on ? ['#ffe089', '#ff8ab0', '#7fd4e8'][k % 3] : '#3a2c20');
-    if (on) { ctx.save(); ctx.globalAlpha = 0.12; fillCircle(lx + 20, ly + 5, 6, '#ffe089'); ctx.restore(); }
-  }
-  drawTextCSh('SCOUT GACHA-PON', 130, 20, C.gold, 2);
-  drawTextC('TRADE SCOUT COOKIES FOR CAPSULE PRIZES', 130, 38, '#c8a878', 1);
-  // cookie balance
-  panel(352, 14, 112, 22, { face: '#26321e', edge: '#5a7a3a' });
-  ICONS.cookie(358, 19);
-  drawText(fmt(meta.rp || 0) + ' COOKIES', 374, 22, C.gold, 1);
-
-  // ---- the machine ----
-  const g = G.gacha;
-  const mxp = 78, myp = 62;
-  const crankA = g && g.phase === 'crank' ? g.t * 14 : 0;
-  drawGachaMachine(mxp, myp, g && g.phase === 'crank', crankA, -1);
-  const pool = gachaPool();
-  const canSpin = (meta.rp || 0) >= GACHA_SPIN && (!g || g.phase === 'reveal');
-  button(mxp + 2, 196, 100, 22, 'SPIN', '#d94f30', '#8a2a16', gachaSpin,
-    { id: 'gspin', disabled: !canSpin, sub: GACHA_SPIN + ' COOKIES', subCol: '#ffe089', tip: 'GACHA-PON|One capsule per spin: cards, glove skins,|permanent upgrades. Dupes impossible.' });
-  const plbl = pool.length ? 'VIEW PRIZES (' + pool.length + ' LEFT) >' : 'EVERY PRIZE COLLECTED!';
-  const plw = textW(plbl, 1) + 14;
-  panel(mxp + 52 - plw / 2, 222, plw, 13, { face: '#1a2530', edge: '#3a5a50', r: 2 });
-  drawTextC(plbl, mxp + 52, 226, pool.length ? '#7fd4e8' : C.gold, 1);
-  hit(mxp + 52 - plw / 2, 220, plw, 16, {
-    id: 'gshow', cursor: true, tip: 'CAPSULE PRIZE LIST|See everything the machine can drop',
-    cb: () => { if (!G.gacha || G.gacha.phase === 'reveal') { G.gacha = null; G.gachaShow = true; sfx.pin(); } },
-  });
-
+function drawQuestBoard() {
   // ---- quest board: carved ranger-station corkboard -------------------
   const BX = 236, BY = 50, BW = 232, BH = 172, CKX = 241, CKY = 55, CKW = 222, CKH = 162;
   rr(BX + 2, BY + 3, BW, BH, 4, '#00000070');
@@ -10144,69 +10870,8 @@ function drawPassScreen(dt) {
     hit(px, py, pw - 56, ph, { id: 'qnote' + p.id, tip: p.name + '|POSTED BY ' + npc.name + '|+' + p.rp + ' COOKIES' });
   });
 
-  drawTextC('EARN COOKIES: QUESTS, ACHIEVEMENTS +25, EVENTS +3, ANTES +2', W / 2, 236, '#54707a', 1);
-  button(W / 2 - 40, 248, 80, 16, '< BACK', '#3a5560', '#243a44', () => { if (!G.gacha || G.gacha.phase === 'reveal') { G.gacha = null; G.state = 'menu'; } }, { id: 'passback' });
-
-  // ---- prize showcase overlay ----
-  if (G.gachaShow) { drawGachaShowcase(); return; }
-
-  // ---- spin animation ----
-  if (!g) return;
-  g.t += dt;
-  if (g.phase === 'crank') {
-    if (g.t >= 0.75) { g.phase = 'drop'; g.t = 0; sfx.thunk(); }
-  } else if (g.phase === 'drop') {
-    // capsule falls from the dome into the tray, two bounces
-    const f = clamp(g.t / 0.6, 0, 1);
-    const cx2 = mxp + 51, y0 = myp + 40, y1 = myp + 100;
-    let yy = y0 + (y1 - y0) * easeIn(Math.min(1, f * 1.4));
-    if (f > 0.71) yy = y1 - Math.abs(Math.sin((f - 0.71) * 11)) * 8 * (1 - f);
-    fillCircle(cx2, yy, 8, g.capCol);
-    ctx.save(); ctx.globalAlpha = 0.5; fillCircle(cx2, yy + 2, 7, '#f4f2e4'); ctx.restore();
-    rect(cx2 - 4, yy - 6, 3, 2, '#ffffffaa');
-    if (g.t >= 0.72 && !g.bounced) { g.bounced = true; sfx.drop(); }
-    if (g.t >= 0.85) { g.phase = 'open'; g.t = 0; sfx.pin(); }
-  } else if (g.phase === 'open') {
-    // halves fly apart center-screen
-    overlayDim(0.5);
-    const f = easeOut(clamp(g.t / 0.4, 0, 1));
-    const cx2 = W / 2, cy2 = 128;
-    ctx.save(); ctx.globalAlpha = 1;
-    fillCircle(cx2, cy2 - 14 - f * 46, 13, g.capCol);
-    rect(cx2 - 13, cy2 - 14 - f * 46, 26, 7, g.capCol);
-    fillCircle(cx2, cy2 + 14 + f * 46, 13, '#f4f2e4');
-    rect(cx2 - 13, cy2 + 7 + f * 46, 26, 7, '#f4f2e4');
-    ctx.restore();
-    if (!g.burst) { g.burst = true; burst(cx2, cy2, g.capCol, 14, 90); }
-    if (g.t >= 0.42) { g.phase = 'reveal'; g.t = 0; gachaAward(g.prize); g.info = gachaPrizeInfo(g.prize); if (g.info.rar >= 2) { burst(cx2, cy2, C.gold, 20, 120); sfx.win(); } }
-  } else if (g.phase === 'reveal') {
-    overlayDim(0.62);
-    const info = g.info || gachaPrizeInfo(g.prize);
-    const pop = easeOut(clamp(g.t / 0.25, 0, 1));
-    const pw2 = 190, ph2 = 96, px2 = W / 2 - pw2 / 2, py2 = 128 - ph2 / 2 * pop;
-    ctx.save(); ctx.globalAlpha = pop;
-    // rarity halo
-    ctx.save(); ctx.globalAlpha = 0.16 * pop + Math.sin(tNow * 4) * 0.03; fillCircle(W / 2, 128, 86, RAR_COLS[info.rar]); ctx.restore();
-    panel(px2, py2, pw2, ph2 * pop, { face: '#16222af8', edge: RAR_COLS[info.rar] });
-    if (pop >= 1) {
-      drawTextC(RAR_NAMES[info.rar], W / 2, py2 + 8, RAR_COLS[info.rar], 1);
-      drawTextCSh(info.name, W / 2, py2 + 20, C.white, 2);
-      // prize icon
-      const iy = py2 + 40;
-      if (g.prize.kind === 'glove') ICONS.glove(W / 2 - 6, iy, GLOVES[g.prize.k].skin);
-      else if (g.prize.kind === 'hat') drawHatArt(W / 2, iy + 12, g.prize.k, 1);
-      else if (g.prize.kind === 'perk') (ICONS[PERKS[g.prize.k].ico] || ICONS.star)(W / 2 - 6, iy);
-      else if (g.prize.kind === 'card') (ICONS[g.prize.def.ico] || ICONS.star)(W / 2 - 6, iy);
-      else ICONS.cookie(W / 2 - 6, iy);
-      drawSmallWrapped(info.desc, px2 + 14, iy + 16, pw2 - 28, '#b8c8c8');
-      if ((tNow % 1) < 0.6) drawTextC('TAP ANYWHERE', W / 2, py2 + ph2 - 10, C.dim, 1);
-    }
-    ctx.restore();
-    if (g.t > 0.3) hit(0, 0, W, H, { id: 'greveal', cb: () => { G.gacha = null; }, cursor: true });
-  }
 }
 
-// every capsule the machine can drop, owned ones lit up
 function drawGachaShowcase() {
   overlayDim(0.78);
   hit(0, 0, W, H, { id: 'gsblock', cb: () => { } });
@@ -10446,7 +11111,7 @@ function drawCampfire(cx, cy, heat) {
 }
 function drawRangerSitting(x, y) {
   // little seated ranger, back view-ish
-  drawBobble(x + 9, y + 24, G.ranger, { sc: 0.8, expr: 'happy', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
+  drawBobble(x + 9, y + 24, G.ranger, { sc: 0.8, expr: 'happy', act: 'idle', ...myFit() });
 }
 const GAMES = {
   // ------------------------------------------------ 1. fishing -------------
