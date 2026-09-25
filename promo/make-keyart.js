@@ -18,7 +18,8 @@ window.grabCroc = function (Z) {
   ctx.setTransform(Z, 0, 0, Z, 0, 0);
   newRun('scout');
   G.state = 'menu';
-  rollMenuLook();
+  if (window.promoAnim && window.promoLook) G.menuLook = window.promoLook;   // GIF frames share one croc
+  else { rollMenuLook(); window.promoLook = G.menuLook; }
   G.menuLook.mut = null;               // always the plain swamp gator, never a variant
   G.menuLook.round = 1;                // the big gator: widest jaws, best for key art
   G.menuLook.nodeType = 'big';
@@ -71,6 +72,37 @@ window.titlePlank = function (cx, cy, tsc, o) {
   return { x: px, y: py, w: pw, h: ph };
 };
 
+// fireflies drifting in loops, little hearts floating up and sparkle stars
+// popping - every motion is a whole number of cycles per loop so GIFs loop clean
+window.promoCute = function (LW, LH, ph, y0, y1) {
+  const TAU = Math.PI * 2;
+  for (let k = 0; k < 14; k++) {
+    const a = (ph + k / 14) * TAU, bx = (k * 71 + 23) % LW, by = y0 + ((k * 43) % Math.max(1, y1 - y0));
+    const fx = bx + Math.cos(a) * 6, fy = by + Math.sin(a * 2) * 3;
+    const on = 0.5 + 0.5 * Math.sin(a * 3);
+    glow(fx, fy, 5, '#c8ff8a', 0.35 * on);
+    ctx.save(); ctx.globalAlpha = 0.5 + 0.5 * on; rect(fx, fy, 1, 1, '#f4ffd0'); ctx.restore();
+  }
+  for (let k = 0; k < 5; k++) {                  // hearts
+    const f = (ph + k / 5) % 1, hx = LW * (0.12 + ((k * 37) % 76) / 100), hy = y1 - f * (y1 - y0) * 0.9;
+    const hs = 1 + (k % 2);
+    ctx.save(); ctx.globalAlpha = Math.sin(f * Math.PI) * 0.85;
+    ctx.translate(hx + Math.sin(f * TAU * 2) * 3, hy);
+    const c = k % 2 ? '#ff7aa8' : '#ff5a7a';
+    rect(-2 * hs, -1 * hs, 2 * hs, 2 * hs, c); rect(0, -1 * hs, 2 * hs, 2 * hs, c);
+    rect(-3 * hs, -2 * hs, 2 * hs, 2 * hs, c); rect(1 * hs, -2 * hs, 2 * hs, 2 * hs, c);
+    rect(-1 * hs, 1 * hs, 2 * hs, 1 * hs, c); rect(-2 * hs, -2 * hs, 1 * hs, 1 * hs, '#ffd0e0');
+    ctx.restore();
+  }
+  for (let k = 0; k < 6; k++) {                  // four-point sparkles
+    const f = (ph * 2 + k / 6) % 1, s = Math.sin(f * Math.PI) * (2 + (k % 3));
+    const sx = (k * 131 + 40) % LW, sy = y0 + ((k * 59) % Math.max(1, y1 - y0));
+    ctx.save(); ctx.globalAlpha = Math.sin(f * Math.PI);
+    rect(sx - s, sy, s * 2 + 1, 1, '#fff6c8'); rect(sx, sy - s, 1, s * 2 + 1, '#fff6c8');
+    ctx.restore();
+  }
+};
+
 window.vignette = function (LW, LH, strength) {
   ctx.save();
   for (let k = 0; k < 14; k++) {
@@ -114,16 +146,20 @@ window.drawCover = function (off, OW, OH, S, crop) {
   ctx.save(); ctx.globalAlpha = 0.36; ctx.scale(1, 0.24);
   fillCircle(hx, hy / 0.24, 22 * U, '#ffc867'); ctx.restore();
   ctx.save(); ctx.translate(hx, hy + 3 * hsc); ctx.scale(hsc * 1.4, hsc * 1.4); drawRowBoat(0, 0, 0, false); ctx.restore();
-  drawBobble(hx - 2 * hsc, hy, 'scout', { sc: hsc, expr: 'wow', act: 'idle', t: 2.1, hat: 'ranger', gear: 'none', glove: 'rubber' });
+  const A = window.promoAnim;                   // set by make-gifs.js; null for the stills
+  drawBobble(hx - 2 * hsc, hy, 'scout', A
+    ? { sc: hsc, expr: A.ph < 0.5 ? 'happy' : 'wow', act: 'hop', t: A.t, hat: 'ranger', gear: 'none', glove: 'rubber' }
+    : { sc: hsc, expr: 'wow', act: 'idle', t: 2.1, hat: 'ranger', gear: 'none', glove: 'rubber' });
   const lx = hx + 15 * hsc, ly = hy - 46 * hsc;
   rect(lx - 1, ly + 8 * hsc, 2, 10 * hsc, '#4a3320');
   rr(lx - 5 * hsc, ly, 10 * hsc, 12 * hsc, 3, '#2a2018');
   rr(lx - 3 * hsc, ly + 2 * hsc, 6 * hsc, 8 * hsc, 2, '#ffd54a');
-  glow(lx, ly + 6 * hsc, 16 * hsc, '#ffd88a', 0.5);
+  glow(lx, ly + 6 * hsc, 16 * hsc, '#ffd88a', A ? 0.42 + 0.1 * Math.sin(A.ph * Math.PI * 6) : 0.5);
 
   for (let k = 0; k < 40; k++) {
     const px = (k * 197) % LW, py = mawTop + ((k * 113) % Math.max(1, mawH));
-    ctx.save(); ctx.globalAlpha = 0.2 + (k % 7) / 14;
+    const tw = A ? 0.5 + 0.5 * Math.sin((A.ph * 2 + k * 0.37) * Math.PI * 2) : 1;
+    ctx.save(); ctx.globalAlpha = (0.2 + (k % 7) / 14) * tw;
     rect(px, py, (k % 5 === 0) ? 2 : 1, (k % 5 === 0) ? 2 : 1, k % 3 ? '#ffe089' : '#9ff0c0');
     ctx.restore();
   }
@@ -138,7 +174,13 @@ window.drawCover = function (off, OW, OH, S, crop) {
     tsc--;
   }
   const phF = 5 * tsc + 2 * Math.max(4, Math.round(tsc * 1.4));
-  titlePlank(LW * 0.5, plankBottom - phF / 2, tsc, {});
+  if (A) promoCute(LW, LH, A.ph, mawTop, mawBot);
+  if (A) {                                       // the title plank does a little happy bounce
+    const bq = Math.max(0, Math.sin(A.ph * Math.PI * 4));
+    ctx.save(); ctx.translate(LW * 0.5, plankBottom); ctx.scale(1 + bq * 0.03, 1 - bq * 0.04); ctx.translate(-LW * 0.5, -plankBottom - bq * 3);
+    titlePlank(LW * 0.5, plankBottom - phF / 2, tsc, {});
+    ctx.restore();
+  } else titlePlank(LW * 0.5, plankBottom - phF / 2, tsc, {});
   vignette(LW, LH, 0.06);
 };
 
@@ -149,7 +191,8 @@ window.drawStreet = function (LW, LH) {
   // ---- dusk sky ----
   const sky = ['#161d3a', '#26244a', '#452f52', '#6e3f52', '#a55a4a', '#d98a4a', '#f0b566'];
   for (let i = 0; i < sky.length; i++) rect(0, i * (52 * U / sky.length), LW, 52 * U / sky.length + 1, sky[i]);
-  for (let k = 0; k < 60; k++) { const sx = (k * 149) % LW, sy = (k * 37) % (26 * U); ctx.save(); ctx.globalAlpha = 0.5; rect(sx, sy, 1, 1, '#cfe0ff'); ctx.restore(); }
+  const A = window.promoAnim;
+  for (let k = 0; k < 60; k++) { const sx = (k * 149) % LW, sy = (k * 37) % (26 * U); ctx.save(); ctx.globalAlpha = A ? 0.25 + 0.35 * (0.5 + 0.5 * Math.sin((A.ph * 2 + k * 0.29) * Math.PI * 2)) : 0.5; rect(sx, sy, 1, 1, '#cfe0ff'); ctx.restore(); }
   const sunX = LW * 0.5, sunY = 48 * U;
   glow(sunX, sunY, 40 * U, '#ffc06a', 0.5);
   fillCircle(sunX, sunY, 11 * U, '#ffd88a'); fillCircle(sunX, sunY, 9 * U, '#fff0c0');
@@ -220,12 +263,18 @@ window.drawStreet = function (LW, LH) {
     rect(lx - 7 * U, 21 * U, 12 * U, 3 * U, '#241f2c');
     rr(lx - 9 * U, 22 * U, 8 * U, 5 * U, 2, '#3a3446');
     rect(lx - 8 * U, 24 * U, 6 * U, 3 * U, '#ffe089');
-    glow(lx - 5 * U, 26 * U, 26 * U, '#ffd88a', 0.45);
+    glow(lx - 5 * U, 26 * U, 26 * U, '#ffd88a', A ? 0.4 + 0.08 * Math.sin(A.ph * Math.PI * 8) : 0.45);
   })();
 
   // ---- THE CROSSING: four rangers, in step, long shadows ----
   const crew = ['scout', 'medic', 'trader', 'frog'];
-  const hats = ['ranger', 'straw', 'cowboy', 'bandana'];
+  const hats = ['ranger', 'bunnyears', 'wombat', 'flowers'];
+  const fits = [
+    { shirt: 'rangershirt' },
+    { shirt: 'hawaiian', shoes: 'bunny' },
+    { shirt: 'wombattee', pants: 'jeans' },
+    { suit: 'banana' },
+  ];
   const strides = [0.291, 0.873, 1.454, 2.036];   // sin(t*5.4) at +1,-1,+1,-1
   const feetY = 87 * U, sc = LH / 152;
   const startX = LW * 0.29, stepX = LW * 0.108;
@@ -237,7 +286,7 @@ window.drawStreet = function (LW, LH) {
     ctx.restore();
     drawBobble(cx, feetY, k, {
       sc, act: 'walk', expr: i === 0 ? 'calm' : i === 1 ? 'happy' : i === 2 ? 'smug' : 'wow',
-      t: strides[i], hat: hats[i], gear: 'none', glove: i === 1 ? 'rubber' : i === 2 ? 'leather' : 'bare',
+      t: strides[i] + (A ? A.t : 0), hat: hats[i], fit: fits[i], gear: 'none', glove: i === 1 ? 'rubber' : i === 2 ? 'leather' : 'bare',
     });
   });
 
@@ -254,11 +303,13 @@ window.drawStreet = function (LW, LH) {
   rr(tcx - sw / 2 - 3 * ssc, sy - ssc, sw + 6 * ssc, 7 * ssc, 2, '#40230c');
   drawTextCSh(sub, tcx, sy, '#f0d8b0', ssc, '#1d1005');
 
+  if (A) promoCute(LW, LH, A.ph, 30 * U, 92 * U);
   vignette(LW, LH, 0.05);
 };
 `;
 
-(async () => {
+module.exports = { HELPERS };
+if (require.main === module) (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
   const pg = await b.newPage({ viewport: { width: 1500, height: 900 } });
   const errs = [];
@@ -271,6 +322,7 @@ window.drawStreet = function (LW, LH) {
     Object.keys(HATS).forEach(k => meta.hatOwn[k] = 1);
     Object.keys(GEAR).forEach(k => meta.gearOwn[k] = 1);
     Object.keys(GLOVES).forEach(k => meta.gachaOwn[k] = 1);
+    Object.keys(FITS).forEach(k => meta.fitOwn[k] = 1);
     ACHS.forEach(a => meta.ach[a.id] = 1);
   });
 
