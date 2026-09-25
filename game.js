@@ -274,10 +274,27 @@ function hash2(x, y) {
 }
 const MIXC = new Map();
 function mixC(a, b, t) { const k = a + b + t; let v = MIXC.get(k); if (!v) { v = mixHex(a, b, t); MIXC.set(k, v); } return v; }
+// Textured boxes are painted once per (size, ramp, options) into a little
+// offscreen canvas and then stamped - the grain is position-independent, so
+// the stamp is pixel-identical to painting it in place, at a fraction of the cost.
+const PB_CACHE = new Map();
 function plasticBox(x, y, w, h, r, ramp, o) {
   o = o || {};
   x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
   if (w < 2 || h < 2) return;
+  const key = w + ',' + h + ',' + r + ',' + ramp.join('') + (o.flat ? 'f' : '') + (o.noShine ? 'n' : '') + (o.smooth ? 's' : '') + (o.seed || 0);
+  let c = PB_CACHE.get(key);
+  if (!c) {
+    c = document.createElement('canvas'); c.width = w * RS; c.height = h * RS;
+    const c2 = c.getContext('2d'); c2.imageSmoothingEnabled = false; c2.setTransform(RS, 0, 0, RS, 0, 0);
+    const main = ctx; ctx = c2;
+    try { plasticBoxRaw(0, 0, w, h, r, ramp, o); } finally { ctx = main; }
+    if (PB_CACHE.size > 6000) PB_CACHE.clear();
+    PB_CACHE.set(key, c);
+  }
+  ctx.drawImage(c, x, y, w, h);
+}
+function plasticBoxRaw(x, y, w, h, r, ramp, o) {
   const ri = Math.max(1, r - 1);
   rr(x, y, w, h, r, ramp[0]);                                   // ink edge
   const ix = x + 1, iy = y + 1, iw = w - 2, ih = h - 2;
@@ -543,14 +560,27 @@ function fillCircle(cx, cy, r, col) {
 
 // --------------------------------------------------- swamp scene themes ---
 // a soft light bloom: concentric discs so the falloff never shows a hard rim
+// (the rings are painted once per radius+colour at full strength and then
+// stamped with the requested alpha - big blooms were costing whole frames)
+const GLOW_CACHE = new Map();
 function glow(cx, cy, r, col, a) {
-  const n = r > 30 ? 10 : 6;                 // more rings on big blooms, so no hard rim
-  ctx.save();
-  for (let k = n; k >= 1; k--) {
-    const f = k / n;
-    ctx.globalAlpha = (a === undefined ? 0.12 : a) * (1 - f) * 0.7 + 0.01;
-    fillCircle(cx, cy, r * f, col);
+  a = a === undefined ? 0.12 : a;
+  if (a <= 0) return;
+  const R = Math.max(1, Math.round(r)), key = R + col;
+  let c = GLOW_CACHE.get(key);
+  if (!c) {
+    const n = R > 30 ? 10 : 6, s2 = R * 2 + 2;
+    c = document.createElement('canvas'); c.width = s2 * RS; c.height = s2 * RS;
+    const c2 = c.getContext('2d'); c2.setTransform(RS, 0, 0, RS, 0, 0);
+    const main = ctx; ctx = c2;
+    try {
+      for (let k = n; k >= 1; k--) { const f = k / n; ctx.globalAlpha = (1 - f) * 0.21 + 0.03; fillCircle(R + 1, R + 1, R * f, col); }
+    } finally { ctx = main; }
+    if (GLOW_CACHE.size > 400) GLOW_CACHE.clear();
+    GLOW_CACHE.set(key, c);
   }
+  ctx.save(); ctx.globalAlpha *= Math.min(1, a * 3.3);   // matches the old ring stack's build-up
+  ctx.drawImage(c, Math.round(cx) - R - 1, Math.round(cy) - R - 1, R * 2 + 2, R * 2 + 2);
   ctx.restore();
 }
 
@@ -1032,7 +1062,27 @@ const HEADSPAN = [7, 8, 10, 10, 11, 12, 12, 12, 13, 13, 13, 13, 13, 13, 12, 12, 
 // A shaded blob from a half-width table.  Tone bands are concentric ellipses
 // around the key-light point, so the terminator curves like a real sphere
 // instead of stepping in stripes; the band edges are 1px dithered.
+// shaded blobs are cached the same way as textured boxes: painted once at a
+// local origin, stamped thereafter (the shading is all relative to the shape)
+const BS_CACHE = new Map();
 function bobShape(spans, y0, ramp, o) {
+  o = o || {};
+  const n = spans.length, ox = o.ox || 0;
+  let maxw = 0; for (let i = 0; i < n; i++) maxw = Math.max(maxw, spans[i]);
+  const key = spans.join(',') + '|' + ramp.join('') + (o.norim ? 'r' : '') + (o.seed || 0) + '|' + (o.lx === undefined ? '' : o.lx) + '|' + (o.ly === undefined ? '' : o.ly);
+  let c = BS_CACHE.get(key);
+  const cw = maxw * 2 + 4, ch = n + 4;
+  if (!c) {
+    c = document.createElement('canvas'); c.width = cw * RS; c.height = ch * RS;
+    const c2 = c.getContext('2d'); c2.imageSmoothingEnabled = false; c2.setTransform(RS, 0, 0, RS, 0, 0);
+    const main = ctx; ctx = c2;
+    try { bobShapeRaw(spans, 2, ramp, Object.assign({}, o, { ox: maxw + 2 })); } finally { ctx = main; }
+    if (BS_CACHE.size > 3000) BS_CACHE.clear();
+    BS_CACHE.set(key, c);
+  }
+  ctx.drawImage(c, ox - maxw - 2, y0 - 2, cw, ch);
+}
+function bobShapeRaw(spans, y0, ramp, o) {
   o = o || {};
   const n = spans.length, ox = o.ox || 0;
   let maxw = 0; for (let i = 0; i < n; i++) maxw = Math.max(maxw, spans[i]);
