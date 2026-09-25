@@ -6555,120 +6555,172 @@ function drawAirboat(cx, y, moving, dt) {
 function drawIntro(dt) {
   const cut = G.cut; if (!cut) { G.state = 'map'; return; }
   cut.t += dt;
-  const DUR = [3.6, 3.4, 2.2];
+  const DUR = [3.6, 2.8, 3.6, 2.4];
   if (cut.t >= DUR[cut.shot] && !cut.ending) {
-    if (cut.shot >= 2) endIntro();
-    else { cut.shot++; cut.t = 0; sfx.whoosh(); }
+    if (cut.shot >= DUR.length - 1) endIntro();
+    else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); }
   }
-  const t = cut.t;
+  const t = cut.t, R = RANGERS[G.ranger] || RANGERS.scout;
 
   if (cut.shot === 0) {
-    // --- shot 1: poling through the glades at night ---
-    const th = THEMES.night;
-    drawSceneBack(th);
-    drawSceneFront(th);
-    const cx2 = lerp(-80, 226, easeOut(clamp(t / 2.9, 0, 1)));
-    const bob = Math.sin(tNow * 2.4) * 1.5;
-    const moving = t < 3.0;
-    drawAirboat(cx2, 230 + bob, moving, dt, t);
-    cut.cap = typed('DEEP IN THE EVERGLADES...', t - 0.3) +
-      (t > 2.0 ? '\n' + typed('A GATOR HOARDS A FORTUNE IN GOLDEN TEETH.', t - 2.0) : '');
+    // --- shot 1: casting off from the ranger station at sundown ---
+    paintCached('menu', 0, 0, W, H, menuStatic);
+    const RX = 344, RY = 118;
+    [[RX + 14, RY + 24], [RX + 84, RY + 24]].forEach(([wx, wy]) => { rect(wx, wy, 22, 18, '#f8c860'); rect(wx + 10, wy, 2, 18, '#3a2410'); rect(wx, wy + 8, 22, 2, '#3a2410'); });
+    // Mrs Owlet on the porch with her clipboard
+    ctx.save(); ctx.translate(RX - 2, RY + 60); ctx.scale(0.55, 0.55);
+    drawOwlet(0, 0, { expr: 'grump', talk: t > 0.4 && t < 2.6, clip: 1, look: { x: -1, y: 0.4 } });
+    ctx.restore();
+    for (let r = 0; r < 40; r++) { const yy = MENU_HZ + 1 + r * 2, ww = Math.max(2, 22 - r * 0.45); ctx.save(); ctx.globalAlpha = Math.max(0.1, 0.8 - r * 0.018); rect(MENU_SUN.x - ww / 2 + Math.round(Math.sin(tNow * 1.2 + r * 1.9) * 2), yy, ww, 1, r < 4 ? '#fff4d0' : '#f8b870'); ctx.restore(); }
+    // the airboat idles, then opens up the throttle
+    const go = clamp((t - 1.5) / 2.0, 0, 1);
+    const bx = 170 + easeIn(go) * 380, by = 214 + Math.sin(tNow * 2.4) * 1;
+    drawAirboat(bx, by, go > 0, dt);
+    drawRipples(0.8);
+    if (go > 0.05 && (tNow % 0.08) < dt) parts.push({ x: bx - 50, y: by + 8, vx: -60 - rnd() * 60, vy: -30 - rnd() * 40, t: 0, life: 0.5, col: '#bfe0f0', sz: 2, g: 200 });
+    cut.cap = typed("MRS OWLET: 'BRING BACK ALL TEN FINGERS.'", t - 0.3) + (t > 2.1 ? '\n' + typed("'...AND MY BOAT.'", t - 2.1) : '');
   } else if (cut.shot === 1) {
-    // --- shot 2: the REAL monster surfaces as a silhouette, lantern vs eyes ---
+    // --- shot 2: full throttle through the glades, parallax whipping past ---
+    for (let y = 0; y < 150; y++) { const f = Math.pow(y / 150, 1.3) * (DUSK.length - 1), i = Math.floor(f); rect(0, y, W, 1, DUSK[i]); if (f - i > 0.5 && i + 1 < DUSK.length) for (let x = (y & 1); x < W; x += 2) rect(x, y, 1, 1, DUSK[i + 1]); }
+    fillCircle(360, 140, 22, '#fde0a0'); fillCircle(360, 140, 18, '#fff2cc');
+    const far = (tNow * 18) % 60, mid = (tNow * 90) % 120, near = (tNow * 320) % 90;
+    for (let x = -60; x < W + 60; x += 12) { const h = 8 + ((x / 12 | 0) * 37 % 11); rect(x - far, 150 - h, 13, h, '#3a2848'); }
+    for (let x = -120; x < W + 120; x += 60) {
+      const tx = x - mid + ((x / 60 | 0) % 2) * 20, top = 60 + ((x / 60 | 0) * 29 % 30);
+      rect(tx - 3, top, 6, 150 - top, '#1a1224');
+      for (let c = 0; c < 3; c++) { const cw = 14 + c * 6, cy = top + c * 9; rect(tx - cw, cy, cw * 2, 3, '#20182c'); for (let m = 0; m < cw * 2; m += 3) rect(tx - cw + m, cy + 3, 1, 3 + (m * 7 % 9), '#3a3448'); }
+    }
+    for (let y = 150; y < H; y++) rect(0, y, W, 1, mixC(DUSK[clamp(Math.floor((1 - (y - 150) / 120) * 7) + 1, 0, 8)], '#081018', 0.45 + (y - 150) / 260));
+    ctx.save(); ctx.globalAlpha = 0.5;
+    for (let k = 0; k < 24; k++) { const yy = 154 + (k * 37 % 110), xx = W - ((tNow * (260 + k * 14) + k * 97) % (W + 80)); rect(xx, yy, 20 + k % 30, 1, k % 3 ? '#8a6a8e' : '#f8b870'); }
+    ctx.restore();
+    const bob = Math.sin(tNow * 9) * 1.5;
+    drawAirboat(200, 206 + bob, true, dt);
+    // spray sheet off the stern
+    for (let k = 0; k < 10; k++) { const ph = (tNow * 3 + k * 0.1) % 1; ctx.save(); ctx.globalAlpha = (1 - ph) * 0.6; rect(150 - ph * 80, 214 - Math.sin(ph * Math.PI) * 10, 3, 2, '#dff2fa'); ctx.restore(); }
+    // reeds whipping by in the foreground
+    for (let x = -30; x < W + 30; x += 18) { const h = 30 + ((x / 18 | 0) * 13 % 26); const rx = x - near; rect(rx, H - h, 2, h, '#0c1210'); rect(rx + 3, H - h + 8, 1, h - 8, '#141c16'); rr(rx - 1, H - h - 6, 4, 8, 1, '#2a1a10'); }
+    // a flock bursts up out of the reeds
+    if (t > 0.9) for (let k = 0; k < 7; k++) { const f = t - 0.9, bx2 = 330 + k * 14 - f * 60, by2 = 140 - f * (60 + k * 8) + Math.sin(k) * 6, fl = Math.sin(tNow * 16 + k) > 0; rect(bx2, by2, 3, 1, '#1a1224'); rect(bx2 - 2, by2 + (fl ? -2 : 1), 2, 1, '#1a1224'); rect(bx2 + 3, by2 + (fl ? -2 : 1), 2, 1, '#1a1224'); }
+    // speed lines
+    ctx.save(); ctx.globalAlpha = 0.25; for (let k = 0; k < 12; k++) { const yy = 30 + k * 18, xx = W - ((tNow * 700 + k * 131) % (W + 200)); rect(xx, yy, 60, 1, '#ffffff'); } ctx.restore();
+    cut.cap = typed('HEADING INTO ' + anteName(G.ante) + '...', t - 0.2) + (t > 1.4 ? '\n' + typed(R.name + ' IS ON THE CLOCK.', t - 1.4) : '');
+  } else if (cut.shot === 2) {
+    // --- shot 3: the lagoon.  Engine off.  Something surfaces in the lamp. ---
     if (!cut.crocShot) {
-      // capture the actual in-game croc (big style), then tint it to a shadow
-      const _r = G.round; G.round = 1; // round 1 resolves to the BIG gator style
+      const _r = G.round; G.round = 1;
       ctx.clearRect(0, 0, W, H);
-      const _mx = mx, _my = my; mx = 294; my = 120;
-      drawCroc(0.5, { angry: true });
+      const _mx = mx, _my = my; mx = 120; my = 140;
+      drawCroc(0.4, { mood: 'hungry' });
       mx = _mx; my = _my; G.round = _r;
-      const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+      const oc = document.createElement('canvas'); oc.width = W * 2; oc.height = H * 2;
       const o = oc.getContext('2d'); o.imageSmoothingEnabled = false;
-      o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W, H); // downscale the supersampled backing
-      o.globalCompositeOperation = 'source-atop';
-      o.globalAlpha = 0.86; o.fillStyle = '#081018'; o.fillRect(0, 0, W, H);
+      o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W * 2, H * 2);
       cut.crocShot = oc;
-      // remember where its eyes sit so we can ignite them
-      const L = mouthLayout(), maw = L.maw;
-      const jy = maw.y - 58 + 0.5 * (maw.h - 26);
-      cut.eyes = [[maw.x + 18, jy - 10], [maw.x + maw.w - 48, jy - 10]];
+      ctx.setTransform(RS, 0, 0, RS, 0, 0);
     }
-    for (let i = 0; i < 5; i++) rect(0, i * 42, W, 42, ['#040810', '#050b12', '#071016', '#08141a', '#0a181e'][i]);
-    for (let i = 0; i < 20; i++) { const sx2 = (i * 97 + 31) % W, sy2 = (i * 53 + 11) % 90; ctx.save(); ctx.globalAlpha = 0.3; rect(sx2, sy2, 1, 1, '#cfe8f0'); ctx.restore(); }
-    rect(0, 208, W, H - 208, '#050d10'); // black water
-    // the head rises out of the water
-    const rise = easeOut(clamp(t / 1.3, 0, 1));
-    const riseY = Math.round(lerp(150, 26, rise) + Math.sin(tNow * 1.1) * 1.5);
-    ctx.imageSmoothingEnabled = false;
-    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, 208); ctx.clip();
-    ctx.drawImage(cut.crocShot, 130, 20, 330, 240, 130, riseY, 330, 240);
-    ctx.restore();
-    // waterline cut + laps
-    rect(0, 208, W, 4, '#071014');
-    for (let x = 150, k = 0; x < 470; x += 12, k++) rect(x + ((tNow * 8 | 0) % 12), 206, 6, 2, '#12262066');
-    // eyes ignite in the sprite's own sockets
-    if (t > 1.15) {
-      if (!cut.growled) { cut.growled = true; sfx.boss(); shake = 5; }
-      const ec = t > 1.3 ? 1 : (t - 1.15) / 0.15;
-      (cut.eyes || []).forEach(([ex0, ey0]) => {
-        const ex2 = ex0, ey2 = ey0 + (riseY - 20); // follow the rise offset
-        ctx.save(); ctx.globalAlpha = 0.16 * ec; fillCircle(ex2 + 11, ey2 + 9, 22, '#ffc843'); ctx.restore();
-        ctx.save(); ctx.globalAlpha = 0.5 + ec * 0.5;
-        rr(ex2 + 3, ey2 + 4, 16, 12, 3, '#ffc843');
-        rect(ex2 + 9, ey2 + 6, 4, 8, '#1b1408');
-        rect(ex2 + 5, ey2 + 5, 3, 3, '#fff6c8');
-        ctx.restore();
-      });
-    }
-    // the ranger stands on their moored airboat, lantern held high
-    const rb = Math.sin(tNow * 2.1) * 1;
-    rr(30, 236 + rb, 70, 8, 3, '#3c464e');
-    rect(34, 233 + rb, 62, 4, '#5a646c');
-    fillCircle(42, 224 + rb, 10, '#1a242c'); fillCircle(42, 224 + rb, 8, '#0c141a'); // dark fan cage
-    drawBobble(66, 236 + rb, G.ranger, { sc: 1, expr: 'calm', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
-    rect(74, 210 + rb, 12, 2, '#0c1216');   // arm out
-    rect(86, 202 + rb, 2, 8, '#4a3320');
-    rr(83, 196 + rb, 8, 8, 2, '#2a2018');
-    rect(85, 198 + rb, 4, 4, '#ffd54a');
-    ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(tNow * 6) * 0.04; fillCircle(87, 200 + rb, 32, '#ffb848'); ctx.restore();
-    cut.cap = typed('TONIGHT, ' + (RANGERS[G.ranger] || RANGERS.scout).name + '...', t - 0.5, 20) +
-      (t > 2.0 ? '\n' + typed('YOU BITE BACK.', t - 2.0, 20) : '');
+    drawLair(t, { rain: 0, eyes: t > 0.9, rise: clamp((t - 1.5) / 1.1, 0, 1), shot: cut.crocShot, eyeCol: '#ffd84a', lamp: 1 });
+    if (t > 2.3 && !cut.growled) { cut.growled = true; sfx.boss(); shake = Math.max(shake, 6); fxRing(300, 170, '#ffd84a', 8, 120, 0.5); }
+    cut.cap = typed('THE ENGINE CUTS OUT. THE WATER GOES STILL.', t - 0.2) + (t > 1.8 ? '\n' + typed('THE GATORS ARE HUNGRY TONIGHT.', t - 1.8) : '');
   } else {
-    // --- shot 3: the floor card ---
-    rect(0, 0, W, H, '#04070a');
-    const jx = (tNow * 5 | 0) % 2, jy2 = ((tNow * 5 + 1) | 0) % 2; // paper wobble
-    const fade = clamp(t / 0.4, 0, 1);
-    ctx.save(); ctx.globalAlpha = fade;
-    rr(74 + jx, 44 + jy2, 332, 182, 4, '#c8b898');
-    rr(78 + jx, 48 + jy2, 324, 174, 4, '#04070a');
-    rr(88 + jy2, 58 + jx, 304, 154, 2, '#00000000');
-    ctx.strokeStyle = '#c8b898'; // inner scratchy frame
-    rect(88 + jy2, 58 + jx, 304, 1, '#8a7a58'); rect(88 + jy2, 211 + jx, 304, 1, '#8a7a58');
-    rect(88 + jy2, 58 + jx, 1, 154, '#8a7a58'); rect(391 + jy2, 58 + jx, 1, 154, '#8a7a58');
-    [[84, 54], [392, 54], [84, 214], [392, 214]].forEach(([nx, ny]) => rect(nx + jx, ny + jy2, 4, 4, '#c8b898'));
-    drawTextCSh('ANTE ' + G.ante, W / 2 + jx, 92 + jy2, '#e8e0c8', 5, '#00000000');
-    drawTextCSh(anteName(G.ante), W / 2 + jx, 142 + jy2, '#8a7a58', 2);
-    drawMiniGator(W / 2 - 11, 168 + jy2, 'small');
-    // ink specks
-    [[120, 200], [352, 74], [340, 196], [130, 70]].forEach(([ix, iy], k) => { rect(ix, iy, 2, 2, '#c8b89844'); rect(ix + 3, iy + 2, 1, 1, '#c8b89833'); });
-    ctx.restore();
+    // --- shot 4: the ante sign slams into frame ---
+    for (let y = 0; y < H; y++) rect(0, y, W, 1, mixC('#0a0c14', '#1a1024', y / H));
+    for (let k = 0; k < 20; k++) { const on = Math.sin(tNow * 2 + k * 1.7); if (on > 0.3) { ctx.save(); ctx.globalAlpha = on * 0.8; rect((hash2(k, 1) * W + Math.sin(tNow * 0.4 + k) * 12 + W) % W, 30 + hash2(k, 2) * 200, 1, 1, '#fffcc0'); ctx.restore(); } }
+    const drop = t < 0.35 ? (1 - easeOut(t / 0.35)) : 0;
+    if (t > 0.35 && !cut.slammed) { cut.slammed = true; shake = Math.max(shake, 8); sfx.thunk(); for (let k = 0; k < 16; k++) parts.push({ kind: 'puff', x: 120 + rnd() * 240, y: 196, vx: (rnd() - 0.5) * 90, vy: -10 - rnd() * 30, t: 0, life: 0.7, col: '#8a7a6a', sz: 5, g: 0 }); }
+    const sy = Math.round(56 - drop * 200);
+    // posts
+    rect(150, sy + 20, 8, 200, '#1a0e06'); rect(151, sy + 20, 6, 200, '#5a3a1a'); rect(322, sy + 20, 8, 200, '#1a0e06'); rect(323, sy + 20, 6, 200, '#5a3a1a');
+    rr(92, sy + 3, 296, 118, 6, '#00000088');
+    plasticBox(90, sy, 300, 116, 6, ['#140a04', '#4a2c14', '#6a4222', '#86582e', '#a8743e'], { seed: 9 });
+    woodGrain(96, sy + 6, 288, 104, '#4a2c14', '#86582e', 31);
+    rr(100, sy + 10, 280, 96, 4, '#2a1808');
+    rr(102, sy + 12, 276, 92, 3, '#3a2412');
+    [[96, sy + 6], [376, sy + 6], [96, sy + 102], [376, sy + 102]].forEach(([nx, ny]) => { rect(nx, ny, 3, 3, '#1a1a1a'); rect(nx, ny, 1, 1, '#9a9a9a'); });
+    drawTextCSh('ANTE ' + G.ante, W / 2, sy + 22, '#f4ecd4', 5, '#1a0e06');
+    const an = anteName(G.ante);
+    drawTextCSh(an, W / 2, sy + 60, '#7ed05a', an.length > 14 ? 2 : 3, '#1a0e06');
+    drawTextC(G.ante <= 8 ? (G.ante === 8 ? 'THE KING WAITS' : (8 - G.ante) + ' MORE STRETCHES TO THE KING') : 'THERE IS NO END TO THE SWAMP', W / 2, sy + 88, '#c8b090', 1);
+    drawMiniGator(W / 2 - 11, sy + 124, 'small');
   }
 
-  // letterbox bars + subtitle + skip controls on every shot
-  rect(0, 0, W, 26, '#000'); rect(0, H - 26, W, 26, '#000');
-  if (cut.shot < 2 && cut.cap) letterboxCaption(cut.cap);
-  hit(0, 26, W, H - 52, { id: 'cutadv', cb: () => { if (cut.shot >= 2) endIntro(); else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); } }, cursor: true });
-  button(W - 62, 6, 56, 14, 'SKIP >', '#3a5560', '#243a44', endIntro, { id: 'cutskip' });
-  if ((tNow % 1.4) < 0.9) drawText('TAP TO CONTINUE', 8, 10, '#54707a', 1);
+  // letterbox bars, subtitles and the skip controls on every shot
+  rect(0, 0, W, 24, '#000'); rect(0, H - 26, W, 26, '#000');
+  if (cut.shot < 3 && cut.cap) letterboxCaption(cut.cap);
+  hit(0, 24, W, H - 50, { id: 'cutadv', cb: () => { if (cut.shot >= 3) endIntro(); else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); } }, cursor: true });
+  button(W - 62, 5, 56, 14, 'SKIP >', '#4a4438', '#28241c', endIntro, { id: 'cutskip' });
+  for (let k = 0; k < 4; k++) rr(8 + k * 9, 9, 6, 6, 2, k === cut.shot ? '#ffe6a0' : k < cut.shot ? '#8a7a58' : '#3a3428');
 }
 // captions live inside the lower letterbox bar, like subtitles
 function letterboxCaption(txt) {
   const lines = txt.split('\n').filter(Boolean);
-  if (lines.length >= 2) { drawTextC(lines[0], W / 2, H - 23, C.white, 1); drawTextC(lines[1], W / 2, H - 13, '#ffe6a0', 1); }
-  else if (lines[0]) drawTextC(lines[0], W / 2, H - 18, C.white, 1);
+  if (lines.length >= 2) { drawTextC(lines[0], W / 2, H - 23, '#f4ecd4', 1); drawTextC(lines[1], W / 2, H - 13, '#ffe6a0', 1); }
+  else if (lines[0]) drawTextC(lines[0], W / 2, H - 18, '#f4ecd4', 1);
 }
 
-// one line of menace per boss, shown on the VS banner
+// the gator's lagoon at night: moonlit black water, a treeline, the ranger's
+// airboat idling at the left with its lamp on - and whatever is out there.
+// o = { rain, eyes, rise (0..1), shot (croc sprite canvas at 2x), eyeCol, lamp, flash }
+function drawLair(t, o) {
+  // sky and moon
+  for (let y = 0; y < 150; y++) { const f = y / 150; rect(0, y, W, 1, mixC('#05070e', '#141a2a', f)); }
+  for (let k = 0; k < 50; k++) rect(Math.floor(hash2(k, 7) * W), Math.floor(hash2(k, 8) * 100), 1, 1, k % 6 ? '#6a7a9a' : '#e8f0ff');
+  fillCircle(390, 44, 16, '#c8d4e8'); fillCircle(394, 40, 13, '#e8f0fa'); rect(386, 44, 3, 3, '#b8c4d8'); rect(396, 36, 2, 2, '#c8d4e8');
+  if (o.flash) { ctx.save(); ctx.globalAlpha = o.flash * 0.35; rect(0, 0, W, 150, '#d8e8f8'); ctx.restore(); }
+  // treeline
+  for (let x = 0; x < W; x += 3) { const h = 20 + Math.floor(hash2(x >> 2, 5) * 14) + (hash2(x >> 4, 6) > 0.7 ? 18 : 0); rect(x, 150 - h, 3, h, o.flash ? '#1a2430' : '#070a10'); }
+  // water
+  rect(0, 150, W, H - 150, '#060c12');
+  for (let k = 0; k < 16; k++) { const yy = 152 + k * 7, ww = 30 - k; ctx.save(); ctx.globalAlpha = 0.5 - k * 0.025; rect(390 - ww / 2 + Math.sin(tNow * 1.3 + k) * 3, yy, ww, 1, '#a8b8d0'); ctx.restore(); }
+  ctx.save(); ctx.globalAlpha = 0.25; for (let k = 0; k < 14; k++) { const yy = 156 + (k * 29 % 100), xx = (tNow * (5 + k) + k * 77) % (W + 40) - 20; rect(xx, yy, 14, 1, '#2a4a5a'); } ctx.restore();
+  // the gator rises: sprite drawn from the 2x capture, lit by the lamp
+  const cx = 300, wl = 176;
+  if (o.shot && o.rise > 0) {
+    const sh = o.shot, rise = easeOut(o.rise);
+    const sw = 300, shh = 220, top = Math.round(wl + 10 - rise * 150);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, wl + 2); ctx.clip();
+    ctx.drawImage(sh, 150 * 2, 10 * 2, 300 * 2, 220 * 2, cx - sw / 2, top, sw, shh);
+    ctx.globalAlpha = o.flash ? 0.1 : 0.55; rect(cx - sw / 2, top, sw, shh, '#060a14');
+    ctx.restore();
+  }
+  if (o.eyes && (!o.shot || o.rise < 0.35)) {
+    const ey = wl - 4 - Math.round((o.rise || 0) * 20);
+    [[cx - 40, 0], [cx + 30, 1]].forEach(([ex]) => {
+      ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 6) * 0.08; fillCircle(ex + 5, ey + 3, 10, o.eyeCol); ctx.restore();
+      rr(ex, ey, 11, 7, 3, '#0a0a06'); rr(ex + 1, ey + 1, 9, 5, 2, o.eyeCol); rect(ex + 5, ey + 1, 1, 5, '#0a0806'); rect(ex + 2, ey + 1, 2, 1, '#ffffff');
+    });
+    ctx.save(); ctx.globalAlpha = 0.4; rect(cx - 60, wl, 120, 1, '#6a8aa0'); ctx.restore();
+  }
+  // waterline over the rising head, with laps
+  rect(0, wl + 2, W, 2, '#0a141c');
+  for (let x = 140; x < 470; x += 12) rect(x + ((tNow * 8 | 0) % 12), wl + 1, 6, 1, '#2a4a5a');
+  // ripple rings from the disturbance
+  for (let k = 0; k < 3; k++) { const rp = (tNow * 0.5 + k / 3) % 1; ctx.save(); ctx.globalAlpha = (1 - rp) * 0.4; const rw = 40 + rp * 200; rect(cx - rw / 2, wl + 6 + k * 4 + rp * 8, rw, 1, '#4a7a8a'); ctx.restore(); }
+  // the airboat and its lamp beam
+  const by = 214 + Math.sin(tNow * 1.8) * 1;
+  if (o.lamp) {
+    // a dithered cone of warm light, brightest at the lamp
+    ctx.save();
+    for (let r = 0; r < 210; r++) {
+      const half = Math.round(4 + r * 0.22), cy = Math.round(by - 9 - r * 0.12);
+      ctx.globalAlpha = Math.max(0, 0.2 - r / 1100);
+      rect(112 + r, cy - half, 1, half * 2, '#ffd890');
+      ctx.globalAlpha = Math.max(0, 0.35 - r / 700);
+      if (r & 1) { rect(112 + r, cy - half, 1, 1, '#ffe8b0'); rect(112 + r, cy + half - 1, 1, 1, '#ffe8b0'); }
+    }
+    ctx.globalAlpha = 0.12; for (let r = 0; r < 5; r++) fillCircle(112, by - 9, 6 + r * 3, '#ffd890');
+    ctx.restore();
+  }
+  if (!o.noBoat) drawAirboat(70, by, false, 0);
+  // rain
+  if (o.rain) {
+    ctx.save(); ctx.globalAlpha = 0.35 * o.rain;
+    for (let k = 0; k < 90; k++) { const rx = (hash2(k, 3) * (W + 40) + tNow * 90) % (W + 40) - 20, ry = (hash2(k, 4) * H + tNow * 380) % H; pxLine(rx, ry, rx - 3, ry + 8, '#9ab0c8'); }
+    ctx.restore();
+  }
+}
+
+// one line of menace per boss, shown on the WANTED poster
 const BOSS_QUIPS = {
   twofang: 'IT KEEPS A SPARE SNAPPER. JUST FOR YOU.',
   murky: 'THE WATER HIDES WHAT THE X-RAYS CANNOT FIND.',
@@ -6689,216 +6741,130 @@ const BOSS_QUIPS = {
   bogqueen: 'HER SNAPPERS SLEEP IN THE RICHEST TEETH.',
   apexpred: 'THE END OF THE SWAMP. THE END OF YOU?',
 };
-// render the REAL styled croc once per boss and keep the sprite
+// render the REAL styled croc once per boss and keep the sprite (2x)
 let bossShot = null;
 function ensureBossShot() {
-  // the key must cover EVERYTHING that changes the sprite - the same boss id is
-  // a gator in the swamp and a shark in the ocean, and mutations retint it.
   const key = (G.boss ? G.boss.id : 'x') + '|' + (G.summer ? 'sea' : 'swamp') + '|' + (G.mut || '-');
   if (bossShot && bossShot.key === key) return bossShot.c;
   ctx.clearRect(0, 0, W, H);
   const _mx = mx, _my = my; mx = 294; my = 150;
   drawCroc(0.42, { angry: true });
   mx = _mx; my = _my;
-  const oc = document.createElement('canvas'); oc.width = W; oc.height = H;
+  const oc = document.createElement('canvas'); oc.width = W * 2; oc.height = H * 2;
   const o = oc.getContext('2d'); o.imageSmoothingEnabled = false;
-  o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W, H); // downscale the supersampled backing
+  o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W * 2, H * 2);
+  ctx.setTransform(RS, 0, 0, RS, 0, 0);
   bossShot = { key, c: oc };
   return oc;
 }
-// ---------- BOSS CINEMATIC: a scary cold-open before the VS splash ---------
-// black water -> eyes rise -> lightning reveal -> the jaws LUNGE at you.
+// ---------- BOSS CINEMATIC: a storm, a lamp, and something enormous --------
 function drawBossCut(dt) {
-  const shot = ensureBossShot();      // grab the real styled boss sprite first
+  const shot = ensureBossShot();
   const c = G.bcut; if (!c) { G.state = 'bossintro'; G.biStart = tNow; return; }
   c.t += dt;
   const t = c.t;
   const done = () => { G.bcut = null; G.state = 'bossintro'; G.biStart = tNow; };
-
-  // ---- dead-black swamp night + crawling mist ----
-  for (let i = 0; i < 6; i++) rect(0, i * 45, W, 46, ['#03070a', '#04090d', '#050c11', '#060f14', '#071216', '#081518'][i]);
-  ctx.save(); ctx.globalAlpha = 0.06;
-  for (let k = 0; k < 7; k++) { const my2 = 60 + k * 26, off = (tNow * (6 + k * 2)) % (W + 120); rect(off - 120, my2, 120, 9, '#8fb8c0'); }
-  ctx.restore();
-  // distant lightning behind the treeline
-  const bolt = Math.sin(t * 7.3) > 0.985 || (t > 2.0 && t < 2.16);
-  if (bolt) { ctx.save(); ctx.globalAlpha = 0.16; rect(0, 0, W, 150, '#cfe8f0'); ctx.restore(); }
-  for (let x2 = 0; x2 < W; x2 += 7) { const h1 = 26 + ((Math.sin(x2 * 0.11) * 12) | 0) + ((x2 * 7) % 9); rect(x2, 150 - h1, 7, h1, bolt ? '#0d1a1e' : '#060e11'); }
-  rect(0, 150, W, H - 150, '#040b0e'); // black water
-
-  // ---- ripples spreading from where it lurks ----
-  const cx2 = W / 2 + 20;
-  for (let k = 0; k < 4; k++) {
-    const rp = ((t * 0.55 + k * 0.25) % 1);
-    ctx.save(); ctx.globalAlpha = (1 - rp) * 0.4;
-    const rw = 24 + rp * 150;
-    rect(cx2 - rw / 2, 196 + k * 5 - rp * 6, rw, 1, '#2a6a72');
-    ctx.restore();
-  }
-
-  // ---- beat 1: two eyes rise out of the black ----
-  if (t > 0.55) {
-    const rise = easeOut(clamp((t - 0.55) / 1.15, 0, 1));
-    const ey = lerp(206, 150, rise);
-    const glow = 0.35 + rise * 0.5 + Math.sin(t * 9) * 0.08;
-    [[cx2 - 34, 0], [cx2 + 26, 1]].forEach(([ex]) => {
-      ctx.save(); ctx.globalAlpha = glow * 0.5; fillCircle(ex + 4, ey + 3, 11, '#c81818'); ctx.restore();
-      rr(ex, ey, 9, 7, 2, '#1a0a0a');
-      rect(ex + 2, ey + 2, 5, 4, '#ff2a2a');
-      rect(ex + 3, ey + 3, 2, 2, '#fff2c8');
-    });
-    if (rise > 0.4) { // a slick brow breaks the surface
-      ctx.save(); ctx.globalAlpha = 0.9 * rise;
-      rr(cx2 - 52, ey + 8, 104, 10, 4, '#0d1a14'); rr(cx2 - 46, ey + 9, 92, 5, 3, '#16281c');
-      ctx.restore();
-    }
-  }
-
-  // ---- beat 2: lightning reveals the whole silhouette ----
-  if (t > 1.9 && t < 2.9) {
-    const f = clamp((t - 1.9) / 0.16, 0, 1) * (t > 2.5 ? clamp((2.9 - t) / 0.4, 0, 1) : 1);
-    ctx.save(); ctx.globalAlpha = 0.55 * f;
-    ctx.drawImage(shot, 120, 0, 340, 250, 74, 26, 340, 250);
-    ctx.globalAlpha = 0.5 * f; rect(0, 0, W, H, '#0a1a20');
-    ctx.restore();
-    if (t < 2.05 && shake < 2) shake = 3;
-  }
-
-  // ---- beat 3: the jaws LUNGE straight at the camera ----
-  if (t > 2.85) {
-    const f = easeIn(clamp((t - 2.85) / 0.85, 0, 1));
-    const sc = lerp(0.65, 2.4, f);
-    const w2 = 340 * sc, h2 = 250 * sc;
-    // radial speed lines rushing past as it closes in
+  const flash = (t > 1.9 && t < 2.3) ? clamp(1 - (t - 1.9) / 0.4, 0, 1) : (Math.sin(t * 5.3) > 0.992 ? 0.6 : 0);
+  if (t > 1.9 && !c.thunder) { c.thunder = true; sfx.boss(); shake = Math.max(shake, 4); }
+  if (t < 2.9) drawLair(t, { rain: 1, eyes: t > 0.6, rise: clamp((t - 1.2) / 1.4, 0, 1) * 0.8, shot, eyeCol: '#ff3a2a', lamp: 1, flash });
+  // the lunge
+  if (t > 2.9) {
+    drawLair(t, { rain: 1, eyes: false, rise: 0, shot: null, eyeCol: '#ff3a2a', lamp: 1, flash: 0 });
+    const f = easeIn(clamp((t - 2.9) / 0.8, 0, 1));
+    const sc = lerp(1, 2.6, f), w2 = 300 * sc, h2 = 220 * sc;
     ctx.save(); ctx.globalAlpha = 0.35 * f;
-    for (let s = 0; s < 18; s++) {
-      const a = s / 18 * Math.PI * 2 + tNow * 0.8, r0 = 60 + f * 90, r1 = r0 + 40 + f * 70;
-      const x0 = W / 2 + Math.cos(a) * r0, y0 = 140 + Math.sin(a) * r0;
-      const x1 = W / 2 + Math.cos(a) * r1, y1 = 140 + Math.sin(a) * r1;
-      for (let q = 0; q < 5; q++) rect(lerp(x0, x1, q / 5), lerp(y0, y1, q / 5), 2, 2, '#ffffff');
+    for (let s = 0; s < 20; s++) {
+      const a = s / 20 * Math.PI * 2 + tNow * 0.8, r0 = 60 + f * 90, r1 = r0 + 40 + f * 70;
+      pxLine(W / 2 + Math.cos(a) * r0, 140 + Math.sin(a) * r0, W / 2 + Math.cos(a) * r1, 140 + Math.sin(a) * r1, '#ffffff', 2);
     }
     ctx.restore();
-    ctx.save();
-    ctx.globalAlpha = clamp(0.5 + f, 0, 1);
-    ctx.drawImage(shot, 120, 0, 340, 250, W / 2 - w2 / 2, 150 - h2 * 0.55, w2, h2);
-    ctx.restore();
-    if (f > 0.55 && shake < 4) shake = 5 + f * 4;
-    if (f > 0.62 && !c.roared) { c.roared = true; fxRing(W / 2, 140, '#ff6a4a', 10, 180, 0.5); fxStars(W / 2, 140, '#ffd54a', 10, 150); }
+    ctx.drawImage(shot, 150 * 2, 10 * 2, 300 * 2, 220 * 2, W / 2 - w2 / 2, 150 - h2 * 0.55, w2, h2);
+    if (f > 0.5 && shake < 4) shake = 5 + f * 4;
+    if (f > 0.6 && !c.roared) { c.roared = true; sfx.snap(); fxRing(W / 2, 140, '#ff6a4a', 10, 180, 0.5); fxStars(W / 2, 140, '#ffd54a', 10, 150); }
     if (f > 0.8) {
       const k = (f - 0.8) / 0.2;
-      ctx.save(); ctx.globalAlpha = k * 0.8; rect(0, 0, W, H, '#7a0e14'); ctx.restore();
-      // jagged "cracked screen" streaks at the moment of impact
+      ctx.save(); ctx.globalAlpha = k * 0.85; rect(0, 0, W, H, '#6a0a10'); ctx.restore();
       ctx.save(); ctx.globalAlpha = k;
       [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx2, sy2], i) => {
         let px2 = W / 2, py2 = 140;
         for (let seg = 0; seg < 7; seg++) {
-          const nx = px2 + sx2 * (14 + seg * 5) + Math.sin(seg * 2.1 + i) * 9;
-          const ny = py2 + sy2 * (10 + seg * 4) + Math.cos(seg * 1.7 + i) * 7;
-          for (let q = 0; q < 6; q++) rect(lerp(px2, nx, q / 6), lerp(py2, ny, q / 6), 2, 2, '#ffe8d0');
-          px2 = nx; py2 = ny;
+          const nx = px2 + sx2 * (14 + seg * 5) + Math.sin(seg * 2.1 + i) * 9, ny = py2 + sy2 * (10 + seg * 4) + Math.cos(seg * 1.7 + i) * 7;
+          pxLine(px2, py2, nx, ny, '#ffe8d0', 2); px2 = nx; py2 = ny;
         }
       });
       ctx.restore();
     }
   }
-
-  // ---- captions ----
-  if (t < 1.9) { ctx.save(); ctx.globalAlpha = clamp(t / 0.6, 0, 1) * (t > 1.5 ? (1.9 - t) / 0.4 : 1); drawTextCSh('SOMETHING STIRS IN THE DARK...', W / 2, 224, '#7a9aa4', 1); ctx.restore(); }
-  else if (t < 2.85) { ctx.save(); ctx.globalAlpha = 0.9; drawTextCSh('IT IS ALREADY AWAKE.', W / 2, 224, '#d86a6a', 1); ctx.restore(); }
-
-  if (t >= 3.95) { done(); return; }
-  // skippable
-  drawTextC('TAP TO SKIP', W / 2, 254, '#3a5560', 1);
+  rect(0, 0, W, 24, '#000'); rect(0, H - 26, W, 26, '#000');
+  if (t < 1.9) letterboxCaption(typed('A STORM ROLLS OVER THE LAIR...', t - 0.2));
+  else if (t < 2.9) letterboxCaption('...AND THE BIGGEST GATOR IN THE PARK\n' + typed('HAS BEEN WAITING FOR YOU.', t - 2.1));
+  if (t >= 3.8) { done(); return; }
+  drawText('TAP TO SKIP', W - 64, 9, '#6a6a6a', 1);
   hit(0, 0, W, H, { id: 'bcutskip', cb: done, cursor: true });
 }
 
+// ---------- the VS card: your ranger versus a WANTED poster ---------------
 function drawBossIntro() {
-  // ---------- Binding-of-Isaac style VS splash ----------
-  const shot = ensureBossShot(); // capture the real croc before painting the splash
+  const shot = ensureBossShot();
   const el = tNow - G.biStart;
-  const slide = easeOut(clamp(el / 0.4, 0, 1));
-  // moody Everglades night behind the whole card
-  drawSceneBack(THEMES.boss);
-  drawSceneFront(THEMES.boss);
-  // diagonal color wash: dentist teal (top-left) vs boss blood (bottom-right)
-  ctx.save();
-  for (let y = 0; y < H; y += 2) {
-    const cutX = W - (y / H) * W * 0.9 - 40; // diagonal divide
-    ctx.globalAlpha = 0.62;
-    rect(0, y, Math.max(0, cutX), 2, '#0d2026');
-    rect(Math.max(0, cutX), y, W - cutX, 2, '#20080e');
-  }
-  ctx.restore();
-  // rising embers on the boss side, sparks on ours
-  for (let i = 0; i < 10; i++) {
-    const ph = (tNow * 0.5 + i * 0.37) % 1;
-    ctx.save(); ctx.globalAlpha = (1 - ph) * 0.5;
-    rect(300 + (i * 43) % 160, 250 - ph * 190, 2, 2, '#ff7a48');
-    rect(20 + (i * 37) % 150, 240 - ph * 160, 1, 1, '#7fd4e8');
-    ctx.restore();
-  }
-  // diagonal lightning slash along the divide
-  for (let y = 0; y < H; y += 6) {
-    const cutX = W - (y / H) * W * 0.9 - 40 + (((y / 6) | 0) % 2) * 3;
-    rect(cutX - 2, y, 5, 6, '#f4f0dc');
-    rect(cutX + 3, y, 2, 6, '#ffc84366');
-  }
+  const slide = easeOut(clamp(el / 0.45, 0, 1));
+  // stormy lagoon behind everything, dimmed
+  drawLair(el + 4, { rain: 0.7, eyes: false, rise: 0, shot: null, lamp: 0, noBoat: 1, flash: Math.sin(el * 3.1) > 0.995 ? 0.5 : 0 });
+  ctx.save(); ctx.globalAlpha = 0.55; rect(0, 0, W, H, '#05060a'); ctx.restore();
 
-  // ---- dentist side (slides in from the left) ----
-  const dx = lerp(-180, 0, slide);
-  ctx.save(); ctx.translate(dx, 0);
+  // ---- your ranger, on a brass-framed plate, sliding in from the left ----
   const R = RANGERS[G.ranger] || RANGERS.scout;
-  // portrait: ranger at 3x on a plate
-  panel(22, 40, 118, 118, { face: '#10262cee', edge: '#5cb0ac', r: 4 });
-  drawBobble(81, 150, G.ranger, { sc: 1.6, expr: 'grit', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
-  // crossed forceps behind the ranger, like a crest
-  for (let i = 0; i <= 10; i++) { rect(118 + i, 58 - i, 2, 2, '#5cb0ac'); rect(128 - i, 58 - i, 2, 2, '#5cb0ac'); }
-  drawTextCSh('RANGER ' + R.name, 81, 162, '#7fd4e8', 1);
-  drawTextCSh('THE DENTIST', 81, 172, C.white, 2);
+  const dx = Math.round(lerp(-200, 0, slide));
+  goldFrame(20 + dx, 30, 132, 150, { field: '#1c2a30', fieldD: '#121c20', fieldL: '#26363e' });
+  ctx.save(); ctx.beginPath(); ctx.rect(24 + dx, 34, 124, 142); ctx.clip();
+  for (let k = 0; k < 8; k++) { ctx.save(); ctx.globalAlpha = 0.06; fillCircle(86 + dx, 110, 70 - k * 8, '#7fd4e8'); ctx.restore(); }
+  drawBobble(86 + dx, 168, G.ranger, { sc: 1.9, expr: 'mad', act: 'idle', hat: meta.hat, gear: meta.gear, glove: meta.glove });
   ctx.restore();
+  woodBanner(26 + dx, 184, 120, 13, R.name, { col: '#ffe6b0' });
+  drawTextC('THE DENTIST', 86 + dx, 200, '#7fd4e8', 1);
+  drawRangerBadge(122 + dx, 22, G.ranger, { sc: 1.1, wob: 1 });
 
-  // ---- boss side (slides in from the right) ----
-  const bx2 = lerp(180, 0, slide);
-  ctx.save(); ctx.translate(bx2, 0);
-  panel(330, 44, 130, 126, { face: '#2a0e12ee', edge: C.redD, r: 4 });
-  ctx.imageSmoothingEnabled = false;
-  ctx.save(); ctx.beginPath(); ctx.rect(334, 48, 122, 112) ; ctx.clip();
-  ctx.drawImage(shot, 148, 8, 290, 236, 331, 51, 128, 104); // the actual in-game croc
+  // ---- the WANTED poster, nailed up on the right ----
+  const bx = Math.round(lerp(200, 0, slide)), px = 296 + bx, py = 16, pw = 164, ph = 218;
+  const flap = Math.sin(tNow * 2.3) * 1;
+  paperSheet(px, py + flap * 0.3, pw, ph, { ramp: ['#3a2a14', '#c8b080', '#e4d0a0', '#f0e2bc', '#fff8e0'] });
+  ctx.save(); ctx.globalAlpha = 0.25; for (let k = 0; k < 40; k++) rect(px + 4 + hash2(k, 1) * (pw - 8), py + 4 + hash2(k, 2) * (ph - 8), 2, 2, '#8a6a3a'); ctx.restore();   // stains
+  drawTextCSh('WANTED', px + pw / 2, py + 8, '#5a1a10', 3, '#c8b080');
+  rect(px + 10, py + 26, pw - 20, 1, '#5a3a1a');
+  // the boss's mugshot, printed in sepia ink
+  const fx = px + 14, fy = py + 32, fw = pw - 28, fh = 96;
+  rect(fx - 2, fy - 2, fw + 4, fh + 4, '#3a2410');
+  ctx.save(); ctx.beginPath(); ctx.rect(fx, fy, fw, fh); ctx.clip();
+  rect(fx, fy, fw, fh, '#d8c090');
+  ctx.drawImage(shot, 160 * 2, 16 * 2, 270 * 2, 210 * 2, fx - 4, fy - 2, fw + 8, fh + 10);
+  ctx.globalCompositeOperation = 'color'; ctx.globalAlpha = 0.7; rect(fx, fy, fw, fh, '#8a5a2a');
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 0.18; for (let y = fy; y < fy + fh; y += 2) rect(fx, y, fw, 1, '#3a2410');
   ctx.restore();
-  drawTextCSh('BOSS GATOR', 395, 176, '#ffb0a8', 1);
-  ctx.restore();
+  drawTextC('DEAD OR ALIVE', px + pw / 2, fy + fh + 4, '#5a3a1a', 1);
+  const nm = G.boss.name, nsc = textW(nm, 2) <= pw - 12 ? 2 : 1;
+  drawTextCSh(nm, px + pw / 2, fy + fh + 13, '#241a10', nsc, '#c8b080');
+  drawSmallWrapped("'" + (BOSS_QUIPS[G.boss.id] || 'IT IS VERY HUNGRY.') + "'", px + 10, fy + fh + 30, pw - 20, '#6a4a2a');
+  drawSmallWrapped(G.boss.desc, px + 10, fy + fh + 50, pw - 20, '#8a1a10');
+  // reward line and nails
+  drawText('TARGET ' + fmt(G.target), px + 10, py + ph - 12, '#241a10', 1);
+  [[px + 6, py + 5], [px + pw - 8, py + 5], [px + 6, py + ph - 8], [px + pw - 8, py + ph - 8]].forEach(([nx, ny]) => { rect(nx, ny, 3, 3, '#2a2a2a'); rect(nx, ny, 1, 1, '#aaaaaa'); });
 
-  // ---- VS slam ----
-  const vt = clamp((el - 0.45) / 0.25, 0, 1);
-  if (el > 0.45) {
-    if (el < 0.75 && shake < 2) shake = 7;
-    const vsc = Math.round(lerp(11, 5, easeOut(vt)));
-    const wob = vt >= 1 ? Math.sin(tNow * 3) * 2 : 0;
-    ctx.save(); ctx.globalAlpha = 0.35 + vt * 0.65;
-    drawTextCSh('VS', W / 2 + 2, 96 - vsc * 2.5 + wob + 3, '#000', vsc + 1);
-    drawTextCSh('VS', W / 2, 96 - vsc * 2.5 + wob, C.gold, vsc);
-    ctx.restore();
-    if (vt >= 1) { // impact star
-      ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.2;
-      [[-30, -8], [26, -12], [-24, 16], [30, 14]].forEach(([ox, oy]) => rect(W / 2 + ox, 86 + oy, 3, 3, '#fff6c8'));
-      ctx.restore();
-    }
-  }
-
-  // ---- boss name banner ----
-  const bt = clamp((el - 0.7) / 0.3, 0, 1);
-  if (el > 0.7) {
-    const by2 = lerp(H + 20, 192, easeOut(bt));
-    panel(60, by2, 360, 66, { face: '#2a0e12f4', edge: C.red, r: 4 });
-    drawTextCSh(G.boss.name, W / 2, by2 + 7, C.white, 3);
-    drawTextC("'" + (BOSS_QUIPS[G.boss.id] || 'IT IS VERY HUNGRY.') + "'", W / 2, by2 + 30, '#c88a94', 1);
-    drawTextCSh(G.boss.desc, W / 2, by2 + 42, '#ffb0a8', 1);
-    drawTextCSh('TARGET: ' + fmt(G.target), W / 2, by2 + 54, C.orange, 1);
+  // ---- VS, stamped between them ----
+  const vt = clamp((el - 0.5) / 0.25, 0, 1);
+  if (el > 0.5) {
+    if (el < 0.8 && shake < 2) shake = 7;
+    const vsc = Math.round(lerp(12, 6, easeOut(vt)));
+    const wob = vt >= 1 ? Math.round(Math.sin(tNow * 3) * 2) : 0;
+    const vx = 224, vy = 92 - vsc * 2.5 + wob;
+    for (let d = 4; d >= 1; d--) drawTextC('VS', vx + d * 0.5, vy + d, d > 2 ? '#1a0604' : '#6a1a10', vsc);
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(([ox, oy]) => drawTextC('VS', vx + ox, vy + oy, '#1a0604', vsc));
+    drawTextC('VS', vx, vy, '#ffd23f', vsc);
+    if (vt >= 1) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.2; [[-34, -10], [30, -14], [-26, 20], [34, 16]].forEach(([ox, oy]) => { rect(vx + ox, 92 + oy, 3, 1, '#fff6c8'); rect(vx + ox + 1, 91 + oy, 1, 3, '#fff6c8'); }); ctx.restore(); }
   }
   if (el > 1.1) {
-    button(W / 2 - 55, 168, 110, 24, 'BITE DOWN!', '#d94f30', '#8a2a16', () => { G.state = 'play'; }, { id: 'bossgo' });
-    hit(0, 0, W, 160, { id: 'bossgotap', cb: () => { G.state = 'play'; }, cursor: true });
-    if ((tNow % 1) < 0.6) drawTextC('TAP TO FIGHT', W / 2, 246, '#ffb0a877', 1);
+    signPlank(154, 206, 136, 26, 1, 'BITE DOWN!', '#b8402a', () => { G.state = 'play'; }, { id: 'bossgo', sc: 2 });
+    hit(0, 24, W, 150, { id: 'bossgotap', cb: () => { G.state = 'play'; }, cursor: true });
+    if ((tNow % 1) < 0.6) drawTextC('TAP TO FIGHT', W / 2, 250, '#ffb0a8', 1);
   }
 }
 
