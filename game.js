@@ -14,7 +14,7 @@
 const W = 480, H = 270, RS = 3;
 const canvas = document.getElementById('game');
 canvas.width = W * RS; canvas.height = H * RS;
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');   // let: offscreen passes (silhouettes) swap it briefly
 ctx.imageSmoothingEnabled = false;
 canvas.style.cursor = 'none'; // we draw our own pixel hand
 
@@ -259,24 +259,66 @@ function rr(x, y, w, h, r, c) {
   }
   ctx.fillRect(x, y + r, w, h - 2 * r);
 }
-// ======================= PLASTIC TOY SHADING ==============================
-//  The whole game is moulded from the same shiny plastic: a flat base colour,
-//  one face turned away from the light, one turned toward it, and a single
-//  hard specular blob.  No gradients, no dithering, no surface texture - the
-//  silhouette and the gloss do all the work.
+// ======================= TEXTURED PIXEL SHADING ===========================
+//  Every moulded block in the game is shaded like hand-placed pixel art: a
+//  key light from the upper-left, a curved terminator with a 1px checker
+//  dither between tones, a bounce-lit shadow edge and a fixed speckle grain
+//  so no surface ever reads as smooth plastic.  The grain is hashed from the
+//  pixel position, so it sits still on the surface instead of crawling.
 //  Every ramp is [outline, shade, base, light, shine].
 // ==========================================================================
+function hash2(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+const MIXC = new Map();
+function mixC(a, b, t) { const k = a + b + t; let v = MIXC.get(k); if (!v) { v = mixHex(a, b, t); MIXC.set(k, v); } return v; }
 function plasticBox(x, y, w, h, r, ramp, o) {
   o = o || {};
   x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
   if (w < 2 || h < 2) return;
   const ri = Math.max(1, r - 1);
-  rr(x, y, w, h, r, ramp[0]);                                   // moulded edge
-  rr(x + 1, y + 1, w - 2, h - 2, ri, ramp[2]);                  // ONE body colour
-  if (!o.flat && h > 5) rect(x + 2, y + h - 3, w - 4, 2, ramp[1]);   // one shade strip
-  if (!o.noShine && w > 7 && h > 7) {
-    const sw = Math.max(2, Math.round(w * 0.2)), sh = Math.max(2, Math.round(h * 0.14));
-    rr(x + 3, y + 3, sw, sh, 1, ramp[4]);                        // one hard highlight
+  rr(x, y, w, h, r, ramp[0]);                                   // ink edge
+  const ix = x + 1, iy = y + 1, iw = w - 2, ih = h - 2;
+  rr(ix, iy, iw, ih, ri, ramp[2]);
+  if (iw < 2 || ih < 2) return;
+  const cutR = Math.min(ri, Math.floor(ih / 2), Math.floor(iw / 2)), cut = RCUT[cutR] || [];
+  const inset = j => (j < cutR ? cut[j] : j >= ih - cutR ? cut[ih - 1 - j] : 0) || 0;
+  const lit = o.noShine ? 0.26 : 0.4, shd = o.flat ? 2 : 0.74;
+  const seed = o.seed || 0;
+  for (let j = 0; j < ih; j++) {
+    const k = inset(j), a = ix + k, b = ix + iw - k, rw = b - a, yy = iy + j, v = j / Math.max(1, ih - 1);
+    if (rw <= 0) continue;
+    if (!o.flat) {
+      // lit wedge: a diagonal terminator, dithered on its edge
+      const lw = Math.round(iw * (lit - v * 0.62) * 1.6) - k;
+      if (lw > 0) {
+        rect(a, yy, Math.min(lw, rw), 1, ramp[3]);
+        if (lw < rw && ((j + seed) & 1)) rect(a + lw, yy, 1, 1, ramp[3]);
+      }
+      // core shadow down the right and along the floor
+      const sw = Math.round(iw * (v - shd + 0.34) * 1.3) + (v > 0.82 ? rw : 0);
+      const sw2 = Math.max(Math.min(rw, sw), iw > 5 ? 1 : 0);
+      if (sw2 > 0) {
+        rect(b - sw2, yy, sw2, 1, ramp[1]);
+        if (sw2 < rw && ((j + seed + 1) & 1)) rect(b - sw2 - 1, yy, 1, 1, ramp[1]);
+      }
+    }
+    // grain: dark pits and pale flecks at fixed spots on the surface
+    if (!o.smooth && iw > 3 && ih > 3) {
+      const pit = mixC(ramp[1], ramp[2], 0.45), fleck = mixC(ramp[2], ramp[3], 0.55);
+      for (let xx = a + 1; xx < b - 1; xx++) {
+        const q = hash2(xx - x + seed * 7, j + seed * 13);
+        if (q < 0.05) rect(xx, yy, (q < 0.02 && xx < b - 2) ? 2 : 1, 1, pit);
+        else if (q > 0.965 && j < ih * 0.7) rect(xx, yy, 1, 1, fleck);
+      }
+    }
+  }
+  // crisp top-left rim and a single pixel glint, no glossy blob
+  if (!o.flat && iw > 4) {
+    rect(ix + inset(0) + 1, iy, Math.max(0, Math.round(iw * 0.5) - inset(0)), 1, ramp[3]);
+    if (!o.noShine && iw > 7 && ih > 6) rect(ix + 2, iy + 1, 1, 1, ramp[4]);
   }
 }
 function plasticRound(cx, cy, rad, ramp, o) {
@@ -284,15 +326,22 @@ function plasticRound(cx, cy, rad, ramp, o) {
   cx = Math.round(cx); cy = Math.round(cy);
   fillCircle(cx, cy, rad, ramp[0]);
   fillCircle(cx, cy, rad - 1, ramp[1]);
-  fillCircle(cx, cy - 1, rad - 2, ramp[2]);
-  if (!o.flat && rad > 4) fillCircle(cx - 1, cy - 2, Math.max(1, rad - 4), ramp[3]);
-  if (!o.noShine && rad > 3) rect(cx - rad + 2, cy - rad + 2, 2, 2, ramp[4]);
+  fillCircle(cx - 1, cy - 1, rad - 2, ramp[2]);
+  if (!o.flat && rad > 4) fillCircle(cx - 2, cy - 2, Math.max(1, rad - 4), ramp[3]);
+  if (rad > 4) for (let a = 0; a < 10; a++) {
+    const an = a * 2.4 + rad, rr2 = (rad - 2) * hash2(a, rad);
+    rect(cx + Math.cos(an) * rr2, cy + Math.sin(an) * rr2, 1, 1, a & 1 ? ramp[1] : ramp[3]);
+  }
+  if (!o.noShine && rad > 3) rect(cx - rad + 3, cy - rad + 3, 1, 1, ramp[4]);
 }
-// a hard gloss sweep across a panel, the cheap plastic "sheen"
+// a soft dithered sheen across a panel (checker pixels, never a smooth wash)
 function plasticGloss(x, y, w, h, a) {
   ctx.save(); ctx.globalAlpha = a === undefined ? 0.16 : a;
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-  for (let k = 0; k < h; k++) rect(x + Math.round(w * 0.18) + k * 0.7, y + k, Math.max(2, Math.round(w * 0.14)), 1, '#ffffff');
+  for (let k = 0; k < h; k++) {
+    const x0 = x + Math.round(w * 0.18 + k * 0.7), bw = Math.max(2, Math.round(w * 0.14));
+    for (let i = 0; i < bw; i++) if (((i + k) & 1) === 0) rect(x0 + i, y + k, 1, 1, '#ffffff');
+  }
   ctx.restore();
 }
 
@@ -323,6 +372,34 @@ function goldCurl(cx, cy, sx, sy) {
   px(2, 4, 1, 2, UGOLD[2]);
 }
 
+// fixed pixel grain over a rectangle: pits in `dk`, flecks in `lt`
+function grainRect(x, y, w, h, dk, lt, dens, seed) {
+  dens = dens || 0.05; seed = seed || 0;
+  x |= 0; y |= 0;
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const q = hash2(i + x * 3 + seed, j + y * 5);
+    if (q < dens) rect(x + i, y + j, 1, 1, dk);
+    else if (lt && q > 1 - dens * 0.6) rect(x + i, y + j, 1, 1, lt);
+  }
+}
+// oiled plank grain: long broken streaks and the odd knot
+function woodGrain(x, y, w, h, dk, lt, seed) {
+  seed = seed || 0; x |= 0; y |= 0;
+  for (let j = 1; j < h - 1; j += 2) {
+    let i = Math.floor(hash2(j, seed) * 9);
+    while (i < w - 2) {
+      const len = 4 + Math.floor(hash2(i + seed, j) * 14);
+      const q = hash2(i, j + seed * 3);
+      rect(x + i, y + j, Math.min(len, w - 1 - i), 1, q < 0.5 ? dk : lt);
+      i += len + 3 + Math.floor(q * 10);
+    }
+  }
+  if (w > 30 && h > 12) {
+    const kx = x + 6 + Math.floor(hash2(seed, 9) * (w - 12)), ky = y + 3 + Math.floor(hash2(9, seed) * (h - 6));
+    rr(kx - 2, ky - 1, 5, 3, 1, dk); rect(kx - 1, ky, 3, 1, lt);
+  }
+}
+
 // A framed tile: brass band, corner scrolls, wood (or custom) field.
 // o = { field, fieldD, r, flat, thin, glow }
 function goldFrame(x, y, w, h, o) {
@@ -340,10 +417,16 @@ function goldFrame(x, y, w, h, o) {
   const b = o.thin ? 2 : 3;
   rr(x + b, y + b, w - b * 2, h - b * 2, Math.max(1, r - 2), UGOLD[0]);
   rr(x + b + 1, y + b + 1, w - b * 2 - 2, h - b * 2 - 2, Math.max(1, r - 2), F);
-  if (!o.flat) {                                        // one flat lit face, plastic style
-    rr(x + b + 1, y + b + 1, w - b * 2 - 2, Math.max(2, (h - b * 2) >> 2), Math.max(1, r - 2), FL);
+  if (!o.flat) {                                        // lit top, dithered falloff, shaded floor
+    const lh = Math.max(2, (h - b * 2) >> 2);
+    rr(x + b + 1, y + b + 1, w - b * 2 - 2, lh, Math.max(1, r - 2), FL);
+    for (let i = 0; i < w - b * 2 - 4; i += 2) rect(x + b + 2 + i, y + b + 1 + lh, 1, 1, FL);
     rect(x + b + 1, y + h - b - 3, w - b * 2 - 2, 2, FD);
+    if (!o.field || o.grain) woodGrain(x + b + 1, y + b + 2 + lh, w - b * 2 - 2, h - b * 2 - lh - 5, FD, FL, x + y);
   }
+  // brass band texture: a few worn pits along the rim
+  for (let i = 4; i < w - 4; i += 7) rect(x + i + ((i * 3) % 4), y + h - 2, 1, 1, UGOLD[1]);
+  for (let i = 5; i < w - 5; i += 9) rect(x + i, y + 2, 1, 1, UGOLD[3]);
   if (w >= 26 && h >= 26) {
     goldCurl(x + 2, y + 2, 1, 1); goldCurl(x + w - 3, y + 2, -1, 1);
     goldCurl(x + 2, y + h - 3, 1, -1); goldCurl(x + w - 3, y + h - 3, -1, -1);
@@ -360,9 +443,17 @@ function plaque(x, y, w, h, o) {
   rr(x, y, w, h, r, g[0]);
   rr(x + 1, y + 1, w - 2, h - 2, r, g[1]);
   rr(x + 1, y + 1, w - 2, h - 3, r, g[2]);
-  rr(x + 2, y + 2, w - 4, Math.max(1, (h - 4) >> 1), Math.max(1, r - 1), g[3]);
+  const half = Math.max(1, (h - 4) >> 1);
+  rr(x + 2, y + 2, w - 4, half, Math.max(1, r - 1), g[3]);
+  for (let i = 0; i < w - 5; i += 2) rect(x + 3 + i, y + 2 + half, 1, 1, g[3]);   // dithered break
   rect(x + 3, y + 2, w - 6, 1, g[4]);
   rect(x + 2, y + h - 3, w - 4, 1, g[1]);
+  // stamped-metal grain: brushed streaks and pits, fixed to the plate
+  const pits = mixC(g[1], g[2], 0.5), strk = mixC(g[3], g[4], 0.4);
+  for (let j = 3; j < h - 3; j += 2) {
+    const off = Math.floor(hash2(j, w) * 11);
+    for (let i = 4 + off; i < w - 6; i += 13 + (j % 5)) rect(x + i, y + j, 3 + (j % 3), 1, j < 2 + half ? strk : pits);
+  }
   if (!o.noStud && w >= 22) {                            // corner rivets
     [[x + 3, y + 3], [x + w - 5, y + 3], [x + 3, y + h - 6], [x + w - 5, y + h - 6]].forEach(([sx, sy]) => {
       rect(sx, sy, 2, 2, g[1]); rect(sx, sy, 1, 1, g[4]);
@@ -869,12 +960,10 @@ const ICONS = {
 };
 
 // -------- animal ranger portraits, gator-style tracking eyes --------------
-// a big expressive eye that blinks and follows the cursor (like the gator's)
+// a big expressive eye that follows the cursor (like the gator's); always open
 function critterEye(ex, ey, ew, eh, lidCol, sclera, pupilCol, phase) {
   const cx2 = ex + ew / 2, cy2 = ey + eh / 2;
   const r = Math.max(2, Math.round(Math.min(ew, eh) / 2));
-  const blink = ((tNow + (phase || 0)) % 4.1) > 3.95;
-  if (blink) { rect(cx2 - r - 1, cy2 - 1, r * 2 + 2, 2, '#20140c'); return; }
   const dx = Math.round(clamp((mx - cx2) / 70, -1, 1) * 1.2);
   const dy = Math.round(clamp((my - cy2) / 70, -1, 1) * 1);
   fillCircle(cx2 + dx, cy2 + dy, r, pupilCol || '#120b05');
@@ -947,18 +1036,45 @@ function bobShape(spans, y0, ramp, o) {
   o = o || {};
   const n = spans.length, ox = o.ox || 0;
   let maxw = 0; for (let i = 0; i < n; i++) maxw = Math.max(maxw, spans[i]);
-  for (let i = 0; i < n; i++) {
-    const hw = spans[i], y = y0 + i, t = i / (n - 1);
-    rect(ox - hw - 1, y, hw * 2 + 2, 1, ramp[0]);           // moulded edge
-    rect(ox - hw, y, hw * 2, 1, t > 0.62 ? ramp[1] : ramp[2]);
-    if (t < 0.5) { const lw = Math.round(hw * 1.15); if (lw > 0) rect(ox - hw, y, Math.min(lw, hw * 2), 1, ramp[3]); }
-    if (t > 0.5 && t <= 0.62) rect(ox + hw - Math.round(hw * 0.5), y, Math.round(hw * 0.5), 1, ramp[1]);
-  }
+  // outline: every row widened by one, plus caps
+  for (let i = 0; i < n; i++) rect(ox - spans[i] - 1, y0 + i, spans[i] * 2 + 2, 1, ramp[0]);
   rect(ox - spans[0], y0 - 1, spans[0] * 2, 1, ramp[0]);
   rect(ox - spans[n - 1], y0 + n, spans[n - 1] * 2, 1, ramp[0]);
-  if (!o.noShine && maxw > 6) {                               // one hard highlight
-    const sy = y0 + Math.round(n * 0.14);
-    rr(ox - Math.round(maxw * 0.62), sy, Math.max(2, Math.round(maxw * 0.34)), Math.max(2, Math.round(n * 0.14)), 1, ramp[4]);
+  // key light sits up and to the left of centre
+  const Lx = ox - maxw * (o.lx === undefined ? 0.42 : o.lx);
+  const Ly = y0 + n * (o.ly === undefined ? 0.26 : o.ly);
+  const ra = maxw * 1.22, rb = n * 0.62;
+  for (let i = 0; i < n; i++) {
+    const hw = spans[i], y = y0 + i;
+    const dy = (y - Ly) / rb;
+    const run = (d0, col, dith) => {
+      const k = d0 * d0 - dy * dy; if (k <= 0) return;
+      const w = ra * Math.sqrt(k);
+      const a = Math.max(ox - hw, Math.round(Lx - w)), b = Math.min(ox + hw, Math.round(Lx + w));
+      if (b > a) rect(a, y, b - a, 1, col);
+      if (dith && (i & 1)) { if (b < ox + hw) rect(b, y, 1, 1, col); if (a > ox - hw) rect(a - 1, y, 1, 1, col); }
+    };
+    rect(ox - hw, y, hw * 2, 1, ramp[1]);   // shade everywhere...
+    run(1.24, ramp[2], 1);                  // ...then the lit ellipses on top
+    run(0.86, ramp[3], 1);
+    run(0.40, ramp[4], 0);
+  }
+  // fixed speckle grain so the fur/skin reads as a surface, not a moulding
+  for (let i = 1; i < n - 1; i++) {
+    const hw = spans[i], y = y0 + i;
+    for (let xx = -hw + 1; xx < hw - 1; xx++) {
+      const q = hash2(xx + 40, i + (o.seed || 0) * 11);
+      if (q < 0.045) rect(ox + xx, y, 1, 1, mixC(ramp[1], ramp[2], 0.4));
+      else if (q > 0.97 && i < n * 0.6) rect(ox + xx, y, 1, 1, mixC(ramp[3], ramp[4], 0.5));
+    }
+  }
+  if (!o.norim) { // cool bounce light licking the shaded edge
+    ctx.save(); ctx.globalAlpha = 0.55;
+    const rim = mixHex(ramp[1], '#a8cdf0', 0.62);
+    for (let i = (n * 0.22) | 0; i < n - (n * 0.2 | 0); i++) rect(ox + spans[i] - 1, y0 + i, 1, 1, rim);
+    ctx.globalAlpha = 0.35;
+    for (let i = n - 5; i < n - 1; i++) rect(ox - spans[i], y0 + i, Math.min(4, spans[i]), 1, mixHex(ramp[1], '#ffe3b0', 0.4));
+    ctx.restore();
   }
 }
 
@@ -967,25 +1083,24 @@ function bobShape(spans, y0, ramp, o) {
 // make a face read as cute rather than odd.
 function bobFace(p, expr, phase, look, opt) {
   opt = opt || {};
-  const OL = p.sk[0], EX = opt.topeyes ? 8 : 5, EY = opt.topeyes ? -11 : -1;
+  const OL = p.sk[0], EX = opt.topeyes ? 8 : 5, EY = opt.topeyes ? -15 : -1;
   const lx = clamp(look.x, -1, 1), ly = clamp(look.y, -1, 1);
   const shake = (expr === 'scared' || expr === 'panic') ? Math.round(Math.sin(tNow * 22 + phase) * 1) : 0;
-  const bt = (tNow + phase * 1.7) % 5.2;
-  const blink = bt > 4.98 && bt < 5.1;
 
   // one small moulded bead, one pixel of shine.  That is the whole eye.
   const bead = (ox, r) => {
     const bx = ox + shake + Math.round(lx * 0.8), by2 = EY + Math.round(ly * 0.6);
-    fillCircle(bx, by2, r, '#141010');
+    const ew = r * 2 - 1, eh = r * 2;
+    rr(bx - r + 1, by2 - r, ew, eh, 1, '#141010');
     rect(bx - r + 1, by2 - r + 1, 1, 1, '#ffffff');
+    if (r > 2) rect(bx + r - 3, by2 + r - 2, 1, 1, '#ffffff66');
   };
-  const shutEye = (ox) => { rect(ox - 3 + shake, EY, 7, 1, OL); };
-  const arcEye = (ox) => { rect(ox - 3, EY + 1, 2, 1, OL); rect(ox - 1, EY - 1, 2, 1, OL); rect(ox + 1, EY + 1, 2, 1, OL); };
   const brow = (ox, dy, ang) => { for (let k = 0; k < 5; k++) rect(ox - 2 + k + shake, EY - 6 + dy + Math.round((k - 2) * ang), 1, 1, OL); };
 
-  if (blink && expr !== 'happy' && expr !== 'love') { [-EX, EX].forEach(shutEye); }
-  else if (expr === 'happy' || expr === 'love') { [-EX, EX].forEach(arcEye); }
-  else if (expr === 'sleepy' || expr === 'smug') { [-EX, EX].forEach(shutEye); }
+  // eyes never close: every mood is carried by the brows and the mouth
+  if (expr === 'happy' || expr === 'love') { [-EX, EX].forEach(ox => { bead(ox, 2); brow(ox, -2, 0); }); }
+  else if (expr === 'sleepy') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, 2, i ? 0.25 : -0.25); }); }
+  else if (expr === 'smug') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, i ? -2 : 1, 0); }); }
   else if (expr === 'mad' || expr === 'grit') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, 3, i ? -0.6 : 0.6); }); }
   else if (expr === 'wow' || expr === 'shocked' || expr === 'scared' || expr === 'panic') { [-EX, EX].forEach(ox => bead(ox, 3)); }
   else if (expr === 'worry' || expr === 'sad') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, -1, i ? 0.5 : -0.5); }); }
@@ -1052,9 +1167,6 @@ function bobHead(key, expr, phase, look, lean) {
       rect(s2 * 11 - 2, -16 + tw, 5, 4, p.ear[0]);
     });
   }
-  if (key === 'frog') {
-    [-1, 1].forEach(s2 => plasticBox(s2 * 9 - 7, -19, 14, 13, 5, [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]]));
-  }
   if (key === 'snail') {
     [-1, 1].forEach(s2 => {
       const sw = Math.round(Math.sin(tNow * 1.1 + s2 * 1.4 + phase) * 1);
@@ -1064,8 +1176,39 @@ function bobHead(key, expr, phase, look, lean) {
       rect(s2 * 8 + sw - 1 + Math.round(clamp(look.x, -1, 1)), -24, 2, 2, OL);
     });
   }
-  // ---- the skull: one moulded cube ----
-  plasticBox(-13, -14, 26, 24, 5, p.sk);
+  // ---- the skull: a soft block with hand-placed fur and skin detail ----
+  plasticBox(-13, -14, 26, 24, 6, p.sk, { seed: key.length });
+  if (p.otter || key === 'medic' || key === 'trader') {
+    // fur tufts break the silhouette at the cheeks and crown
+    const tuft = (x0, y0, dir) => {
+      rect(x0 + dir * 1, y0, 2 * dir < 0 ? 2 : 2, 1, OL);
+      rect(dir < 0 ? x0 - 2 : x0 + 1, y0 + 1, 2, 1, OL);
+      rect(dir < 0 ? x0 - 1 : x0, y0 + 1, 1, 1, p.sk[2]);
+      rect(dir < 0 ? x0 - 1 : x0, y0 + 2, 2, 1, OL);
+      rect(x0, y0 + 2, 1, 1, p.sk[1]);
+    };
+    tuft(-13, 1, -1); tuft(-13, 4, -1); tuft(12, 1, 1); tuft(12, 4, 1);
+    rect(-3, -16, 2, 1, OL); rect(-4, -15, 1, 1, OL); rect(-3, -15, 2, 1, p.sk[3]);
+    rect(1, -16, 2, 1, OL); rect(3, -15, 1, 1, OL); rect(1, -15, 2, 1, p.sk[3]);
+    // fur strokes: short dark hatches following the head's curve
+    for (let k = 0; k < 9; k++) {
+      const hx = -9 + ((k * 7) % 18), hy = -11 + ((k * 5) % 9);
+      rect(hx, hy, 1, 2, mixC(p.sk[1], p.sk[2], 0.35));
+    }
+  }
+  if (key === 'frog') {
+    // the eye domes ride on top of the skull, in front of it
+    [-1, 1].forEach(s2 => plasticBox(s2 * 8 - 6, -21, 12, 11, 5, [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]], { seed: 3 + s2 }));
+    // warty skin: darker blotches with a lit rim
+    [[-8, -9, 3], [5, -6, 2], [-3, -4, 2], [8, -11, 2], [-10, -2, 2]].forEach(([wx, wy, wr]) => {
+      rr(wx, wy, wr + 1, wr, 1, p.sk[1]); rect(wx, wy - 1, wr, 1, p.sk[3]);
+    });
+  }
+  if (key === 'snail') {
+    // soft wrinkles and a slime glint
+    rect(-8, -8, 5, 1, p.sk[1]); rect(3, -9, 5, 1, p.sk[1]); rect(-6, 7, 12, 1, p.sk[1]);
+    rect(-10, -11, 2, 1, p.sk[4]); rect(-11, -10, 1, 2, p.sk[4]);
+  }
   if (key === 'trader') {
     rect(-12, -7, 24, 8, p.mask[1]); rect(-12, -7, 24, 1, p.mask[2]); rect(-12, 1, 24, 1, p.mask[0]);
   }
@@ -1309,24 +1452,14 @@ function drawVendor(x, y, o) {
   ctx.save(); ctx.globalAlpha = 0.28; rect(-14, -7, 11, 2, p.sk[1]); rect(3, -7, 11, 2, p.sk[1]); ctx.restore();
 
   // ---- eyes ----
-  const bt = (tNow * 0.9 + ph) % 4.6;
-  let lid = 0;
-  if (bt > 4.3) { const k = (bt - 4.3) / 0.3; lid = k < 0.4 ? k / 0.4 : k < 0.7 ? 1 : Math.max(0, (1 - k) / 0.3); }
   const eye = (ex, r) => {                      // one dark bead, one bright catch
     const dx = Math.round(look.x * 1.2), dy = Math.round(look.y * 1);
     const bx = ex + dx, by2 = -4 + dy;
-    fillCircle(bx, by2, r, '#120b05');
+    rr(bx - r + 1, by2 - r, r * 2 - 1, r * 2, 1, '#120b05');
     rect(bx - r + 1, by2 - r + 1, 2, 2, '#ffffff');
     rect(bx + r - 2, by2 + r - 2, 1, 1, '#ffffff55');
-    const close = expr === 'sleepy' ? 0.55 + lid * 0.45 : lid;
-    if (close > 0) {
-      const h = Math.round(close * (r * 2 + 2));
-      if (h > 0) { rect(bx - r - 1, by2 - r - 1, r * 2 + 2, h, p.sk[2]); rect(bx - r - 1, by2 - r - 1 + h, r * 2 + 2, 1, OL); }
-    }
   };
-  if (expr === 'happy' || expr === 'proud') {
-    [-8, 8].forEach(ex => { rect(ex - 4, -4, 2, 1, OL); rect(ex - 2, -6, 2, 1, OL); rect(ex, -6, 2, 1, OL); rect(ex + 2, -4, 2, 1, OL); });
-  } else if (expr === 'wow') { [-7, 7].forEach(ex => eye(ex, 4)); }
+  if (expr === 'wow') { [-7, 7].forEach(ex => eye(ex, 4)); }
   else { [-7, 7].forEach(ex => eye(ex, 3)); }
   if (expr === 'sad' || expr === 'think') {
     rect(-13, -12, 6, 2, OL); rect(-12, -13, 4, 1, OL);
@@ -1692,9 +1825,16 @@ function drawRangerBadge(x, y, key, o) {
   if (o.wob) { ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 4) * 0.06; rr(-16, -16, 32, 32, 8, P.shine); ctx.restore(); }
   // the moulded metal rim, its alloy set by mastery rank
   plasticBox(-15, -15, 30, 30, 8, M, { noShine: 1 });
-  ctx.save(); ctx.globalAlpha = 0.55; rr(-12, -13, 10, 5, 2, M[4]); rect(-1, -13, 3, 3, M[4]); ctx.restore();
-  plasticBox(-12, -12, 24, 24, 6, ['#12100a', P.dark, P.base, P.lite, P.shine], { noShine: 1 });
-  ctx.save(); ctx.globalAlpha = 0.4; rr(-10, -10, 8, 4, 2, P.shine); ctx.restore();
+  // milled rim: a ring of struck dots, lit on the top-left
+  for (let k = 0; k < 28; k++) {
+    const an = k / 28 * Math.PI * 2, rx = Math.round(Math.cos(an) * 13.2), ry = Math.round(Math.sin(an) * 13.2);
+    rect(rx, ry, 1, 1, (an > 2.4 && an < 5.4) ? M[4] : M[1]);
+  }
+  plasticBox(-12, -12, 24, 24, 6, ['#12100a', P.dark, P.base, P.lite, P.shine], { noShine: 1, seed: key.length });
+  // enamel field: fine cross-hatch guilloche engraved under the bust
+  ctx.save(); ctx.globalAlpha = 0.28;
+  for (let k = -10; k < 11; k += 3) { for (let j = -9; j < 10; j += 2) rect(k + ((j >> 1) & 1), j, 1, 1, P.dark); }
+  ctx.restore();
   ctx.save(); ctx.translate(0, -2); ctx.scale(0.66, 0.66); badgeBust(key, P); ctx.restore();
   // a laurel notch each side, and one rank pip per mastery level
   [-1, 1].forEach(sd => { for (let k = 0; k < 3; k++) rect(sd * 12 - (sd < 0 ? 1 : 0), -5 + k * 4, 2, 2, M[3]); });
@@ -4336,17 +4476,38 @@ function drawCroc(closeT, opts) {
   rr(bodyX + 1, maw.y + maw.h - 6, bodyW - 2, 38, 4, st.b);
   rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, st.a);
   // belly plate bands on the chin, with scutes and pond light playing over them
-  rect(bodyX + 14, maw.y + maw.h + 16, bodyW - 28, 2, st.b);
+  ctx.save(); ctx.globalAlpha = 0.42;
+  for (let ry = 0; ry < 5; ry++) {
+    const sy3 = maw.y + maw.h + 8 + ry * 7, off = (ry % 2) * 5;
+    for (let sx3 = bodyX + 10 + off; sx3 < bodyX + bodyW - 10; sx3 += 10) {
+      rect(sx3, sy3, 5, 3, st.d); rect(sx3, sy3 - 1, 5, 1, st.c); rect(sx3 + 1, sy3 + 1, 3, 1, st.b);
+    }
+  }
+  ctx.restore();
+  for (let k = 0; k < 3; k++) rect(bodyX + 16, maw.y + maw.h + 14 + k * 7, bodyW - 32, 1, st.b);
   ctx.save(); ctx.globalAlpha = 0.18;
-  rect(bodyX + 20, maw.y + maw.h + 8, Math.round(bodyW * 0.3), 4, '#eafcff');
-  rect(bodyX + 24 + Math.round(bodyW * 0.34), maw.y + maw.h + 8, 6, 4, '#eafcff');
+  for (let k = 0; k < 16; k++) {
+    const cx3 = bodyX + ((k * 53) % (bodyW - 12));
+    const cy3 = maw.y + maw.h + 6 + ((k * 19) % 28);
+    const wob = Math.sin(tNow * 1.9 + k * 0.7) * 3;
+    rect(cx3 + wob, cy3, 8, 1, '#bfe8ff'); rect(cx3 + 2 + wob, cy3 + 1, 4, 1, '#eafcff');
+    rect(cx3 - 2 + wob * 0.6, cy3 + 3, 5, 1, '#9fd8f0');
+  }
   ctx.restore();
   if (st.skinny) { rect(bodyX + 14, maw.y + maw.h + 14, 3, 14, st.b); rect(bodyX + bodyW - 17, maw.y + maw.h + 14, 3, 14, st.b); }
 
   // --- maw interior ---
   rr(maw.x - 6, maw.y - 4, maw.w + 12, maw.h + 10, 4, mawD);
   rr(maw.x - 3, maw.y - 1, maw.w + 6, maw.h + 4, 4, mawC);
-  ctx.save(); ctx.globalAlpha = 0.12; rr(maw.x + 4, maw.y + 2, maw.w - 8, 6, 3, '#ffd8e4'); ctx.restore();
+  // palate ribs arching across the roof of the mouth
+  ctx.save(); ctx.globalAlpha = 0.34;
+  for (let k = 0; k < 6; k++) {
+    const ry2 = maw.y + 4 + k * 4, inset = k * 3;
+    rect(maw.x + 6 + inset, ry2, maw.w - 12 - inset * 2, 1, mawD);
+  }
+  ctx.globalAlpha = 0.14;
+  for (let k = 0; k < 30; k++) rect(maw.x + 8 + (k * 37) % (maw.w - 16), maw.y + 6 + (k * 13) % 22, 1, 1, '#ffd8e4');
+  ctx.restore();
   // throat shadow receding into the dark
   ctx.save(); ctx.globalAlpha = 0.5;
   rr(maw.x + maw.w / 2 - 34, maw.y + maw.h / 2 - 16, 68, 30, 10, '#2a0a14');
@@ -4438,6 +4599,34 @@ function drawCroc(closeT, opts) {
   for (let k = 0; k < 7; k++) {
     rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, st.b);
   }
+  // osteoderm scute ridges along the snout
+  for (let k = 0; k < 6; k++) {
+    const sx2 = bodyX + 20 + k * Math.floor((bodyW - 44) / 5);
+    rect(sx2, jy + 17, 6, 3, st.b); rect(sx2 + 1, jy + 15, 4, 2, st.c);
+    rect(sx2 + 15, jy + 36, 5, 3, st.b);
+  }
+  // hide speckles
+  ctx.save(); ctx.globalAlpha = 0.35;
+  for (let k = 0; k < 9; k++) rect(bodyX + 12 + (k * 47) % (bodyW - 24), jy + 26 + (k * 31) % 22, 2, 2, st.d);
+  ctx.restore();
+  // ---- fine scale texture: a staggered micro-grid of scutes on the snout ----
+  ctx.save(); ctx.globalAlpha = 0.32;
+  for (let ry = 0; ry < 7; ry++) {
+    const sy2 = jy + 8 + ry * 7, off = (ry % 2) * 5;
+    for (let sx2 = bodyX + 8 + off; sx2 < bodyX + bodyW - 8; sx2 += 10) {
+      rect(sx2, sy2, 5, 3, st.d);          // scute plate
+      rect(sx2, sy2 - 1, 5, 1, st.c);      // lit top edge
+      rect(sx2 + 1, sy2 + 1, 3, 1, st.b);  // inner shadow
+    }
+  }
+  ctx.restore();
+  // pitted skin grain between the plates
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for (let k = 0; k < 70; k++) {
+    const gx = bodyX + 4 + Math.floor(hash2(k, 7) * (bodyW - 8)), gy = jy + 6 + Math.floor(hash2(k, 11) * 46);
+    rect(gx, gy, 1, 1, k & 1 ? st.b : st.c);
+  }
+  ctx.restore();
   // ---- nostrils flaring on the snout tip ----
   (function nostrils() {
     const flare = Math.round(Math.max(0, Math.sin(tNow * 1.6)) * 1.5);
@@ -4451,10 +4640,29 @@ function drawCroc(closeT, opts) {
       rect(px2 + 3, jy + 6 - flare, 3, 1, '#3a2418');
     });
   })();
-  // one hard plastic gloss streak across the snout
-  ctx.save(); ctx.globalAlpha = 0.2;
-  rect(bodyX + 18, jy + 5, Math.round(bodyW * 0.34), 4, '#eafcff');
-  rect(bodyX + 18 + Math.round(bodyW * 0.38), jy + 5, 7, 4, '#eafcff');
+  // ---- jowl volume: the sides of the skull roll away from the light ----
+  ctx.save(); ctx.globalAlpha = 0.3;
+  rect(bodyX - 3, jy + 12, 8, 44, st.d); rect(bodyX + bodyW - 5, jy + 12, 8, 44, st.d);
+  ctx.globalAlpha = 0.18; rect(bodyX + 3, jy + 16, 5, 38, st.d); rect(bodyX + bodyW - 8, jy + 16, 5, 38, st.d);
+  ctx.restore();
+  // ---- neck folds behind the jaw hinge ----
+  ctx.save(); ctx.globalAlpha = 0.4;
+  for (let k = 0; k < 3; k++) {
+    rect(bodyX - 2, maw.y + maw.h + 12 + k * 7, 20, 2, st.d);
+    rect(bodyX + bodyW - 18, maw.y + maw.h + 12 + k * 7, 20, 2, st.d);
+    rect(bodyX - 2, maw.y + maw.h + 11 + k * 7, 20, 1, st.c);
+    rect(bodyX + bodyW - 18, maw.y + maw.h + 11 + k * 7, 20, 1, st.c);
+  }
+  ctx.restore();
+  // ---- rim light along the top of the skull ----
+  ctx.save(); ctx.globalAlpha = 0.3;
+  rect(bodyX + 4, jy + 1, bodyW - 8, 1, '#eafcff');
+  rect(bodyX - 2, jy + 6, 3, 34, '#eafcff'); rect(bodyX + bodyW - 1, jy + 6, 3, 34, '#eafcff');
+  ctx.restore();
+  // wet sheen sweeping the hide, broken into dithered pixels
+  const shx = Math.round(bodyX + ((tNow * 22) % (bodyW + 60)) - 30);
+  ctx.save(); ctx.globalAlpha = 0.14;
+  for (let k = 0; k < 50; k += 2) { rect(shx + (k & 2), jy + 4 + k, 2, 1, '#eafcff'); rect(shx + 8, jy + 5 + k, 1, 1, '#eafcff'); }
   ctx.restore();
   // ---- drool strings + drips hanging off the upper lip ----
   if (G.state === 'play') {
@@ -4578,9 +4786,8 @@ function drawCroc(closeT, opts) {
         rect(EO.x + 9 - (pw >> 1) + dx, EO.y + 7 - (ph2 >> 1) + dy, 1, 2, '#fff');
       }
       // one lid value from every source, so they can never fight each other
-      const blinkT = (tNow + (side ? 0.07 : 0)) % 4.3;
-      const blink = blinkT > 4.15 ? clamp((blinkT - 4.15) / 0.075, 0, 1) : 0;
-      const lidAmt = clamp(Math.max(blink, (1 - clamp(MD.open, 0, 1)) * 0.8, MD.squint * 0.5, st.sleepy ? 0.55 : 0), 0, 1);
+      // the lid only ever droops - the eye never shuts
+      const lidAmt = clamp(Math.max((1 - clamp(MD.open, 0, 1)) * 0.5, MD.squint * 0.34, st.sleepy ? 0.36 : 0), 0, 0.4);
       if (lidAmt > 0.02) {
         const lh = Math.round(lidAmt * (EO.h + 2));
         rr(EO.x - 1, EO.y - 1, EO.w + 2, lh, 3, st.a);       // the lid, in hide colour
@@ -4599,7 +4806,11 @@ function drawCroc(closeT, opts) {
     }
     if (st.bags) { rect(ex + 2, ey + 17, 18, 2, '#3a2a4a'); }
     if (st.teary) { rect(ex + 4, ey + 16, 2, 3, '#7fd4e8'); rect(ex + 5, ey + 19 + ((tNow * 6 | 0) % 3), 1, 2, '#7fd4e8'); }
-    rect(ex - 10, ey + 6, 5, 6, st.b); rect(ex + 27, ey + 8, 5, 5, st.b);
+    // back scutes flanking each eye
+    [[ex - 12, ey + 4], [ex + 28, ey + 6]].forEach(([sx, sy]) => {
+      rect(sx, sy, 5, 6, st.b); rect(sx + 1, sy - 3, 3, 3, st.b); rect(sx + 2, sy - 5, 1, 2, st.b);
+      rect(sx + 1, sy - 3, 1, 1, st.c);
+    });
     void bl;
   });
   // a puff of angry breath from the nostrils when it is riled
@@ -5359,6 +5570,15 @@ function shopWall() {
     rect(x, 0, 15, 216, v === 0 ? P[2] : v === 1 ? P[3] : P[1]);
     rect(x, 0, 1, 216, P[4]);                 // lit bevel
     rect(x + 14, 0, 2, 216, P[0]);            // groove shadow
+    // grain
+    ctx.save(); ctx.globalAlpha = 0.16;
+    for (let g = 0; g < 5; g++) rect(x + 2 + ((x * 7 + g * 13) % 11), (g * 47 + x) % 210, 1, 18 + (x % 13), P[0]);
+    ctx.restore();
+    if ((x / 16) % 4 === 1) { // knot
+      const ky = 30 + (x * 13) % 150;
+      fillCircle(x + 7, ky, 3, P[1]); fillCircle(x + 7, ky, 2, P[0]); rect(x + 6, ky - 1, 1, 1, P[3]);
+    }
+    rect(x + 7, 8, 1, 1, P[0]); rect(x + 7, 206, 1, 1, P[0]); // nails
   }
   // wainscot + chair rail along the bottom of the wall
   const Wn = SHOPW.wains;
@@ -5382,7 +5602,10 @@ function shopFloor() {
     const h = 11 + row * 2;
     rect(0, y, W, h, row % 2 ? F[2] : F[3]);
     rect(0, y + h - 1, W, 1, F[0]);
-    for (let x = ((row * 37) % 60); x < W; x += 60) rect(x, y, 1, h, F[1]);
+    for (let x = ((row * 37) % 60); x < W; x += 60) { rect(x, y, 1, h, F[1]); rect(x + 2, y + 2, 1, 1, F[0]); rect(x + 2, y + h - 3, 1, 1, F[0]); }
+    ctx.save(); ctx.globalAlpha = 0.12;
+    for (let g = 0; g < 12; g++) rect((g * 43 + row * 17) % W, y + 2 + (g % 3) * 3, 14 + (g % 5) * 4, 1, F[0]);
+    ctx.restore();
     row++;
   }
   ctx.save(); ctx.globalAlpha = 0.16; // worn walking path down the aisle
@@ -5393,6 +5616,9 @@ function shopFloor() {
   for (let k = 0; k < 8; k++) rect(174 + k * 22, 234, 20, 20, k % 2 ? '#a5604a' : '#8a4a32');
   for (let k = 0; k < 8; k++) rect(174 + k * 22, 240, 20, 3, k % 2 ? '#c88a6a' : '#6a3524');
   rect(171, 232, 178, 1, '#b8735a'); rect(171, 255, 178, 1, '#3a1a10');
+  ctx.save(); ctx.globalAlpha = 0.25;
+  for (let k = 0; k < 20; k++) rect(172 + (k * 29) % 176, 233 + (k * 7) % 22, 2, 1, '#2a1208');
+  ctx.restore();
 }
 
 // swinging enamel pendant lamp
@@ -5585,6 +5811,7 @@ function drawShop() {
     rr(kx, ky + 3, kw, kh, 2, '#00000077');
     rr(kx, ky, kw, kh, 2, Wd[0]); rr(kx + 1, ky + 1, kw - 2, kh - 3, 2, Wd[2]);
     for (let px = kx + 8; px < kx + kw; px += 13) { rect(px, ky + 4, 1, kh - 7, Wd[1]); rect(px + 1, ky + 4, 1, kh - 7, Wd[3]); }
+    ctx.save(); ctx.globalAlpha = 0.18; for (let g = 0; g < 8; g++) rect(kx + 3 + (g * 17) % 68, ky + 6 + (g % 4) * 5, 9, 1, '#2a1a0c'); ctx.restore();
     rect(kx, ky, kw, 4, S[3]); rect(kx, ky, kw, 1, S[4]); rect(kx, ky + 4, kw, 1, S[0]);
     // brass till
     rr(kx + 5, ky + 6, 24, 20, 3, '#241708'); rr(kx + 6, ky + 7, 22, 18, 2, BRS[1]);
@@ -6897,7 +7124,7 @@ function drawMenu(dt) {
   });
 }
 // first NEW RUN runs the tutorial once, then goes to ranger select
-function startRun() { if (!meta.tutDone) startTutorial(); else { G.state = 'ranger'; sfx.whoosh(); } }
+function startRun() { lobby = null; G.state = 'ranger'; sfx.whoosh(); }
 // the title-screen gator swallows you into the office
 function diveIn() {
   if (G.dive) return;
@@ -7107,293 +7334,518 @@ const TUT_STEPS = [
   { t: 'USE YOUR X-RAYS', b: ['Out of ideas? X-RAY reveals if a', 'tooth is safe or a snapper. 3 per round.'], demo: 'xray' },
   { t: "YOU'RE READY!", b: ['Hit the target before your BITES run out,', 'climb 8 antes. Good luck out there!'], demo: 'win' },
 ];
-// ===================== THE INTERVIEW (tutorial) ===========================
-//  Mrs Owlet does not hand out badges.  She runs you through a timed oral
-//  exam and then a practical on a training gator, and stamps the form.
+// ========================= FIELD TRAINING ==================================
+//  Mrs Owlet teaches on the model, not on a slideshow.  The script below is
+//  a list of beats: each one sets her line, her mood, where she stands and
+//  what her pointer is on, and some wait for you to actually DO the thing
+//  (press a tooth, bank, scan) before she carries on.  Then a timed pop
+//  quiz on her clipboard, then a real practical on the model, then a stamp.
 // ==========================================================================
 const IV_QS = [
-  {
-    q: 'A gator opens wide. What are you actually paid to do?',
-    a: ['Press teeth to bank TEETH x MULT', 'Count the gator', 'Run'],
-    right: 0,
-    why: 'Every tooth you press adds its value. Bank before the jaws shut.',
-  },
-  {
-    q: 'One tooth in that mouth is a SNAPPER. Press it and?',
-    a: ['Nothing, it is decorative', 'The jaws slam and the bite is lost', 'You get paid double'],
-    right: 1,
-    why: 'A snapper ends the bite and everything unbanked goes with it.',
-  },
-  {
-    q: 'You are one tooth from the target. What does a professional do?',
-    a: ['Press every last tooth', 'BANK the bite and keep the score', 'Close their eyes'],
-    right: 1,
-    why: 'Banking locks the score in. Greed is how we lose rangers.',
-  },
-  {
-    q: 'The X-RAY. What is it for?',
-    a: ['Looking cool', 'Revealing whether one tooth is safe or a snapper', 'Warming your hands'],
-    right: 1,
-    why: 'You get a few per round. Spend them when the maw is nearly empty.',
-  },
+  { q: 'A gator opens wide. What are you actually paid to do?', a: ['Press teeth, then BANK TEETH x MULT', 'Count the gator', 'Run'], right: 0, why: 'Every safe tooth pays. Bank it before the jaws move.' },
+  { q: 'One tooth in that mouth is a SNAPPER. Press it and?', a: ['Nothing, it is decorative', 'The jaws slam and the unbanked bite is lost', 'You get paid double'], right: 1, why: 'A snapper ends the bite. Everything unbanked goes with it.' },
+  { q: 'You are one tooth from the target. What does a professional do?', a: ['Press every last tooth', 'BANK the bite and keep the score', 'Close their eyes and hope'], right: 1, why: 'Banking locks it in. Greed is how I lose rangers.' },
+  { q: 'The X-RAY. What is it for?', a: ['Looking cool', 'Showing if one tooth is safe or a snapper', 'Warming your hands'], right: 1, why: 'A few per gator. Spend them when it matters.' },
 ];
-const IV_TIME = 9;
+const IV_TIME = 10;
+const IV_TARGET = 40;
 
-const IV_LESSONS = [
-  {
-    title: 'THE MOUTH',
-    body: 'Every gator holds a row of teeth. Press one and its value goes on the board. Press another, and another - they stack.',
-    say: "First, the job itself. You press teeth. The mouth pays you for each one.",
-    art: 'press',
-  },
-  {
-    title: 'THE SNAPPER',
-    body: 'One tooth in that mouth is a SNAPPER. Press it and the jaws slam. Everything you had not banked is gone.',
-    say: "Now the part that costs rangers their fingers. One tooth always bites.",
-    art: 'snap',
-  },
-  {
-    title: 'MIRROR AND LEDGER',
-    body: 'X-RAY shows you whether one tooth is safe. BANK locks your score in before the jaws move. Use both.',
-    say: "Two tools. The mirror looks. The ledger keeps. Greed keeps neither.",
-    art: 'tools',
-  },
-];
-// the little diagram on each lesson card
-function ivLessonArt(kind, x, y, w, h, t) {
-  const gum = ['#3a0a16', '#5a1020', '#8a2438', '#b8405a', '#d4587a'];
-  const jaw = ['#1b4a14', '#2f7d22', '#4aa832', '#6fd04a', '#9ae86a'];
-  const tooth = ['#8f8468', '#c8bfa0', '#e8e0c4', '#fdfaec', '#ffffff'];
-  plasticBox(x, y, w, h, 4, ['#12100a', '#1a2630', '#243038', '#33454e', '#6f8b98'], { noShine: 1 });
-  const cx2 = x + w / 2, my2 = y + h / 2;
-  if (kind === 'press') {
-    plasticBox(x + 10, my2 - 22, w - 20, 12, 3, jaw, { noShine: 1 });
-    plasticBox(x + 10, my2 + 14, w - 20, 12, 3, jaw, { noShine: 1 });
-    plasticBox(x + 10, my2 - 10, w - 20, 24, 3, gum, { noShine: 1 });
-    const pressed = (t * 1.4 | 0) % 4;
-    for (let k = 0; k < 4; k++) {
-      const tx = x + 18 + k * ((w - 36) / 4), on = k === pressed;
-      plasticBox(tx, my2 - 8 + (on ? 5 : 0), 16, on ? 13 : 18, 3, tooth, { noShine: 1 });
-      if (!on) drawTextC('' + (3 + k), tx + 8, my2, '#6d5c3a', 1);
-    }
-    const fy = (t * 40) % 40;
-    ctx.save(); ctx.globalAlpha = 1 - fy / 40;
-    drawTextC('+' + (3 + pressed), x + 26 + pressed * ((w - 36) / 4), my2 - 14 - fy, '#63d66a', 1);
-    ctx.restore();
-  } else if (kind === 'snap') {
-    const bite = Math.max(0, Math.sin(t * 2)) * 14;
-    plasticBox(x + 10, my2 - 24 + bite, w - 20, 12, 3, jaw, { noShine: 1 });
-    plasticBox(x + 10, my2 + 16 - bite, w - 20, 12, 3, jaw, { noShine: 1 });
-    plasticBox(x + 10, my2 - 12 + bite, w - 20, 28 - bite * 2, 3, gum, { noShine: 1 });
-    for (let k = 0; k < 4; k++) {
-      const tx = x + 18 + k * ((w - 36) / 4), bad = k === 2;
-      plasticBox(tx, my2 - 8 + bite, 16, Math.max(4, 16 - bite), 3,
-        bad ? ['#3a0c0c', '#7a1f1f', '#c23a2a', '#e86a4a', '#ffb0a0'] : tooth, { noShine: 1 });
-      if (bad && bite < 4) drawTextC('!', tx + 8, my2 - 4, '#fff', 1);
-    }
-    if (bite > 10) { ctx.save(); ctx.globalAlpha = 0.8; drawTextC('SNAP!', cx2, my2 - 2, '#ff6a4a', 2); ctx.restore(); }
-  } else {
-    plasticBox(x + 12, my2 - 18, w - 24, 22, 4, ['#0f2540', '#1e4fa3', '#3f8cff', '#77b4ff', '#cfe6ff'], { noShine: 1 });
-    drawTextC('X-RAY', cx2, my2 - 11, '#ffffff', 1);
-    plasticBox(x + 12, my2 + 8, w - 24, 22, 4, ['#123014', '#2b6b2c', '#63d66a', '#96eb9c', '#dcffd8'], { noShine: 1 });
-    drawTextC('BANK BITE', cx2, my2 + 15, '#0f2a0f', 1);
-    const bl = Math.sin(t * 4) > 0;
-    ctx.save(); ctx.globalAlpha = bl ? 0.9 : 0.3;
-    rect(x + 6, my2 - 10, 5, 2, '#9fe8ff'); rect(x + w - 11, my2 + 16, 5, 2, '#a8f0a0');
-    ctx.restore();
-  }
+function ivModel(snapAt) {
+  const vals = [3, 5, 2, 4, 6, 3];
+  return { open: 1, openT: 1, sheet: 0, sheetT: -1, xr: -1, xrA: 0, teeth: vals.map((v, i) => ({ v, snap: i === snapAt, pressed: false, rev: null, mark: false })) };
 }
+function ivReroll(iv, keepSheet) {
+  const snap = ri(0, 5);
+  iv.m.teeth = iv.m.teeth.map((T, i) => ({ v: ri(2, 7), snap: i === snap, pressed: false, rev: null, mark: false }));
+  iv.pool = { teeth: 0, mult: 1 };
+}
+const OWL_SPOTS = { desk: { x: 176, y: 202 }, model: { x: 252, y: 214 }, board: { x: 238, y: 214 } };
 
-function startTutorial() {
-  G.iv = { phase: 'teach', lesson: 0, q: 0, t: 0, timeLeft: IV_TIME, picked: -1, score: 0, mark: 0, drill: null, said: '' };
-  ivSay(IV_LESSONS[0].say);
+const IV_SCRIPT = [
+  { id: 'enter', auto: 2.4, owl: 'desk', expr: 'grump', say: '' },
+  { say: "You're late. Everyone is late. Stand there. Do NOT touch anything.", owl: 'desk', expr: 'grump' },
+  { say: "I am Mrs Owlet. I run this park, and I train the fools who put their hands in its mouths.", owl: 'desk', expr: 'stern' },
+  { say: "And today you learn on THIS.", owl: 'model', expr: 'stern', min: 2.6,
+    update: (iv) => { if (iv.t > 1.3 && iv.m.sheetT < 0) { iv.m.sheetT = 0; sfx.whoosh(); fxConfetti(380, 120, 10); } } },
+  { say: "Crocodylus dentalis. A full-size training model. It cost more than you do.", owl: 'model', expr: 'pleased', point: 'eye' },
+  { say: "Every gator in this park has a mouth full of teeth. Each tooth is worth something. That is your pay.", owl: 'model', point: 'teeth', hl: 'teeth' },
+  { say: "Go on. PRESS a tooth. Click one on the model.", owl: 'model', point: 'teeth', press: 1, wait: iv => iv.pressedN >= 1 },
+  { say: "Its value goes on the board as TEETH, and every safe tooth adds one to your MULT. Press two more.", owl: 'board', point: 'board', press: 1, hl: 'board', wait: iv => iv.pressedN >= 3 },
+  { say: "TEETH times MULT is your BITE. That number is the whole job.", owl: 'board', point: 'board', hl: 'bite', expr: 'pleased' },
+  { say: "Now BANK it, bottom right. A banked bite is yours forever.", owl: 'model', point: 'bank', bank: 1, wait: iv => iv.bankedN >= 1 },
+  { say: "Good. Now for the part that costs rangers their fingers.", owl: 'model', expr: 'stern' },
+  { say: "One tooth in every mouth is a SNAPPER. Press it, and...", owl: 'model', expr: 'stern', point: 'snapper', min: 3.6,
+    enter: (iv) => { iv.m.teeth.forEach((T, i) => { T.snap = i === 3; T.pressed = false; T.rev = null; }); iv.pool = { teeth: 0, mult: 1 }; iv.demo = 0; },
+    update: (iv) => {
+      if (iv.demo === 0 && iv.t > 0.7) { iv.demo = 1; ivPress(iv, 0, true); }
+      if (iv.demo === 1 && iv.t > 1.3) { iv.demo = 2; ivPress(iv, 1, true); }
+      if (iv.demo === 2 && iv.t > 1.9) { iv.demo = 3; iv.m.teeth[3].mark = true; }
+      if (iv.demo === 3 && iv.t > 2.5) { iv.demo = 4; iv.m.teeth[3].mark = false; ivPress(iv, 3, true); iv.broke = true; }
+    } },
+  { say: "...That was my good pointer.", owl: 'model', expr: 'grump', min: 0.8 },
+  { say: "Everything you had NOT banked is gone. The jaws do not negotiate.", owl: 'board', point: 'board', hl: 'lost', expr: 'stern' },
+  { say: "So you LOOK before you press. That is the X-RAY.", owl: 'model', point: 'scanner', min: 2.4,
+    enter: (iv) => { ivReroll(iv); iv.m.xr = 0; iv.m.xrA = 1; sfx.xray(); },
+    update: (iv) => { iv.m.xr = Math.min(1, iv.t / 1.4); } },
+  { say: "Your turn. Hit X-RAY, then click a tooth to scan it.", owl: 'model', point: 'xraybtn', xray: 1, wait: iv => iv.scannedN >= 1,
+    enter: (iv) => { iv.m.xrA = 0; iv.m.xr = -1; } },
+  { say: (iv) => iv.lastScan === 'snap' ? "Red. That one bites. Leave it ALONE." : "Green. That one is safe to press.", owl: 'model', point: 'scanned', expr: 'pleased' },
+  { say: "You get only a few X-RAYS per gator. Spend them when the maw is nearly empty.", owl: 'model', expr: 'stern' },
+  { say: "Each gator gives you a few BITES. Beat its TARGET before they run out. Eight antes. Then the King.", owl: 'board', point: 'board', hl: 'target' },
+  { say: "Enough talk. Pop quiz. Four questions. The clock is running.", owl: 'board', expr: 'stern', next: 'quiz' },
+];
+
+function startTutorial(k) {
+  k = k || meta.ranger || 'scout';
+  if (!rangerUnlocked(k)) k = 'scout';
+  G.iv = {
+    k, step: 0, t: 0, sayT: 0, said: '', phase: 'lesson',
+    m: ivModel(-1), pool: { teeth: 0, mult: 1 }, banked: 0, pressedN: 0, bankedN: 0, scannedN: 0, lastScan: null,
+    owl: { x: OWL_SPOTS.desk.x, y: OWL_SPOTS.desk.y }, rg: { x: -24 }, mode: 'idle', broke: false, lost: 0,
+    quiz: null, prac: null, score: 0, fx: [],
+  };
+  G.iv.m.sheet = 1;
+  ivStep(G.iv, 0);
   G.state = 'tutorial';
   sfx.whoosh();
 }
+function ivStep(iv, n) {
+  iv.step = n; iv.t = 0; iv.sayT = 0;
+  const S = IV_SCRIPT[n];
+  if (!S) return;
+  if (S.enter) S.enter(iv);
+  iv.said = typeof S.say === 'function' ? S.say(iv) : (S.say || '');
+}
 function ivSay(txt) { if (G.iv) { G.iv.said = txt; G.iv.sayT = 0; } }
 function ivFinish() {
-  meta.tutDone = true; saveMeta();
-  G.iv = null; G.state = 'ranger'; sfx.whoosh();
+  const iv = G.iv, k = iv ? iv.k : (meta.ranger || 'scout');
+  meta.tutDone = true; meta.ranger = k; saveMeta();
+  startTransition(() => { G.iv = null; newRun(k); startIntro(); });
+}
+
+// press one of the model's training teeth
+function ivPress(iv, i, demo) {
+  const T = iv.m.teeth[i];
+  if (!T || T.pressed) return;
+  const r = cmToothRect(i);
+  if (T.snap) {
+    T.rev = 'snap';
+    iv.m.open = 0; iv.m.openT = 0; iv.snapT = 0;
+    shake = Math.max(shake, 10); flashRed = 0.35; sfx.snap();
+    fxStars(r.cx, r.cy - 10, '#ff6a4a', 10, 120);
+    for (let k = 0; k < 8; k++) parts.push({ x: r.cx, y: r.cy - 6, vx: (rnd() - 0.5) * 120, vy: -60 - rnd() * 80, t: 0, life: 0.9, col: '#b0783a', sz: 2, g: 260 });
+    iv.lostBite = iv.pool.teeth * iv.pool.mult; iv.lost = 2.2;
+    iv.pool = { teeth: 0, mult: 1 };
+    if (iv.prac && !demo) { iv.prac.bites--; iv.prac.wait = 1.4; }
+    return;
+  }
+  T.pressed = true;
+  iv.pool.teeth += T.v; iv.pool.mult += 1;
+  if (!demo) iv.pressedN++;
+  float(r.cx, r.cy - 16, '+' + T.v, '#9fe0ff', 1);
+  fxPop(r.cx, r.cy - 6, '#ffe089');
+  sfx.click(3);
+}
+function ivBank(iv) {
+  const v = iv.pool.teeth * iv.pool.mult;
+  if (v <= 0) { sfx.error(); ivSay('Nothing to bank. Press a tooth first.'); return; }
+  iv.banked += v; iv.bankedN++;
+  iv.pool = { teeth: 0, mult: 1 };
+  float(BOARD.x + 60, BOARD.y + 40, '+' + v, '#f0e080', 2, 1.2);
+  sfx.coin(); sfx.buy();
+  fxConfetti(BOARD.x + 50, BOARD.y + 40, 12);
+  // the model snaps shut politely and a fresh set of teeth rolls in
+  iv.m.openT = 0; iv.reset = 0.5;
+  if (iv.prac) { iv.prac.bites--; iv.prac.wait = 0.9; }
+}
+function ivScan(iv, i) {
+  const T = iv.m.teeth[i];
+  if (!T || T.pressed || T.rev) { sfx.error(); return; }
+  T.rev = T.snap ? 'snap' : 'safe';
+  iv.lastScan = T.rev; iv.scannedN++; iv.scanned = i;
+  iv.mode = 'idle';
+  iv.beam = { i, t: 0 };
+  if (iv.prac) iv.prac.xrays--;
+  sfx.xray();
+}
+
+// where the pointer should rest for a beat
+function ivPointAt(iv, key) {
+  const m = iv.m;
+  if (key === 'eye') return { x: CM.hx + 18, y: CM.hy + Math.round(cmTop(18)) + 8 };
+  if (key === 'teeth') {
+    const open = m.teeth.map((T, i) => i).filter(i => !m.teeth[i].pressed);
+    const i = open.length ? open[Math.floor(tNow / 1.2) % open.length] : 0;
+    const r = cmToothRect(i); return { x: r.cx, y: r.y + 2 };
+  }
+  if (key === 'snapper') { const r = cmToothRect(3); return { x: r.cx, y: r.y + 2 }; }
+  if (key === 'scanned') { const r = cmToothRect(iv.scanned || 0); return { x: r.cx, y: r.y }; }
+  if (key === 'board') return { x: BOARD.x + BOARD.w - 12, y: BOARD.y + 50 };
+  if (key === 'scanner') return { x: 444, y: 70 };
+  if (key === 'bank') return { x: 420, y: 250 };
+  if (key === 'xraybtn') return { x: 420, y: 226 };
+  return null;
+}
+
+// ------------------------------------------------------------ chalk -------
+function chalkText(s, x, y, col) {
+  drawText(s, x + 1, y + 1, '#12241c', 1);
+  drawText(s, x, y, col, 1);
+  ctx.save(); ctx.globalAlpha = 0.35; for (let k = 0; k < s.length; k += 3) rect(x + k * 5 + 1, y + 2, 1, 1, '#1c342a'); ctx.restore();
+}
+function chalkCircle(x, y, w, h) {
+  const n = 40;
+  for (let k = 0; k < n; k++) {
+    const a = k / n * Math.PI * 2 + 0.3, j = Math.sin(k * 3.7) * 0.6;
+    rect(Math.round(x + w / 2 + Math.cos(a) * (w / 2 + j)), Math.round(y + h / 2 + Math.sin(a) * (h / 2 + j)), 1, 1, '#f8f0a0');
+  }
+}
+function drawChalkboard(iv, hl) {
+  const B = BOARD, x = B.x + 6;
+  const prac = iv.prac;
+  let y = B.y + 6;
+  chalkText(prac ? 'PRACTICAL' : 'LESSON', x, y, '#e8ecd8'); y += 10;
+  rect(x, y - 3, B.w - 12, 1, '#8aa898');
+  chalkText('TEETH', x, y, '#9fd8f0'); chalkText('' + iv.pool.teeth, x + 56, y, '#9fd8f0'); if (hl === 'board') chalkCircle(x - 3, y - 3, B.w - 6, 10); y += 9;
+  chalkText('MULT', x, y, '#f0a0a8'); chalkText('X' + iv.pool.mult, x + 56, y, '#f0a0a8'); y += 9;
+  const bite = iv.pool.teeth * iv.pool.mult;
+  chalkText('BITE', x, y, '#ffffff'); chalkText('' + bite, x + 56, y, '#ffffff');
+  if (hl === 'bite') chalkCircle(x - 3, y - 3, B.w - 6, 10);
+  if (iv.lost > 0) {                                  // the lost bite, crossed out
+    chalkText('' + (iv.lostBite || 0), x + 56, y, '#f06a5a');
+    for (let k = 0; k < 18; k++) rect(x + 54 + k, y + 5 - Math.round(k / 3), 1, 1, '#f06a5a');
+    chalkText('LOST!', x + 24, y, '#f06a5a');
+  }
+  if (hl === 'lost') chalkCircle(x - 3, y - 3, B.w - 6, 20);
+  y += 10;
+  rect(x, y - 2, B.w - 12, 1, '#8aa898');
+  chalkText('BANKED', x, y + 1, '#f0e080'); chalkText('' + iv.banked, x + 56, y + 1, '#f0e080');
+  y += 10;
+  if (prac || hl === 'target') {
+    chalkText('TARGET', x, y + 1, '#a8f0a0'); chalkText('' + IV_TARGET, x + 56, y + 1, '#a8f0a0');
+    if (hl === 'target') chalkCircle(x - 3, y - 2, B.w - 6, 10);
+  }
+}
+
+// ---------------------------------------------------- the dialogue box ---
+function ivDialog(iv, S, canGo) {
+  const x = 4, y = 214, w = 362, h = 52;
+  goldFrame(x, y, w, h, { field: '#efe6d0', fieldD: '#d6cab0', fieldL: '#f8f2e2', r: 4 });
+  // portrait
+  goldFrame(x + 5, y + 5, 42, 42, { field: '#5e3e1e', fieldD: '#4a3016', fieldL: '#704a24', thin: 1, r: 3 });
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 8, 36, 36); ctx.clip();
+  ctx.translate(x + 26, y + 32); ctx.scale(1.05, 1.05);
+  const talking = iv.sayT < iv.said.length / 40 + 0.15;
+  drawOwletHead({ expr: (S && S.expr) || 'grump', talk: talking, look: { x: 0.4, y: 0.2 } });
+  ctx.restore();
+  woodBanner(x + 52, y - 6, 74, 11, 'MRS. OWLET', { col: '#ffe6b0' });
+  const total = IV_SCRIPT.length;
+  if (iv.phase === 'lesson') drawText('LESSON ' + Math.min(total, iv.step + 1) + '/' + total, x + w - 70, y + 6, '#9a8a6a', 1);
+  drawSmallWrapped(iv.said.slice(0, Math.floor(iv.sayT * 40)), x + 54, y + 12, w - 64, '#241a10');
+  if (canGo && iv.sayT * 40 >= iv.said.length && Math.sin(tNow * 6) > -0.3) {
+    for (let k = 0; k < 4; k++) rect(x + w - 16 + k, y + h - 12 + k, 7 - k * 2, 1, '#8a5a2a');
+    drawText('CLICK', x + w - 44, y + h - 11, '#9a8a6a', 1);
+  }
+  if (S && S.wait && !S.wait(iv)) {
+    const a = 0.6 + Math.sin(tNow * 5) * 0.3;
+    ctx.save(); ctx.globalAlpha = a; drawText('YOUR TURN', x + w - 60, y + h - 11, '#c8401e', 1); ctx.restore();
+  }
+}
+
+// the practical's scoreboard and the two tools
+function ivTools(iv, allow) {
+  const x = 370, y = 214, w = 106, h = 52;
+  goldFrame(x, y, w, h, { field: '#1c2a30', fieldD: '#121c20', fieldL: '#26363e', r: 4 });
+  const P = iv.prac;
+  if (P) {
+    drawText('BITES', x + 6, y + 5, '#c8d4dc', 1);
+    for (let k = 0; k < 2; k++) rr(x + 36 + k * 8, y + 5, 6, 6, 2, k < P.bites ? '#fdfaec' : '#3a4a52');
+    drawText('XR', x + 60, y + 5, '#9fd8f0', 1);
+    for (let k = 0; k < 2; k++) rr(x + 74 + k * 8, y + 5, 6, 6, 3, k < P.xrays ? '#3f8cff' : '#3a4a52');
+  } else drawText('TOOLS', x + 6, y + 5, '#c8d4dc', 1);
+  const xrOn = allow.xray && iv.mode !== 'xray', bkOn = allow.bank;
+  button(x + 5, y + 14, w - 10, 17, iv.mode === 'xray' ? 'PICK A TOOTH' : 'X-RAY', '#3f8cff', '#1e4fa3', () => {
+    if (iv.mode === 'xray') { iv.mode = 'idle'; return; }
+    iv.mode = 'xray'; sfx.xray();
+  }, { id: 'ivxray', disabled: !allow.xray });
+  button(x + 5, y + 33, w - 10, 17, 'BANK BITE', '#3aa84a', '#1c5a24', () => ivBank(iv), { id: 'ivbank', disabled: !bkOn });
+  const glow = (bx, by) => { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 6) * 0.2; rr(bx - 2, by - 2, w - 6, 21, 4, '#ffe89a'); ctx.restore(); };
+  if (xrOn && !iv.prac) glow(x + 5, y + 14);
+  if (bkOn && !iv.prac && iv.pool.teeth > 0) glow(x + 5, y + 33);
 }
 
 function drawTutorial(dt) {
   const iv = G.iv; if (!iv) { G.state = 'menu'; return; }
-  iv.t += dt; iv.sayT = (iv.sayT || 0) + dt;
-  drawOfficeRoom();
+  iv.t += dt; iv.sayT += dt;
+  const S = iv.phase === 'lesson' ? IV_SCRIPT[iv.step] : null;
+  if (S && S.update) S.update(iv, dt);
+  if (iv.lost > 0) iv.lost -= dt;
 
-  // Mrs Owlet runs the room from behind her desk
-  const talking = iv.sayT < iv.said.length / 30 + 0.3;
-  const mood = iv.phase === 'result' ? (iv.score >= 3 ? 'happy' : 'stern') : (iv.phase === 'quiz' && iv.timeLeft < 3 ? 'stern' : 'calm');
-  drawOwlet(14, 92, { expr: mood, talk: talking, phase: 0.4 });
-  drawOwletDesk();
-  drawTextCSh('FIELD CERTIFICATION', W / 2, 5, C.gold, 2);
+  // ------------------------------------------------ the model's motion ---
+  const m = iv.m;
+  if (iv.snapT !== undefined && iv.snapT !== null) {
+    iv.snapT += dt;
+    if (iv.snapT > 1.1) { m.openT = 1; iv.snapT = null; if (iv.prac) { ivReroll(iv); } }
+  }
+  if (iv.reset !== undefined && iv.reset !== null) {
+    iv.reset -= dt;
+    if (iv.reset <= 0) { iv.reset = null; ivReroll(iv); m.openT = 1; }
+  }
+  m.open += (m.openT - m.open) * Math.min(1, dt * (m.openT > m.open ? 5 : 16));
+  if (m.sheetT >= 0 && m.sheetT < 1) { m.sheetT += dt * 1.6; if (m.sheetT >= 1) m.sheet = 0; }
 
-  // her line, on letterhead
-  (function bubble() {
-    const bx = 96, by = 68, bw = 132, bh = 56;
-    plasticBox(bx, by, bw, bh, 4, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
-    drawText('MRS OWLET', bx + 6, by + 5, '#8a7a58', 1);
-    rect(bx + 4, by + 12, bw - 8, 1, '#c9bfa4');
-    drawSmallWrapped(iv.said.slice(0, Math.floor(iv.sayT * 30)), bx + 6, by + 16, bw - 12, '#2a1d12');
-    rect(bx - 4, by + 16, 5, 4, '#e8e0cc');
-  })();
+  // ------------------------------------------------ owl and ranger -------
+  const spot = OWL_SPOTS[(S && S.owl) || (iv.phase === 'lesson' ? 'model' : 'board')] || OWL_SPOTS.model;
+  const O = iv.owl;
+  const odx = spot.x - O.x, ody = spot.y - O.y, od = Math.hypot(odx, ody);
+  O.walk = od > 0.8;
+  if (O.walk) { const sp = 70 * dt; O.x += odx / od * Math.min(sp, od); O.y += ody / od * Math.min(sp, od); }
+  const R = iv.rg;
+  R.x = Math.min(96, R.x + dt * 70);
 
-  // ------------------------------------------------------ lessons --------
-  if (iv.phase === 'teach') {
-    const L = IV_LESSONS[iv.lesson];
-    const px = 238, py = 36, pw = 234, phh = 184;
-    plasticBox(px, py, pw, phh, 4, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
-    drawText('LESSON ' + (iv.lesson + 1) + ' OF ' + IV_LESSONS.length, px + 8, py + 7, '#8a7a58', 1);
-    drawTextC(L.title, px + pw / 2, py + 18, '#2a1d12', 2);
-    rect(px + 8, py + 30, pw - 16, 1, '#c9bfa4');
-    ivLessonArt(L.art, px + 16, py + 36, pw - 32, 70, iv.t);
-    drawSmallWrapped(L.body, px + 10, py + 114, pw - 20, '#2a1d12');
-    // progress pips
-    IV_LESSONS.forEach((q, i) => {
-      plasticBox(px + pw / 2 - (IV_LESSONS.length * 11) / 2 + i * 11, py + phh - 34, 8, 6, 2,
-        i <= iv.lesson ? [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]] : ['#2a1d12', '#9a8f76', '#b8ad92', '#ddd4bd', '#ffffff'], { noShine: 1 });
-    });
-    if (iv.t > 1.2) {
-      const last = iv.lesson >= IV_LESSONS.length - 1;
-      button(px + pw / 2 - 56, py + phh - 24, 112, 20, last ? 'I AM READY >' : 'GO ON >', '#d94f30', '#8a2a16', () => {
-        if (last) { iv.phase = 'quiz'; iv.q = 0; iv.t = 0; iv.picked = -1; iv.timeLeft = IV_TIME; ivSay('Good. Four questions. The clock is running.'); }
-        else { iv.lesson++; iv.t = 0; ivSay(IV_LESSONS[iv.lesson].say); }
-        sfx.click(2);
-      }, { id: 'ivnext' });
-    }
+  // --------------------------------------------------------- draw -------
+  paintCached('office', 0, 0, W, H, officeStatic);
+  vistaLive(16, 20, 74, 74, { sunX: 0.3, hz: 0.6, flies: 4 });
+  // live office bits: clock hands, CRT text, steam, fan-lit dust
+  const hA = tNow * 0.02, mA = tNow * 0.3;
+  pxLine(334, 66, 334 + Math.cos(hA) * 4, 66 + Math.sin(hA) * 4, '#1a1206');
+  pxLine(334, 66, 334 + Math.cos(mA) * 6, 66 + Math.sin(mA) * 6, '#3a2a1a');
+  rect(333, 65, 2, 2, '#a83a2a');
+  const crt = ['GATOR.DB', 'RANGERS: 5', 'FINGERS: 47', 'SNAPS: ' + (12 + (meta.lifeSnaps || 0)), 'STATUS: GRUMPY'];
+  ctx.save(); ctx.beginPath(); ctx.rect(153, 118, 30, 22); ctx.clip();
+  const scroll = Math.floor(tNow * 0.8) % crt.length;
+  for (let k = 0; k < 3; k++) { const ln = crt[(scroll + k) % crt.length]; drawText(ln.slice(0, 6), 154, 119 + k * 7, '#5af07a', 1); }
+  if (Math.sin(tNow * 6) > 0) rect(154 + 26, 133, 3, 5, '#5af07a');
+  ctx.globalAlpha = 0.12; for (let y = 118; y < 140; y += 2) rect(153, y, 30, 1, '#000000');
+  ctx.restore();
+  drawTextC('' + ((iv.snapCount || 0) ? 0 : 0), 348, 32, '#c83a2a', 2);
+  for (let k = 0; k < 3; k++) { const st = (tNow * 0.7 + k * 0.33) % 1; ctx.save(); ctx.globalAlpha = 0.35 * (1 - st); rect(136 + Math.sin(st * 6 + k) * 2, 140 - st * 14, 2, 2, '#f0f0f0'); ctx.restore(); }
+  for (let k = 0; k < 3; k++) { const st = (tNow * 0.5 + k * 0.33) % 1; ctx.save(); ctx.globalAlpha = 0.3 * (1 - st); rect(72 + Math.sin(st * 5 + k) * 2, 124 - st * 12, 2, 2, '#f0f0f0'); ctx.restore(); }
+  // mug on the desk
+  rr(132, 142, 8, 8, 2, '#1a1a1a'); rr(133, 143, 6, 6, 1, '#e8e0d0'); rect(139, 144, 2, 3, '#e8e0d0'); rect(134, 144, 4, 1, '#4a2a14');
+  drawChalkboard(iv, S && S.hl);
+
+  // Mrs Owlet is behind the desk until she comes round it
+  const owlBehind = O.x < 228 && O.y < 208;
+  const owlExpr = (S && S.expr) || (iv.phase === 'quiz' ? (iv.quiz && iv.quiz.timeLeft < 3 ? 'stern' : 'grump') : 'grump');
+  const talking = iv.sayT < iv.said.length / 40 + 0.15;
+  let pt = S && S.point ? ivPointAt(iv, S.point) : null;
+  if (iv.phase === 'prac' && iv.hover >= 0 && iv.hover !== undefined) pt = null;
+  const owlO = { flip: !O.walk && pt && pt.x < O.x - 4, expr: owlExpr, talk: talking, walk: O.walk, point: O.walk ? null : pt, broke: iv.broke, look: pt ? { x: 1, y: -0.2 } : { x: -0.6, y: 0.2 }, clip: iv.phase === 'quiz' || (!pt && iv.phase === 'result') };
+  if (owlBehind) {
+    if (iv.step <= 2 && iv.phase === 'lesson') owlO.look = { x: -0.2, y: 0.8 };   // eyes on the screen
+    drawOwlet(O.x, O.y, owlO);
   }
-  // ---------------------------------------------------- oral exam --------
-  else if (iv.phase === 'quiz') {
-    const Q = IV_QS[iv.q];
-    if (iv.picked < 0) {
-      iv.timeLeft -= dt;
-      if (iv.timeLeft <= 0) { iv.picked = -2; iv.t = 0; ivSay('Time. That counts as a no.'); sfx.error(); }
-    }
-    // the paper the question is printed on
-    const px = 238, py = 40, pw = 234, phh = 176;
-    plasticBox(px, py, pw, phh, 4, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
-    drawText('QUESTION ' + (iv.q + 1) + ' OF ' + IV_QS.length, px + 8, py + 7, '#8a7a58', 1);
-    // the clock
-    const frac = clamp(iv.timeLeft / IV_TIME, 0, 1);
-    segBar(px + pw - 78, py + 5, 70, 9, frac, { tint: frac < 0.34 ? '#d94f30' : '#63d66a', tintL: '#ffffff' });
-    rect(px + 8, py + 16, pw - 16, 1, '#c9bfa4');
-    drawSmallWrapped(Q.q, px + 8, py + 21, pw - 16, '#2a1d12');
-    Q.a.forEach((txt, i) => {
-      const ay = py + 52 + i * 30;
-      const chosen = iv.picked === i, correct = iv.picked >= 0 && i === Q.right;
-      const face = correct ? ['#123014', '#2b6b2c', '#3f9440', '#63d66a', '#b8f0b0']
-        : chosen ? ['#3a0c0c', '#7a1f1f', '#b03030', '#e06a5a', '#ffb0a0']
-          : ['#2a1d12', '#b8ad92', '#ddd4bd', '#f0e9d8', '#ffffff'];
-      plasticBox(px + 8, ay, pw - 16, 26, 3, face, { noShine: 1 });
-      plasticBox(px + 12, ay + 5, 16, 16, 3, ['#2a1d12', '#9a8f76', '#c4bba2', '#e4dcc6', '#ffffff'], { noShine: 1 });
-      drawTextC(String.fromCharCode(65 + i), px + 20, ay + 9, '#2a1d12', 1);
-      if (correct) { rect(px + 16, ay + 12, 2, 4, '#1c4a1c'); rect(px + 18, ay + 14, 2, 2, '#1c4a1c'); rect(px + 20, ay + 9, 2, 6, '#1c4a1c'); }
-      if (chosen && !correct) { for (let k = 0; k < 5; k++) { rect(px + 15 + k, ay + 7 + k, 2, 2, '#5a1010'); rect(px + 23 - k, ay + 7 + k, 2, 2, '#5a1010'); } }
-      drawSmallWrapped(txt, px + 34, ay + 5, pw - 46, correct || chosen ? '#ffffff' : '#2a1d12');
-      if (iv.picked < 0) {
-        hit(px + 8, ay, pw - 16, 26, {
-          id: 'ivq' + i, cursor: true,
-          cb: () => {
-            iv.picked = i; iv.t = 0;
-            if (i === Q.right) { iv.score++; ivSay('Correct. ' + Q.why); sfx.win(); fxStars(px + pw / 2, ay + 13, '#63d66a', 8, 90); }
-            else { ivSay('No. ' + Q.why); sfx.error(); shake = Math.max(shake, 4); }
-          },
-        });
-      }
-    });
-    if (iv.picked !== -1 && iv.t > 2.4) {
-      iv.q++; iv.picked = -1; iv.t = 0; iv.timeLeft = IV_TIME;
-      if (iv.q >= IV_QS.length) { iv.phase = 'drillIntro'; ivSay('Paperwork done. Now show me you can hold a mirror.'); }
-      else ivSay(IV_QS[iv.q].q);
-    }
-  }
-  // ------------------------------------------------- practical drill -----
-  else if (iv.phase === 'drillIntro') {
-    if (iv.t > 2.4) {
-      iv.phase = 'drill'; iv.t = 0;
-      const snap = ri(0, 3);
-      iv.drill = { teeth: [0, 1, 2, 3].map((k) => ({ v: ri(2, 9), snap: k === snap, shown: false, pressed: false })), xrayed: -1, banked: false, step: 0 };
-      ivSay('Four teeth. One bites. X-RAY first, then press a safe one, then BANK.');
-    }
-  } else if (iv.phase === 'drill') {
-    const d = iv.drill;
-    const px = 238, py = 40, pw = 234, phh = 176;
-    plasticBox(px, py, pw, phh, 4, ['#12100a', '#243038', '#33454e', '#4c626f', '#8fa8b4'], { noShine: 1 });
-    drawTextC('TRAINING GATOR', px + pw / 2, py + 7, '#9fd8e8', 1);
-    // a little practice maw
-    const mx0 = px + 18, my0 = py + 24, mw = pw - 36;
-    plasticBox(mx0, my0, mw, 26, 4, ['#1b4a14', '#2f7d22', '#4aa832', '#6fd04a', '#9ae86a'], { noShine: 1 });
-    plasticBox(mx0, my0 + 28, mw, 54, 4, ['#3a0a16', '#5a1020', '#8a2438', '#b8405a', '#d4587a'], { noShine: 1 });
-    plasticBox(mx0, my0 + 84, mw, 22, 4, ['#1b4a14', '#2f7d22', '#4aa832', '#6fd04a', '#9ae86a'], { noShine: 1 });
-    d.teeth.forEach((t2, i) => {
-      const tx = mx0 + 10 + i * ((mw - 20) / 4), ty = my0 + 34, tw = 30, th = 40;
-      const face = t2.pressed ? ['#3a3428', '#6a6252', '#8f8672', '#b2a892', '#d4ccb4']
-        : ['#8f8468', '#c8bfa0', '#e8e0c4', '#fdfaec', '#ffffff'];
-      plasticBox(tx, ty + (t2.pressed ? 8 : 0), tw, th - (t2.pressed ? 8 : 0), 4, face, { noShine: 1 });
-      if (t2.shown) {
-        if (t2.snap) { rr(tx + 6, ty - 12, 18, 11, 3, '#8a2a16'); drawTextC('!', tx + 15, ty - 10, '#fff', 1); }
-        else { rr(tx + 6, ty - 12, 18, 11, 3, '#2b6b2c'); drawTextC('+', tx + 15, ty - 10, '#fff', 1); }
-      }
-      if (!t2.pressed) drawTextC('' + t2.v, tx + 15, ty + 16, '#6d5c3a', 1);
-      if (!t2.pressed && !d.banked) {
-        hit(tx, ty, tw, th, {
-          id: 'ivt' + i, cursor: true,
-          cb: () => {
-            if (d.step === 0) { ivSay('Mirror first, ranger. Use the X-RAY.'); sfx.error(); return; }
-            if (t2.snap) { ivSay('That was the snapper. Look before you press.'); sfx.snap(); shake = Math.max(shake, 8); flashRed = 0.5; t2.shown = true; return; }
-            t2.pressed = true; d.step = 2; sfx.click(3);
-            fxPop(tx + 15, ty + 16, '#ffe089');
-            ivSay('Good. Now BANK it before the jaws move.');
-          },
-        });
-      }
-    });
-    // the two tools
-    const bw2 = 96;
-    button(px + 14, py + phh - 34, bw2, 24, 'X-RAY', '#3f8cff', '#1e4fa3', () => {
-      if (d.step !== 0) { sfx.error(); return; }
-      d.teeth.forEach(t2 => { if (t2.snap) t2.shown = true; });
-      d.step = 1; sfx.xray();
-      ivSay('There it is. Now press one of the others.');
-    }, { id: 'ivxray', disabled: d.step !== 0 });
-    button(px + pw - bw2 - 14, py + phh - 34, bw2, 24, 'BANK BITE', '#63d66a', '#2c7a3c', () => {
-      if (d.step !== 2) { ivSay('Nothing to bank yet.'); sfx.error(); return; }
-      d.banked = true; iv.phase = 'result'; iv.t = 0;
-      iv.score++; sfx.win(); fxConfetti(W / 2, 120, 26);
-      ivSay(iv.score >= 4 ? 'Textbook. Welcome to the patrol.' : 'Rough, but you are hired. Do not make me regret it.');
-    }, { id: 'ivbank', disabled: d.step !== 2 });
-  }
-  // ------------------------------------------------------- the stamp -----
-  else if (iv.phase === 'result') {
-    const px = 250, py = 52, pw = 210, phh = 152;
-    plasticBox(px, py, pw, phh, 4, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
-    drawTextC('CERTIFICATE OF FIELD DUTY', px + pw / 2, py + 12, '#8a7a58', 1);
-    rect(px + 10, py + 22, pw - 20, 1, '#c9bfa4');
-    drawTextC('SCORE  ' + iv.score + ' / ' + (IV_QS.length + 1), px + pw / 2, py + 34, '#2a1d12', 1);
-    for (let k = 0; k < IV_QS.length + 1; k++) {
-      const on = k < iv.score;
-      plasticBox(px + 24 + k * 34, py + 50, 26, 20, 3, on ? ['#123014', '#2b6b2c', '#3f9440', '#63d66a', '#b8f0b0'] : ['#2a1d12', '#a89e86', '#c4bba2', '#ded6c0', '#ffffff'], { noShine: 1 });
-      if (on) { rect(px + 30 + k * 34, py + 60, 2, 4, '#0f2a0f'); rect(px + 32 + k * 34, py + 62, 2, 2, '#0f2a0f'); rect(px + 34 + k * 34, py + 56, 2, 6, '#0f2a0f'); }
-    }
-    // the stamp slams down
-    const sT = clamp(iv.t - 0.6, 0, 1);
-    if (sT > 0) {
-      const drop = (1 - easeOut(sT)) * 60;
-      ctx.save();
-      ctx.translate(px + pw / 2, py + 108 - drop); ctx.rotate(-0.16);
-      ctx.globalAlpha = 0.9;
-      rr(-56, -14, 112, 28, 4, '#8a2a16');
-      rr(-53, -11, 106, 22, 3, '#c23a2a');
-      drawTextC('APPROVED', 0, -4, '#ffe0d0', 2);
-      ctx.restore();
-      if (sT >= 1 && !iv.stamped) { iv.stamped = true; shake = Math.max(shake, 7); sfx.buy(); fxRing(px + pw / 2, py + 108, '#ff8a6a', 6, 80, 0.4); }
-    }
-    if (iv.t > 2.2) button(px + pw / 2 - 56, py + phh - 30, 112, 24, 'REPORT FOR DUTY >', '#d94f30', '#8a2a16', ivFinish, { id: 'ivdone' });
+  // redraw the desk front over her legs when she is behind it
+  if (owlBehind) {
+    ctx.save(); ctx.beginPath(); ctx.rect(100, 150, 134, 52); ctx.clip();
+    paintCached('office', 0, 0, W, H, officeStatic);
+    rr(132, 142, 8, 8, 2, '#1a1a1a'); rr(133, 143, 6, 6, 1, '#e8e0d0');
+    ctx.restore();
   }
 
-  if (iv.phase !== 'result') {
-    button(W - 70, H - 24, 62, 18, 'SKIP', '#3a5560', '#243a44', ivFinish, { id: 'ivskip' });
+  // the model and the student
+  let hov = -1;
+  const canPress = (S && S.press) || (iv.phase === 'prac' && iv.prac && iv.prac.wait <= 0 && iv.m.open > 0.8);
+  const canScan = iv.mode === 'xray' && ((S && S.xray) || iv.phase === 'prac');
+  if (canPress || canScan) {
+    m.teeth.forEach((T, i) => { const r = cmToothRect(i); if (!T.pressed && mx >= r.x && mx < r.x + r.w && my >= r.y && my < r.y + r.h) hov = i; });
   }
+  iv.hover = hov;
+  drawCrocModel(m, { hov });
+  if (iv.beam) {
+    iv.beam.t += dt;
+    const r = cmToothRect(iv.beam.i), f = clamp(iv.beam.t / 0.5, 0, 1);
+    ctx.save(); ctx.globalAlpha = 0.5 * (1 - Math.max(0, iv.beam.t - 0.6));
+    pxLine(452, 74, r.cx, r.y, '#9fe8ff', 2);
+    ctx.globalAlpha *= 0.4; for (let k = -4; k <= 4; k += 2) pxLine(452, 74, r.cx + k, r.y + 4, '#7ad4f0');
+    ctx.restore();
+    if (f >= 1 && !iv.beam.popped) { iv.beam.popped = true; fxRing(r.cx, r.cy, iv.m.teeth[iv.beam.i].snap ? '#ff4030' : '#63d66a', 4, 50, 0.4); }
+    if (iv.beam.t > 1.2) iv.beam = null;
+  }
+  if (!owlBehind) drawOwlet(O.x, O.y, owlO);
+  const rgExpr = iv.lost > 0 ? 'scared' : iv.phase === 'result' ? 'happy' : (iv.pressedN > 0 && iv.t < 1 ? 'happy' : 'calm');
+  drawBobble(R.x, 214, iv.k, { sc: 1.2, expr: rgExpr, act: R.x < 95 ? 'walk' : (iv.lost > 0 ? 'idle' : 'idle'), hat: meta.hat, gear: meta.gear, glove: meta.glove });
+
+  // ------------------------------------------------------ interaction ----
+  const typed = iv.sayT * 40 >= iv.said.length;
+  let canGo = false;
+  if (iv.phase === 'lesson' && S) {
+    const waiting = S.wait && !S.wait(iv);
+    canGo = !waiting && !S.auto && iv.t >= (S.min || 0.3);
+    if (S.wait && !waiting && iv.t > 0.1) { iv.waitDone = (iv.waitDone || 0) + dt; if (iv.waitDone > 0.9) { iv.waitDone = 0; ivAdvance(iv); } }
+    if (S.auto && iv.t > S.auto) ivAdvance(iv);
+  }
+  // clicking the dialogue (or anywhere empty) moves her along
+  hit(0, 0, W, H, { id: 'ivadv', cb: () => {
+    if (!typed) { iv.sayT = 99; return; }
+    if (canGo) ivAdvance(iv);
+    else if (iv.phase === 'quizwhy') ivQuizNext(iv);
+  } });
+  // the teeth on the model
+  if (hov >= 0) {
+    const r = cmToothRect(hov);
+    hit(r.x, r.y, r.w, r.h, { id: 'ivt' + hov, cursor: true, cb: () => {
+      if (canScan) { ivScan(iv, hov); return; }
+      if (canPress) ivPress(iv, hov, false);
+    } });
+  }
+  // ------------------------------------------------------ phases ---------
+  if (iv.phase === 'quiz' || iv.phase === 'quizwhy') drawIvQuiz(iv, dt);
+  else if (iv.phase === 'prac') ivPractical(iv, dt);
+  else if (iv.phase === 'result') drawIvResult(iv, dt);
+
+  const allow = { xray: (S && S.xray) || (iv.phase === 'prac' && iv.prac && iv.prac.xrays > 0 && iv.prac.wait <= 0), bank: (S && S.bank) || (iv.phase === 'prac' && iv.prac && iv.prac.wait <= 0 && iv.pool.teeth > 0) };
+  ivDialog(iv, S, canGo || iv.phase === 'quizwhy');
+  if (iv.phase !== 'result') ivTools(iv, allow);
+
+  // letterbox for the opening beat
+  if (iv.phase === 'lesson' && iv.step === 0) {
+    const bh = Math.round(24 * (1 - clamp((iv.t - 1.6) / 0.8, 0, 1)));
+    rect(0, 0, W, bh, '#000'); rect(0, H - bh, W, bh, '#000');
+    if (iv.t < 2.2) { ctx.save(); ctx.globalAlpha = clamp(iv.t * 2, 0, 1) * clamp((2.2 - iv.t) * 3, 0, 1); drawTextCSh("EVERGLADES HQ  -  THE PARK MANAGER'S OFFICE", W / 2, 8, '#ffe6b0', 1); ctx.restore(); }
+  }
+  if (iv.phase !== 'result') button(W - 58, 3, 54, 14, 'SKIP', '#4a4438', '#28241c', ivFinish, { id: 'ivskip', tip: 'SKIP TRAINING|Straight to the swamp' });
+}
+function ivAdvance(iv) {
+  const S = IV_SCRIPT[iv.step];
+  iv.waitDone = 0;
+  if (S && S.next === 'quiz') { ivStartQuiz(iv); return; }
+  if (iv.step + 1 < IV_SCRIPT.length) ivStep(iv, iv.step + 1);
+  sfx.click(1);
+}
+
+// ------------------------------------------------------ the pop quiz ------
+function ivStartQuiz(iv) {
+  iv.phase = 'quiz'; iv.quiz = { q: 0, timeLeft: IV_TIME, picked: -1, slide: 0, correct: 0 };
+  iv.m.xrA = 0;
+  ivSay(IV_QS[0].q);
+}
+function ivQuizNext(iv) {
+  const Q = iv.quiz;
+  Q.q++; Q.picked = -1; Q.timeLeft = IV_TIME; iv.phase = 'quiz';
+  if (Q.q >= IV_QS.length) { ivStartPractical(iv); return; }
+  ivSay(IV_QS[Q.q].q);
+}
+function drawIvQuiz(iv, dt) {
+  const Q = iv.quiz, Qd = IV_QS[Math.min(Q.q, IV_QS.length - 1)];
+  Q.slide = Math.min(1, Q.slide + dt * 3);
+  if (iv.phase === 'quizwhy' && iv.sayT > 4.5) { ivQuizNext(iv); return; }
+  if (iv.phase === 'quiz' && Q.picked < 0) {
+    Q.timeLeft -= dt;
+    if (Q.timeLeft <= 0) { Q.picked = -2; iv.phase = 'quizwhy'; ivSay('Time. That counts as a no. ' + Qd.why); sfx.error(); }
+  }
+  const px = Math.round(W + 10 - easeOut(Q.slide) * 236), py = 18, pw = 222, ph = 190;
+  // her clipboard, big
+  rr(px + 3, py + 4, pw, ph, 4, '#00000077');
+  plasticBox(px, py, pw, ph, 4, ['#1e120a', '#5a3818', '#7a4e24', '#946232', '#b88048'], { seed: 13 });
+  woodGrain(px + 3, py + 3, pw - 6, ph - 6, '#5a3818', '#946232', 3);
+  paperSheet(px + 6, py + 12, pw - 12, ph - 18, {});
+  plasticBox(px + pw / 2 - 22, py + 2, 44, 14, 3, MET, { noShine: 1 }); rect(px + pw / 2 - 16, py + 6, 32, 2, MET[1]);
+  drawText('POP QUIZ', px + 12, py + 18, '#a83a2a', 1);
+  drawText('Q' + (Q.q + 1) + ' OF ' + IV_QS.length, px + pw - 50, py + 18, '#8a7a58', 1);
+  // the stopwatch
+  const frac = clamp(Q.timeLeft / IV_TIME, 0, 1);
+  fillCircle(px + 18, py + 36, 7, '#1a1a1a'); fillCircle(px + 18, py + 36, 6, '#e8e8e0');
+  rect(px + 17, py + 27, 3, 3, '#1a1a1a');
+  pxLine(px + 18, py + 36, px + 18 + Math.cos(-Math.PI / 2 + (1 - frac) * Math.PI * 2) * 5, py + 36 + Math.sin(-Math.PI / 2 + (1 - frac) * Math.PI * 2) * 5, frac < 0.3 ? '#c8301f' : '#1a1a1a');
+  segBar(px + 30, py + 32, pw - 44, 9, frac, { tint: frac < 0.3 ? '#d94f30' : '#63d66a', tintL: '#ffffff' });
+  rect(px + 10, py + 46, pw - 20, 1, '#c8b890');
+  const qy = drawSmallWrapped(Qd.q, px + 12, py + 51, pw - 24, '#241a10');
+  Qd.a.forEach((txt, i) => {
+    const ay = Math.max(qy + 4, py + 76) + i * 34;
+    const chosen = Q.picked === i, correct = Q.picked !== -1 && i === Qd.right;
+    const over = Q.picked === -1 && mx >= px + 10 && mx < px + pw - 10 && my >= ay && my < ay + 30;
+    const face = correct ? ['#123014', '#2b6b2c', '#3f9440', '#63d66a', '#b8f0b0'] : chosen ? ['#3a0c0c', '#7a1f1f', '#b03030', '#e06a5a', '#ffb0a0']
+      : over ? ['#3a2a0a', '#d8c890', '#f0e2b0', '#f8f0d0', '#ffffff'] : ['#2a1d12', '#c8bca0', '#e4dac2', '#f2ead8', '#ffffff'];
+    plasticBox(px + 10, ay + (over ? -1 : 0), pw - 20, 30, 3, face, { noShine: 1, smooth: 1 });
+    plasticBox(px + 14, ay + 6 + (over ? -1 : 0), 18, 18, 3, ['#2a1d12', '#9a8f76', '#c4bba2', '#e4dcc6', '#ffffff'], { noShine: 1, smooth: 1 });
+    drawTextC(String.fromCharCode(65 + i), px + 23, ay + 12 + (over ? -1 : 0), '#2a1d12', 1);
+    drawSmallWrapped(txt, px + 38, ay + 6 + (over ? -1 : 0), pw - 54, correct || chosen ? '#ffffff' : '#241a10');
+    if (Q.picked === -1) hit(px + 10, ay, pw - 20, 30, { id: 'ivq' + i, cursor: true, cb: () => {
+      Q.picked = i; iv.phase = 'quizwhy';
+      if (i === Qd.right) { Q.correct++; iv.score++; ivSay('Correct. ' + Qd.why); sfx.win(); fxStars(px + pw / 2, ay + 15, '#63d66a', 10, 100); }
+      else { ivSay('Wrong. ' + Qd.why); sfx.error(); shake = Math.max(shake, 4); }
+    } });
+  });
+  // her red pen marks
+  if (Q.picked >= 0 && Q.picked === Qd.right) { ctx.save(); ctx.globalAlpha = 0.85; ringPx(px + pw - 26, py + 30, 10, '#c8301f'); drawTextC('A+', px + pw - 26, py + 27, '#c8301f', 1); ctx.restore(); }
+}
+
+// ----------------------------------------------------- the practical ------
+function ivStartPractical(iv) {
+  iv.phase = 'prac'; iv.banked = 0; iv.pool = { teeth: 0, mult: 1 };
+  iv.prac = { bites: 2, xrays: 2, wait: 0.6, tries: (iv.prac && iv.prac.tries) || 0 };
+  iv.broke = false;
+  ivReroll(iv); iv.m.openT = 1;
+  ivSay('Paperwork done. Now the practical. Score ' + IV_TARGET + ' on the model. Two bites. Two X-rays. Go.');
+}
+function ivPractical(iv, dt) {
+  const P = iv.prac;
+  if (P.wait > 0) P.wait -= dt;
+  if (P.done) return;
+  if (iv.banked >= IV_TARGET && P.wait <= 0.3) {
+    P.done = true; iv.score++;
+    iv.phase = 'result'; iv.t = 0; iv.stamped = false;
+    ivSay(iv.score >= 5 ? 'Textbook. Hm. Welcome to the patrol.' : iv.score >= 3 ? 'Adequate. You are hired. Do not make me regret it.' : 'Dreadful. You are hired anyway. We are short-staffed.');
+    sfx.win(); fxConfetti(W / 2, 90, 30);
+    return;
+  }
+  if (P.bites <= 0 && P.wait <= 0 && iv.pool.teeth === 0) {
+    P.tries++;
+    if (P.tries >= 2) {
+      P.done = true; iv.phase = 'result'; iv.t = 0; iv.stamped = false;
+      ivSay('Pathetic. But the swamp does not wait, and neither do I. You are hired.');
+      return;
+    }
+    ivSay('Out of bites, short of the target. Again. From the top.');
+    ivStartPractical(iv);
+    iv.said = 'Out of bites, short of the target. Again. From the top.'; iv.sayT = 0;
+  }
+}
+// ----------------------------------------------------- the certificate ----
+function drawIvResult(iv, dt) {
+  const px = 244, py = 16, pw = 228, ph = 192;
+  const sl = easeOut(clamp(iv.t * 2.5, 0, 1));
+  const yy = Math.round(py - (1 - sl) * 220);
+  paperSheet(px, yy, pw, ph, { ramp: ['#3a2a10', '#d8c890', '#f0e4bc', '#f8f0d8', '#ffffff'] });
+  goldFrame(px + 6, yy + 6, pw - 12, ph - 12, { field: '#f4ead0', fieldD: '#e4d8b8', fieldL: '#fbf4e0', thin: 1, flat: 1 });
+  drawTextC('CERTIFICATE', px + pw / 2, yy + 16, '#8a5a1a', 2);
+  drawTextC('OF FIELD DUTY', px + pw / 2, yy + 30, '#8a5a1a', 1);
+  rect(px + 24, yy + 40, pw - 48, 1, '#c8a060');
+  drawTextC('THIS CERTIFIES THAT', px + pw / 2, yy + 46, '#6a5a3a', 1);
+  drawTextC(RANGERS[iv.k].name, px + pw / 2, yy + 56, '#241a10', 2);
+  drawTextC(RANGERS[iv.k].animal, px + pw / 2, yy + 70, '#6a5a3a', 1);
+  drawTextC('MAY PUT THEIR HANDS IN GATORS', px + pw / 2, yy + 80, '#6a5a3a', 1);
+  const marks = IV_QS.length + 1;
+  for (let k = 0; k < marks; k++) {
+    const on = k < iv.score, bx = px + pw / 2 - marks * 17 + k * 34 + 4;
+    plasticBox(bx, yy + 92, 26, 20, 3, on ? ['#123014', '#2b6b2c', '#3f9440', '#63d66a', '#b8f0b0'] : ['#2a1d12', '#a89e86', '#c4bba2', '#ded6c0', '#ffffff'], { noShine: 1, smooth: 1 });
+    if (on) { [[7, 102], [9, 104], [11, 102], [13, 100], [15, 98], [17, 96]].forEach(([cx, cy]) => rect(bx + cx, yy + cy, 2, 2, '#0f2a0f')); }
+    else { for (let j = 0; j < 5; j++) { rect(bx + 9 + j, yy + 98 + j, 2, 2, '#8a2a16'); rect(bx + 15 - j, yy + 98 + j, 2, 2, '#8a2a16'); } }
+  }
+  drawTextC('GRADE: ' + ['F', 'D', 'C', 'B', 'A', 'A+'][clamp(iv.score, 0, 5)], px + pw / 2, yy + 118, '#241a10', 1);
+  drawBadgeSeal(px + 30, yy + 150, iv.k);
+  rect(px + pw - 96, yy + 158, 80, 1, '#6a5a3a'); drawText('H. OWLET', px + pw - 86, yy + 150, '#2a3a6a', 1);
+  // the stamp slams down
+  const sT = clamp(iv.t - 0.9, 0, 1);
+  if (sT > 0) {
+    const drop = (1 - easeOut(sT)) * 60;
+    ctx.save();
+    ctx.translate(px + pw / 2 + 6, yy + 140 - drop); ctx.rotate(-0.16);
+    ctx.globalAlpha = 0.92;
+    rr(-58, -15, 116, 30, 4, '#8a2a16'); rr(-55, -12, 110, 24, 3, '#f4e0d0'); rr(-53, -10, 106, 20, 2, '#c23a2a');
+    drawTextC('APPROVED', 0, -4, '#ffe8d8', 2);
+    ctx.restore();
+    if (sT >= 1 && !iv.stamped) { iv.stamped = true; shake = Math.max(shake, 7); sfx.buy(); sfx.thunk(); fxRing(px + pw / 2, yy + 140, '#ff8a6a', 6, 80, 0.4); }
+  }
+  if (iv.t > 2.0) button(370, 216, 106, 48, 'REPORT FOR DUTY >', '#d94f30', '#8a2a16', ivFinish, { id: 'ivdone' });
+}
+function drawBadgeSeal(x, y, k) {
+  for (let r = 0; r < 12; r++) { const a = r / 12 * Math.PI * 2; rect(x + Math.round(Math.cos(a) * 15) - 2, y + Math.round(Math.sin(a) * 15) - 2, 5, 5, '#c89a2a'); }
+  fillCircle(x, y, 14, '#8a5a10'); fillCircle(x, y, 13, '#d8a830'); fillCircle(x, y, 10, '#f0c848');
+  drawRangerBadge(x - 10, y - 10, k, { sc: 0.72, tier: 0 });
+  rect(x - 10, y + 13, 6, 12, '#a83a2a'); rect(x + 4, y + 13, 6, 12, '#a83a2a'); rect(x - 10, y + 23, 3, 2, '#f4ead0'); rect(x + 7, y + 23, 3, 2, '#f4ead0');
 }
 
 
@@ -7600,347 +8052,1203 @@ function addMastery(k, n) {
 }
 
 // ---------------------------------------------------------- MRS OWLET ----
-// Barn owl, half-moon spectacles, permanently unimpressed.
-const OWLET = {
-  face: ['#2a1d12', '#c9b9a0', '#e6dac6', '#f6efe2', '#ffffff'],
-  body: ['#211608', '#5d4426', '#7d5f38', '#9c7c4e', '#c2a272'],
-  suit: ['#0f1a22', '#1c3442', '#2a4d60', '#3a6a82', '#5f9ab4'],
-  beak: ['#6a4a08', '#b8891a', '#e8bb38', '#ffe089'],
+// A grumpy old barn owl in a hand-knit plum cardigan: grey bun with a
+// pencil jammed through it, half-moon spectacles on a chain, a string of
+// pearls and a pointer stick she is not afraid to use.  Her eyes never shut -
+// the grumbling is all in the brows and the beak.
+const OWL = {
+  fe: ['#1a140e', '#5a4c3c', '#7a6a56', '#9c8a72', '#c2b296'],
+  disc: ['#2a2218', '#b4a488', '#d4c6aa', '#eadfc6', '#fbf4e2'],
+  knit: ['#1a0c18', '#4a2442', '#673660', '#86507c', '#a8739c'],
+  chest: ['#2a2216', '#b8a680', '#dccfae', '#eee4cc', '#ffffff'],
+  bun: ['#1c1a18', '#7c7670', '#9c968e', '#bcb6ae', '#e2dcd4'],
+  beak: ['#2e2006', '#8a6414', '#c8962a', '#e8c25a', '#fff0b0'],
+  iris: '#e8a21a', irisD: '#a0620a',
 };
+const OWL_BODY = eggSpans(40, 18, 0.58, 9);
+const SPEC = ['#2a3036', '#7a8690', '#b4c0c8', '#dde6ec', '#ffffff'];   // silver rims
+
+// a pixel-stepped line (no anti-aliased strokes anywhere in the art)
+function pxLine(x0, y0, x1, y1, col, th) {
+  th = th || 1;
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) | 0;
+  for (let i = 0; i <= n; i++) {
+    const f = n ? i / n : 0;
+    rect(Math.round(x0 + (x1 - x0) * f), Math.round(y0 + (y1 - y0) * f), th, th, col);
+  }
+}
+// a one-pixel circle outline, optionally only part of it
+function ringPx(cx, cy, r, col, a0, a1) {
+  a0 = a0 === undefined ? 0 : a0; a1 = a1 === undefined ? Math.PI * 2 : a1;
+  const n = Math.max(8, Math.round(r * 7));
+  for (let i = 0; i <= n; i++) {
+    const a = a0 + (a1 - a0) * i / n;
+    rect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1, col);
+  }
+}
+// a sheet of HQ paper: grainy stock, a drop shadow and a dog-eared corner
+function paperSheet(x, y, w, h, o) {
+  o = o || {};
+  x |= 0; y |= 0;
+  rr(x + 2, y + 3, w, h, 2, '#00000066');
+  plasticBox(x, y, w, h, 2, o.ramp || ['#3a2c18', '#cdbf9c', '#ebe1c6', '#f7f0de', '#ffffff'], { flat: 1, seed: x + y });
+  if (o.ruled) for (let yy = y + (o.ruledTop || 14); yy < y + h - 4; yy += 8) rect(x + 4, yy, w - 8, 1, '#d8ccb0');
+  if (!o.noCorner) { rect(x + w - 6, y + 1, 5, 1, '#d8ccb0'); rect(x + w - 5, y + 2, 4, 1, '#c8b890'); rect(x + w - 3, y + 3, 2, 1, '#b8a880'); }
+}
+// how many lines drawSmallWrapped will use for this text at this width
+function wrapCount(txt, w) {
+  const words = ('' + txt).toUpperCase().split(' '), maxChars = Math.floor(w / 5);
+  let line = '', n = 1;
+  words.forEach(word => { if ((line + ' ' + word).trim().length > maxChars) { n++; line = word; } else line = line + ' ' + word; });
+  return n;
+}
+// the wooden speech box everyone in HQ talks through
+function hqBubble(x, y, w, h, txt, t, o) {
+  o = o || {};
+  x |= 0; y |= 0;
+  rr(x + 2, y + 3, w, h, 4, '#00000066');
+  plasticBox(x, y, w, h, 4, ['#1e150c', '#d9cfb6', '#f1ead8', '#faf6ea', '#ffffff'], { flat: 1, seed: 7 });
+  if (o.tail) {
+    const tx = o.tail.x | 0, dn = o.tail.y > y;
+    for (let k = 0; k < 5; k++) rect(tx - (4 - k), dn ? y + h - 1 + k : y - k, (4 - k) * 2 + 1, 1, k === 4 ? '#1e150c' : '#f1ead8');
+    rect(tx - 5, dn ? y + h - 1 : y, 1, 1, '#1e150c'); rect(tx + 5, dn ? y + h - 1 : y, 1, 1, '#1e150c');
+  }
+  if (o.name) drawText(o.name, x + 5, y + 4, o.nameCol || '#8a6a3a', 1);
+  const shown = ('' + txt).slice(0, Math.floor(t * 40));
+  drawSmallWrapped(shown, x + 5, y + (o.name ? 13 : 5), w - 10, '#241a10');
+}
+
+function drawOwletHead(o) {
+  o = o || {};
+  const P = OWL, ex = o.expr || 'grump', t = tNow + (o.phase || 0);
+  const lk = o.look || { x: 0, y: 0 };
+  // ---- the bun, a pencil stabbed through it ----
+  plasticBox(-8, -26, 16, 11, 5, P.bun, { seed: 2 });
+  rect(-5, -23, 9, 1, P.bun[1]); rect(-6, -20, 11, 1, P.bun[1]); rect(-3, -25, 5, 1, P.bun[3]);
+  pxLine(-13, -27, 10, -18, '#1e150c', 3);
+  pxLine(-12, -26, 9, -19, '#e8b830', 1); pxLine(-12, -27, 9, -20, '#f8d860', 1);
+  rect(-14, -28, 3, 3, '#e87a8a'); rect(-14, -28, 3, 1, '#ffb0b8');       // eraser
+  rect(10, -19, 2, 2, '#2a2016');                                        // graphite tip
+  // ---- ear tufts ----
+  [-1, 1].forEach(s => {
+    const bx = s * 12;
+    for (let k = 0; k < 6; k++) rect(bx - 3 + (s > 0 ? k * 0 : 0) + (s < 0 ? -k * 0.5 : k * 0.5), -20 - k, 6 - k, 1, k === 5 ? P.fe[0] : P.fe[k > 2 ? 3 : 2]);
+    rect(bx - 4, -20, 1, 3, P.fe[0]); rect(bx + 3, -20, 1, 3, P.fe[0]);
+  });
+  // ---- the head itself ----
+  plasticBox(-18, -17, 36, 32, 11, P.fe, { seed: 5 });
+  for (let k = 0; k < 12; k++) {                                         // speckled plumage
+    const sx = -14 + ((k * 11) % 28), sy = -14 + ((k * 7) % 8);
+    rect(sx, sy, 2, 1, P.fe[4]); rect(sx + 1, sy + 1, 1, 1, P.fe[1]);
+  }
+  // ---- facial disc: two soft lobes meeting at a crease ----
+  plasticBox(-16, -11, 17, 22, 8, P.disc, { noShine: 1, seed: 1 });
+  plasticBox(-1, -11, 17, 22, 8, P.disc, { noShine: 1, seed: 2 });
+  rect(-1, -9, 2, 18, P.disc[2]);
+  rect(0, -10, 1, 19, P.disc[1]);
+  for (let k = 0; k < 7; k++) { rect(-15 + k * 5, 10 - (k % 2), 2, 1, P.disc[1]); }   // ruffled rim
+  // ---- eyes: huge, amber, always wide open ----
+  const dx = Math.round(clamp(lk.x, -1, 1) * 1.5), dy = Math.round(clamp(lk.y, -1, 1) * 1);
+  [-7, 7].forEach(cx => {
+    rr(cx - 5, -6, 11, 11, 4, '#1a1206');
+    rr(cx - 4, -5, 9, 9, 3, P.iris);
+    rect(cx - 3, 1, 7, 2, P.irisD); rect(cx - 3, -4, 3, 1, '#f8c850');
+    rr(cx - 2 + dx, -3 + dy, 5, 5, 1, '#0c0804');
+    rect(cx - 2 + dx, -3 + dy, 2, 2, '#ffffff');
+    rect(cx + 2 + dx, 1 + dy, 1, 1, '#ffffffaa');
+    if (ex === 'grump' || ex === 'stern') rect(cx - 4, -5, 9, 1, P.disc[1]);  // a heavy upper lid line, eye still open
+  });
+  // ---- half-moon spectacles on a chain ----
+  [-7, 7].forEach(cx => {
+    ringPx(cx, -1, 6, SPEC[1], 0, Math.PI);
+    ringPx(cx, -1, 7, SPEC[0], 0.1, Math.PI - 0.1);
+    rect(cx - 6, -1, 13, 1, SPEC[3]); rect(cx - 6, 0, 13, 1, SPEC[1]);
+    ctx.save(); ctx.globalAlpha = 0.28;
+    pxLine(cx - 3, 3, cx + 1, -1, '#ffffff'); pxLine(cx, 4, cx + 3, 1, '#ffffff');
+    ctx.restore();
+  });
+  rect(-2, -1, 4, 1, SPEC[3]);
+  rect(-16, -1, 3, 1, SPEC[2]); rect(13, -1, 3, 1, SPEC[2]);
+  // ---- brows: thick feathered ledges that do all the acting ----
+  const lift = ex === 'shock' ? -4 : ex === 'pleased' ? -2 : ex === 'talk' ? -1 : 0;
+  const tiltB = ex === 'grump' ? 3 : ex === 'stern' ? 4 : ex === 'shock' ? -1 : ex === 'pleased' ? -1 : 2;
+  [-1, 1].forEach(s => {
+    for (let k = 0; k < 11; k++) {
+      const f = k / 10, xx = s < 0 ? -13 + k : 13 - k;           // outer -> inner
+      const yy = -10 + lift + Math.round(f * tiltB) - (k === 3 ? 1 : 0);
+      rect(xx, yy, 1, 3, P.fe[0]);
+      rect(xx, yy, 1, 1, P.fe[3]);
+    }
+    rect(s < 0 ? -15 : 13, -10 + lift, 2, 2, P.fe[0]);            // a stray wisp
+  });
+  // ---- wrinkles: crow's feet, she has earned them ----
+  [-1, 1].forEach(s => { rect(s * 14 - (s < 0 ? 1 : 0), 2, 2, 1, P.disc[1]); rect(s * 15 - (s < 0 ? 0 : 0), 4, 1, 1, P.disc[1]); rect(s * 12, 7, 2, 1, P.disc[1]); });
+  // ---- the beak ----
+  const talk = o.talk ? Math.abs(Math.sin(t * 11)) : 0;
+  const drop = Math.round(talk * 3);
+  if (drop > 0) { rr(-3, 6, 6, 3 + drop, 1, '#3a1410'); rect(-2, 7 + drop, 4, 1, '#c8505a'); }
+  rect(-3, 3, 6, 1, P.beak[0]); rect(-3, 4, 6, 2, P.beak[3]); rect(-2, 6, 4, 1, P.beak[2]);
+  rect(-1, 7, 2, 1, P.beak[2]); rect(0, 8, 1, 1, P.beak[1]); rect(-2, 4, 1, 1, P.beak[4]);
+  rr(-2, 8 + drop, 4, 2, 1, P.beak[1]);                                  // lower mandible
+  if (ex === 'grump' || ex === 'stern') { rect(-6, 9, 2, 1, P.disc[1]); rect(4, 9, 2, 1, P.disc[1]); rect(-7, 10, 1, 1, P.disc[1]); rect(6, 10, 1, 1, P.disc[1]); }
+  if (ex === 'pleased') { rect(-6, 8, 2, 1, P.disc[1]); rect(4, 8, 2, 1, P.disc[1]); ctx.save(); ctx.globalAlpha = 0.3; rect(-15, 4, 4, 2, '#e87a8a'); rect(11, 4, 4, 2, '#e87a8a'); ctx.restore(); }
+  if (ex === 'shock') { rect(-1, 11, 2, 2, '#3a1410'); }
+}
+
+// (x, y) = the floor between her feet.  o = {expr, talk, point:{x,y}, broke,
+// walk, phase, look, clip, flip}
 function drawOwlet(x, y, o) {
   o = o || {};
-  const P = OWLET, expr = o.expr || 'calm', ph = o.phase || 0;
-  const bob = Math.round(Math.sin(tNow * 1.2 + ph) * 1.4);
-  const cx = (x + 30) | 0, gy = (y + 70 + bob) | 0;
-  const look = { x: clamp((mx - cx) / 90, -1, 1), y: clamp((my - (gy - 48)) / 90, -1, 1) };
+  const P = OWL, t = tNow + (o.phase || 0);
+  const walk = !!o.walk;
+  const bob = walk ? -Math.abs(Math.sin(t * 7)) * 2 : Math.sin(t * 1.3) * 0.6;
   ctx.save();
-  ctx.translate(cx, gy);
-  ctx.save(); ctx.globalAlpha = 0.3; ctx.scale(1, 0.22); fillCircle(0, -2 / 0.22, 24, '#000'); ctx.restore();
-  // ---- wings folded at her sides ----
-  const flap = o.talk ? Math.round(Math.sin(tNow * 5 + ph) * 2) : 0;
-  [-1, 1].forEach(s => plasticBox(s * 20 - 6, -40 + (s > 0 ? flap : -flap), 12, 26, 5, P.body, { noShine: 1 }));
-  // ---- body in a park-service blazer ----
-  plasticBox(-18, -46, 36, 46, 8, P.suit);
-  plasticBox(-9, -44, 18, 34, 5, ['#1a1208', '#c6bda6', '#e8e0cc', '#f8f2e4', '#ffffff'], { noShine: 1 });
-  rect(-2, -44, 4, 32, P.suit[2]);                    // tie
-  rect(-3, -44, 6, 4, P.suit[1]);
-  plasticBox(-17, -44, 8, 20, 3, P.suit, { noShine: 1 });
-  plasticBox(9, -44, 8, 20, 3, P.suit, { noShine: 1 });
-  plasticBox(-16, -38, 6, 5, 1, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });  // manager pin
-  // ---- head: the barn owl's heart-shaped facial disc ----
-  ctx.save(); ctx.translate(0, -62 + Math.round(Math.sin(tNow * 0.9 + ph) * 1));
-  plasticBox(-17, -18, 34, 34, 10, P.body);
-  [-1, 1].forEach(s => { rect(s * 13 - 2, -22, 5, 6, P.body[1]); rect(s * 13 - 1, -22, 3, 4, P.body[3]); }); // ear tufts
-  plasticBox(-14, -14, 28, 28, 12, P.face, { noShine: 1 });
-  rect(-2, -12, 4, 22, P.face[1]);                     // the heart's centre crease
-  // spectacles + big anime owl eyes
-  [-7, 7].forEach((ex, i) => {
-    const dx = Math.round(look.x * 1.4), dy = Math.round(look.y * 1.2);
-    fillCircle(ex, -2, 7, '#2a1d12');
-    fillCircle(ex, -2, 6, '#fdfaf0');
-    const closed = expr === 'stern' ? 2 : 0;
-    fillCircle(ex + dx, -2 + dy, 4, '#c8901a');
-    fillCircle(ex + dx, -2 + dy, 3, '#1a1206');
-    rect(ex + dx - 3, -5 + dy, 3, 3, '#ffffff');
-    rect(ex + dx + 1, 0 + dy, 1, 1, '#ffffff');
-    if (closed) { rect(ex - 7, -9, 14, closed + 2, P.face[2]); rect(ex - 7, -9 + closed + 2, 14, 1, '#2a1d12'); }
-    if (expr === 'happy') { rect(ex - 5, -3, 2, 1, '#2a1d12'); rect(ex - 3, -5, 2, 1, '#2a1d12'); rect(ex - 1, -5, 2, 1, '#2a1d12'); rect(ex + 1, -3, 2, 1, '#2a1d12'); rect(ex - 6, -9, 12, 6, P.face[2]); }
-    // half-moon spectacle
-    rect(ex - 8, -2, 16, 1, UGOLD[2]);
-    for (let k = 0; k < 9; k++) { const a = Math.PI * (k / 8); rect(ex + Math.round(Math.cos(a) * 8), -2 + Math.round(Math.sin(a) * 6), 1, 1, UGOLD[3]); }
-    if (i === 0) rect(ex + 8, -3, 6, 1, UGOLD[2]);
+  ctx.translate(x | 0, y | 0);
+  if (o.flip) ctx.scale(-1, 1);
+  // contact shadow
+  ctx.save(); ctx.globalAlpha = 0.3; ctx.scale(1, 0.28); fillCircle(0, -3, 17, '#000'); ctx.restore();
+  // ---- talons ----
+  [-1, 1].forEach(s => {
+    const st = walk ? Math.round(Math.sin(t * 7 + (s > 0 ? Math.PI : 0)) * 2) : 0;
+    const fx = s * 6 + st;
+    rect(fx - 4, -4, 8, 2, '#5a3a0a'); rect(fx - 4, -3, 2, 3, '#c8902a'); rect(fx - 1, -3, 2, 3, '#c8902a'); rect(fx + 2, -3, 2, 3, '#c8902a');
+    rect(fx - 4, 0, 1, 1, '#2a1a06'); rect(fx - 1, 0, 1, 1, '#2a1a06'); rect(fx + 2, 0, 1, 1, '#2a1a06');
   });
-  // brow, set by mood
-  const bl = expr === 'stern' ? 3 : expr === 'happy' ? -2 : 0;
-  [-7, 7].forEach((ex, i) => { for (let k = 0; k < 9; k++) rect(ex - 4 + k, -11 + Math.round((i ? k : 8 - k) / 8 * bl), 1, 2, '#3a2a18'); });
-  // beak + talking jaw
-  const talk = o.talk ? Math.abs(Math.sin(tNow * 11 + ph)) : 0;
-  rect(-3, 4, 6, 5, P.beak[0]);
-  rect(-2, 4, 4, 4, P.beak[2]);
-  rect(-1, 4, 2, 2, P.beak[3]);
-  if (talk > 0.2) { rr(-3, 8, 6, 1 + Math.round(talk * 4), 2, '#5a2430'); }
+  ctx.translate(0, Math.round(bob));
+  // ---- the feathered body ----
+  bobShape(OWL_BODY, -44, P.fe, { seed: 9 });
+  // barred breast feathers peeking between the cardigan fronts
+  plasticBox(-9, -38, 18, 34, 5, P.chest, { noShine: 1, seed: 4 });
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 4; c++) {
+    const cx = -6 + c * 4 + (r % 2) * 2, cy = -34 + r * 4;
+    rect(cx - 1, cy, 1, 1, P.fe[2]); rect(cx, cy + 1, 1, 1, P.fe[2]); rect(cx + 1, cy, 1, 1, P.fe[2]);
+  }
+  // ---- the cardigan: two knitted fronts with ribbed texture ----
+  [-1, 1].forEach(s => {
+    const x0 = s < 0 ? -19 : 7;
+    plasticBox(x0, -40, 12, 38, 4, P.knit, { noShine: 1, smooth: 1, seed: s + 3 });
+    for (let yy = -38; yy < -4; yy += 2) for (let xx = x0 + 2; xx < x0 + 11; xx += 2) {
+      rect(xx, yy + ((xx >> 1) & 1), 1, 1, P.knit[1]);                 // purl stitches
+      rect(xx + 1, yy + 1 - ((xx >> 1) & 1), 1, 1, P.knit[3]);
+    }
+    rect(x0 + (s < 0 ? 10 : 1), -40, 1, 38, P.knit[4]);                 // placket edge
+    rect(x0, -6, 12, 3, P.knit[1]); for (let xx = x0 + 1; xx < x0 + 11; xx += 2) rect(xx, -6, 1, 3, P.knit[3]);   // ribbed hem
+  });
+  [-30, -21, -12].forEach(by => { rect(8, by, 3, 3, '#2a1a0c'); rect(8, by, 2, 2, '#c8a060'); });   // buttons
+  // pocket with a tissue tucked in
+  plasticBox(-17, -20, 9, 7, 1, P.knit, { noShine: 1, smooth: 1 });
+  rect(-16, -23, 5, 3, '#f4f0e6'); rect(-15, -24, 3, 1, '#ffffff'); rect(-14, -22, 1, 2, '#d8d0c0');
+  // ---- pearls ----
+  for (let k = 0; k < 7; k++) {
+    const a = Math.PI * (0.15 + 0.7 * k / 6), px = Math.round(Math.cos(a) * 8), py = -42 + Math.round(Math.sin(a) * 5);
+    rect(px - 1, py, 3, 3, '#6a6458'); rect(px - 1, py, 2, 2, '#f4efe6'); rect(px - 1, py, 1, 1, '#ffffff');
+  }
+  // ---- the wings/arms ----
+  const sh = { x: 16, y: -37 };
+  // the free wing: resting on a hip, or holding her clipboard
+  ctx.save(); ctx.translate(-16, -37); ctx.rotate(o.clip ? -0.5 : 0.18);
+  plasticBox(-5, 0, 10, 21, 3, P.knit, { noShine: 1, seed: 1 });
+  for (let k = 0; k < 3; k++) rect(-3 + k * 2, 19, 2, 4 - k, P.fe[k === 1 ? 3 : 2]);
+  if (o.clip) {
+    plasticBox(-10, 16, 16, 20, 2, ['#1e150c', '#6a4a26', '#8a6232', '#a67a42', '#c8985a'], { noShine: 1 });
+    paperSheet(-8, 19, 12, 15, { noCorner: 1 });
+    rect(-5, 15, 6, 3, '#8a9aa4'); rect(-5, 15, 6, 1, '#d8e4ea');
+    for (let k = 0; k < 4; k++) rect(-6, 22 + k * 3, 8 - (k & 1) * 3, 1, '#8a7a5a');
+  }
   ctx.restore();
-  // mood flourish
-  if (expr === 'stern' && Math.sin(tNow * 3) > 0.5) { drawText('!', 22, -96, '#ffd54a', 2); }
+  // the pointer wing
+  let ang = 0.35, len = 0;
+  if (o.point) {
+    const tx = (o.flip ? -1 : 1) * (o.point.x - x) - sh.x, ty = o.point.y - (y + bob) - sh.y;
+    ang = Math.atan2(ty, tx);
+    len = clamp(Math.hypot(tx, ty) - 12, 10, 70);
+    if (o.broke) len = Math.min(len, 16);
+  }
+  ctx.save(); ctx.translate(sh.x, sh.y); ctx.rotate(o.point ? ang - Math.PI / 2 : -0.18);
+  plasticBox(-5, -2, 10, 16, 3, P.knit, { noShine: 1, seed: 2 });
+  for (let k = 0; k < 3; k++) rect(-3 + k * 2, 13, 2, 4 - k, P.fe[k === 1 ? 3 : 2]);
+  if (o.point) {
+    // the stick itself, in local space it runs straight down the wing
+    rect(-1, 12, 3, len, '#3a2410'); rect(0, 12, 1, len, '#b0783a');
+    if (o.broke) { rect(-2, 12 + len, 2, 2, '#b0783a'); rect(1, 12 + len + 1, 2, 2, '#8a5a2a'); rect(0, 12 + len + 2, 1, 2, '#e8c890'); }
+    else { rect(-1, 12 + len, 3, 4, '#2a0c08'); rect(0, 12 + len, 1, 3, '#d8403a'); }
+  }
+  ctx.restore();
+  // ---- the head ----
+  ctx.save(); ctx.translate(0, -58 + Math.round(Math.sin(t * 1.3 + 1) * 0.5));
+  drawOwletHead({ expr: o.expr, talk: o.talk, phase: o.phase, look: o.look });
+  ctx.restore();
+  // the spectacle chain, swinging down to her collar
+  const sw = Math.sin(t * 1.1) * 1;
+  [-1, 1].forEach(s => { for (let k = 0; k < 9; k++) rect(s * (16 - k * 0.3) + sw * k / 9, -59 + k * 2 + Math.round(Math.sin(k / 8 * Math.PI) * 2), 1, 1, SPEC[k & 1 ? 1 : 3]); });
   ctx.restore();
 }
 
-// --------------------------------------------------------- the office ----
-// the HQ front office, dressed properly
-function drawOfficeRoom() {
-  const WL = ['#2a4038', '#36504a', '#3f5a52', '#4e6b5f', '#5d7d6c'];
-  rect(0, 0, W, 186, WL[2]);
-  for (let x = 0; x < W; x += 22) { rect(x, 0, 1, 186, WL[1]); rect(x + 1, 0, 1, 186, WL[3]); }
-  rect(0, 0, W, 8, WL[4]);                                  // cornice
-  rect(0, 8, W, 2, WL[0]);
-  rect(0, 96, W, 4, WL[4]); rect(0, 100, W, 2, WL[0]);       // dado rail
-  rect(0, 102, W, 84, WL[1]);                                 // wainscot below it
-  for (let x = 0; x < W; x += 26) { rect(x + 2, 106, 22, 76, WL[2]); rect(x + 2, 106, 22, 1, WL[3]); rect(x + 2, 181, 22, 1, WL[0]); }
-  rect(0, 178, W, 8, WL[0]); rect(0, 178, W, 2, WL[3]);       // skirting
+// ============================ PAINT CACHE ==================================
+//  Heavy static backdrops (the HQ hall, the office, the title vista) are
+//  painted once into an offscreen canvas at full supersample resolution and
+//  then blitted every frame, so they can carry per-pixel dithering, grain and
+//  clutter that would be far too slow to redraw 60 times a second.
+// ==========================================================================
+const PAINT_CACHE = {};
+function paintCached(key, x, y, w, h, fn) {
+  let c = PAINT_CACHE[key];
+  if (!c) {
+    c = document.createElement('canvas'); c.width = w * RS; c.height = h * RS;
+    const c2 = c.getContext('2d'); c2.imageSmoothingEnabled = false; c2.setTransform(RS, 0, 0, RS, 0, 0);
+    const main = ctx; ctx = c2;
+    try { fn(); } finally { ctx = main; }
+    PAINT_CACHE[key] = c;
+  }
+  ctx.drawImage(c, x, y, w, h);
+}
+// draw a ranger flooded with one colour (locked applicants wait in shadow)
+const SIL = document.createElement('canvas'); SIL.width = 100 * RS; SIL.height = 110 * RS;
+const SILC = SIL.getContext('2d');
+function drawSilhouette(cx, gy, key, o, col, a) {
+  SILC.setTransform(1, 0, 0, 1, 0, 0); SILC.clearRect(0, 0, SIL.width, SIL.height);
+  SILC.imageSmoothingEnabled = false; SILC.setTransform(RS, 0, 0, RS, 0, 0);
+  const main = ctx; ctx = SILC;
+  try { drawBobble(50, 104, key, o); } finally { ctx = main; }
+  SILC.setTransform(1, 0, 0, 1, 0, 0);
+  SILC.globalCompositeOperation = 'source-atop'; SILC.globalAlpha = a; SILC.fillStyle = col;
+  SILC.fillRect(0, 0, SIL.width, SIL.height);
+  SILC.globalCompositeOperation = 'source-over'; SILC.globalAlpha = 1;
+  ctx.drawImage(SIL, (cx | 0) - 50, (gy | 0) - 104, 100, 110);
+}
 
-  // ---- window onto the moonlit swamp, with a light shaft ----
-  (function win2() {
-    const wx = 18, wy = 16, ww = 118, wh = 70;
-    plasticBox(wx - 5, wy - 5, ww + 10, wh + 10, 3, ['#140c04', '#3a2716', '#5f4326', '#7d5c38', '#9a7548'], { noShine: 1 });
-    rect(wx, wy, ww, wh, '#0e2430');
-    for (let i = 0; i < wh; i += 2) rect(wx, wy + i, ww, 2, mixHex('#1d4a5e', '#0a1c26', i / wh));
-    for (let k = 0; k < 6; k++) { const tx = wx + 8 + k * 20, th = 14 + (k % 3) * 9; rect(tx, wy + wh - th - 12, 3, th, '#081418'); rr(tx - 6, wy + wh - th - 18, 15, 11, 4, '#081418'); }
-    rect(wx, wy + wh - 14, ww, 14, '#10323e');
-    for (let k = 0; k < 8; k++) rect(wx + 4 + k * 15, wy + wh - 11 + (k % 3) * 3, 9, 1, '#3f8ea8');
-    fillCircle(wx + ww - 22, wy + 15, 7, '#f6f2d0');
-    rect(wx + ww / 2 - 1, wy, 2, wh, '#5f4326'); rect(wx, wy + wh / 2 - 1, ww, 2, '#5f4326');
-    ctx.save(); ctx.globalAlpha = 0.07;                       // shaft of moonlight on the floor
-    for (let k = 0; k < 90; k++) rect(wx + 6 + k * 1.1, wy + wh + k, 40, 1, '#cfe8f0');
-    ctx.restore();
-  })();
-
-  // ---- park map, clock, framed photo, certificate ----
-  (function wall() {
-    // laminated park map
-    plasticBox(150, 14, 74, 54, 2, ['#140c04', '#3a2716', '#5f4326', '#7d5c38', '#9a7548'], { noShine: 1 });
-    rect(154, 18, 66, 46, '#d8cfa8');
-    rect(154, 18, 66, 8, '#8fae68');
-    drawText('PARK', 158, 20, '#2a3a1c', 1);
-    for (let k = 0; k < 5; k++) rect(158 + k * 12, 30 + (k % 3) * 9, 9, 6, '#7fb0c8');
-    for (let k = 0; k < 8; k++) rect(156 + (k * 13) % 60, 28 + (k * 7) % 30, 2, 2, '#c23a4a');
-    for (let k = 0; k < 20; k++) rect(156 + k * 3, 44 + Math.round(Math.sin(k * 0.6) * 5), 3, 1, '#4a7a58');
-    // wall clock with real hands
-    const cx2 = 246, cy2 = 30;
-    fillCircle(cx2, cy2, 13, '#2a1d12'); fillCircle(cx2, cy2, 12, '#e8e0cc'); fillCircle(cx2, cy2, 10, '#f8f2e4');
-    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; rect(cx2 + Math.cos(a) * 9 - 0.5, cy2 + Math.sin(a) * 9 - 0.5, 1, 1, '#6a5a3a'); }
-    const ha = tNow * 0.09, ma = tNow * 1.05;
-    rect(cx2, cy2, Math.round(Math.cos(ha) * 5), Math.round(Math.sin(ha) * 5) || 1, '#2a1d12');
-    rect(cx2, cy2, Math.round(Math.cos(ma) * 8), Math.round(Math.sin(ma) * 8) || 1, '#2a1d12');
-    rect(cx2 - 1, cy2 - 1, 2, 2, '#8a2a16');
-    // framed photo of a very large gator
-    plasticBox(268, 16, 52, 38, 2, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
-    rect(272, 20, 44, 30, '#1d3a2a');
-    rr(276, 34, 36, 10, 3, '#2f7d22'); rr(276, 28, 36, 6, 2, '#4aa832');
-    for (let k = 0; k < 6; k++) rect(279 + k * 6, 34, 3, 3, '#fdfaec');
-    rect(282, 24, 4, 4, '#f6f2dc'); rect(303, 24, 4, 4, '#f6f2dc');
-    rect(283, 25, 2, 2, '#141010'); rect(304, 25, 2, 2, '#141010');
-    // certificate
-    plasticBox(330, 16, 44, 34, 2, ['#2a1d12', '#8a7a58', '#c9bfa4', '#e8e0cc', '#ffffff'], { noShine: 1 });
-    rect(334, 20, 36, 26, '#f6f0e0');
-    for (let k = 0; k < 4; k++) rect(338, 26 + k * 4, 28 - (k % 2) * 8, 1, '#a89468');
-    fillCircle(360, 42, 4, '#c23a4a'); rect(358, 44, 4, 4, '#8a2a16');
-  })();
-
-  // ---- water cooler, coat rack, filing cabinets, potted palm ----
-  (function props() {
-    // water cooler
-    const wx = 386, wy = 92;
-    plasticBox(wx, wy, 26, 46, 3, ['#131c22', '#33454e', '#4c626f', '#7b95a3', '#c3d8e2'], { noShine: 1 });
-    plasticBox(wx + 3, wy - 24, 20, 26, 6, ['#0d2a30', '#1d5060', '#2f7d90', '#5fb0c4', '#bfeef2'], { noShine: 1 });
-    ctx.save(); ctx.globalAlpha = 0.5; rect(wx + 6, wy - 20, 4, 16, '#dff8ff'); ctx.restore();
-    const bb = (tNow * 1.2) % 1;
-    fillCircle(wx + 13, wy - 4 - bb * 16, 2, '#9fe8ff');
-    rect(wx + 6, wy + 12, 14, 4, '#1d3038'); rect(wx + 10, wy + 16, 6, 4, '#8fa8b4');
-    for (let k = 0; k < 3; k++) rect(wx + 4, wy + 26 + k * 5, 8, 4, '#dfeaee');
-    // coat rack with hats
-    rect(430, 40, 3, 74, '#3a2a18'); rect(420, 40, 24, 3, '#3a2a18');
-    rect(418, 42, 4, 4, '#5a4028'); rect(442, 42, 4, 4, '#5a4028');
-    drawHatArt(424, 46, 'ranger', 1); drawHatArt(442, 46, 'straw', 1);
-    rect(424, 60, 14, 22, '#2c4436'); rect(424, 60, 14, 3, '#3d5c49');   // a spare vest
-    // filing cabinets
-    plasticBox(150, 86, 46, 52, 3, ['#131c22', '#33454e', '#4c626f', '#7b95a3', '#c3d8e2'], { noShine: 1 });
-    for (let k = 0; k < 3; k++) { rect(154, 90 + k * 16, 38, 14, '#3f5560'); rect(154, 90 + k * 16, 38, 1, '#7b95a3'); rect(168, 95 + k * 16, 10, 3, '#c8d2d8'); }
-    rect(156, 80, 34, 6, '#2a3a30'); rect(158, 74, 30, 8, '#3a5a44');
-    for (let k = 0; k < 5; k++) { rect(160 + k * 6, 68, 3, 8, '#63d66a'); rect(159 + k * 6, 64, 5, 5, '#4aa832'); }   // fern on top
-    // stack of crates
-    plasticBox(206, 104, 36, 34, 2, ['#241405', '#40230c', '#5c3413', '#74441c', '#8f5a28'], { noShine: 1 });
-    rect(210, 108, 28, 2, '#40230c'); rect(210, 122, 28, 2, '#40230c');
-    plasticBox(212, 84, 26, 22, 2, ['#241405', '#40230c', '#5c3413', '#74441c', '#8f5a28'], { noShine: 1 });
-    drawText('HQ', 220, 92, '#2a1a08', 1);
-    // ceiling fan
-    const fa = tNow * 3.1;
-    rect(236, 0, 2, 9, '#2a3a34');
-    ctx.save(); ctx.translate(237, 10);
-    for (let k = 0; k < 4; k++) { const a = fa + k * 1.571; rect(Math.cos(a) * 4, Math.sin(a) * 2 - 1, Math.round(Math.cos(a) * 24), 3, '#5a4a30'); }
-    ctx.restore();
-    fillCircle(237, 10, 3, '#3a2a18');
-    // hanging lamp over the desk
-    rect(96, 0, 2, 16, '#241708');
-    rr(86, 16, 22, 5, 2, '#2c7d3a'); rr(88, 16, 18, 3, 2, '#63d66a');
-    rr(92, 21, 10, 4, 1, '#fff6c8');
-    glow(97, 24, 40, '#ffcc6a', 0.26);
-  })();
-
-  // ---- floor, rug, dust ----
-  rect(0, 186, W, H - 186, '#5a4026');
-  rect(0, 186, W, 3, '#7a5a38');
-  for (let x = -20; x < W; x += 36) { rect(x + 8, 189, 1, H - 189, '#46301c'); }
-  for (let y = 196; y < H; y += 18) rect(0, y, W, 1, '#4e3620');
-  rr(96, 206, 300, 52, 6, '#2f4a3e');
-  rr(102, 210, 288, 44, 5, '#3f6454');
-  rect(110, 216, 272, 3, '#2f4a3e'); rect(110, 246, 272, 3, '#2f4a3e');
-  for (let k = 0; k < 9; k++) rect(118 + k * 32, 224, 16, 16, '#4e7a66');
-  ctx.save();
-  for (let d = 0; d < 16; d++) {
-    const f = ((tNow / (7 + (d % 4) * 2)) + d * 0.17) % 1;
-    ctx.globalAlpha = (0.26 - f * 0.2);
-    rect(22 + ((d * 61) % 120), 20 + f * 150, 1, 1, '#cfe8f0');
+// ======================= THE EVERGLADES AT DUSK ===========================
+//  One painted vista reused through every window in HQ: a banded dusk sky,
+//  a sun sinking behind a purple treeline, bald cypress with hanging moss
+//  and still black water.  Static layer is cached; shimmer + fireflies live.
+// ==========================================================================
+const DUSK = ['#231a38', '#35264e', '#4e3262', '#744070', '#a45274', '#d06a6a', '#ec925e', '#f8bc6c', '#fde0a0'];
+function vistaStatic(w, h, o) {
+  o = o || {};
+  const hz = Math.round(h * (o.hz || 0.62));
+  // sky: dithered bands, no gradients
+  for (let y = 0; y < hz; y++) {
+    const f = Math.pow(y / hz, 1.25) * (DUSK.length - 1), i = Math.floor(f), fr = f - i;
+    rect(0, y, w, 1, DUSK[i]);
+    if (fr > 0.3 && i + 1 < DUSK.length) for (let x = (y & 1); x < w; x += (fr > 0.65 ? 1 : 2)) if (fr > 0.65 ? ((x + y) & 1) : 1) rect(x, y, 1, 1, DUSK[i + 1]);
+  }
+  // high stars in the dark band
+  for (let k = 0; k < w / 6; k++) { const sx = Math.floor(hash2(k, 3) * w), sy = Math.floor(hash2(k, 5) * hz * 0.35); rect(sx, sy, 1, 1, k % 5 ? '#b8a8d8' : '#ffffff'); }
+  // the sun, half gone
+  const sx = Math.round(w * (o.sunX || 0.66)), sr = Math.max(6, Math.round(w * 0.09));
+  fillCircle(sx, hz - 2, sr + 2, '#f8c070'); fillCircle(sx, hz - 2, sr, '#fde6b0'); fillCircle(sx, hz - 2, sr - 3, '#fff6dc');
+  // cloud bars sliced across it
+  [[0.08, 0.46, 0.34], [0.5, 0.52, 0.4], [0.2, 0.72, 0.5], [0.62, 0.8, 0.28]].forEach(([cx, cy, cw]) => {
+    const x0 = Math.round(w * cx), y0 = Math.round(hz * cy), ww = Math.round(w * cw);
+    rect(x0, y0, ww, 2, DUSK[Math.min(DUSK.length - 1, Math.round(cy * 8) - 1)]);
+    rect(x0 + 3, y0 + 2, ww - 8, 1, '#5a3a62');
+    rect(x0 + 2, y0 - 1, ww - 10, 1, '#f8c890');
+  });
+  // far treeline: a ragged purple strip
+  for (let x = 0; x < w; x++) {
+    const th = 3 + Math.floor(hash2(x >> 1, 7) * 4) + (hash2(x >> 3, 9) > 0.7 ? 4 : 0);
+    rect(x, hz - th, 1, th, '#3a2848'); rect(x, hz - th, 1, 1, '#5a3a5e');
+  }
+  // water: the sky flipped, darker, with long calm streaks
+  for (let y = hz; y < h; y++) {
+    const f = (1 - (y - hz) / (h - hz)) * (DUSK.length - 3) + 1, i = clamp(Math.floor(f), 0, DUSK.length - 1);
+    rect(0, y, w, 1, mixC(DUSK[i], '#0a0c18', 0.45));
+  }
+  for (let k = 0; k < 12; k++) { const yy = hz + 2 + Math.floor(hash2(k, 1) * (h - hz - 4)), xx = Math.floor(hash2(k, 2) * w); rect(xx, yy, 6 + (k % 4) * 5, 1, '#6a4a6e'); }
+  // bald cypress with flared knees and moss
+  (o.trees || [[0.12, 1], [0.36, 0.7], [0.88, 1.15]]).forEach(([tx, ts], n) => {
+    const bx = Math.round(w * tx), top = Math.round(hz - h * 0.52 * ts), tw = Math.max(2, Math.round(3 * ts));
+    rect(bx - tw, top + 6, tw * 2, hz - top - 4, '#140e1c');
+    for (let k = 0; k < 5; k++) rect(bx - tw - k, hz - 5 + k, tw * 2 + k * 2, 1, '#140e1c');     // the flared foot
+    rect(bx - tw - 5, hz - 1, 2, 2, '#140e1c'); rect(bx + tw + 4, hz, 2, 2, '#140e1c');      // knees
+    for (let c = 0; c < 3; c++) {                                                       // flat tiers of canopy
+      const cw = Math.round((10 + c * 5) * ts), cy = top + c * Math.round(7 * ts);
+      rect(bx - cw, cy, cw * 2, 3, '#1a1424'); rect(bx - cw + 2, cy - 1, cw * 2 - 4, 1, '#1a1424');
+      rect(bx - cw + 1, cy + 3, cw * 2 - 2, 1, '#221a2e');
+      for (let m = 0; m < cw * 2; m += 3) {                                             // spanish moss
+        const ml = 2 + Math.floor(hash2(m + n * 40, c) * 7 * ts);
+        rect(bx - cw + m, cy + 3, 1, ml, '#3a3448');
+      }
+    }
+    // reflection
+    ctx.save(); ctx.globalAlpha = 0.45; rect(bx - tw, hz, tw * 2, Math.round((hz - top) * 0.4), '#140e1c'); ctx.restore();
+  });
+  // near reeds and lily pads
+  for (let k = 0; k < w; k += 3) {
+    const rh = 2 + Math.floor(hash2(k, 11) * 8);
+    if (hash2(k, 13) > 0.45) rect(k, h - rh, 1, rh, '#0e0a12');
+  }
+  for (let k = 0; k < 5; k++) { const lx = Math.floor(hash2(k, 21) * (w - 10)), ly = hz + 5 + Math.floor(hash2(k, 22) * (h - hz - 10)); rr(lx, ly, 7, 2, 1, '#1e3a2a'); rect(lx + 1, ly, 3, 1, '#2e5a3a'); }
+}
+function vistaLive(x, y, w, h, o) {
+  o = o || {};
+  const hz = Math.round(h * (o.hz || 0.62)), sx = Math.round(w * (o.sunX || 0.66));
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  // sun glitter on the water, broken dashes that crawl
+  for (let r = 0; r < (h - hz) / 2; r++) {
+    const yy = y + hz + 1 + r * 2, ww = Math.max(2, 10 - r);
+    const off = Math.round(Math.sin(tNow * 1.3 + r * 1.7) * 2);
+    ctx.globalAlpha = 0.7 - r * 0.05;
+    rect(x + sx - ww / 2 + off, yy, ww, 1, r < 2 ? '#fff0c8' : '#f8b870');
+  }
+  // slow ripple streaks
+  ctx.globalAlpha = 0.35;
+  for (let k = 0; k < 4; k++) {
+    const yy = y + hz + 3 + k * Math.max(2, Math.floor((h - hz) / 5));
+    const xx = x + ((tNow * (3 + k) + k * 37) % (w + 20)) - 10;
+    rect(xx, yy, 8, 1, '#c88a8a');
+  }
+  // fireflies
+  for (let k = 0; k < (o.flies || 6); k++) {
+    const fx = x + ((hash2(k, 31) * w + Math.sin(tNow * 0.4 + k) * 8) % w), fy = y + hz - 4 - hash2(k, 32) * h * 0.3 + Math.sin(tNow * 0.9 + k * 2) * 3;
+    const on = Math.sin(tNow * 2.2 + k * 1.9);
+    if (on > 0.2) { ctx.globalAlpha = on * 0.35; rect(fx - 1, fy - 1, 3, 3, '#f8f080'); ctx.globalAlpha = on; rect(fx, fy, 1, 1, '#fffcc0'); }
+  }
+  // a heron flaps across now and then
+  const hp = (tNow / 26) % 1;
+  if (hp < 0.4) {
+    const bx = x + w + 10 - (hp / 0.4) * (w + 20), by = y + hz * 0.4 + Math.sin(hp * 30) * 2, fl = Math.sin(tNow * 7) > 0;
+    ctx.globalAlpha = 0.9;
+    rect(bx, by, 4, 1, '#140e1c'); rect(bx - 2, by - 1, 2, 1, '#140e1c'); rect(bx + 4, by + 1, 3, 1, '#140e1c');
+    rect(bx + 1, by + (fl ? -2 : 1), 1, 2, '#140e1c'); rect(bx + 2, by + (fl ? -3 : 2), 1, 1, '#140e1c');
   }
   ctx.restore();
 }
 
-// the desk that Mrs Owlet sits behind
-function drawOwletDesk() {
-  const dx = 30, dy = 150, dw = 190, dh = 60;
-  plasticBox(dx, dy, dw, dh, 4, ['#1c1208', '#4a3520', '#6a4f30', '#8a6a42', '#a98a5c']);
-  rect(dx + 4, dy + 14, dw - 8, 2, '#4a3520');
-  plasticBox(dx + 10, dy + 20, 54, 34, 2, ['#1c1208', '#3a2a18', '#57402a', '#6f5436', '#8a6a42'], { noShine: 1 });
-  for (let k = 0; k < 2; k++) { rect(dx + 14, dy + 24 + k * 15, 46, 12, '#43301c'); rect(dx + 32, dy + 29 + k * 15, 12, 3, UGOLD[2]); }
-  // nameplate
-  plasticBox(dx + 88, dy - 12, 96, 14, 2, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
-  drawTextC('MRS OWLET', dx + 136, dy - 10, '#3a2606', 1);
-  drawTextC('PARK MANAGER', dx + 136, dy - 4, '#6a4f10', 1);
-  // mug + paper stack + stamp
-  plasticBox(dx + 152, dy - 34, 14, 12, 3, ['#2a1018', '#7a2a36', '#a8384a', '#d05a6a', '#f09aa6'], { noShine: 1 });
-  rect(dx + 166, dy - 31, 4, 6, '#a8384a'); rect(dx + 154, dy - 34, 10, 2, '#f0e8d8');
-  ctx.save(); ctx.globalAlpha = 0.4 + Math.sin(tNow * 2) * 0.2;
-  for (let k = 0; k < 3; k++) rect(dx + 156 + k * 3, dy - 40 - ((tNow * 8 + k * 4) % 8), 1, 3, '#cfe8f0');
-  ctx.restore();
-  for (let k = 0; k < 4; k++) rect(dx + 16 + k, dy - 6 - k, 40, 2, k % 2 ? '#e8dfc2' : '#f4ecd6');
-  plasticBox(dx + 62, dy - 14, 14, 14, 2, ['#12100a', '#2a2018', '#3f3226', '#5a4834', '#7a6448'], { noShine: 1 });
-  rect(dx + 64, dy - 4, 10, 4, '#8a2a16');
-}
-
-const OWLET_LINES = {
-  idle: [
-    "Everglades Dental Patrol. You are the one who answered the advert?",
-    "Sit. Mind the chair, the last applicant did not.",
-    "Three rangers went into that swamp last season. Two came back.",
-    "The pay is teeth. The dental plan is excellent, obviously.",
-  ],
-  pick: [
-    "Hm. I have read your file. Twice.",
-    "Field record noted. Do not embarrass the badge.",
-    "This one has hands like a surgeon. Or a pickpocket.",
-  ],
-  hire: ["Then the job is yours. Try to keep all of your fingers."],
+// ====================== EVERGLADES HQ: THE WAITING HALL ====================
+//  The run starts in the corridor outside Mrs Owlet's office.  Five
+//  applicants wait behind a velvet rope; click one and they step up to the
+//  mark in front of her door.  Locked rangers wait in shadow, and their
+//  file lists what it takes to get them hired.  Knock, and she answers.
+// ==========================================================================
+const LOBBY_Q = [276, 318, 360, 402, 444];
+const LOBBY_QY = 224;
+const LOBBY_SPOT = { x: 218, y: 238 };
+const LOBBY_LINES = {
+  scout: ['Hi! I brought snacks. For the gators.', 'I can hold my breath for eight minutes!', 'Is it true they bite? Like, a lot?'],
+  medic: ['I am a medic. Mostly I play dead.', 'Is she always this grumpy?', 'I brought a spare set of fingers.'],
+  trader: ['Psst. Wanna buy a slightly used tooth?', 'I am only here for the dental plan.', 'Every gator has a price.'],
+  frog: ['RIBBIT. I mean... ready.', 'I got bitten once. I bit back.', 'Point me at the big one.'],
+  snail: ['I got here early. Three weeks early.', 'The teeth are not going anywhere.', 'Slow is smooth. Smooth is rich.'],
 };
-let owletSay = null;   // {txt, t}
-function owletTalk(txt) { owletSay = { txt, t: 0 }; }
+const LOCKED_LINES = ['Not yet. I have not earned my stripes.', 'She said come back when I have done something.', 'I am just here for the free coffee.'];
+const OWLET_DOOR = {
+  first: ['You. New one. Inside. NOW.', 'Hm. Another one. In you come. Wipe your feet.'],
+  back: ['Back again? Fine. Try not to get eaten.', 'Paperwork is signed. Get out there.', 'The swamp is waiting. So is my lunch. Go.'],
+  locked: ['...NOT YOU. Come back when you have done something.', 'Your file is sealed. Go away.'],
+};
+let lobby = null;
 
-// ------------------------------------------- HQ: the job application -----
-let rangerSlide = { from: 0, t: 1, dir: 1 };
-function rangerStep(d) {
-  const i = RANGER_ORDER.indexOf(rangerFocus);
-  const n = (i + d + RANGER_ORDER.length) % RANGER_ORDER.length;
-  rangerSlide = { from: i, t: 0, dir: d };
-  rangerFocus = RANGER_ORDER[n];
+function lobbyInit() {
+  lobby = { sel: null, t: 0, pos: {}, card: 0, say: null, knock: null, hint: 0 };
+  RANGER_ORDER.forEach((k, i) => { lobby.pos[k] = { x: LOBBY_Q[i], y: LOBBY_QY, face: -1, walk: 0 }; });
+}
+function lobbySelect(k) {
+  if (!lobby || lobby.knock) return;
+  if (lobby.sel === k) return;
+  lobby.sel = k; lobby.card = 0;
+  const open = rangerUnlocked(k);
+  lobby.say = { who: k, txt: choice(open ? LOBBY_LINES[k] : LOCKED_LINES), t: -0.9 };
   sfx.click(2);
-  owletTalk(choice(OWLET_LINES.pick));
+  if (open) { meta.ranger = k; saveMeta(); }
+}
+function lobbyKnock() {
+  if (!lobby || !lobby.sel || lobby.knock) return;
+  lobby.knock = { t: 0, open: rangerUnlocked(lobby.sel), knocks: 0, said: false };
+}
+function lobbyGo() {
+  const k = lobby.sel;
+  lobby = null;
+  if (!meta.tutDone) startTutorial(k);
+  else startTransition(() => { newRun(k); startIntro(); });
 }
 
-// ------------------------------------------- HQ: the job application -----
-// One applicant at a time, stood on the rug in front of the desk.  Swipe or
-// use the arrows to flick through the file, then sign on.
+// --------------------------------------------------------- the hall -------
+const HALLW = ['#10201a', '#1a3228', '#22402f', '#2c4e3a', '#3a624a'];
+const FLR = ['#1a0e06', '#36200e', '#4a2c14', '#5e3a1c', '#764a26'];
+function hallStatic() {
+  // ---- wallpaper with a stamped damask diamond ----
+  rect(0, 0, W, 120, HALLW[2]);
+  for (let y = 8; y < 118; y++) for (let x = (y % 2); x < W; x += 2) if (hash2(x, y) < 0.08) rect(x, y, 1, 1, HALLW[1]);
+  for (let y = 14; y < 116; y += 16) for (let x = ((y / 16) & 1) * 12; x < W; x += 24) {
+    rect(x + 3, y, 1, 1, HALLW[3]); rect(x + 2, y + 1, 3, 1, HALLW[3]); rect(x + 1, y + 2, 2, 1, HALLW[3]); rect(x + 4, y + 2, 2, 1, HALLW[3]);
+    rect(x + 2, y + 3, 3, 1, HALLW[3]); rect(x + 3, y + 4, 1, 1, HALLW[3]); rect(x + 3, y + 2, 1, 1, HALLW[4]);
+  }
+  // crown moulding
+  rect(0, 0, W, 4, UWOOD[1]); rect(0, 4, W, 2, UWOOD[3]); rect(0, 6, W, 2, UWOOD[0]);
+  for (let x = 0; x < W; x += 6) rect(x, 1, 3, 2, UWOOD[2]);
+  // chair rail + wainscot panels
+  rect(0, 118, W, 2, UWOOD[4]); rect(0, 120, W, 3, UWOOD[2]); rect(0, 123, W, 1, UWOOD[0]);
+  rect(0, 124, W, 72, UWOOD[1]);
+  woodGrain(0, 124, W, 72, UWOOD[0], UWOOD[2], 3);
+  for (let x = 4; x < W; x += 42) {
+    rr(x, 130, 36, 58, 2, UWOOD[0]); rr(x + 1, 131, 34, 56, 2, UWOOD[2]);
+    rect(x + 2, 131, 32, 1, UWOOD[4]); rect(x + 1, 132, 1, 54, UWOOD[3]);
+    rect(x + 2, 186, 33, 1, UWOOD[0]); rect(x + 34, 132, 1, 54, UWOOD[1]);
+    woodGrain(x + 3, 134, 30, 50, UWOOD[1], UWOOD[3], x);
+  }
+  rect(0, 194, W, 6, UWOOD[0]); rect(0, 194, W, 1, UWOOD[3]); rect(0, 196, W, 1, UWOOD[2]);
+  // ---- floorboards ----
+  rect(0, 200, W, 70, FLR[2]);
+  for (let r = 0; r < 7; r++) {
+    const y = 200 + r * 10;
+    rect(0, y, W, 1, FLR[0]); rect(0, y + 1, W, 1, FLR[3]);
+    for (let x = (r * 53) % 70; x < W; x += 70) { rect(x, y + 1, 1, 9, FLR[0]); rect(x + 2, y + 3, 1, 1, FLR[0]); rect(x + 2, y + 7, 1, 1, FLR[0]); rect(x + 1, y + 1, 1, 9, FLR[3]); }
+    woodGrain(0, y + 2, W, 8, FLR[1], FLR[3], r * 7);
+  }
+  // scuffs and boot-worn path toward the door
+  ctx.save(); ctx.globalAlpha = 0.18;
+  for (let k = 0; k < 60; k++) rect(150 + hash2(k, 1) * 300, 208 + hash2(k, 2) * 50, 3 + hash2(k, 3) * 6, 1, '#c8a878');
+  ctx.restore();
+  // a long runner rug to the door
+  rr(140, 224, 104, 30, 3, '#2a0c10'); rr(142, 226, 100, 26, 2, '#7a2430');
+  rect(145, 229, 94, 1, '#c8a050'); rect(145, 248, 94, 1, '#c8a050');
+  for (let x = 148; x < 238; x += 8) { rect(x, 236, 4, 1, '#c8a050'); rect(x + 1, 235, 2, 3, '#a8384a'); }
+  grainRect(143, 227, 98, 24, '#6a1c28', '#94303e', 0.08, 5);
+  for (let x = 142; x < 244; x += 3) { rect(x, 222, 1, 2, '#d8c8a0'); rect(x, 254, 1, 2, '#d8c8a0'); }   // fringe
+  // "WAIT HERE" painted feet on the rug
+  [[-6, 0], [4, -1]].forEach(([dx, dy]) => { rr(LOBBY_SPOT.x + dx - 2, LOBBY_SPOT.y - 8 + dy, 5, 7, 2, '#e8c840'); rect(LOBBY_SPOT.x + dx - 1, LOBBY_SPOT.y - 11 + dy, 3, 2, '#e8c840'); });
+
+  // ---- the window onto the swamp (left) ----
+  rr(10, 16, 104, 94, 2, UWOOD[0]);
+  ctx.save(); ctx.translate(15, 21); vistaStatic(94, 84, { trees: [[0.14, 1], [0.44, 0.7], [0.92, 1.1]] }); ctx.restore();
+  rect(10, 16, 104, 5, '#e8dcc0'); rect(10, 105, 104, 5, '#e8dcc0');
+  rect(10, 16, 5, 94, '#e8dcc0'); rect(109, 16, 5, 94, '#e8dcc0');
+  rect(60, 21, 3, 84, '#e8dcc0'); rect(15, 61, 94, 3, '#e8dcc0');
+  rect(10, 16, 104, 1, '#fff8e8'); rect(10, 109, 104, 1, '#8a7a5a');
+  rect(61, 21, 1, 84, '#fff8e8'); rect(15, 62, 94, 1, '#fff8e8');
+  // half-drawn blind
+  for (let k = 0; k < 7; k++) { rect(15, 21 + k * 3, 94, 2, '#d8ccac'); rect(15, 23 + k * 3, 94, 1, '#a89a78'); }
+  rect(60, 42, 1, 14, '#8a7a5a'); rr(58, 55, 5, 4, 1, '#c8b890');
+  // sill with a cactus and a tiny gator figure
+  rect(6, 108, 112, 5, UWOOD[3]); rect(6, 108, 112, 1, UWOOD[4]); rect(6, 113, 112, 2, UWOOD[0]);
+  rr(20, 100, 10, 8, 2, '#a84a2a'); rect(21, 100, 8, 2, '#c8683a'); rr(22, 88, 6, 13, 2, '#3a7a3a'); rect(23, 89, 2, 10, '#5aa04a'); rr(28, 92, 4, 5, 1, '#3a7a3a');
+  rr(86, 102, 16, 6, 2, '#2e5a24'); rect(98, 100, 5, 3, '#2e5a24'); rect(88, 104, 12, 1, '#4a8a36'); rect(99, 100, 1, 1, '#f0e060');
+  // ---- poster column: NOW HIRING ----
+  paperSheet(118, 28, 26, 70, { ramp: ['#3a2410', '#c89a5a', '#e8c078', '#f4d898', '#fff0c8'] });
+  drawText('NOW', 122, 33, '#7a1e14', 1); drawText('HIR', 122, 40, '#7a1e14', 1); drawText('ING', 122, 47, '#7a1e14', 1);
+  rr(123, 56, 16, 14, 2, '#4a8a3a'); rect(125, 60, 12, 4, '#fdfaec'); rect(126, 58, 2, 2, '#fdfaec'); rect(134, 58, 2, 2, '#fdfaec');
+  drawText('GOOD', 121, 75, '#3a2410', 1); drawText('PAY*', 121, 82, '#3a2410', 1);
+  rect(121, 91, 20, 1, '#9a7a4a'); rect(121, 93, 14, 1, '#9a7a4a');
+  pushPin(130, 30, PINS[2]);
+  // ---- the water cooler ----
+  rr(120, 146, 22, 50, 2, '#1a2226'); rr(121, 147, 20, 48, 2, '#dfe6e8');
+  rect(122, 148, 5, 46, '#f6fafa'); rect(137, 148, 3, 46, '#aeb8bc');
+  rr(124, 118, 14, 30, 5, '#2a5a7a'); rr(125, 119, 12, 28, 4, '#5aa8d8'); rect(127, 121, 3, 22, '#a8e0f8');
+  rect(128, 160, 6, 5, '#3a4a50'); rect(129, 161, 2, 2, '#e84a3a'); rect(132, 161, 2, 2, '#3a8ae8');
+  rect(124, 168, 14, 8, '#c8d0d4'); rect(126, 176, 10, 2, '#8a969c');
+  // ---- the door frame and door (office) ----
+  rect(144, 58, 96, 142, UWOOD[0]);
+  plasticBox(146, 60, 92, 140, 2, UWOOD, { seed: 11 });
+  woodGrain(148, 62, 88, 136, UWOOD[1], UWOOD[3], 44);
+  rect(152, 68, 80, 132, '#120a04');
+  // transom plate above the door
+  plasticBox(158, 46, 68, 12, 2, UGOLD, { noShine: 1 });
+  drawTextC('PARK MANAGER', 192, 49, '#3a2606', 1);
+  // "NOW SERVING" box
+  rr(170, 18, 44, 24, 2, '#0a0a0a'); rr(171, 19, 42, 22, 2, '#2a2a2a');
+  drawTextC('NOW SERVING', 192, 21, '#c8c8c8', 1);
+  rr(178, 28, 28, 11, 1, '#140404');
+  rect(191, 42, 2, 4, '#3a3a3a');
+  // ---- trophy case: the patrol's badges ----
+  rect(250, 14, 222, 76, UWOOD[0]);
+  plasticBox(252, 16, 218, 72, 2, UWOOD, { seed: 17 });
+  rect(258, 22, 206, 60, '#0e1a16');
+  for (let k = 0; k < 20; k++) rect(260 + hash2(k, 4) * 200, 24 + hash2(k, 6) * 54, 1, 1, '#1e3228');
+  rect(258, 66, 206, 3, UWOOD[3]); rect(258, 69, 206, 2, UWOOD[0]);
+  woodBanner(300, 8, 122, 12, 'HALL OF RANGERS', { col: '#ffe6b0' });
+  // ---- velvet rope and brass posts behind the queue ----
+  const posts = [256, 298, 340, 382, 424, 466];
+  for (let i = 0; i < posts.length - 1; i++) {
+    const a = posts[i], b = posts[i + 1];
+    for (let x = a; x <= b; x++) { const f = (x - a) / (b - a), sag = Math.round(Math.sin(f * Math.PI) * 7); rect(x, 176 + sag, 1, 3, '#6a0e1c'); rect(x, 176 + sag, 1, 1, '#b83040'); }
+  }
+  posts.forEach(px => {
+    rect(px - 5, 208, 11, 3, UGOLD[0]); rect(px - 4, 208, 9, 2, UGOLD[2]);
+    rect(px - 1, 176, 3, 32, UGOLD[0]); rect(px, 176, 1, 32, UGOLD[3]);
+    rr(px - 3, 171, 7, 6, 2, UGOLD[0]); rr(px - 2, 172, 5, 4, 2, UGOLD[3]); rect(px - 1, 172, 1, 1, UGOLD[4]);
+  });
+  // ---- bench under the window with a paper and a cold coffee ----
+  rect(12, 176, 100, 4, UWOOD[3]); rect(12, 176, 100, 1, UWOOD[4]); rect(12, 180, 100, 2, UWOOD[0]);
+  rect(12, 160, 100, 3, UWOOD[2]); rect(12, 163, 100, 1, UWOOD[0]);
+  [16, 104].forEach(lx => { rect(lx, 160, 4, 40, UWOOD[1]); rect(lx, 160, 1, 40, UWOOD[3]); });
+  paperSheet(30, 170, 22, 7, { noCorner: 1 }); rect(32, 172, 12, 1, '#6a5a3a'); rect(32, 174, 16, 1, '#8a7a5a');
+  rr(80, 168, 7, 8, 1, '#e8e0d0'); rect(80, 168, 7, 2, '#4a2a14'); rect(87, 170, 2, 3, '#e8e0d0');
+  // potted fern, far right
+  rr(462, 186, 16, 14, 2, '#6a3a1a'); rect(463, 186, 14, 2, '#8a5a2a');
+  for (let k = 0; k < 9; k++) { const a = -2.6 + k * 0.28, l = 14 + (k % 3) * 4; pxLine(470, 186, 470 + Math.cos(a) * l, 186 + Math.sin(a) * l, k % 2 ? '#3a7a3a' : '#2a5a2a'); }
+  // brass wall sconces with a dithered pool of light under each
+  [[236, 104], [476, 104]].forEach(([lx, ly]) => {
+    for (let r = 0; r < 26; r++) for (let x = -r; x <= r; x += 2) if (hash2(x + lx, r) < 0.5 - r / 60) rect(lx + x + (r & 1), ly + 4 + r, 1, 1, '#4a6a52');
+    rect(lx - 1, ly - 6, 3, 8, UGOLD[1]); rr(lx - 4, ly - 12, 9, 7, 2, '#f8e0a0'); rect(lx - 3, ly - 11, 3, 5, '#fff4d0'); rect(lx - 4, ly - 5, 9, 1, UGOLD[0]);
+  });
+}
+
+function drawLobbyDoor(k) {
+  const open = k ? k.doorOpen || 0 : 0;
+  // what is behind the door: her office glowing warm
+  if (open > 0) {
+    rect(152, 68, 80, 132, '#3a2410');
+    rect(152, 68, 80, 60, '#5a3a1c');
+    // her bookcase, glimpsed past the door
+    [80, 104, 128].forEach(sy => {
+      rect(154, sy + 20, 76, 3, '#6a4020'); rect(154, sy + 20, 76, 1, '#8a5a30');
+      let bx = 156;
+      while (bx < 226) { const bw = 3 + Math.floor(hash2(bx, sy) * 3), bh = 12 + Math.floor(hash2(sy, bx) * 7); rect(bx, sy + 20 - bh, bw, bh, ['#8a2a1a', '#2a4a7a', '#3a6a2a', '#9a7a2a', '#5a2a5a'][Math.floor(hash2(bx, 3) * 5)]); rect(bx, sy + 22 - bh, bw, 1, '#e8d8a0'); bx += bw + 1; }
+    });
+    rect(152, 150, 80, 50, '#4a2c14'); for (let r = 0; r < 5; r++) rect(152, 150 + r * 10, 80, 1, '#2a1808');
+    ctx.save(); ctx.globalAlpha = 0.35 + Math.sin(tNow * 3) * 0.03; rect(152, 68, 80, 132, '#ffcf80'); ctx.restore();
+    if (k && k.owl) drawOwlet(180, 196, { expr: k.open ? 'grump' : 'stern', talk: k.talk, look: { x: 0.2, y: 0.4 } });
+    // light spilling out on the floor
+    ctx.save(); ctx.globalAlpha = 0.18 * open;
+    for (let r = 0; r < 6; r++) rect(152 - r * 6, 200 + r * 5, 80 + r * 12, 5, '#ffd890');
+    ctx.restore();
+  }
+  // the door leaf swings inward: it narrows toward its hinge on the left
+  const dw = Math.round(80 * (1 - open * 0.86));
+  if (dw > 2) {
+    const dx = 152;
+    plasticBox(dx, 68, dw, 132, 2, UWOOD, { seed: 23, noShine: 1 });
+    if (dw > 30) {
+      woodGrain(dx + 2, 70, dw - 4, 128, UWOOD[1], UWOOD[3], 71);
+      // frosted glass pane
+      const gx = dx + Math.round(8 * dw / 80), gw = Math.round(64 * dw / 80);
+      rr(gx - 1, 79, gw + 2, 58, 2, UWOOD[0]);
+      rect(gx, 80, gw, 56, '#b8ccc8');
+      for (let y = 80; y < 136; y++) for (let x = gx + (y & 1); x < gx + gw; x += 2) if (hash2(x, y) < 0.4) rect(x, y, 1, 1, '#a4bab6');
+      if (!open) {
+        // her silhouette pacing behind the glass
+        const sx = gx + gw / 2 + Math.sin(tNow * 0.35) * gw * 0.28, bob = Math.abs(Math.sin(tNow * 2.4)) * 1;
+        ctx.save(); ctx.globalAlpha = 0.34;
+        rr(sx - 11, 96 + bob, 22, 20, 7, '#3a4a48'); rect(sx - 10, 93 + bob, 4, 4, '#3a4a48'); rect(sx + 6, 93 + bob, 4, 4, '#3a4a48');
+        rr(sx - 5, 91 + bob, 10, 6, 3, '#3a4a48'); rr(sx - 13, 114 + bob, 26, 24, 6, '#3a4a48');
+        ctx.restore();
+      }
+      ctx.save(); ctx.globalAlpha = 0.5; rect(gx + 2, 82, 3, 52, '#e8f4f0'); rect(gx + 7, 82, 1, 52, '#e8f4f0'); ctx.restore();
+      if (dw > 70) {
+        drawTextC('MRS. OWLET', gx + gw / 2, 100, '#8a6a14', 1); drawTextC('MRS. OWLET', gx + gw / 2 - 1, 99, '#e8c040', 1);
+        drawTextC('KNOCK.', gx + gw / 2, 112, '#5a4a3a', 1);
+        drawTextC('THEN WAIT.', gx + gw / 2, 120, '#5a4a3a', 1);
+      }
+      // two raised lower panels
+      [0, 1].forEach(i => {
+        const px = dx + Math.round((8 + i * 34) * dw / 80), pw = Math.round(30 * dw / 80);
+        rr(px, 146, pw, 44, 2, UWOOD[0]); rr(px + 1, 147, pw - 2, 42, 2, UWOOD[2]); rect(px + 2, 147, pw - 4, 1, UWOOD[4]); rect(px + 1, 148, 1, 40, UWOOD[3]);
+      });
+      // brass kick plate + knob with a sign hanging on it
+      rect(dx + 2, 190, dw - 4, 8, UGOLD[1]); rect(dx + 2, 190, dw - 4, 1, UGOLD[3]); grainRect(dx + 3, 191, dw - 6, 6, UGOLD[0], UGOLD[3], 0.08, 4);
+      const kx = dx + dw - 10;
+      rr(kx - 2, 146, 6, 10, 2, UGOLD[0]); rr(kx - 1, 147, 4, 8, 1, UGOLD[2]);
+      fillCircle(kx + 1, 151, 3, UGOLD[0]); fillCircle(kx + 1, 151, 2, UGOLD[3]); rect(kx, 150, 1, 1, UGOLD[4]);
+      if (!open) {
+        const sw = Math.sin(tNow * 1.4) * 0.12;
+        ctx.save(); ctx.translate(kx + 1, 154); ctx.rotate(sw);
+        pxLine(0, 0, -6, 8, '#3a2410'); pxLine(0, 0, 6, 8, '#3a2410');
+        paperSheet(-10, 8, 20, 12, { noCorner: 1, ramp: ['#3a0c08', '#a83a2a', '#c84a38', '#e0705a', '#ffffff'] });
+        drawTextC('BUSY', 0, 12, '#fff0e0', 1);
+        ctx.restore();
+      }
+    }
+  }
+}
+
 function drawRangerSelect() {
   if (G.summer) { G.summer = false; G.mut = null; }
-  if (!rangerFocus) rangerFocus = meta.ranger || 'scout';
-  if (!owletSay) owletTalk(choice(OWLET_LINES.idle));
-  owletSay.t += 1 / 60;
-  rangerSlide.t = Math.min(1, rangerSlide.t + 1 / 12);
-
-  drawOfficeRoom();
-  const idx = RANGER_ORDER.indexOf(rangerFocus);
-  const r = RANGERS[rangerFocus];
-  const focusOpen = rangerUnlocked(rangerFocus);
-  const lvl = masteryLvl(rangerFocus);
-
-  // ---- Mrs Owlet at her desk on the left ----
-  const talking = owletSay.t < owletSay.txt.length / 30 + 0.3;
-  drawOwlet(6, 84, { expr: focusOpen ? (talking ? 'calm' : 'happy') : 'stern', talk: talking });
-  drawOwletDesk();
-  (function bubble() {
-    const bw = 112, bx = 88, by = 62;
-    plasticBox(bx, by, bw, 50, 4, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
-    drawText('MRS OWLET', bx + 6, by + 5, '#8a7a58', 1);
-    rect(bx + 4, by + 12, bw - 8, 1, '#c9bfa4');
-    drawSmallWrapped(owletSay.txt.slice(0, Math.floor(owletSay.t * 30)), bx + 6, by + 16, bw - 12, '#2a1d12');
-    rect(bx - 4, by + 18, 5, 4, '#e8e0cc');
-    hit(bx, by, bw, 50, { id: 'owlet', cursor: true, cb: () => owletTalk(choice(OWLET_LINES.idle)) });
-  })();
-
-  drawTextCSh('APPLICATION FOR FIELD DUTY', W / 2, 5, C.gold, 2);
-
-  // ---- the applicant, centre stage ----
-  const stageX = 322, footY = 196;
-  ctx.save(); ctx.globalAlpha = 0.28; ctx.scale(1, 0.24); fillCircle(stageX, footY / 0.24, 30, '#000'); ctx.restore();
-  const slide = 1 - easeOut(rangerSlide.t);
-  ctx.save();
-  ctx.translate(slide * rangerSlide.dir * -90, 0);
-  ctx.globalAlpha = 1 - slide * 0.8;
-  if (!focusOpen) ctx.globalAlpha *= 0.4;
-  drawBobble(stageX, footY, rangerFocus, {
-    sc: 1.75, expr: focusOpen ? 'happy' : 'sleepy', act: focusOpen ? 'idle' : 'idle',
-    hat: meta.hat, gear: meta.gear, glove: meta.glove,
-  });
-  ctx.restore();
-  // their badge on a little stand beside them
-  drawRangerBadge(stageX + 44, footY - 78, rangerFocus, { sc: 1.5, locked: !focusOpen, wob: 1 });
-  drawTextC(focusOpen ? MASTERY_TIER[lvl] : 'SEALED', stageX + 65, footY - 34, focusOpen ? MASTERY_COL[lvl] : '#8a2a16', 1);
-
-  // ---- name plate + dossier under them ----
-  plasticBox(240, 200, 166, 48, 4, ['#2a1d12', '#c9bfa4', '#ece5d2', '#f8f2e4', '#ffffff'], { noShine: 1 });
-  drawTextC(focusOpen ? r.name : 'SEALED FILE', 323, 204, focusOpen ? '#2a1d12' : '#8a2a16', 1);
-  drawTextC(focusOpen ? r.animal : '- - -', 323, 213, '#7a6a4a', 1);
-  rect(246, 221, 154, 1, '#c9bfa4');
-  if (focusOpen) {
-    const nx = masteryNext(rangerFocus);
-    segBar(248, 224, 150, 8, nx ? (masteryXp(rangerFocus) - nx.from) / Math.max(1, nx.need - nx.from) : 1, { tint: MASTERY_COL[lvl], tintL: '#ffffff' });
-    drawTextC(nx ? 'MASTERY  ' + (masteryXp(rangerFocus) - nx.from) + ' / ' + (nx.need - nx.from) : 'MASTERY MAXED', 323, 235, '#6a5a3a', 1);
-  } else {
-    const a2 = ACHS.find(q => q.id === r.ach);
-    drawTextC(a2 ? 'EARN: ' + a2.name : 'LOCKED', 323, 227, '#8a2a16', 1);
-  }
-
-  // ---- the duties, on HQ paper ----
-  plasticBox(8, 196, 214, 56, 3, ['#2a1d12', '#c9bfa4', '#e8e0cc', '#f6f0e0', '#ffffff'], { noShine: 1 });
-  drawText('DUTIES OF THE POST', 13, 200, '#8a7a58', 1);
-  rect(12, 208, 206, 1, '#c9bfa4');
-  if (focusOpen) {
-    r.lines.forEach((l, k) => { rect(13, 213 + k * 9, 4, 4, r.col); drawText(l.slice(0, 38), 21, 212 + k * 9, '#2a1d12', 1); });
-    drawText("'" + r.flav.slice(0, 40) + "'", 13, 234, '#7a6a4a', 1);
-  } else drawSmallWrapped('FILE SEALED BY ORDER OF THE PARK MANAGER.', 13, 214, 200, '#8a2a16');
-
-  // ---- the roster, as a row of file tabs ----
-  // ---- carousel pips under the applicant ----
+  if (!lobby) lobbyInit();
+  const L = lobby, dt = 1 / 60;
+  L.t += dt;
+  paintCached('hall', 0, 0, W, H, hallStatic);
+  vistaLive(15, 21, 94, 84, {});
+  // NOW SERVING digits
+  const serving = L.sel ? 1 + RANGER_ORDER.indexOf(L.sel) : 0;
+  drawTextC(serving ? '0' + serving : '--', 192, 31, Math.sin(tNow * 4) > -0.6 ? '#ff4030' : '#7a1810', 1);
+  // badges in the trophy case, each on a little plinth
   RANGER_ORDER.forEach((k, i) => {
-    const on = i === idx, open = rangerUnlocked(k);
-    const px = 323 - (RANGER_ORDER.length * 11) / 2 + i * 11;
-    plasticBox(px, 190, 8, 6, 2, on ? [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]]
-      : open ? ['#1a2620', '#3a5045', '#547265', '#6f9384', '#9fc0b0'] : ['#1a1a1a', '#2c2c2c', '#3c3c3c', '#4c4c4c', '#6a6a6a'], { noShine: 1 });
-    hit(px - 1, 187, 10, 12, { id: 'pip' + k, cursor: true, cb: () => { if (k !== rangerFocus) { rangerSlide = { from: idx, t: 0, dir: i > idx ? 1 : -1 }; rangerFocus = k; sfx.click(2); owletTalk(choice(OWLET_LINES.pick)); } }, tip: RANGERS[k].name });
+    const bx = 266 + i * 40, open = rangerUnlocked(k);
+    drawRangerBadge(bx, 34, k, { sc: 1, locked: !open });
+    rect(bx + 2, 64, 24, 2, UGOLD[1]); rect(bx + 2, 64, 24, 1, UGOLD[3]);
   });
+  ctx.save(); ctx.globalAlpha = 0.1;
+  for (let k = 0; k < 3; k++) { const gx = 262 + k * 70 + Math.round(tNow * 6 % 30); for (let j = 0; j < 44; j++) rect(gx + (j >> 2), 22 + j, 2, 1, '#e8fff8'); }
+  ctx.restore();
 
-  // ---- arrows, and a swipe anywhere on the stage ----
-  const arrow = (ax, dir, id) => {
-    const hov = mx >= ax && mx < ax + 30 && my >= 120 && my < 170;
-    plasticBox(ax, 126 + (hov ? -2 : 0), 30, 40, 5, [UGOLD[0], UGOLD[1], UGOLD[2], UGOLD[3], UGOLD[4]], { noShine: 1 });
-    for (let k = 0; k < 9; k++) { const hh = 2 + k * 2; rect(ax + 15 + dir * (8 - k) - 1, 146 - hh / 2 + (hov ? -2 : 0), 2, hh, '#3a2606'); }
-    hit(ax, 120, 30, 52, { id, cursor: true, cb: () => rangerStep(dir) });
-  };
-  arrow(240, -1, 'prevr'); arrow(432, 1, 'nextr');
-  if (down && down.hit && down.hit.id === 'swipe') {
-    const dxs = mx - down.x;
-    if (Math.abs(dxs) > 34) { rangerStep(dxs < 0 ? 1 : -1); down = null; }
+  const K = L.knock;
+  drawLobbyDoor(K);
+
+  // ------------------------------------------------ the applicants ------
+  // everyone walks toward their mark; the chosen one to the rug
+  RANGER_ORDER.forEach((k, i) => {
+    const P = L.pos[k];
+    let tx = LOBBY_Q[i], ty = LOBBY_QY;
+    if (L.sel === k) { tx = LOBBY_SPOT.x; ty = LOBBY_SPOT.y; }
+    if (K && L.sel === k && K.t > 3.0) { tx = 192; ty = 204; }
+    const dx = tx - P.x, dy = ty - P.y, d = Math.hypot(dx, dy);
+    const sp = 95 * dt;
+    if (d > 0.6) { P.x += dx / d * Math.min(sp, d); P.y += dy / d * Math.min(sp, d); P.walk = 1; P.face = dx < 0 ? -1 : 1; }
+    else { P.x = tx; P.y = ty; P.walk = 0; }
+  });
+  const order = RANGER_ORDER.slice().sort((a, b) => L.pos[a].y - L.pos[b].y);
+  let hov = null;
+  order.forEach(k => {
+    const P = L.pos[k], open = rangerUnlocked(k), isSel = L.sel === k;
+    const sc = 1.1 + (P.y - LOBBY_QY) / (LOBBY_SPOT.y - LOBBY_QY) * 0.2;
+    const inside = K && isSel && K.t > 3.0 ? clamp((K.t - 3.0) / 0.7, 0, 1) : 0;
+    const over = mx >= P.x - 16 && mx < P.x + 16 && my >= P.y - 64 * sc && my < P.y && !K;
+    if (over) hov = k;
+    const act = P.walk ? 'walk' : isSel && open ? (L.card > 0.5 && !K ? 'wave' : 'idle') : 'idle';
+    const expr = !open ? 'sleepy' : isSel ? (K ? 'wow' : 'happy') : (over ? 'happy' : 'calm');
+    ctx.save();
+    if (inside) ctx.globalAlpha = 1 - inside;
+    if (over || isSel) { ctx.save(); ctx.globalAlpha *= 0.28 + Math.sin(tNow * 5) * 0.08; ctx.scale(1, 0.3); fillCircle(P.x, (P.y - 1) / 0.3, 18, open ? '#ffe89a' : '#9ab0c0'); ctx.restore(); }
+    const o = { sc: sc * (1 - inside * 0.25), expr, act, flip: P.walk && P.face < 0, phase: RANGER_ORDER.indexOf(k) * 0.9, hat: open && isSel ? meta.hat : 'none', gear: open && isSel ? meta.gear : 'none', glove: open && isSel ? meta.glove : 'bare' };
+    if (open) drawBobble(P.x, P.y, k, o);
+    else {
+      drawSilhouette(P.x, P.y, k, o, over || isSel ? '#24303a' : '#10161c', over || isSel ? 0.78 : 0.9);
+      // padlock tag floating over their head
+      const ly = P.y - 66 * sc + Math.sin(tNow * 2 + k.length) * 1.5;
+      plasticBox(P.x - 5, ly, 10, 8, 2, ['#1a1206', '#8a6a1a', '#c89a2a', '#e8c450', '#fff0a0'], { noShine: 1 });
+      rect(P.x - 3, ly - 4, 6, 1, '#8a6a1a'); rect(P.x - 3, ly - 4, 1, 4, '#8a6a1a'); rect(P.x + 2, ly - 4, 1, 4, '#8a6a1a');
+      rect(P.x - 1, ly + 3, 2, 3, '#3a2a06');
+    }
+    ctx.restore();
+    if (!K) hit(P.x - 16, P.y - 64 * sc, 32, 64 * sc, { id: 'lob_' + k, cursor: true, cb: () => lobbySelect(k), tip: open ? RANGERS[k].name + '|' + RANGERS[k].animal : '???|LOCKED - CLICK TO SEE HOW TO HIRE' });
+  });
+  // a name tag over whoever the cursor is on
+  if (hov && hov !== L.sel) {
+    const P = L.pos[hov], open = rangerUnlocked(hov), nm = open ? RANGERS[hov].name : '? ? ?';
+    const w2 = textW(nm, 1) + 10;
+    plasticBox(P.x - w2 / 2, P.y - 88, w2, 12, 2, open ? UGOLD : ['#10161c', '#2a3440', '#3a4654', '#4a5868', '#8a9aa8'], { noShine: 1 });
+    drawTextC(nm, P.x, P.y - 85, open ? '#3a2606' : '#c8d4dc', 1);
   }
-  hit(238, 60, 232, 150, { id: 'swipe', cursor: true, click: () => { }, tip: 'SWIPE OR USE THE ARROWS' });
-  drawTextCSh('< SWIPE TO MEET THE PATROL >', 323, 56, '#e8dfc2', 1, '#1a2620');
 
-  button(W - 122, H - 24, 116, 20, focusOpen ? 'SIGN ON >' : 'LOCKED', '#d94f30', '#8a2a16',
-    () => {
-      if (!focusOpen) { sfx.error(); return; }
-      owletTalk(OWLET_LINES.hire[0]); meta.ranger = rangerFocus; saveMeta();
-      startTransition(() => { newRun(rangerFocus); startIntro(); });
-    }, { id: 'hire', disabled: !focusOpen });
-  button(W - 244, H - 24, 60, 20, 'DRILL', '#3a6a8a', '#204458', () => { startTutorial(); }, { id: 'tutbtn', tip: 'REFRESHER DRILL|Mrs Owlet runs you through the basics' });
-  button(6, H - 24, 54, 20, '< BACK', '#4a4438', '#28241c', () => { G.state = 'menu'; sfx.click(2); }, { id: 'rback' });
+  // ---------------------------------------------- the speech bubble ------
+  if (L.say && !K) {
+    L.say.t += dt;
+    const P = L.pos[L.say.who];
+    if (L.say.t > 0 && L.say.t < 4.5 && P && !P.walk) {
+      const bw = 104, bh = 8 + wrapCount(L.say.txt, bw - 10) * 7, bx = clamp(P.x - bw / 2 + 24, 150, W - bw - 4), by = P.y - 88 - bh;
+      hqBubble(bx, by, bw, bh, L.say.txt, L.say.t, { tail: { x: P.x + 6, y: P.y } });
+    }
+  }
+
+  // ------------------------------------------------ the applicant file ---
+  if (L.sel) {
+    L.card = Math.min(1, L.card + dt * 3.5);
+    const k = L.sel, r = RANGERS[k], open = rangerUnlocked(k), lvl = masteryLvl(k);
+    const cx = Math.round(-150 + easeOut(L.card) * 154), cy = 16, cw = 140, ch = 204;
+    // the clipboard
+    rr(cx + 3, cy + 4, cw, ch, 4, '#00000077');
+    plasticBox(cx, cy, cw, ch, 4, ['#1e120a', '#5a3818', '#7a4e24', '#946232', '#b88048'], { seed: 31 });
+    woodGrain(cx + 3, cy + 3, cw - 6, ch - 6, '#5a3818', '#946232', 12);
+    paperSheet(cx + 6, cy + 12, cw - 12, ch - 18, { ruled: 1, ruledTop: 60 });
+    plasticBox(cx + cw / 2 - 20, cy + 2, 40, 14, 3, MET, { noShine: 1 });
+    rect(cx + cw / 2 - 14, cy + 6, 28, 2, MET[1]); fillCircle(cx + cw / 2, cy + 10, 2, MET[0]);
+    const px = cx + 12;
+    drawText('APPLICANT FILE', px, cy + 18, '#8a7a58', 1);
+    drawText('NO. 00' + (RANGER_ORDER.indexOf(k) + 1), cx + cw - 42, cy + 18, '#a83a2a', 1);
+    rect(px, cy + 26, cw - 24, 1, '#c8b890');
+    drawRangerBadge(px - 2, cy + 30, k, { sc: 1.15, locked: !open, wob: open });
+    const nm = fitLines(r.name, 88);
+    nm.forEach((ln, i) => drawText(ln, px + 36, cy + 33 + i * 7, open ? '#241a10' : '#5a4a3a', 1));
+    drawText(r.animal, px + 36, cy + 34 + nm.length * 7, '#7a6a4a', 1);
+    drawText(open ? MASTERY_TIER[lvl] : 'SEALED', px + 36, cy + 42 + nm.length * 7, open ? mixHex(MASTERY_COL[lvl], '#000000', 0.35) : '#a83a2a', 1);
+    let yy = cy + 70;
+    if (open) {
+      drawText('DUTIES', px, yy, '#8a7a58', 1); yy += 9;
+      r.lines.forEach(l => { rect(px, yy + 1, 3, 3, r.col); rect(px, yy + 1, 3, 1, '#ffffff88'); yy = drawSmallWrapped(l, px + 6, yy, cw - 30, '#241a10') + 2; });
+      yy += 2;
+      yy = drawSmallWrapped("'" + r.flav + "'", px, yy, cw - 24, '#7a6a4a') + 4;
+      drawText('MASTERY', px, yy, '#8a7a58', 1); yy += 9;
+      const nx = masteryNext(k);
+      segBar(px, yy, cw - 24, 8, nx ? (masteryXp(k) - nx.from) / Math.max(1, nx.need - nx.from) : 1, { tint: MASTERY_COL[lvl], tintL: '#ffffff' });
+      yy += 11;
+      drawText(nx ? (masteryXp(k) - nx.from) + ' / ' + (nx.need - nx.from) + ' XP' : 'MAXED OUT', px, yy, '#6a5a3a', 1);
+      if (nx) drawText('NEXT: ' + MASTERY_TIER[lvl + 1], px, yy + 8, '#6a5a3a', 1);
+    } else {
+      const a2 = ACHS.find(q => q.id === r.ach);
+      drawText('TO JOIN THE PATROL', px, yy, '#8a7a58', 1); yy += 10;
+      plasticBox(px - 2, yy - 2, cw - 20, 34, 3, ['#3a0c08', '#e8d0b8', '#f4e2cc', '#faeee0', '#ffffff'], { flat: 1 });
+      drawText(a2 ? a2.name : 'LOCKED', px + 2, yy + 2, '#a83a2a', 1);
+      drawSmallWrapped(a2 ? a2.desc : '', px + 2, yy + 11, cw - 30, '#241a10');
+      yy += 38;
+      let prog = null;
+      if (r.ach === 'win') prog = 'BEST ANTE: ' + Math.max(0, best) + ' / 8';
+      if (r.ach === 'boss') prog = 'BEST ANTE: ' + Math.max(0, best);
+      if (prog) drawText(prog, px, yy, '#6a5a3a', 1);
+      yy += 10;
+      drawSmallWrapped('REWARD: ' + r.lines[0], px, yy, cw - 24, '#3a6a2a');
+      // the stamp
+      ctx.save(); ctx.translate(cx + cw / 2 + 10, cy + ch - 26); ctx.rotate(-0.2); ctx.globalAlpha = 0.85;
+      rr(-38, -9, 76, 18, 3, '#a83a2a'); rr(-36, -7, 72, 14, 2, '#f4e8d8'); drawTextC('SEALED', 0, -3, '#a83a2a', 2);
+      ctx.restore();
+    }
+  } else {
+    L.hint += dt;
+    const a = 0.6 + Math.sin(tNow * 3) * 0.3;
+    ctx.save(); ctx.globalAlpha = a;
+    plasticBox(282, 94, 158, 14, 3, UWOOD, { noShine: 1 });
+    drawTextCSh('CLICK AN APPLICANT TO CALL THEM UP', 361, 98, '#ffe6b0', 1, '#1a0e06');
+    ctx.restore();
+    const P = L.pos[RANGER_ORDER[0]];
+    const by = P.y - 80 + Math.abs(Math.sin(tNow * 4)) * -4;
+    for (let k = 0; k < 5; k++) rect(P.x - 4 + k, by + k, 9 - k * 2, 1, '#ffe6b0');
+  }
+
+  // --------------------------------------------------- the knock --------
+  if (K) {
+    K.t += dt;
+    [0.1, 0.38, 0.66].forEach((kt, i) => {
+      if (K.knocks === i && K.t > kt) { K.knocks++; sfx.thunk(); shake = Math.max(shake, 2); float(214, 110 - i * 6, 'KNOCK', '#ffe6b0', 1, 0.6); }
+    });
+    if (K.t > 1.0 && K.t < 1.8) hqBubble(166, 34, 56, 14, '...WHAT.', (K.t - 1.0) * 1.2, {});
+    if (K.open) {
+      K.doorOpen = clamp((K.t - 1.8) / 0.5, 0, 1);
+      K.owl = K.t > 1.9;
+      if (K.t > 2.0 && !K.said) { K.said = true; K.line = choice(meta.tutDone ? OWLET_DOOR.back : OWLET_DOOR.first); sfx.whoosh(); }
+      K.talk = K.said && K.t < 2.0 + K.line.length / 40 + 0.2;
+      if (K.said) hqBubble(242, 92, 120, 17 + wrapCount(K.line, 110) * 7, K.line, K.t - 2.0, { name: 'MRS. OWLET', tail: { x: 238, y: 200 } });
+      if (K.t > 4.0 && !K.gone) { K.gone = true; lobbyGo(); return; }
+    } else {
+      if (K.t > 1.9 && !K.said) { K.said = true; K.line = choice(OWLET_DOOR.locked); sfx.error(); }
+      if (K.said) hqBubble(242, 92, 132, 17 + wrapCount(K.line, 122) * 7, K.line, K.t - 1.9, { name: 'MRS. OWLET, BEHIND DOOR', tail: { x: 238, y: 120 } });
+      if (K.t > 4.4) L.knock = null;
+    }
+    hit(0, 0, W, H, { id: 'lobskip', cb: () => { if (K.open && K.t > 1.0 && !K.gone) { K.gone = true; lobbyGo(); } } });
+    return;
+  }
+
+  // ------------------------------------------------------ buttons -------
+  const sel = L.sel, open = sel && rangerUnlocked(sel);
+  // the knocker on the door is a button too
+  if (sel) hit(152, 68, 80, 132, { id: 'lobdoor', cursor: true, cb: lobbyKnock, tip: open ? 'KNOCK|Mrs Owlet will see you now' : 'KNOCK?|She will not see a sealed file' });
+  button(W - 126, H - 26, 120, 22, sel ? (open ? 'KNOCK KNOCK >' : 'SEALED FILE') : 'PICK A RANGER', '#d94f30', '#8a2a16', lobbyKnock, { id: 'lobknock', disabled: !sel, sub: null });
+  if (meta.tutDone) button(W - 206, H - 26, 76, 22, 'TRAINING', '#3a6a8a', '#204458', () => { if (sel && open) { lobby = null; startTutorial(sel); } else { lobby = null; startTutorial(meta.ranger || 'scout'); } }, { id: 'lobtrain', tip: 'REFRESHER COURSE|Mrs Owlet runs you through it again' });
+  button(6, H - 26, 60, 22, '< MENU', '#4a4438', '#28241c', () => { lobby = null; G.state = 'menu'; sfx.click(2); }, { id: 'lobback' });
 }
 
+// ======================= MRS OWLET'S OFFICE ===============================
+//  Ochre wallpaper, a window on the swamp, a chalkboard she scores you on,
+//  a humming CRT, a snack station she pretends is not hers, posters nobody
+//  reads, a supply cabinet full of dental kits and - centre stage - the
+//  full-size anatomical crocodile she teaches on.
+// ==========================================================================
+const OFW = ['#24160a', '#5e3e1e', '#704a24', '#83582c', '#9a6c3a'];
+const FLR2 = ['#140a06', '#2e1a10', '#3e2416', '#50301c', '#664024'];
+const BOARD = { x: 146, y: 12, w: 94, h: 74 };
+
+function getCached(key, w, h, fn) {
+  let c = PAINT_CACHE[key];
+  if (!c) {
+    c = document.createElement('canvas'); c.width = w * RS; c.height = h * RS;
+    const c2 = c.getContext('2d'); c2.imageSmoothingEnabled = false; c2.setTransform(RS, 0, 0, RS, 0, 0);
+    const main = ctx; ctx = c2;
+    try { fn(); } finally { ctx = main; }
+    PAINT_CACHE[key] = c;
+  }
+  return c;
+}
+
+function officeStatic() {
+  // ---- wallpaper: ochre with a pressed pinstripe and fleur dots ----
+  rect(0, 0, W, 150, OFW[2]);
+  for (let x = 0; x < W; x += 10) { rect(x, 0, 2, 150, OFW[3]); rect(x + 2, 0, 1, 150, OFW[1]); }
+  for (let y = 14; y < 146; y += 14) for (let x = 6 + ((y / 14) & 1) * 5; x < W; x += 10) { rect(x, y, 1, 1, OFW[4]); rect(x - 1, y + 1, 3, 1, OFW[3]); rect(x, y + 2, 1, 1, OFW[4]); }
+  grainRect(0, 8, W, 140, OFW[1], OFW[4], 0.03, 3);
+  // water stain in the corner - the roof leaks in the rainy season
+  ctx.save(); ctx.globalAlpha = 0.25; rr(410, 4, 40, 16, 6, OFW[1]); rr(418, 16, 20, 8, 3, OFW[1]); ctx.restore();
+  rect(0, 0, W, 5, UWOOD[1]); rect(0, 5, W, 2, UWOOD[3]); rect(0, 7, W, 2, UWOOD[0]);
+  for (let x = 2; x < W; x += 8) rect(x, 1, 4, 3, UWOOD[2]);
+  // ---- dark wainscot with a picture rail ----
+  rect(0, 146, W, 3, UWOOD[4]); rect(0, 149, W, 2, UWOOD[0]);
+  rect(0, 151, W, 50, UWOOD[1]); woodGrain(0, 151, W, 50, UWOOD[0], UWOOD[2], 9);
+  for (let x = 6; x < W; x += 38) { rr(x, 156, 32, 38, 2, UWOOD[0]); rr(x + 1, 157, 30, 36, 2, UWOOD[2]); rect(x + 2, 157, 28, 1, UWOOD[3]); }
+  rect(0, 198, W, 4, UWOOD[0]); rect(0, 198, W, 1, UWOOD[3]);
+  // ---- floor: dark stained boards and a patterned rug ----
+  rect(0, 202, W, 68, FLR2[2]);
+  for (let r = 0; r < 7; r++) {
+    const y = 202 + r * 10;
+    rect(0, y, W, 1, FLR2[0]); rect(0, y + 1, W, 1, FLR2[3]);
+    for (let x = (r * 41) % 64; x < W; x += 64) { rect(x, y + 1, 1, 9, FLR2[0]); rect(x + 1, y + 1, 1, 9, FLR2[3]); }
+    woodGrain(0, y + 2, W, 8, FLR2[1], FLR2[3], r * 5);
+  }
+  rr(150, 206, 300, 40, 6, '#1a0c10'); rr(152, 208, 296, 36, 5, '#3a1a3a');
+  rr(158, 212, 284, 28, 4, '#6a2a3a'); rr(164, 216, 272, 20, 3, '#3a1a3a');
+  for (let x = 170; x < 432; x += 12) { rect(x, 224, 6, 4, '#c8a050'); rect(x + 2, 222, 2, 8, '#c8a050'); rect(x + 2, 225, 2, 2, '#6a2a3a'); }
+  grainRect(152, 208, 296, 36, '#2a1024', '#8a3a4a', 0.06, 8);
+
+  // ---- window with velvet drapes ----
+  rr(12, 16, 82, 82, 2, UWOOD[0]);
+  ctx.save(); ctx.translate(16, 20); vistaStatic(74, 74, { sunX: 0.3, hz: 0.6, trees: [[0.2, 0.9], [0.55, 1.2], [0.86, 0.8]] }); ctx.restore();
+  rect(12, 16, 82, 4, '#d8c8a8'); rect(12, 94, 82, 4, '#d8c8a8'); rect(12, 16, 4, 82, '#d8c8a8'); rect(90, 16, 4, 82, '#d8c8a8');
+  rect(52, 20, 2, 74, '#d8c8a8'); rect(16, 56, 74, 2, '#d8c8a8');
+  rect(12, 16, 82, 1, '#fff4dc'); rect(52, 20, 1, 74, '#fff4dc');
+  [[4, 1], [86, -1]].forEach(([dx, s]) => {                       // drapes gathered at the sides
+    for (let x = 0; x < 16; x++) {
+      const tone = ['#3a0c14', '#6a1a28', '#8a2a38', '#a83a48'][(x + (s < 0 ? 1 : 0)) % 4];
+      const pinch = Math.round(Math.max(0, 6 - Math.abs(x - 8)) * 0.6);
+      rect(dx + x, 12, 1, 60 - pinch, tone); rect(dx + x + (s * pinch) / 2, 72 - pinch, 1, 34 + pinch, tone);
+    }
+    rect(dx + 2, 70, 12, 3, UGOLD[2]); rect(dx + 2, 70, 12, 1, UGOLD[4]);
+  });
+  rect(0, 10, 104, 5, '#6a1a28'); for (let x = 2; x < 104; x += 6) rr(x, 13, 4, 5, 2, '#8a2a38');   // valance
+  rect(8, 98, 90, 4, UWOOD[3]); rect(8, 98, 90, 1, UWOOD[4]); rect(8, 102, 90, 2, UWOOD[0]);
+  rr(30, 88, 12, 10, 2, '#5a2a14'); rect(32, 80, 2, 9, '#3a7a3a'); rect(36, 78, 2, 11, '#4a8a3a'); rect(28, 82, 4, 2, '#3a7a3a'); rect(38, 84, 4, 2, '#3a7a3a');  // snake plant
+
+  // ---- FLOSS OR LOSE poster ----
+  paperSheet(100, 18, 40, 58, { ramp: ['#1a2a3a', '#8ac0d8', '#b8e0f0', '#d8f0fa', '#ffffff'] });
+  rect(102, 20, 36, 11, '#c83a2a'); drawTextC('FLOSS', 120, 23, '#ffffff', 1);
+  rr(111, 34, 18, 18, 5, '#2a3a4a'); rr(112, 35, 16, 16, 4, '#fdfaec'); rect(113, 36, 6, 4, '#ffffff'); rect(118, 49, 4, 6, '#fdfaec'); rect(112, 49, 4, 6, '#fdfaec');
+  rect(116, 41, 2, 2, '#1a1a1a'); rect(122, 41, 2, 2, '#1a1a1a'); rect(117, 45, 6, 1, '#1a1a1a');       // a worried tooth
+  pxLine(104, 36, 136, 52, '#e8f0f8'); pxLine(104, 37, 136, 53, '#9ab0c0');                          // the string
+  drawTextC('OR LOSE', 120, 58, '#1a2a3a', 1);
+  rect(104, 66, 32, 6, '#2e5a24'); for (let k = 0; k < 5; k++) rect(106 + k * 6, 65, 3, 2, '#fdfaec');
+  pushPin(120, 19, PINS[1]);
+
+  // ---- chalkboard frame + surface ----
+  const B = BOARD;
+  rr(B.x - 4, B.y - 4, B.w + 8, B.h + 8, 2, UWOOD[0]);
+  plasticBox(B.x - 3, B.y - 3, B.w + 6, B.h + 6, 2, UWOOD, { seed: 3, noShine: 1 });
+  rect(B.x, B.y, B.w, B.h, '#1c342a');
+  for (let y = B.y; y < B.y + B.h; y++) for (let x = B.x + (y & 1); x < B.x + B.w; x += 2) if (hash2(x, y) < 0.16) rect(x, y, 1, 1, '#2a463a');
+  for (let k = 0; k < 90; k++) { const sx = B.x + 50 + hash2(k, 1) * 36, sy = B.y + 8 + hash2(k, 2) * 20; rect(sx, sy, 2, 1, '#34503f'); }   // old eraser smudges
+  rect(B.x - 3, B.y + B.h + 2, B.w + 6, 3, UWOOD[3]); rect(B.x - 3, B.y + B.h + 5, B.w + 6, 1, UWOOD[0]);
+  rect(B.x + 8, B.y + B.h + 1, 8, 2, '#f4f0e0'); rect(B.x + 20, B.y + B.h + 1, 6, 2, '#f0a0a8'); rect(B.x + 30, B.y + B.h + 1, 5, 2, '#9fd8f0');
+  rr(B.x + B.w - 22, B.y + B.h - 1, 16, 4, 1, '#3a2a1a'); rect(B.x + B.w - 21, B.y + B.h - 1, 14, 2, '#d8d0c0');
+
+  // ---- anatomy chart on a hanging scroll ----
+  rect(250, 8, 50, 3, UWOOD[0]); rect(250, 8, 50, 1, UWOOD[3]); rr(247, 7, 4, 5, 1, UGOLD[2]); rr(299, 7, 4, 5, 1, UGOLD[2]);
+  paperSheet(252, 11, 46, 72, { noCorner: 1, ramp: ['#3a2c18', '#c8b890', '#e4d8b8', '#f2ead4', '#ffffff'] });
+  rect(250, 82, 50, 3, UWOOD[0]); rect(250, 82, 50, 1, UWOOD[3]);
+  drawTextC('CROC', 275, 14, '#5a2a14', 1); drawTextC('SKULL', 275, 21, '#5a2a14', 1);
+  // a side-view skull diagram in brown ink
+  const sk = (u) => 34 - Math.round(Math.sin(Math.min(1, u / 8) * 1.2) * 4) - Math.round(u * 0.08);
+  for (let u = 0; u < 38; u++) { rect(256 + u, 30 + (34 - sk(u)), 1, 1, '#5a3a1a'); rect(256 + u, 44 - Math.round(u * 0.08), 1, 1, '#5a3a1a'); }
+  for (let u = 4; u < 36; u += 4) { rect(256 + u, 44 - Math.round(u * 0.08) + 1, 1, 2, '#8a6a3a'); }
+  for (let u = 6; u < 34; u += 4) { rect(256 + u, 48, 1, 2, '#8a6a3a'); }
+  for (let u = 2; u < 36; u++) rect(256 + u, 50 + Math.round(u * 0.04), 1, 1, '#5a3a1a');
+  rr(262, 34, 5, 4, 1, '#5a3a1a'); rect(263, 35, 3, 2, '#e4d8b8');
+  [[262, 36, 1], [278, 46, 2], [286, 49, 3]].forEach(([lx, ly, n]) => { pxLine(lx, ly, lx - 4 + n * 3, 60 + n * 5, '#a83a2a'); drawText('' + n, lx - 6 + n * 3, 58 + n * 5, '#a83a2a', 1); });
+  for (let k = 0; k < 3; k++) rect(266, 64 + k * 5, 26 - k * 6, 1, '#9a8a6a');
+
+  // ---- DAYS WITHOUT A BITE ----
+  rr(306, 14, 56, 36, 2, '#1a1a1a'); plasticBox(307, 15, 54, 34, 2, ['#1a1a1a', '#d8d8d0', '#eeeee8', '#f8f8f4', '#ffffff'], { flat: 1 });
+  rect(308, 16, 52, 9, '#2e7a3a'); drawTextC('DAYS SINCE', 334, 18, '#ffffff', 1);
+  drawText('LAST', 311, 29, '#1a1a1a', 1); drawText('BITE:', 311, 37, '#1a1a1a', 1);
+  rr(339, 27, 18, 18, 2, '#1a1a1a'); rect(340, 36, 16, 1, '#3a3a3a');
+  [[306, 1], [360, 1]].forEach(([bx]) => { rect(bx, 12, 2, 3, '#6a6a6a'); });
+  // ---- wall clock face (hands are live) ----
+  fillCircle(334, 66, 11, UWOOD[0]); fillCircle(334, 66, 10, UWOOD[3]); fillCircle(334, 66, 8, '#f4ecd8');
+  for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; rect(334 + Math.round(Math.cos(a) * 7), 66 + Math.round(Math.sin(a) * 7), 1, 1, '#3a2a1a'); }
+  // ---- employee of the month: her, again ----
+  goldFrame(368, 12, 44, 54, { field: '#3a5a6a', fieldD: '#2a4a5a', fieldL: '#4a6a7a' });
+  ctx.save(); ctx.beginPath(); ctx.rect(372, 16, 36, 36); ctx.clip();
+  ctx.translate(390, 40); ctx.scale(0.8, 0.8); drawOwletHead({ expr: 'grump' }); ctx.restore();
+  rect(371, 52, 38, 11, '#c8a040'); drawTextC('STAFF OF', 390, 53, '#3a2606', 1); drawTextC('THE MONTH', 390, 59, '#3a2606', 1);
+  ctx.save(); ctx.translate(404, 22); ctx.rotate(0.4); rr(-9, -3, 18, 7, 1, '#a83a2a'); drawTextC('AGAIN', 0, -2, '#ffe0d0', 1); ctx.restore();
+
+  // ---- the x-ray scanner on its wall rail ----
+  rect(420, 14, 56, 4, MET[1]); rect(420, 14, 56, 1, MET[3]);
+  for (let x = 424; x < 474; x += 10) rect(x, 15, 2, 2, MET[0]);
+  rect(444, 18, 4, 18, MET[1]); rect(444, 18, 1, 18, MET[3]);
+  rr(436, 34, 20, 6, 2, MET[0]); rr(437, 35, 18, 4, 1, MET[2]);
+  pxLine(446, 40, 456, 50, MET[1], 3); pxLine(456, 50, 450, 58, MET[1], 3);
+  rr(438, 56, 26, 16, 3, '#1a1a14'); rr(439, 57, 24, 14, 3, '#e8e0c8'); rect(440, 58, 22, 3, '#fffaf0'); rect(440, 67, 22, 3, '#b8b098');
+  fillCircle(444, 64, 3, '#e8c020'); rect(443, 62, 1, 1, '#1a1a1a'); rect(445, 62, 1, 1, '#1a1a1a'); rect(444, 65, 1, 1, '#1a1a1a');   // radiation sticker
+  rr(452, 70, 10, 6, 2, '#1a1a14'); rr(453, 70, 8, 5, 2, '#5a6a70');
+  drawText('XR', 450, 59, '#5a4a2a', 1);
+
+  // ---- the supply cabinet: dental kits, brushes, floss, snap reports ----
+  rect(446, 76, 34, 124, UWOOD[0]); plasticBox(447, 77, 33, 122, 2, UWOOD, { seed: 41, noShine: 1 });
+  [80, 106, 132, 158].forEach(sy => { rect(449, sy, 31, 22, '#1e1208'); rect(449, sy + 22, 31, 3, UWOOD[3]); rect(449, sy + 22, 31, 1, UWOOD[4]); });
+  [[450, 88, '#f4f0e8'], [459, 86, '#f4f0e8'], [468, 90, '#5ab8c8']].forEach(([bx, by, c], i) => {
+    rr(bx, by, 9, 102 - by, 1, '#1a1a1a'); rect(bx + 1, by + 1, 7, 100 - by, c);
+    rect(bx + 3, by + 3, 3, 1, '#d83a2a'); rect(bx + 4, by + 2, 1, 3, '#d83a2a');
+  });
+  for (let k = 0; k < 6; k++) { rect(451 + k * 4, 110 - (k % 3), 2, 18 + (k % 3), ['#e84a5a', '#4a8ae8', '#f0c040', '#5ac86a'][k % 4]); rect(451 + k * 4, 109 - (k % 3), 2, 2, '#ffffff'); }
+  rr(450, 118, 26, 10, 2, '#9ac8d8'); rect(451, 119, 24, 2, '#d8f0f8');                                   // toothbrush jar
+  for (let k = 0; k < 4; k++) { fillCircle(453 + k * 7, 150, 3, '#3a8a6a'); fillCircle(453 + k * 7, 150, 1, '#e8f8f0'); }                   // floss rolls
+  rect(450, 136, 8, 10, '#3a6ae8'); rect(451, 134, 6, 2, '#e8e8e8');                                        // mouthwash
+  for (let k = 0; k < 6; k++) { rect(450 + k * 5, 162, 4, 18, ['#8a2a1a', '#2a4a8a', '#2a6a3a', '#8a6a1a'][k % 4]); rect(451 + k * 5, 166, 2, 5, '#f0e8d0'); }   // binders
+  drawText('SNAP', 452, 186, '#e8d8b0', 1);
+
+  // ---- snack station: mini fridge, coffee maker, donuts, candy ----
+  rr(56, 150, 40, 50, 2, '#1a1e20'); rr(57, 151, 38, 48, 2, '#d8dcdc'); rect(58, 152, 5, 46, '#f0f4f4'); rect(58, 170, 36, 1, '#9aa0a2');
+  rect(90, 156, 2, 10, '#8a9092'); rect(90, 174, 2, 14, '#8a9092');
+  rr(62, 158, 8, 8, 2, '#e84a3a'); rr(74, 156, 10, 7, 2, '#f0c040'); rect(76, 158, 6, 3, '#3a2a1a'); rr(66, 178, 12, 8, 2, '#5ac86a'); drawText('HI', 68, 180, '#1a3a1a', 1);   // magnets
+  paperSheet(78, 176, 12, 14, { noCorner: 1 }); rect(80, 179, 8, 1, '#8a7a5a'); rect(80, 182, 6, 1, '#8a7a5a'); rect(80, 185, 7, 1, '#8a7a5a');
+  // coffee maker on the fridge
+  rr(62, 124, 24, 26, 2, '#141414'); rr(63, 125, 22, 24, 2, '#2e2e2e'); rect(64, 126, 20, 5, '#3e3e3e');
+  rr(66, 134, 16, 12, 3, '#9ac8d8'); rect(67, 139, 14, 6, '#4a2a14'); rect(68, 135, 3, 4, '#d8f0f8');
+  rect(78, 128, 3, 2, '#e84a3a');
+  // the counter with donuts and a candy jar
+  rect(6, 158, 50, 4, UWOOD[3]); rect(6, 158, 50, 1, UWOOD[4]); rect(6, 162, 50, 38, UWOOD[1]); rect(6, 162, 50, 1, UWOOD[0]);
+  rr(10, 166, 20, 30, 1, UWOOD[0]); rr(11, 167, 18, 28, 1, UWOOD[2]); rr(32, 166, 20, 30, 1, UWOOD[0]); rr(33, 167, 18, 28, 1, UWOOD[2]);
+  rect(26, 180, 2, 3, UGOLD[3]); rect(34, 180, 2, 3, UGOLD[3]);
+  rr(8, 148, 28, 10, 1, '#c8587a'); rect(8, 148, 28, 3, '#e87a9a'); drawText('DONUT', 9, 152, '#ffffff', 1);   // pink donut box, lid up
+  rr(12, 142, 10, 6, 3, '#c8883a'); rr(14, 143, 6, 3, 2, '#f0a0c8'); rect(16, 144, 2, 1, '#6a3a1a');          // one survivor donut
+  rr(38, 140, 14, 18, 4, '#6a8a9a'); rr(39, 141, 12, 16, 3, '#c8e0e8');
+  for (let k = 0; k < 9; k++) rect(40 + (k * 5) % 10, 148 + (k * 3) % 8, 2, 2, ['#e84a3a', '#f0c040', '#5ac86a', '#4a8ae8'][k % 4]);   // candy
+  rect(41, 138, 8, 3, '#e84a3a');
+  // a crumpled bag of GATOR CHIPS
+  rr(24, 150, 12, 9, 2, '#e8a020'); rect(25, 151, 10, 2, '#f8d060'); rect(27, 154, 6, 3, '#2e7a3a');
+
+  // ---- the desk: green lamp, CRT, in-tray, phone, nameplate ----
+  rect(100, 150, 134, 6, UWOOD[4]); rect(100, 150, 134, 1, '#c8905a'); rect(100, 156, 134, 2, UWOOD[0]);
+  plasticBox(102, 158, 130, 44, 2, UWOOD, { seed: 51, noShine: 1 });
+  woodGrain(104, 160, 126, 40, UWOOD[1], UWOOD[3], 77);
+  [[108, 162], [108, 178], [196, 162], [196, 178]].forEach(([dx, dy]) => { rr(dx, dy, 30, 14, 2, UWOOD[0]); rr(dx + 1, dy + 1, 28, 12, 2, UWOOD[2]); rect(dx + 11, dy + 6, 8, 2, UGOLD[2]); rect(dx + 11, dy + 6, 8, 1, UGOLD[4]); });
+  rr(142, 162, 50, 38, 2, UWOOD[0]); rr(143, 163, 48, 36, 2, UWOOD[1]);                              // kneehole
+  // banker's lamp
+  rect(114, 142, 10, 8, UGOLD[1]); rect(114, 142, 10, 1, UGOLD[3]); rect(118, 132, 2, 10, UGOLD[2]);
+  rr(106, 124, 26, 10, 4, '#123a22'); rr(107, 125, 24, 7, 3, '#2a7a44'); rect(109, 126, 14, 2, '#5ab86a');
+  // CRT computer
+  rr(146, 112, 46, 38, 3, '#2a2618'); rr(147, 113, 44, 36, 3, '#cfc6a4'); rect(148, 114, 42, 3, '#e4dcc0'); rect(188, 116, 2, 30, '#a89e7c');
+  rr(151, 116, 34, 26, 3, '#0a1a0e'); rr(152, 117, 32, 24, 2, '#0e2a14');
+  rect(150, 144, 38, 4, '#a89e7c'); rect(172, 145, 10, 2, '#3a3a2a'); rect(176, 145, 3, 1, '#e84a3a');
+  rr(160, 150, 18, 2, 1, '#2a2618');
+  rr(148, 146, 42, 5, 1, '#2a2618'); rect(149, 147, 40, 3, '#b8ae8c'); for (let k = 0; k < 9; k++) rect(150 + k * 4, 148, 3, 1, '#8a8068');
+  // in-tray, papers and a red rotary phone
+  rr(196, 138, 30, 12, 1, '#3a3020'); rect(197, 139, 28, 10, '#6a5a3a');
+  for (let k = 0; k < 4; k++) { paperSheet(198 + k, 134 - k * 2, 24, 10, { noCorner: 1 }); }
+  rr(206, 142, 22, 8, 3, '#8a1a14'); rr(207, 143, 20, 6, 2, '#c8301f'); fillCircle(217, 145, 2, '#f0e0d0');
+  rr(204, 138, 26, 5, 2, '#8a1a14'); rect(206, 138, 22, 1, '#e8584a');
+  // nameplate
+  rr(124, 146, 22, 5, 1, UWOOD[0]); rect(125, 146, 20, 3, UGOLD[2]); rect(125, 146, 20, 1, UGOLD[4]);
+  // wastebasket with rejected applications
+  rr(234, 180, 14, 20, 2, '#2a2a2a'); rr(235, 181, 12, 18, 2, '#5a5a5a'); for (let x = 236; x < 246; x += 3) rect(x, 182, 1, 16, '#3a3a3a');
+  fillCircle(238, 179, 3, '#e8e0cc'); fillCircle(243, 178, 3, '#d8d0bc'); rect(236, 178, 2, 1, '#b8b09c');
+  fillCircle(252, 198, 2, '#e8e0cc');                                                                 // missed a shot
+}
+
+// ============================ THE CROC MODEL ===============================
+//  A full-size anatomical crocodile head on a lab plinth, seen in profile:
+//  a hinged upper jaw that really opens, glass eye, osteoderm ridge, scale
+//  grid, cream jaw, and a row of numbered training teeth on the lower jaw.
+//  The painted layers (upper jaw / lower jaw, and their X-ray twins) are
+//  cached; only the teeth, the mouth cavity and the hinge motion are live.
+// ==========================================================================
+const CM = { hx: 300, hy: 144 };
+const CM_TT = [42, 62, 82, 102, 122, 140];            // training teeth, u along the jaw
+const CM_HIDE = ['#0e160a', '#2a4420', '#3e6030', '#5a803e', '#86aa5a'];
+const CM_BELLY = ['#2a2412', '#a89468', '#cab88a', '#e2d6aa', '#f6eed2'];
+const CM_XR = ['#041018', '#0c3044', '#14506a', '#2a7ea0', '#7ad4f0'];
+const CM_XB = ['#041018', '#1a4a60', '#2a6a88', '#58a8c8', '#c0f0ff'];
+function cmTop(u) {                                    // upper jaw, top contour
+  let y = -30;
+  if (u < -6) y += (-6 - u) * (-6 - u) * 0.28;
+  if (u > 2 && u < 34) y -= Math.sin(Math.PI * (u - 2) / 32) * 10;
+  if (u >= 34) y = -30 + (u - 34) * 15 / 118;
+  if (u > 128 && u < 146) y -= Math.sin(Math.PI * (u - 128) / 18) * 3;
+  if (u > 142) y += (u - 142) * (u - 142) * 0.22;
+  return y * 1.32;
+}
+function cmBot(u) {                                    // upper jaw, lip line
+  let y = -4;
+  if (u > 10) y = -5 - Math.sin((u - 10) / 140 * Math.PI * 2) * 1.6;
+  if (u < -8) y -= (-8 - u) * (-8 - u) * 0.3;
+  if (u > 146) y -= (u - 146) * (u - 146) * 0.2;
+  return y;
+}
+function cmLT(u) {                                     // lower jaw, lip line
+  let y = 1 + Math.sin((u - 10) / 140 * Math.PI * 2) * 1.2;
+  if (u < -6) y += (-6 - u) * (-6 - u) * 0.35;
+  if (u > 140) y += (u - 140) * (u - 140) * 0.2;
+  return y;
+}
+function cmLB(u) {                                     // lower jaw, underside
+  let y = 22 - Math.max(0, u - 26) * 10 / 118;
+  if (u < 26) y += Math.sin(Math.PI * clamp((u + 12) / 38, 0, 1)) * 4;
+  if (u < -6) y -= (-6 - u) * (-6 - u) * 0.3;
+  if (u > 138) y -= (u - 138) * (u - 138) * 0.3;
+  return Math.max(cmLT(u) + 2, y * 1.3);
+}
+const CM_U0 = -16, CM_U1 = 152;
+function cmJawColumn(u, top, bot, R, o) {
+  top = Math.round(top); bot = Math.round(bot);
+  if (bot - top < 2) return;
+  const x = u - CM_U0, oy = o.oy;
+  const h = bot - top, lb = Math.max(1, Math.round(h * 0.26));
+  rect(x, top + oy, 1, h, R[2]);
+  rect(x, top + 1 + oy, 1, lb, R[3]);
+  if (u & 1) rect(x, top + 1 + lb + oy, 1, 1, R[3]);
+  rect(x, bot - 3 + oy, 1, 2, R[1]);
+  if (!(u & 1)) rect(x, bot - 4 + oy, 1, 1, R[1]);
+  if (hash2(u, 5) < 0.4) rect(x, top + 1 + oy, 1, 1, R[4]);
+  // scale grid that follows the contour
+  if (!o.belly) for (let y = top + 3; y < bot - 3; y++) {
+    const row = y - top, band = Math.floor(row / 5);
+    if (row % 5 === 0 && hash2(u, y) < 0.85) rect(x, y + oy, 1, 1, R[1]);
+    else if ((u + band * 3) % 7 === 0) rect(x, y + oy, 1, 1, R[1]);
+    else if ((u + band * 3) % 7 === 1 && row % 5 === 1) rect(x, y + oy, 1, 1, R[3]);
+  }
+  rect(x, top + oy, 1, 1, R[0]); rect(x, bot + oy, 1, 1, R[0]);
+}
+// upper jaw layer: local canvas x = u - CM_U0, y = v + 64
+function cmPaintUpper(xray) {
+  const R = xray ? CM_XR : CM_HIDE, oy = 64;
+  for (let u = CM_U0; u <= CM_U1; u++) cmJawColumn(u, cmTop(u), cmBot(u), R, { oy });
+  // close the back of the skull
+  for (let v = Math.round(cmTop(CM_U0)); v <= Math.round(cmBot(CM_U0)); v++) rect(0, v + oy, 1, 1, R[0]);
+  // osteoderm ridge along the neck
+  for (let u = -14; u < 4; u += 4) { const t2 = Math.round(cmTop(u)); rect(u - CM_U0, t2 - 2 + oy, 3, 2, R[2]); rect(u - CM_U0, t2 - 3 + oy, 3, 1, R[0]); rect(u - CM_U0, t2 - 2 + oy, 1, 1, R[4]); }
+  // the glass eye under a bony brow
+  const ex = 18 - CM_U0, ey = Math.round(cmTop(18)) + 6 + oy;
+  rr(ex - 6, ey - 4, 13, 9, 3, R[0]);
+  if (!xray) { rr(ex - 5, ey - 3, 11, 7, 3, '#c8b020'); rect(ex - 4, ey + 1, 9, 2, '#8a7010'); rect(ex - 4, ey - 2, 4, 1, '#f0e060'); rect(ex - 1, ey - 3, 2, 7, '#0a0804'); rect(ex - 3, ey - 2, 2, 1, '#ffffff'); }
+  else { rr(ex - 5, ey - 3, 11, 7, 3, CM_XB[1]); ringPx(ex, ey, 4, CM_XB[3]); }
+  for (let k = -7; k < 8; k++) rect(ex + k, ey - 5 - (Math.abs(k) < 4 ? 1 : 0), 1, 2, R[3]);
+  rect(ex - 7, ey - 6, 15, 1, R[0]);
+  // nostril boss at the snout tip
+  const nx = 136 - CM_U0, ny = Math.round(cmTop(136)) + 3 + oy;
+  rr(nx - 3, ny - 1, 7, 4, 1, R[3]); rr(nx - 2, ny, 5, 2, 1, xray ? CM_XB[0] : '#0a0804');
+  // sensory pits along the lip
+  for (let u = 16; u < 146; u += 5) rect(u - CM_U0, Math.round(cmBot(u)) - 2 + oy, 1, 1, R[1]);
+  if (xray) {                                         // skull bones glowing through
+    for (let u = CM_U0 + 6; u < CM_U1 - 8; u++) { const mid = Math.round((cmTop(u) + cmBot(u)) / 2); if (u % 3) rect(u - CM_U0, mid + oy, 1, 1, CM_XB[3]); }
+    rr(ex - 8, ey - 7, 17, 13, 5, CM_XB[1]); ringPx(ex, ey, 6, CM_XB[4]);
+  }
+  // the upper teeth, hanging over the lip
+  for (let k = 0; k < 12; k++) {
+    const u = 22 + k * 11, b = Math.round(cmBot(u)), len = [4, 5, 7, 5, 6, 5, 4, 6, 5, 4, 5, 4][k];
+    for (let r = 0; r < len; r++) {
+      const w2 = Math.max(1, Math.round(3.5 * (1 - r / len))) ;
+      rect(u - CM_U0 - w2, b + r + oy, w2 * 2 + 1, 1, xray ? CM_XB[4] : '#1e1a10');
+      if (w2 > 1) { rect(u - CM_U0 - w2 + 1, b + r + oy, w2 * 2 - 1, 1, xray ? '#e8fcff' : '#ece4c8'); rect(u - CM_U0 - w2 + 1, b + r + oy, 1, 1, xray ? '#ffffff' : '#fffaf0'); }
+    }
+  }
+}
+// lower jaw layer: local canvas x = u - CM_U0, y = v + 8
+function cmPaintLower(xray) {
+  const R = xray ? CM_XR : CM_HIDE, BL = xray ? CM_XR : CM_BELLY, oy = 8;
+  for (let u = CM_U0 + 4; u <= CM_U1 - 2; u++) {
+    const top = cmLT(u), bot = cmLB(u), split = top + (bot - top) * 0.46;
+    cmJawColumn(u, top, split + 1, R, { oy });
+    cmJawColumn(u, split, bot, BL, { oy, belly: 1 });
+    if (!xray && u % 4 === 0) for (let y = Math.round(split) + 2; y < Math.round(bot) - 1; y++) rect(u - CM_U0, y + oy, 1, 1, BL[1]);   // belly scale lines
+    rect(u - CM_U0, Math.round(split) + oy, 1, 1, R[1]);
+  }
+  for (let u = 16; u < 140; u += 5) rect(u - CM_U0, Math.round(cmLT(u)) + 2 + oy, 1, 1, R[1]);
+  // the jaw muscle bulge and the hinge knuckle
+  rr(-10 - CM_U0, 2 + oy, 18, 14, 5, R[1]); rr(-9 - CM_U0, 3 + oy, 15, 11, 4, R[2]); rect(-7 - CM_U0, 4 + oy, 8, 2, R[3]);
+  if (xray) {                                         // the mandible bone and tooth roots
+    for (let u = CM_U0 + 8; u < CM_U1 - 6; u++) rect(u - CM_U0, Math.round(cmLT(u) + (cmLB(u) - cmLT(u)) * 0.55) + oy, 1, 2, CM_XB[3]);
+    CM_TT.forEach(u => { for (let r = 0; r < 8; r++) rect(u - CM_U0 - 1, Math.round(cmLT(u)) + 1 + r + oy, 3, 1, CM_XB[3 + (r < 3 ? 1 : 0)]); });
+  }
+  // small filler teeth between the training teeth
+  for (let k = 0; k < 7; k++) {
+    const u = 32 + k * 20, b = Math.round(cmLT(u));
+    if (u > 146) continue;
+    for (let r = 0; r < 4; r++) { const w2 = Math.max(1, 2 - (r >> 1)); rect(u - CM_U0 - w2, b - r + oy, w2 * 2 + 1, 1, xray ? CM_XB[4] : (r === 3 ? '#1e1a10' : '#e4dcc0')); }
+  }
+}
+// draw one numbered training tooth rising from the lower jaw
+function cmTooth(i, T, st) {
+  const u = CM_TT[i], bx = CM.hx + u, by = CM.hy + Math.round(cmLT(u));
+  const sink = T.pressed ? 7 : 0, h = 13 - sink;
+  const pulse = (Math.sin(tNow * 8) + 1) / 2;
+  const snapRed = T.rev === 'snap' || T.mark;
+  const E = T.pressed ? ['#1e1a10', '#6a6452', '#8a8470', '#a8a28c', '#c8c2aa']
+    : snapRed ? ['#2a0a06', '#8a2a1a', '#c84a38', '#e8806a', '#ffc0b0']
+      : ['#1e1a10', '#b8ae8c', '#e4dcc0', '#f8f2e0', '#ffffff'];
+  if (st.hov && !T.pressed) { ctx.save(); ctx.globalAlpha = 0.5 + pulse * 0.3; rr(bx - 7, by - h - 3, 15, h + 5, 4, '#ffe89a'); ctx.restore(); }
+  if (T.mark) { ctx.save(); ctx.globalAlpha = 0.25 + pulse * 0.35; rr(bx - 9, by - h - 5, 19, h + 8, 5, '#ff4030'); ctx.restore(); }
+  for (let r = 0; r < h; r++) {
+    const f = r / h, w2 = r < 3 ? [1, 2, 3][r] : 4;
+    const y = by - h + r;
+    rect(bx - w2 - 1, y, w2 * 2 + 3, 1, E[0]);
+    rect(bx - w2, y, w2 * 2 + 1, 1, E[2]);
+    rect(bx - w2, y, Math.max(1, w2 - 1), 1, E[3]);
+    rect(bx + w2, y, 1, 1, E[1]);
+    if (f > 0.7) rect(bx - w2, y, w2 * 2 + 1, 1, E[1]);
+  }
+  if (h > 4) rect(bx - 2, by - h + 2, 1, 2, E[4]);
+  // the value, printed on the enamel
+  if (!T.pressed && !st.xray) drawTextC('' + T.v, bx + 1, by - 9, T.mark || T.rev === 'snap' ? '#ffffff' : '#6a5a3a', 1);
+  if (T.pressed) { rect(bx - 2, by - 4, 2, 1, '#3a6a2a'); rect(bx, by - 3, 1, 1, '#3a6a2a'); rect(bx + 1, by - 5, 2, 1, '#3a6a2a'); }
+  // scan tags
+  if (T.rev && !T.pressed) {
+    const ty = by - h - 14 + Math.round(Math.sin(tNow * 3 + i) * 1);
+    plasticBox(bx - 6, ty, 13, 11, 3, T.rev === 'snap' ? ['#2a0806', '#8a1a14', '#c83a2a', '#e8604a', '#ffb0a0'] : ['#0c2210', '#1c5a24', '#3a9a44', '#63d66a', '#c0f8c0'], { noShine: 1 });
+    if (T.rev === 'snap') drawTextC('!', bx + 1, ty + 3, '#ffffff', 1);
+    else { rect(bx - 2, ty + 5, 2, 2, '#ffffff'); rect(bx, ty + 6, 1, 1, '#ffffff'); rect(bx + 1, ty + 3, 2, 3, '#ffffff'); }
+  }
+}
+function cmToothRect(i) {
+  const u = CM_TT[i], bx = CM.hx + u, by = CM.hy + Math.round(cmLT(u));
+  return { x: bx - 7, y: by - 18, w: 15, h: 22, cx: bx, cy: by - 7 };
+}
+// m = { open, teeth[], sheet, sheetT, xr, xrA }, st = { hov, onTooth(i) }
+function drawCrocModel(m, st) {
+  st = st || {};
+  const { hx, hy } = CM;
+  const up = getCached('cmU', CM_U1 - CM_U0 + 1, 74, () => cmPaintUpper(false));
+  const upX = getCached('cmUx', CM_U1 - CM_U0 + 1, 74, () => cmPaintUpper(true));
+  const lo = getCached('cmL', CM_U1 - CM_U0 + 1, 46, () => cmPaintLower(false));
+  const loX = getCached('cmLx', CM_U1 - CM_U0 + 1, 46, () => cmPaintLower(true));
+  const a = clamp(m.open, 0, 1.1) * 0.34;
+  // ---- the display table and plinth ----
+  rect(318, 190, 118, 5, UWOOD[4]); rect(318, 190, 118, 1, '#c8905a'); rect(318, 195, 118, 2, UWOOD[0]);
+  [322, 428].forEach(lx => { rect(lx, 197, 5, 17, UWOOD[1]); rect(lx, 197, 1, 17, UWOOD[3]); });
+  rect(320, 204, 112, 2, UWOOD[1]);
+  rect(372, hy + 18, 5, 178 - hy - 18, UGOLD[0]); rect(373, hy + 18, 3, 178 - hy - 18, UGOLD[2]); rect(373, hy + 18, 1, 178 - hy - 18, UGOLD[4]);
+  plasticBox(334, 178, 84, 12, 2, UWOOD, { seed: 61, noShine: 1 });
+  plasticBox(348, 180, 56, 8, 1, UGOLD, { noShine: 1 });
+  drawTextC('C. DENTALIS', 376, 182, '#3a2606', 1);
+  // ---- shadow of the head on the table ----
+  ctx.save(); ctx.globalAlpha = 0.25; rr(300, 186, 150, 5, 2, '#000'); ctx.restore();
+  // ---- the mouth cavity, visible when the jaw is open ----
+  if (a > 0.01) {
+    const ca = Math.cos(a), sa = Math.sin(a);
+    for (let u = 0; u < 148; u++) {
+      const v = cmBot(u) + 4;
+      const px = u * ca + v * sa, py = -u * sa + v * ca - 4;
+      const lt = cmLT(px);
+      const y0 = Math.round(hy + py), y1 = Math.round(hy + lt);
+      if (y1 <= y0) continue;
+      const depth = clamp(1 - u / 150, 0, 1);
+      rect(hx + Math.round(px), y0, 2, y1 - y0, depth > 0.75 ? '#2a0810' : depth > 0.5 ? '#5a1424' : '#8a2a3c');
+      rect(hx + Math.round(px), y0, 2, 2, '#c8506a');
+      rect(hx + Math.round(px), y1 - 2, 2, 2, '#c8506a');
+      if (u > 20 && u < 100) { const tg = Math.round(y1 - 3 - Math.sin(u / 80 * Math.PI) * 5); rect(hx + Math.round(px), tg, 2, y1 - 2 - tg, u % 6 < 3 ? '#d8707e' : '#c8606e'); }
+    }
+  }
+  // ---- lower jaw, training teeth, then the hinged upper jaw ----
+  const drawLayer = (img, dy) => ctx.drawImage(img, hx + CM_U0, hy - dy, img.width / RS, img.height / RS);
+  drawLayer(lo, 8);
+  m.teeth.forEach((T, i) => cmTooth(i, T, { hov: st.hov === i, xray: false }));
+  ctx.save(); ctx.translate(hx, hy - 4); ctx.rotate(-a); ctx.translate(-hx, -(hy - 4));
+  drawLayer(up, 64);
+  ctx.restore();
+  // ---- the X-ray pass: a scan line sweeps and shows the bones and roots ----
+  if (m.xr >= 0 && m.xrA > 0) {
+    const sx = hx + CM_U0 + (CM_U1 - CM_U0) * m.xr;
+    ctx.save(); ctx.globalAlpha = m.xrA;
+    ctx.beginPath(); ctx.rect(hx + CM_U0, hy - 80, sx - (hx + CM_U0), 130); ctx.clip();
+    drawLayer(loX, 8);
+    m.teeth.forEach((T, i) => {
+      const r = cmToothRect(i);
+      rr(r.cx - 4, r.cy - 6, 9, 14, 3, T.snap ? '#ff4030' : '#c0f0ff');
+      if (T.snap) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 10) * 0.3; rr(r.cx - 7, r.cy - 9, 15, 26, 4, '#ff4030'); ctx.restore(); drawTextC('!', r.cx + 1, r.cy - 3, '#ffffff', 1); }
+    });
+    ctx.save(); ctx.translate(hx, hy - 4); ctx.rotate(-a); ctx.translate(-hx, -(hy - 4)); drawLayer(upX, 64); ctx.restore();
+    ctx.restore();
+    if (m.xr < 1) { ctx.save(); ctx.globalAlpha = 0.8 * m.xrA; rect(sx - 1, hy - 70, 2, 110, '#c0f8ff'); ctx.globalAlpha = 0.3 * m.xrA; rect(sx - 4, hy - 70, 8, 110, '#7ad4f0'); ctx.restore(); }
+  }
+  // ---- brass hinge pin ----
+  fillCircle(hx - 2, hy - 3, 4, UGOLD[0]); fillCircle(hx - 2, hy - 3, 3, UGOLD[2]); rect(hx - 4, hy - 4, 5, 1, UGOLD[0]); rect(hx - 3, hy - 5, 1, 1, UGOLD[4]);
+  // ---- the dust sheet it lives under ----
+  if (m.sheet > 0) {
+    const f = m.sheetT >= 0 ? clamp(m.sheetT, 0, 1) : 0;
+    ctx.save();
+    ctx.translate(376 + f * 120, 150 - f * 110); ctx.rotate(f * 0.9); ctx.scale(1 - f * 0.4, 1 - f * 0.3);
+    ctx.globalAlpha = 1 - f;
+    const SH = ['#3a3a3a', '#a8a49a', '#c8c4b8', '#e0dcd0', '#f4f0e6'];
+    plasticBox(-92, -60, 184, 86, 18, SH, { seed: 7 });
+    for (let k = 0; k < 7; k++) { const fx = -70 + k * 22 + Math.round(Math.sin(tNow * 2 + k) * f * 6); pxLine(fx, -50, fx + 6, 22, SH[1]); pxLine(fx + 1, -50, fx + 7, 22, SH[3]); }
+    for (let x = -88; x < 88; x += 8) rr(x, 22 + (x % 16 ? 2 : 0), 8, 5, 2, SH[2]);
+    ctx.restore();
+  }
+}
 
 
 // tiny pictogram chips for node modifiers (icon, not an ugly bar)
