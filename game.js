@@ -6364,55 +6364,80 @@ function drawCosmeticStand(X, Y, Wc) {
   X = X === undefined ? 8 : X;
   Y = Y === undefined ? 108 : Y;
   Wc = Wc === undefined ? 120 : Wc;
-  // wardrobe carcass + velvet interior
-  rr(X - 2, Y + 2, Wc + 4, 106, 4, '#00000066');
-  rr(X, Y, Wc, 104, 4, '#6a4a2a');
-  rr(X + 2, Y + 2, Wc - 4, 100, 3, '#3a2038');
-  rr(X + 4, Y + 4, Wc - 8, 96, 3, '#2a1830');
-  rect(X + 4, Y + 4, Wc - 8, 2, '#4a2c50'); // velvet sheen
+  const S = SHOPW.steel, railY = Y + 8, baseY = Y + 98;
+  // mirror panel on the wall behind the rail
+  rr(X + 2, Y - 2, Wc - 4, 98, 4, '#241708');
+  rr(X + 4, Y, Wc - 8, 94, 3, '#3a5a66');
+  rect(X + 6, Y + 2, Wc - 12, 90, '#46707e');
+  ctx.save(); ctx.globalAlpha = 0.22;
+  for (let k = 0; k < 3; k++) { ctx.save(); ctx.translate(X + 20 + k * 34, Y + 2); ctx.rotate(0.5); rect(0, 0, 6 - k, 120, '#e8fbff'); ctx.restore(); }
+  ctx.restore();
+  // chrome rail on two uprights, feet on little casters
+  [X + 6, X + Wc - 9].forEach(ux => {
+    rect(ux, railY, 3, baseY - railY, S[2]); rect(ux, railY, 1, baseY - railY, S[4]); rect(ux + 2, railY, 1, baseY - railY, S[0]);
+    rect(ux - 5, baseY, 13, 3, S[1]); rect(ux - 5, baseY, 13, 1, S[3]);
+    fillCircle(ux - 3, baseY + 5, 2, '#1a1a1a'); fillCircle(ux + 6, baseY + 5, 2, '#1a1a1a');
+  });
+  rect(X + 4, railY - 2, Wc - 8, 4, S[2]); rect(X + 4, railY - 2, Wc - 8, 1, S[4]); rect(X + 4, railY + 1, Wc - 8, 1, S[0]);
+  fillCircle(X + 4, railY, 3, S[3]); fillCircle(X + Wc - 4, railY, 3, S[3]);
+  // shoe boxes stacked under the rail
+  [['#c8302a', 0], ['#3e8cd0', 1], ['#e8b41c', 0]].forEach(([col, st], k) => {
+    const bx = X + 14 + k * 32, by = baseY - 10 - st * 9;
+    rr(bx, by, 28, 10, 1, '#101418'); rect(bx + 1, by + 1, 26, 8, col); rect(bx + 1, by + 1, 26, 2, mixHex(col, '#ffffff', 0.35));
+    rect(bx + 10, by + 4, 8, 3, '#f4ecd8');
+    if (st) { rr(bx, by + 9, 28, 10, 1, '#101418'); rect(bx + 1, by + 10, 26, 8, '#8a6a4a'); rect(bx + 1, by + 10, 26, 2, '#a8886a'); rect(bx + 10, by + 13, 8, 3, '#f4ecd8'); }
+  });
   // header plaque on little chains
-  rect(X + 26, Y - 8, 2, 8, '#8a7a58'); rect(X + Wc - 28, Y - 8, 2, 8, '#8a7a58');
-  panel(X + 8, Y - 16, Wc - 16, 15, { face: '#5f4228', edge: '#c8a040', r: 2 });
-  drawTextCSh("GATOR'S CLOSET", X + Wc / 2, Y - 12, '#ffe6b0', 1);
+  rect(X + 26, Y - 10, 2, 8, '#8a7a58'); rect(X + Wc - 28, Y - 10, 2, 8, '#8a7a58');
+  panel(X + 8, Y - 18, Wc - 16, 15, { face: '#5f4228', edge: '#c8a040', r: 2 });
+  drawTextCSh("GATOR'S CLOSET", X + Wc / 2, Y - 14, '#ffe6b0', 1);
   const cos = G.cosmetics || [];
+  const hanger = (hx, col) => {
+    rect(hx, railY - 5, 1, 5, '#b8c0c8'); rect(hx - 2, railY - 6, 3, 1, '#b8c0c8');
+    for (let k = 0; k < 11; k++) { rect(hx - k, railY + 2 + k * 0.45, 1, 2, col); rect(hx + k, railY + 2 + k * 0.45, 1, 2, col); }
+    rect(hx - 11, railY + 7, 23, 2, col);
+  };
   if (!cos.length) {
-    drawTextC('FRESH OUT!', X + Wc / 2, Y + 40, C.gold, 1);
-    drawWrappedC('You own every look, sharp dresser.', X + Wc / 2, Y + 54, Wc - 12, C.dim);
-    // a lonely coat hanger
-    rect(X + Wc / 2 - 10, Y + 74, 20, 1, '#9a8a6a'); rect(X + Wc / 2, Y + 70, 1, 4, '#9a8a6a');
+    hanger(X + Wc / 2, '#9a7a52');
+    drawTextCSh('FRESH OUT!', X + Wc / 2, Y + 34, C.gold, 1);
+    drawWrappedC('You own every look, sharp dresser.', X + Wc / 2, Y + 46, Wc - 16, '#e8f4f8');
     return;
   }
+  const colW = (Wc - 12) / cos.length;
   cos.forEach((c, i) => {
-    const sy = Y + 6 + i * 48, rc = RAR_COL[c.rar];
-    const hov = mx >= X + 6 && mx < X + Wc - 6 && my >= sy && my < sy + 44 && !c.sold;
-    rr(X + 6, sy, Wc - 12, 44, 3, hov ? rc : '#1c1226');
-    rr(X + 7, sy + 1, Wc - 14, 42, 3, '#241832');
-    // rarity disc + art
-    const cx = X + 28, cy = sy + 21;
-    fillCircle(cx, cy + 1, 15, '#00000055');
-    fillCircle(cx, cy, 15, rc);
-    fillCircle(cx, cy, 12, '#2a1830');
-    fillCircle(cx, cy - 1, 11, '#33203c');
+    const cx = X + 6 + colW * (i + 0.5), rc = RAR_COL[c.rar];
+    const hov = mx >= cx - colW / 2 && mx < cx + colW / 2 && my >= Y && my < baseY && !c.sold;
+    const sway = Math.sin(tNow * 1.4 + i * 2.1) * 0.05 + (hov ? Math.sin(tNow * 8) * 0.08 : 0);
+    ctx.save(); ctx.translate(cx, railY); ctx.rotate(sway); ctx.translate(-cx, -railY);
+    hanger(cx, c.sold ? '#6a5a42' : '#c8a070');
     if (c.sold) {
-      ctx.save(); ctx.globalAlpha = 0.4; drawCosmeticArt(cx, cy, c.kind, c.k); ctx.restore();
-      drawTextCSh('WORN!', X + Wc / 2 + 12, sy + 18, C.green, 1);
-      drawTextC('LOOKIN GOOD', X + Wc / 2 + 12, sy + 28, C.dim, 1);
+      ctx.restore();
+      drawTextCSh('WORN!', cx, Y + 34, C.green, 1);
+      drawTextC('LOOKIN', cx, Y + 46, '#e8f4f8', 1); drawTextC('GOOD', cx, Y + 54, '#e8f4f8', 1);
       return;
     }
-    drawCosmeticArt(cx, cy, c.kind, c.k);
-    // name / rarity / price
+    // rarity-ringed display disc clipped to the hanger
+    if (hov) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 7) * 0.1; fillCircle(cx, Y + 34, 20, rc); ctx.restore(); }
+    fillCircle(cx, Y + 35, 16, '#00000044');
+    fillCircle(cx, Y + 34, 16, rc); fillCircle(cx, Y + 34, 14, mixHex(rc, '#ffffff', 0.55)); fillCircle(cx, Y + 33, 12, '#fdf6e6');
+    drawCosmeticArt(cx, Y + 34, c.kind, c.k);
+    // string + dangling price tag
     const cdefs = { glove: GLOVES, hat: HATS, gear: GEAR, fit: FITS };
     const cdef = (cdefs[c.kind] || HATS)[c.k];
-    const kindLbl = c.kind === 'glove' ? 'GLOVE' : c.kind === 'gear' ? 'GEAR' : c.kind === 'fit' ? FITS[c.k].cat.toUpperCase() : 'HAT';
-    const tx = X + 48, nl2 = fitLines(cdef.name, Wc - 60);
-    if (nl2.length > 1) { drawText(nl2[0], tx, sy + 6, C.white, 1); drawText(nl2[1], tx, sy + 15, C.white, 1); }
-    else drawText(nl2[0], tx, sy + 8, C.white, 1);
-    drawText(RAR_NAME[c.rar], tx, sy + 25, rc, 1);
+    const kindLbl = c.kind === 'glove' ? 'GLOVE' : c.kind === 'gear' ? 'FACE' : c.kind === 'fit' ? FITS[c.k].cat.toUpperCase() : 'HAT';
     const afford = G.money >= c.price;
-    rr(tx, sy + 33, 30, 9, 2, afford ? '#3a2c10' : '#2a1a1a');
-    drawText('$' + c.price, tx + 3, sy + 34, afford ? C.gold : C.red, 1);
-    if (hov) drawTextC(kindLbl, X + Wc - 24, sy + 34, rc, 1);
-    hit(X + 6, sy, Wc - 12, 44, {
+    rect(cx, Y + 47, 1, 3, '#f4ecd8');
+    const tw = Math.min(colW - 4, 54), tx = cx - tw / 2, ty = Y + 51;
+    rr(tx + 1, ty + 1, tw, 34, 2, '#00000055');
+    rr(tx, ty, tw, 34, 2, '#8a7448'); rr(tx + 1, ty + 1, tw - 2, 32, 2, '#fbf3dc');
+    rect(tx + 1, ty + 1, tw - 2, 6, rc); drawTextC(RAR_NAME[c.rar], cx, ty + 1, '#ffffff', 1);
+    rr(cx - 3, ty - 3, 7, 4, 1, '#fbf3dc'); fillCircle(cx, ty - 1, 1, '#241708');
+    const nl2 = fitLines(cdef.name, tw - 4);
+    if (nl2.length > 1) { drawTextC(nl2[0], cx, ty + 9, '#3a2818', 1); drawTextC(nl2[1], cx, ty + 16, '#3a2818', 1); }
+    else drawTextC(nl2[0], cx, ty + 12, '#3a2818', 1);
+    drawTextC('$' + c.price, cx, ty + 24, afford ? '#c8302a' : '#8a7a6a', 1);
+    ctx.restore();
+    hit(cx - colW / 2, Y, colW, baseY - Y - 4, {
       id: 'cos' + i, cursor: true, cb: () => buyCosmetic(c),
       tip: cdef.name + '|' + RAR_NAME[c.rar] + ' ' + kindLbl + '|'
         + cdef.flav + '|$' + c.price + ' - CLICK TO WEAR IT',
@@ -6639,9 +6664,29 @@ function shopCooler(cx, cy, cw, ch) {
   if (vt < 1.2) { ctx.save(); ctx.globalAlpha = (1.2 - vt) * 0.25; fillCircle(cx + 9 + vt * 6, cy + ch - 5 - vt * 5, 3 + vt * 2, '#dff8ff'); ctx.restore(); }
 }
 
+// fixed clutter that makes it feel like a real shop: a basket stack, a wet
+// floor sign, a mirror by the closet, an OPEN sign and a fire extinguisher
+function shopExtras() {
+  // basket stack by the door
+  for (let k = 0; k < 3; k++) { const by = 246 - k * 4; rr(132, by, 34, 12, 2, '#6a1a14'); rr(133, by + 1, 32, 10, 2, '#c8302a'); for (let x = 136; x < 164; x += 4) rect(x, by + 3, 2, 6, '#8a2018'); rect(133, by + 1, 32, 1, '#e86a5a'); }
+  rect(140, 232, 18, 2, '#3a3a3a'); rect(139, 230, 2, 4, '#3a3a3a'); rect(157, 230, 2, 4, '#3a3a3a');
+  // wet floor sign
+  for (let r = 0; r < 22; r++) { const hw = 4 + (r >> 1); rect(454 - hw, 238 + r, hw * 2, 1, r < 2 ? '#1a1a0a' : '#f0c820'); }
+  rect(450, 246, 8, 5, '#1a1a0a'); rect(453, 243, 2, 2, '#1a1a0a');
+}
+// small stock for the bottom shelf: floss boxes, toothpaste tubes, glove boxes
+function shopStockSmall(bx, by, ex) {
+  let sx = bx, k = 0;
+  while (sx < ex - 8) {
+    const col = STOCK[(k * 3) % STOCK.length], kind = k % 3;
+    if (kind === 0) { rr(sx, by - 10, 9, 10, 1, '#101418'); rect(sx + 1, by - 9, 7, 8, col); rect(sx + 1, by - 9, 7, 2, mixHex(col, '#ffffff', 0.4)); rect(sx + 2, by - 6, 5, 2, '#f4ecd8'); sx += 10; }
+    else if (kind === 1) { rr(sx, by - 5, 14, 5, 2, '#101418'); rr(sx + 1, by - 4, 12, 3, 1, '#f0f0ec'); rect(sx + 1, by - 4, 5, 3, col); rect(sx + 12, by - 4, 2, 3, '#c8c8c0'); sx += 15; }
+    else { rr(sx, by - 8, 12, 8, 1, '#101418'); rect(sx + 1, by - 7, 10, 6, '#e8e4dc'); rect(sx + 1, by - 7, 10, 2, col); fillCircle(sx + 6, by - 3, 1, col); sx += 13; }
+    k++;
+  }
+}
 function drawShop() {
-  shopWall();
-  shopFloor();
+  paintCached('shopRoom', 0, 0, W, H, () => { shopWall(); shopFloor(); shopExtras(); });
   // ---- ceiling lamps over the aisle ----
   shopLamp(170, 0, 12, 1); shopLamp(258, 0, 18, 1); shopLamp(340, 0, 12, 1);
   // light shaft + dust motes drifting through it
@@ -6672,19 +6717,13 @@ function drawShop() {
   // ---- the main gondola of goods ----
   shopRack(134, 44, 220, 140);
   shopStock(146, 64, 344);
-  (function posters() {
-    // two little hand-painted notices tacked to the pegboard
-    const tack = (px, py, pw, phh, face, edge) => {
-      ctx.save(); ctx.translate(px, py); ctx.rotate(Math.sin(px * 0.7) * 0.05);
-      rr(1, 2, pw, phh, 1, '#00000044'); rr(0, 0, pw, phh, 1, edge); rr(1, 1, pw - 2, phh - 2, 1, face);
-      rect(2, 2, pw - 4, 1, '#ffffff55');
-      rect(pw / 2 - 1, 1, 2, 2, '#c23a4a');
-      ctx.restore();
-    };
-    tack(140, 76, 46, 13, '#e8dfc2', '#8a7a54');
-    drawText('NO BITING', 144, 80, '#8a2a16', 1);
-    tack(302, 76, 50, 13, '#cfe3d6', '#4a6a54');
-    drawText('TRADE-INS OK', 305, 80, '#1d4a2c', 1);
+  // ---- flickering neon OPEN sign, letters stacked down the wall ----
+  (function neon() {
+    const on = (tNow % 7) > 0.18 && !((tNow % 7) > 3.1 && (tNow % 7) < 3.2);
+    rr(113, 50, 18, 38, 3, '#101010'); rr(114, 51, 16, 36, 2, '#1e0e18');
+    rect(118, 44, 1, 6, '#5a5a5a'); rect(125, 44, 1, 6, '#5a5a5a');
+    if (on) { ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 9) * 0.03; rr(109, 46, 26, 46, 6, '#ff4a8a'); ctx.restore(); }
+    'OPEN'.split('').forEach((ch, k) => drawTextC(ch, 122, 54 + k * 8, on ? '#ffd0e4' : '#5a2a40', 1));
   })();
 
   // ---- the cooler ----
@@ -6749,69 +6788,60 @@ function drawShop() {
     () => { G.deckOpen = !G.deckOpen; }, { id: 'deckbtn', tip: 'YOUR TOOTH DECK|CLICK TO VIEW' });
   drawTopBar(true);
 
-  const bx0 = 148;
+  const bx0 = 148, deckY = 128;
+  // middle shelf the goods stand on, with a price rail for the tags
+  (function midDeck() {
+    const S = SHOPW.steel, gx = 140, gw = 208;
+    rect(gx, deckY - 2, gw, 2, S[1]);
+    rect(gx, deckY, gw, 4, '#6a4a2a'); rect(gx, deckY, gw, 1, '#9a6c40'); rect(gx, deckY + 3, gw, 1, '#2e1f10');
+    rect(gx, deckY + 4, gw, 3, '#e8b41c'); rect(gx, deckY + 4, gw, 1, '#ffe38a'); rect(gx, deckY + 6, gw, 1, '#9a7208');
+    ctx.save(); ctx.globalAlpha = 0.25; rect(gx, deckY + 7, gw, 4, '#000'); ctx.restore();
+  })();
+  shopStockSmall(146, 174, 184); shopStockSmall(332, 174, 346);
   G.shopItems.forEach((it, i) => {
-    const x = bx0 + i * 51, y = 96;
+    const x = bx0 + i * 51, y = 82;
     const afford = !it.sold && G.money >= it.price;
-    const hovS = mx >= x - 4 && mx < x + 46 && my >= y - 6 && my < y + 76;
-    // ---- display niche: slate back, lit cove, timber plinth ----
-    goldFrame(x - 4, y - 6, 50, 82, {
-      r: 4, field: '#1b2831', fieldD: '#101a20', fieldL: '#2f4756',
-      glow: hovS ? 0.24 + Math.sin(tNow * 5) * 0.06 : 0,
-    });
-    ctx.save(); ctx.globalAlpha = 0.22 + (hovS ? 0.12 : 0) + Math.sin(tNow * 2 + i) * 0.02;
-    for (let k = 0; k < 7; k++) rect(x + 2 + k, y - 2, 38 - k * 2, 40, '#ffe6b0');   // spotlight cone
-    ctx.restore();
-    ctx.save(); ctx.globalAlpha = 0.2; fillCircle(x + 21, y + 46, 15, '#ffd48a'); ctx.restore();
-    rect(x - 3, y + 46, 48, 6, '#5f4228');   // plinth
-    rect(x - 3, y + 46, 48, 1, '#8a6238');
-    rect(x - 3, y + 51, 48, 1, '#2e1f10');
-    for (let k = 0; k < 4; k++) rect(x + 2 + k * 12, y + 47, 1, 4, '#4a3320');
-    ctx.save(); ctx.globalAlpha = 0.35; ctx.scale(1, 0.3); fillCircle(x + 21, (y + 46) / 0.3, 13, '#000'); ctx.restore();
-
+    const hovS = mx >= x - 4 && mx < x + 46 && my >= y - 6 && my < deckY + 40;
+    // ---- clear acrylic riser the item stands in ----
+    ctx.save(); ctx.globalAlpha = 0.35; ctx.scale(1, 0.3); fillCircle(x + 21, (deckY - 1) / 0.3, 16, '#000'); ctx.restore();
+    rect(x + 3, deckY - 6, 36, 6, '#cfe8f0'); rect(x + 3, deckY - 6, 36, 1, '#ffffff'); rect(x + 3, deckY - 1, 36, 1, '#7a9aa8');
+    ctx.save(); ctx.globalAlpha = 0.28; rect(x + 5, y - 2, 32, deckY - y - 4, '#dff4ff'); ctx.restore();
+    rect(x + 5, y - 2, 1, deckY - y - 4, '#ffffff88'); rect(x + 36, y - 2, 1, deckY - y - 4, '#9ab8c888');
+    if (hovS) { ctx.save(); ctx.globalAlpha = 0.18 + Math.sin(tNow * 5) * 0.05; rr(x - 2, y - 6, 46, deckY - y + 6, 4, '#ffe6a0'); ctx.restore(); }
+    // ---- yellow supermarket shelf tag clipped to the rail ----
+    const tgY = deckY + 5, kcol = it.kind === 'tool' ? '#1f8a7a' : it.kind === 'charm' ? '#c86a1a' : '#7a4fc8';
+    rr(x - 1, tgY + 1, 44, 34, 1, '#00000055');
+    rr(x - 2, tgY, 44, 34, 1, '#8a6a10'); rect(x - 1, tgY + 1, 42, 32, it.sold ? '#d8d0b8' : '#ffe24a');
+    rect(x - 1, tgY + 1, 42, 7, kcol);
+    drawTextC(it.kind === 'charm' ? 'BADGE' : it.kind === 'tool' ? 'TOOL' : 'CARD', x + 20, tgY + 2, '#ffffff', 1);
+    const nl = fitLines(it.def.name, 40);
+    if (nl.length > 1) { drawTextC(nl[0], x + 20, tgY + 10, '#2a1a0c', 1); drawTextC(nl[1], x + 20, tgY + 17, '#2a1a0c', 1); }
+    else drawTextC(nl[0], x + 20, tgY + 13, '#2a1a0c', 1);
+    for (let b = 0; b < 12; b++) rect(x + 1 + b * 1.5, tgY + 27, (b * 7) % 3 ? 1 : 0.5, 5, '#2a1a0c');   // barcode
+    if (!it.sold) drawTextSh('$' + it.price, x + 38 - textW('$' + it.price, 1), tgY + 26, afford ? '#d4201a' : '#8a6a5a', 1);
     if (it.sold) {
-      ctx.save(); ctx.globalAlpha = 0.5; rect(x - 3, y - 5, 48, 80, '#0a0f13'); ctx.restore();
-      ctx.save(); ctx.translate(x + 21, y + 30); ctx.rotate(-0.18);
-      rr(-24, -9, 48, 18, 2, '#5a1a12'); rr(-23, -8, 46, 16, 2, '#8a2a16');
-      rect(-22, -7, 44, 1, '#c85a3a');
-      drawTextC('SOLD OUT', 0, -3, '#ffd8c0', 1);
+      ctx.save(); ctx.translate(x + 20, y + 22); ctx.rotate(-0.18);
+      rr(-24, -9, 48, 18, 2, '#5a1a12'); rr(-23, -8, 46, 16, 2, '#c8302a');
+      rect(-22, -7, 44, 1, '#e86a5a');
+      drawTextC('SOLD OUT', 0, -3, '#fff4e0', 1);
       ctx.restore();
       return;
     }
-    drawCardAnim(x + 7, y + 2, it.def, it.kind, i + 10, {
+    drawCardAnim(x + 6, deckY - 48, it.def, it.kind, i + 10, {
       id: 'shopitem' + i,
       price: undefined, afford,
       tip: it.def.name + '|CLICK FOR DETAILS',
       click: () => { G.inspect = { kind: 'shop', item: it }; },
     });
-    // ---- swing tag on a wire, carrying the price ----
-    const sway = Math.sin(tNow * 1.7 + i * 1.3) * 0.1 + (hovS ? Math.sin(tNow * 9) * 0.06 : 0);
-    ctx.save(); ctx.translate(x + 34, y - 4); ctx.rotate(sway);
-    rect(-1, 0, 2, 6, '#8a949c');
-    rr(-10, 5, 20, 14, 3, '#241708');
-    rr(-9, 6, 18, 12, 2, afford ? '#f0d48a' : '#b8a898');
-    rect(-8, 7, 16, 1, '#fff4d0');
-    rect(-8, 15, 16, 1, '#b8922a');
-    fillCircle(0, 8, 2, '#8a7448'); fillCircle(0, 8, 1, '#241708');
-    drawTextC('$' + it.price, 0, 11, afford ? '#4a3208' : '#6a2a2a', 1);
-    ctx.restore();
-    // a spinning cartoon starburst on anything you can afford cheaply
+    // a spinning SALE starburst on the cheapest thing you can afford
     if (afford && it.price === Math.min.apply(null, G.shopItems.filter(q => !q.sold && G.money >= q.price).map(q => q.price)) && G.shopItems.filter(q => !q.sold).length > 1) {
-      const sx2 = x + 5, sy2 = y + 8, spin = tNow * 1.6;
+      const sx2 = x + 4, sy2 = y + 6, spin = tNow * 1.6;
       ctx.save(); ctx.translate(sx2, sy2); ctx.rotate(spin);
       for (let s2 = 0; s2 < 8; s2++) { const a2 = s2 / 8 * Math.PI * 2; rect(Math.cos(a2) * 7 - 1, Math.sin(a2) * 7 - 1, 3, 3, '#ff5a4a'); }
       ctx.restore();
       fillCircle(sx2, sy2, 7, '#ff5a4a'); fillCircle(sx2, sy2 - 1, 6, '#ff8a6a');
       drawTextC('!', sx2, sy2 - 3, '#fff6c8', 1);
     }
-    // ---- engraved shelf label ----
-    const label = it.kind === 'charm' ? 'BADGE' : it.kind === 'tool' ? 'TOOL' : 'CARD';
-    rr(x - 2, y + 52, 46, 22, 2, '#131c22');
-    rect(x - 1, y + 53, 44, 1, '#2b3d47');
-    drawTextC(label, x + 21, y + 55, it.kind === 'tool' ? '#7fd0c0' : it.kind === 'charm' ? '#e8b45a' : '#c8a8f8', 1);
-    const nl = fitLines(it.def.name, 42);
-    if (nl.length > 1) { drawTextC(nl[0], x + 21, y + 63, C.white, 1); drawTextC(nl[1], x + 21, y + 70, C.white, 1); }
-    else drawTextC(nl[0], x + 21, y + 66, C.white, 1);
   });
 
   // ---- snack crate: the packs stand in a torn-open display box ----
@@ -10197,6 +10227,29 @@ function drawCrocModel(m, st) {
     ctx.restore();
   }
 }
+// tiny pictogram chips for node modifiers (icon, not an ugly bar)
+const MOD_ICONS = {
+  foggy(x, y) { rr(x, y + 3, 7, 3, 1, '#dfe8ec'); rr(x + 2, y + 1, 4, 3, 1, '#dfe8ec'); },
+  swarming(x, y) { rect(x, y + 4, 7, 2, '#fff'); rect(x + 1, y + 1, 1, 3, '#fff'); rect(x + 3, y, 1, 4, '#fff'); rect(x + 5, y + 1, 1, 3, '#fff'); },
+  brittle(x, y) { rr(x + 1, y, 5, 6, 1, '#fff'); rect(x + 3, y + 1, 1, 2, '#95251f'); rect(x + 2, y + 3, 1, 1, '#95251f'); rect(x + 4, y + 4, 1, 2, '#95251f'); },
+  tired(x, y) { rect(x + 1, y, 5, 1, '#fff'); rect(x + 4, y + 1, 1, 1, '#fff'); rect(x + 3, y + 2, 1, 1, '#fff'); rect(x + 2, y + 3, 1, 1, '#fff'); rect(x + 1, y + 4, 5, 1, '#fff'); },
+  toll(x, y) { fillCircle(x + 3, y + 3, 3, '#ffe089'); rect(x + 3, y + 1, 1, 5, '#a4741a'); },
+  blessed(x, y) { rr(x, y + 2, 7, 3, 1, '#fff'); rect(x + 3, y + 3, 1, 1, '#1c5c9e'); rect(x + 3, y, 1, 1, '#fff'); rect(x + 3, y + 6, 1, 1, '#fff'); },
+  richwater(x, y) { rect(x + 1, y + 4, 5, 2, '#ffe089'); rect(x + 1, y + 1, 5, 2, '#ffe089'); rect(x + 2, y + 2, 1, 1, '#a4741a'); rect(x + 2, y + 5, 1, 1, '#a4741a'); },
+  gilded(x, y) { rr(x + 1, y, 5, 4, 1, '#ffe089'); rect(x + 1, y + 4, 2, 2, '#ffe089'); rect(x + 4, y + 4, 2, 2, '#ffe089'); },
+  tailwind(x, y) { rect(x, y + 2, 5, 2, '#fff'); rect(x + 4, y + 1, 1, 4, '#fff'); rect(x + 5, y + 2, 1, 2, '#fff'); rect(x + 3, y, 1, 1, '#fff'); rect(x + 3, y + 5, 1, 1, '#fff'); },
+  charmed(x, y) { rect(x + 3, y, 1, 6, '#fff'); rect(x + 1, y + 2, 5, 1, '#fff'); rect(x + 2, y + 1, 1, 1, '#fff'); rect(x + 4, y + 1, 1, 1, '#fff'); rect(x + 2, y + 4, 1, 1, '#fff'); rect(x + 4, y + 4, 1, 1, '#fff'); },
+};
+function drawModChip(x, y, m) {
+  const md = NODE_MODS[m];
+  x |= 0; y |= 0;
+  rr(x, y + 1, 11, 11, 2, '#00000088');
+  rr(x, y, 11, 11, 2, md.bad ? '#95251f' : '#2c7d3a');
+  rr(x + 1, y + 1, 9, 9, 2, md.bad ? '#33161a' : '#1e3220');
+  (MOD_ICONS[m] || MOD_ICONS.charmed)(x + 2, y + 2);
+}
+
+// ------------------------------------------------------------ swamp map ---
 function drawMiniGator(x, y, type, mut) {
   const cols = { small: ['#6cbe4c', '#4a9636'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
   // in the OCEAN the map shows SHARKS, in the swamp GATORS - never mixed up
