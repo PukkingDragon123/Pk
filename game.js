@@ -5302,6 +5302,24 @@ function resolveDrop() {
 }
 
 // ------------------------------------------------------------ gator -------
+// a cached shading overlay for the croc's jaws: dithered falloff toward the
+// base, dark rolled-off sides, a lit rim along the top and a pitted hide grain
+function crocShade(part, w, h, st) {
+  return getCached('crocShade' + part + w + st.a + st.b + st.c, w, h, () => {
+    const up = part === 'up';
+    for (let y = 0; y < h; y++) {
+      const f = y / h;
+      const step = up ? (f > 0.78 ? 2 : f > 0.55 ? 3 : f > 0.38 ? 5 : 0) : (f > 0.7 ? 2 : f > 0.45 ? 3 : 0);
+      if (step) for (let x = (y & 1); x < w; x += step) rect(x, y, 1, 1, st.b);
+    }
+    for (let x = 0; x < 14; x++) {
+      const gap = x < 5 ? 2 : x < 10 ? 3 : 4;
+      for (let y = 4 + (x & 1); y < h - 4; y += gap) { rect(x + 1, y, 1, 1, st.d); rect(w - 2 - x, y, 1, 1, st.d); }
+    }
+    if (up) { for (let x = 8; x < w - 8; x++) if (x % 3) rect(x, 2, 1, 1, mixC(st.c, '#ffffff', 0.35)); }
+    for (let k = 0; k < w * h / 40; k++) { const gx = Math.floor(hash2(k, 31) * w), gy = Math.floor(hash2(k, 32) * h); rect(gx, gy, 1, 1, k & 1 ? st.d : mixC(st.c, '#ffffff', 0.2)); }
+  });
+}
 function drawCroc(closeT, opts) {
   opts = opts || {};
   const st = crocStyle();
@@ -5332,7 +5350,7 @@ function drawCroc(closeT, opts) {
     rect(fx + 3, 250, 4, 3, '#f4f0dc'); rect(fx + 10, 250, 4, 3, '#f4f0dc'); rect(fx + 17, 250, 4, 3, '#f4f0dc');
   });
   // water laps against the hide
-  ctx.save(); ctx.globalAlpha = 0.45;
+  ctx.save(); ctx.globalAlpha = opts.dry ? 0 : 0.45;
   for (let x = bodyX - 18; x < bodyX + bodyW + 18; x += 9) {
     rect(x, 245 + Math.sin(tNow * 2.1 + x * 0.31) * 1.5, 5, 1, '#7fb8c8');
   }
@@ -5342,6 +5360,7 @@ function drawCroc(closeT, opts) {
   rr(bodyX, maw.y + maw.h - 6, bodyW, 40, 4, st.d);
   rr(bodyX + 1, maw.y + maw.h - 6, bodyW - 2, 38, 4, st.b);
   rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, st.a);
+  ctx.drawImage(crocShade('lo', bodyW, 40, st), bodyX, maw.y + maw.h - 6, bodyW, 40);
   // belly plate bands on the chin, with scutes and pond light playing over them
   ctx.save(); ctx.globalAlpha = 0.42;
   for (let ry = 0; ry < 5; ry++) {
@@ -5463,6 +5482,7 @@ function drawCroc(closeT, opts) {
   rr(bodyX - 3, jy + 1, bodyW + 6, 60, 4, st.b);
   rr(bodyX - 1, jy + 3, bodyW + 2, 52, 4, st.a);
   rr(bodyX + 6, jy + 5, bodyW - 12, 10, 3, st.c);
+  ctx.drawImage(crocShade('up', bodyW + 8, 62, st), bodyX - 4, jy, bodyW + 8, 62);
   for (let k = 0; k < 7; k++) {
     rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, st.b);
   }
@@ -5628,7 +5648,7 @@ function drawCroc(closeT, opts) {
   if (st.goldTooth) { rect(maw.x + 20, jy + 54, 8, 6, '#ffd54a'); rect(maw.x + 22, jy + 55, 2, 2, '#fff6c8'); }
 
   // --- eyes on top: brows, pupils and lids all driven by the mood ---
-  const squeeze = (closeT > 0.5 || opts.angry) && !MD.cross;
+  const squeeze = false;   // its eyes never shut - the anger lives in the brow ridge
   const exL = maw.x + 18, exR = maw.x + maw.w - 48, ey = jy - 10;
   // a slow saccade: the eyes flick to a new spot every couple of seconds
   const sac = Math.floor(tNow / 1.9);
@@ -7433,7 +7453,7 @@ function drawIntro(dt) {
   if (cut.shot === 0) {
     // --- shot 1: casting off from the ranger station at sundown ---
     paintCached('menu', 0, 0, W, H, menuStatic);
-    const RX = 344, RY = 118;
+    const RX = 384, RY = 118;
     [[RX + 14, RY + 24], [RX + 84, RY + 24]].forEach(([wx, wy]) => { rect(wx, wy, 22, 18, '#f8c860'); rect(wx + 10, wy, 2, 18, '#3a2410'); rect(wx, wy + 8, 22, 2, '#3a2410'); });
     // Mrs Owlet on the porch with her clipboard
     ctx.save(); ctx.translate(RX - 2, RY + 60); ctx.scale(0.55, 0.55);
@@ -7870,7 +7890,7 @@ function menuStatic() {
   ctx.restore();
 
   // ---- the ranger station on stilts ----
-  const RX = 344, RY = 118;
+  const RX = 384, RY = 118;
   // stilts + reflection
   [RX + 6, RX + 40, RX + 76, RX + 110].forEach(sx => { rect(sx, RY + 64, 4, 44, '#1e140e'); rect(sx, RY + 64, 1, 44, '#3a2a1a'); ctx.save(); ctx.globalAlpha = 0.4; rect(sx, RY + 108, 4, 20, '#1e140e'); ctx.restore(); });
   rect(RX - 14, RY + 60, 144, 6, '#2a1c12'); rect(RX - 14, RY + 60, 144, 1, '#5a4028');                      // deck
@@ -8058,6 +8078,42 @@ function woodTile(x, y, s, icon, cb, o) {
   hit(x, y, s, s, { id: o.id || icon, cursor: true, cb, tip: o.tip });
 }
 
+// the REAL croc - the same one you fight - lurking in the shallows up to its
+// nostrils.  Every so often it rises, gapes and snaps; click it to provoke it.
+const MENU_WATER = 230;
+function drawMenuCroc(dt) {
+  const g = menuGator;
+  g.t += dt;
+  const cyc = 12, ct = g.t % cyc;
+  let rise = 0, close = 0.9;
+  if (ct > 7.5 && ct < 11.6) {
+    const k = ct - 7.5;
+    rise = k < 0.8 ? easeOut(k / 0.8) : k < 3.2 ? 1 : 1 - (k - 3.2) / 0.9;
+    close = k < 0.8 ? 0.9 : k < 2.3 ? lerp(0.9, 0.06, easeOut((k - 0.8) / 1.5)) : k < 2.45 ? lerp(0.06, 1, (k - 2.3) / 0.15) : 1;
+    if (k > 2.45 && !g.snapped) { g.snapped = true; sfx.snap(); shake = Math.max(shake, 4); for (let i = 0; i < 16; i++) parts.push({ x: 300 + (rnd() - 0.5) * 120, y: MENU_WATER - 2, vx: (rnd() - 0.5) * 90, vy: -50 - rnd() * 70, t: 0, life: 0.8, col: '#bfe0f0', sz: 2, g: 240 }); addRipple(300, MENU_WATER + 2, true); }
+  } else g.snapped = false;
+  const S = 2 / 3, bob = Math.sin(tNow * 1.2) * 1.5;
+  // the upper jaw drops as the mouth closes, so the waterline follows the snout:
+  // lurking shows eyes + nostrils, rising shows the whole gaping maw
+  const snoutTop = 54 + close * 66;
+  const waterY = lerp(snoutTop + 34, 206, clamp(rise, 0, 1)) - bob;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, W, MENU_WATER); ctx.clip();
+  ctx.translate(316, MENU_WATER); ctx.scale(S, S); ctx.translate(-294, -waterY);
+  const _mx = mx, _my = my; mx = 294 + (mx - 316) / S; my = waterY + (my - MENU_WATER) / S;
+  const sj = G.jawClose; G.jawClose = close;
+  drawCroc(close, { mood: rise > 0.5 ? 'hungry' : 'calm', dry: 1 });
+  G.jawClose = sj; mx = _mx; my = _my;
+  ctx.restore();
+  // dusk rim light along the top of its head, catching the sunset
+  // wet reflection and ripples round the head
+  ctx.save(); ctx.globalAlpha = 0.28; rect(210, MENU_WATER, 180, 10, '#0a1418'); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.45;
+  for (let r = 0; r < 4; r++) { const rw = 190 + r * 20 + Math.sin(tNow * 1.5 + r) * 4; rect(300 - rw / 2, MENU_WATER + 1 + r * 3, rw, 1, '#a88aa0'); }
+  ctx.restore();
+  if (Math.sin(tNow * 1.7) > 0.96) addRipple(230 + rnd() * 140, MENU_WATER + 3);
+  hit(210, MENU_WATER - 60 - rise * 50, 180, 60 + rise * 50, { id: 'menugator', cursor: true, tip: 'THE GATOR|It is watching you', cb: () => { if (ct < 7) menuGator.t = Math.floor(menuGator.t / cyc) * cyc + 7.5; } });
+}
 // the lurking gator: eyes, snout and back scutes breaking the surface.
 // Every so often it rears up and snaps at a dragonfly.
 let menuGator = { t: 0, snapAt: 9, snapped: false, poke: 0 };
@@ -8128,7 +8184,7 @@ function drawMenu(dt) {
   const dv = G.dive;
   if (dv) dv.t += dt;
   const dk = dv ? clamp(dv.t / 1.0, 0, 1) : 0;
-  const zc = { x: 406, y: 160 };                       // the ranger station door
+  const zc = { x: 446, y: 160 };                       // the ranger station door
   if (dv) { const z = 1 + easeIn(dk) * 6; ctx.save(); ctx.translate(zc.x, zc.y); ctx.scale(z, z); ctx.translate(-zc.x, -zc.y); }
 
   paintCached('menu', 0, 0, W, H, menuStatic);
@@ -8150,7 +8206,7 @@ function drawMenu(dt) {
   for (let k = 0; k < 10; k++) { const yy = MENU_HZ + 6 + k * 9, xx = ((tNow * (4 + k) + k * 61) % (W + 40)) - 20; rect(xx, yy, 10 + k, 1, '#d89a9a'); }
   ctx.restore();
   // ---- station lights: flickering windows, lanterns, chimney smoke, flag ----
-  const RX = 344, RY = 118;
+  const RX = 384, RY = 118;
   [[RX + 14, RY + 24], [RX + 84, RY + 24]].forEach(([wx, wy], i) => {
     const fl = 0.9 + Math.sin(tNow * 7 + i * 3) * 0.05 + Math.sin(tNow * 13 + i) * 0.04;
     ctx.save(); ctx.globalAlpha = fl; rect(wx, wy, 22, 18, '#f8c860'); rect(wx, wy, 22, 5, '#fde098'); ctx.restore();
@@ -8173,7 +8229,7 @@ function drawMenu(dt) {
   drawRipples && drawRipples();
 
   // ---- the gator ----
-  drawMenuGator(dt);
+  drawMenuCroc(dt);
 
   // ---- fireflies over the water and the dock ----
   for (let k = 0; k < 18; k++) {
@@ -8220,14 +8276,14 @@ function drawMenu(dt) {
 
   // ---- the shift log, pinned to the pier post ----
   (function board() {
-    const bx = 372, by = 206, bw = 102, bh = 56;
+    const bx = 400, by = 206, bw = 76, bh = 56;
     rect(bx + 46, by - 12, 8, 14, '#2a1c12');
     paperSheet(bx, by, bw, bh, { ruled: 1, ruledTop: 16 });
     pushPin(bx + bw / 2, by + 2, PINS[2]);
     drawText('SHIFT LOG', bx + 6, by + 6, '#8a5a1a', 1);
-    drawText('QUESTS DONE ' + ((meta.qb && meta.qb.done) || 0), bx + 6, by + 18, '#241a10', 1);
+    drawText('QUESTS ' + ((meta.qb && meta.qb.done) || 0), bx + 6, by + 18, '#241a10', 1);
     drawText(fmt(meta.rp || 0) + ' COOKIES', bx + 6, by + 26, '#7a5a10', 1);
-    drawText('BEST ANTE ' + best, bx + 6, by + 34, '#241a10', 1);
+    drawText('ANTE ' + best, bx + 6, by + 34, '#241a10', 1);
     drawText('RANGERS ' + RANGER_ORDER.filter(rangerUnlocked).length + '/5', bx + 6, by + 42, '#241a10', 1);
     hit(bx, by, bw, bh, { id: 'menuquests', cursor: true, tip: 'QUEST BOARD|Pinned by the trading booth', cb: () => { boothEnter(); G.state = 'pass'; sfx.click(2); } });
   })();
@@ -8439,7 +8495,7 @@ const IV_SCRIPT = [
     enter: (iv) => { ivReroll(iv); iv.m.xr = 0; iv.m.xrA = 1; sfx.xray(); },
     update: (iv) => { iv.m.xr = Math.min(1, iv.t / 1.4); } },
   { say: "Your turn. Hit X-RAY, then click a tooth to scan it.", owl: 'model', point: 'xraybtn', xray: 1, wait: iv => iv.scannedN >= 1,
-    enter: (iv) => { iv.m.xrA = 0; iv.m.xr = -1; } },
+    enter: (iv) => { iv.m.xrA = 0; iv.m.xr = -1; iv.m.teeth.forEach(T => { T.rev = null; }); } },
   { say: (iv) => iv.lastScan === 'snap' ? "Red. That one bites. Leave it ALONE." : "Green. That one is safe to press.", owl: 'model', point: 'scanned', expr: 'pleased' },
   { say: "You get only a few X-RAYS per gator. Spend them when the maw is nearly empty.", owl: 'model', expr: 'stern' },
   { say: "Each gator gives you a few BITES. Beat its TARGET before they run out. Eight antes. Then the King.", owl: 'board', point: 'board', hl: 'target' },
@@ -8523,7 +8579,7 @@ function ivScan(iv, i) {
 // where the pointer should rest for a beat
 function ivPointAt(iv, key) {
   const m = iv.m;
-  if (key === 'eye') return { x: CM.hx + 18, y: CM.hy + Math.round(cmTop(18)) + 8 };
+  if (key === 'eye') { const e = cmT(208, 36); return { x: e.x, y: e.y }; }
   if (key === 'teeth') {
     const open = m.teeth.map((T, i) => i).filter(i => !m.teeth[i].pressed);
     const i = open.length ? open[Math.floor(tNow / 1.2) % open.length] : 0;
@@ -10078,215 +10134,56 @@ function officeStatic() {
 //  The painted layers (upper jaw / lower jaw, and their X-ray twins) are
 //  cached; only the teeth, the mouth cavity and the hinge motion are live.
 // ==========================================================================
-const CM = { hx: 300, hy: 144 };
-const CM_TT = [42, 62, 82, 102, 122, 140];            // training teeth, u along the jaw
-const CM_HIDE = ['#0e160a', '#2a4420', '#3e6030', '#5a803e', '#86aa5a'];
-const CM_BELLY = ['#2a2412', '#a89468', '#cab88a', '#e2d6aa', '#f6eed2'];
-const CM_XR = ['#041018', '#0c3044', '#14506a', '#2a7ea0', '#7ad4f0'];
-const CM_XB = ['#041018', '#1a4a60', '#2a6a88', '#58a8c8', '#c0f0ff'];
-function cmTop(u) {                                    // upper jaw, top contour
-  let y = -30;
-  if (u < -6) y += (-6 - u) * (-6 - u) * 0.28;
-  if (u > 2 && u < 34) y -= Math.sin(Math.PI * (u - 2) / 32) * 10;
-  if (u >= 34) y = -30 + (u - 34) * 15 / 118;
-  if (u > 128 && u < 146) y -= Math.sin(Math.PI * (u - 128) / 18) * 3;
-  if (u > 142) y += (u - 142) * (u - 142) * 0.22;
-  return y * 1.32;
-}
-function cmBot(u) {                                    // upper jaw, lip line
-  let y = -4;
-  if (u > 10) y = -5 - Math.sin((u - 10) / 140 * Math.PI * 2) * 1.6;
-  if (u < -8) y -= (-8 - u) * (-8 - u) * 0.3;
-  if (u > 146) y -= (u - 146) * (u - 146) * 0.2;
-  return y;
-}
-function cmLT(u) {                                     // lower jaw, lip line
-  let y = 1 + Math.sin((u - 10) / 140 * Math.PI * 2) * 1.2;
-  if (u < -6) y += (-6 - u) * (-6 - u) * 0.35;
-  if (u > 140) y += (u - 140) * (u - 140) * 0.2;
-  return y;
-}
-function cmLB(u) {                                     // lower jaw, underside
-  let y = 22 - Math.max(0, u - 26) * 10 / 118;
-  if (u < 26) y += Math.sin(Math.PI * clamp((u + 12) / 38, 0, 1)) * 4;
-  if (u < -6) y -= (-6 - u) * (-6 - u) * 0.3;
-  if (u > 138) y -= (u - 138) * (u - 138) * 0.3;
-  return Math.max(cmLT(u) + 2, y * 1.3);
-}
-const CM_U0 = -16, CM_U1 = 152;
-function cmJawColumn(u, top, bot, R, o) {
-  top = Math.round(top); bot = Math.round(bot);
-  if (bot - top < 2) return;
-  const x = u - CM_U0, oy = o.oy;
-  const h = bot - top, lb = Math.max(1, Math.round(h * 0.26));
-  rect(x, top + oy, 1, h, R[2]);
-  rect(x, top + 1 + oy, 1, lb, R[3]);
-  if (u & 1) rect(x, top + 1 + lb + oy, 1, 1, R[3]);
-  rect(x, bot - 3 + oy, 1, 2, R[1]);
-  if (!(u & 1)) rect(x, bot - 4 + oy, 1, 1, R[1]);
-  if (hash2(u, 5) < 0.4) rect(x, top + 1 + oy, 1, 1, R[4]);
-  // scale grid that follows the contour
-  if (!o.belly) for (let y = top + 3; y < bot - 3; y++) {
-    const row = y - top, band = Math.floor(row / 5);
-    if (row % 5 === 0 && hash2(u, y) < 0.85) rect(x, y + oy, 1, 1, R[1]);
-    else if ((u + band * 3) % 7 === 0) rect(x, y + oy, 1, 1, R[1]);
-    else if ((u + band * 3) % 7 === 1 && row % 5 === 1) rect(x, y + oy, 1, 1, R[3]);
-  }
-  rect(x, top + oy, 1, 1, R[0]); rect(x, bot + oy, 1, 1, R[0]);
-}
-// upper jaw layer: local canvas x = u - CM_U0, y = v + 64
-function cmPaintUpper(xray) {
-  const R = xray ? CM_XR : CM_HIDE, oy = 64;
-  for (let u = CM_U0; u <= CM_U1; u++) cmJawColumn(u, cmTop(u), cmBot(u), R, { oy });
-  // close the back of the skull
-  for (let v = Math.round(cmTop(CM_U0)); v <= Math.round(cmBot(CM_U0)); v++) rect(0, v + oy, 1, 1, R[0]);
-  // osteoderm ridge along the neck
-  for (let u = -14; u < 4; u += 4) { const t2 = Math.round(cmTop(u)); rect(u - CM_U0, t2 - 2 + oy, 3, 2, R[2]); rect(u - CM_U0, t2 - 3 + oy, 3, 1, R[0]); rect(u - CM_U0, t2 - 2 + oy, 1, 1, R[4]); }
-  // the glass eye under a bony brow
-  const ex = 18 - CM_U0, ey = Math.round(cmTop(18)) + 6 + oy;
-  rr(ex - 6, ey - 4, 13, 9, 3, R[0]);
-  if (!xray) { rr(ex - 5, ey - 3, 11, 7, 3, '#c8b020'); rect(ex - 4, ey + 1, 9, 2, '#8a7010'); rect(ex - 4, ey - 2, 4, 1, '#f0e060'); rect(ex - 1, ey - 3, 2, 7, '#0a0804'); rect(ex - 3, ey - 2, 2, 1, '#ffffff'); }
-  else { rr(ex - 5, ey - 3, 11, 7, 3, CM_XB[1]); ringPx(ex, ey, 4, CM_XB[3]); }
-  for (let k = -7; k < 8; k++) rect(ex + k, ey - 5 - (Math.abs(k) < 4 ? 1 : 0), 1, 2, R[3]);
-  rect(ex - 7, ey - 6, 15, 1, R[0]);
-  // nostril boss at the snout tip
-  const nx = 136 - CM_U0, ny = Math.round(cmTop(136)) + 3 + oy;
-  rr(nx - 3, ny - 1, 7, 4, 1, R[3]); rr(nx - 2, ny, 5, 2, 1, xray ? CM_XB[0] : '#0a0804');
-  // sensory pits along the lip
-  for (let u = 16; u < 146; u += 5) rect(u - CM_U0, Math.round(cmBot(u)) - 2 + oy, 1, 1, R[1]);
-  if (xray) {                                         // skull bones glowing through
-    for (let u = CM_U0 + 6; u < CM_U1 - 8; u++) { const mid = Math.round((cmTop(u) + cmBot(u)) / 2); if (u % 3) rect(u - CM_U0, mid + oy, 1, 1, CM_XB[3]); }
-    rr(ex - 8, ey - 7, 17, 13, 5, CM_XB[1]); ringPx(ex, ey, 6, CM_XB[4]);
-  }
-  // the upper teeth, hanging over the lip
-  for (let k = 0; k < 12; k++) {
-    const u = 22 + k * 11, b = Math.round(cmBot(u)), len = [4, 5, 7, 5, 6, 5, 4, 6, 5, 4, 5, 4][k];
-    for (let r = 0; r < len; r++) {
-      const w2 = Math.max(1, Math.round(3.5 * (1 - r / len))) ;
-      rect(u - CM_U0 - w2, b + r + oy, w2 * 2 + 1, 1, xray ? CM_XB[4] : '#1e1a10');
-      if (w2 > 1) { rect(u - CM_U0 - w2 + 1, b + r + oy, w2 * 2 - 1, 1, xray ? '#e8fcff' : '#ece4c8'); rect(u - CM_U0 - w2 + 1, b + r + oy, 1, 1, xray ? '#ffffff' : '#fffaf0'); }
-    }
-  }
-}
-// lower jaw layer: local canvas x = u - CM_U0, y = v + 8
-function cmPaintLower(xray) {
-  const R = xray ? CM_XR : CM_HIDE, BL = xray ? CM_XR : CM_BELLY, oy = 8;
-  for (let u = CM_U0 + 4; u <= CM_U1 - 2; u++) {
-    const top = cmLT(u), bot = cmLB(u), split = top + (bot - top) * 0.46;
-    cmJawColumn(u, top, split + 1, R, { oy });
-    cmJawColumn(u, split, bot, BL, { oy, belly: 1 });
-    if (!xray && u % 4 === 0) for (let y = Math.round(split) + 2; y < Math.round(bot) - 1; y++) rect(u - CM_U0, y + oy, 1, 1, BL[1]);   // belly scale lines
-    rect(u - CM_U0, Math.round(split) + oy, 1, 1, R[1]);
-  }
-  for (let u = 16; u < 140; u += 5) rect(u - CM_U0, Math.round(cmLT(u)) + 2 + oy, 1, 1, R[1]);
-  // the jaw muscle bulge and the hinge knuckle
-  rr(-10 - CM_U0, 2 + oy, 18, 14, 5, R[1]); rr(-9 - CM_U0, 3 + oy, 15, 11, 4, R[2]); rect(-7 - CM_U0, 4 + oy, 8, 2, R[3]);
-  if (xray) {                                         // the mandible bone and tooth roots
-    for (let u = CM_U0 + 8; u < CM_U1 - 6; u++) rect(u - CM_U0, Math.round(cmLT(u) + (cmLB(u) - cmLT(u)) * 0.55) + oy, 1, 2, CM_XB[3]);
-    CM_TT.forEach(u => { for (let r = 0; r < 8; r++) rect(u - CM_U0 - 1, Math.round(cmLT(u)) + 1 + r + oy, 3, 1, CM_XB[3 + (r < 3 ? 1 : 0)]); });
-  }
-  // small filler teeth between the training teeth
-  for (let k = 0; k < 7; k++) {
-    const u = 32 + k * 20, b = Math.round(cmLT(u));
-    if (u > 146) continue;
-    for (let r = 0; r < 4; r++) { const w2 = Math.max(1, 2 - (r >> 1)); rect(u - CM_U0 - w2, b - r + oy, w2 * 2 + 1, 1, xray ? CM_XB[4] : (r === 3 ? '#1e1a10' : '#e4dcc0')); }
-  }
-}
-// draw one numbered training tooth rising from the lower jaw
-function cmTooth(i, T, st) {
-  const u = CM_TT[i], bx = CM.hx + u, by = CM.hy + Math.round(cmLT(u));
-  const sink = T.pressed ? 7 : 0, h = 13 - sink;
-  const pulse = (Math.sin(tNow * 8) + 1) / 2;
-  const snapRed = T.rev === 'snap' || T.mark;
-  const E = T.pressed ? ['#1e1a10', '#6a6452', '#8a8470', '#a8a28c', '#c8c2aa']
-    : snapRed ? ['#2a0a06', '#8a2a1a', '#c84a38', '#e8806a', '#ffc0b0']
-      : ['#1e1a10', '#b8ae8c', '#e4dcc0', '#f8f2e0', '#ffffff'];
-  if (st.hov && !T.pressed) { ctx.save(); ctx.globalAlpha = 0.5 + pulse * 0.3; rr(bx - 7, by - h - 3, 15, h + 5, 4, '#ffe89a'); ctx.restore(); }
-  if (T.mark) { ctx.save(); ctx.globalAlpha = 0.25 + pulse * 0.35; rr(bx - 9, by - h - 5, 19, h + 8, 5, '#ff4030'); ctx.restore(); }
-  for (let r = 0; r < h; r++) {
-    const f = r / h, w2 = r < 3 ? [1, 2, 3][r] : 4;
-    const y = by - h + r;
-    rect(bx - w2 - 1, y, w2 * 2 + 3, 1, E[0]);
-    rect(bx - w2, y, w2 * 2 + 1, 1, E[2]);
-    rect(bx - w2, y, Math.max(1, w2 - 1), 1, E[3]);
-    rect(bx + w2, y, 1, 1, E[1]);
-    if (f > 0.7) rect(bx - w2, y, w2 * 2 + 1, 1, E[1]);
-  }
-  if (h > 4) rect(bx - 2, by - h + 2, 1, 2, E[4]);
-  // the value, printed on the enamel
-  if (!T.pressed && !st.xray) drawTextC('' + T.v, bx + 1, by - 9, T.mark || T.rev === 'snap' ? '#ffffff' : '#6a5a3a', 1);
-  if (T.pressed) { rect(bx - 2, by - 4, 2, 1, '#3a6a2a'); rect(bx, by - 3, 1, 1, '#3a6a2a'); rect(bx + 1, by - 5, 2, 1, '#3a6a2a'); }
-  // scan tags
-  if (T.rev && !T.pressed) {
-    const ty = by - h - 14 + Math.round(Math.sin(tNow * 3 + i) * 1);
-    plasticBox(bx - 6, ty, 13, 11, 3, T.rev === 'snap' ? ['#2a0806', '#8a1a14', '#c83a2a', '#e8604a', '#ffb0a0'] : ['#0c2210', '#1c5a24', '#3a9a44', '#63d66a', '#c0f8c0'], { noShine: 1 });
-    if (T.rev === 'snap') drawTextC('!', bx + 1, ty + 3, '#ffffff', 1);
-    else { rect(bx - 2, ty + 5, 2, 2, '#ffffff'); rect(bx, ty + 6, 1, 1, '#ffffff'); rect(bx + 1, ty + 3, 2, 3, '#ffffff'); }
-  }
+// The model IS the game's croc: the real renderer, scaled onto a lab plinth,
+// fed a six-tooth training mouth.  What you learn on is exactly what bites.
+const CMS = 0.5, CM_OX = 376, CM_OY = 200;
+const cmT = (x, y) => ({ x: CM_OX + (x - 294) * CMS, y: CM_OY + (y - 252) * CMS });
+function cmWithMouth(m, fn) {
+  const sv = G.mouth, sj = G.jawClose, smut = G.mut, sr = G.round, sn = G.nodeType, sb = G.boss;
+  G.mouth = m.teeth.map(T => ({ t: { type: 'plain', base: T.v }, pressed: T.pressed, gone: false, revealed: T.rev, snap: T.snap, pop: 0 }));
+  G.jawClose = 1 - clamp(m.open, 0, 1); G.mut = null; G.round = 0; G.nodeType = 'small'; G.boss = null;
+  try { return fn(); } finally { G.mouth = sv; G.jawClose = sj; G.mut = smut; G.round = sr; G.nodeType = sn; G.boss = sb; }
 }
 function cmToothRect(i) {
-  const u = CM_TT[i], bx = CM.hx + u, by = CM.hy + Math.round(cmLT(u));
-  return { x: bx - 7, y: by - 18, w: 15, h: 22, cx: bx, cy: by - 7 };
+  const m = G.iv ? G.iv.m : null; if (!m) return { x: 0, y: 0, w: 1, h: 1, cx: 0, cy: 0 };
+  return cmWithMouth(m, () => {
+    const sl = mouthLayout().slots[i]; if (!sl) return { x: 0, y: 0, w: 1, h: 1, cx: 0, cy: 0 };
+    const a = cmT(sl.x, sl.y), b = cmT(sl.x + sl.w, sl.y + sl.h);
+    return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+  });
 }
-// m = { open, teeth[], sheet, sheetT, xr, xrA }, st = { hov, onTooth(i) }
+// m = { open, teeth[], sheet, sheetT, xr, xrA }, st = { hov }
 function drawCrocModel(m, st) {
   st = st || {};
-  const { hx, hy } = CM;
-  const up = getCached('cmU', CM_U1 - CM_U0 + 1, 74, () => cmPaintUpper(false));
-  const upX = getCached('cmUx', CM_U1 - CM_U0 + 1, 74, () => cmPaintUpper(true));
-  const lo = getCached('cmL', CM_U1 - CM_U0 + 1, 46, () => cmPaintLower(false));
-  const loX = getCached('cmLx', CM_U1 - CM_U0 + 1, 46, () => cmPaintLower(true));
-  const a = clamp(m.open, 0, 1.1) * 0.34;
-  // ---- the display table and plinth ----
-  rect(318, 190, 118, 5, UWOOD[4]); rect(318, 190, 118, 1, '#c8905a'); rect(318, 195, 118, 2, UWOOD[0]);
-  [322, 428].forEach(lx => { rect(lx, 197, 5, 17, UWOOD[1]); rect(lx, 197, 1, 17, UWOOD[3]); });
-  rect(320, 204, 112, 2, UWOOD[1]);
-  rect(372, hy + 18, 5, 178 - hy - 18, UGOLD[0]); rect(373, hy + 18, 3, 178 - hy - 18, UGOLD[2]); rect(373, hy + 18, 1, 178 - hy - 18, UGOLD[4]);
-  plasticBox(334, 178, 84, 12, 2, UWOOD, { seed: 61, noShine: 1 });
-  plasticBox(348, 180, 56, 8, 1, UGOLD, { noShine: 1 });
-  drawTextC('C. DENTALIS', 376, 182, '#3a2606', 1);
-  // ---- shadow of the head on the table ----
-  ctx.save(); ctx.globalAlpha = 0.25; rr(300, 186, 150, 5, 2, '#000'); ctx.restore();
-  // ---- the mouth cavity, visible when the jaw is open ----
-  if (a > 0.01) {
-    const ca = Math.cos(a), sa = Math.sin(a);
-    for (let u = 0; u < 148; u++) {
-      const v = cmBot(u) + 4;
-      const px = u * ca + v * sa, py = -u * sa + v * ca - 4;
-      const lt = cmLT(px);
-      const y0 = Math.round(hy + py), y1 = Math.round(hy + lt);
-      if (y1 <= y0) continue;
-      const depth = clamp(1 - u / 150, 0, 1);
-      rect(hx + Math.round(px), y0, 2, y1 - y0, depth > 0.75 ? '#2a0810' : depth > 0.5 ? '#5a1424' : '#8a2a3c');
-      rect(hx + Math.round(px), y0, 2, 2, '#c8506a');
-      rect(hx + Math.round(px), y1 - 2, 2, 2, '#c8506a');
-      if (u > 20 && u < 100) { const tg = Math.round(y1 - 3 - Math.sin(u / 80 * Math.PI) * 5); rect(hx + Math.round(px), tg, 2, y1 - 2 - tg, u % 6 < 3 ? '#d8707e' : '#c8606e'); }
-    }
-  }
-  // ---- lower jaw, training teeth, then the hinged upper jaw ----
-  const drawLayer = (img, dy) => ctx.drawImage(img, hx + CM_U0, hy - dy, img.width / RS, img.height / RS);
-  drawLayer(lo, 8);
-  m.teeth.forEach((T, i) => cmTooth(i, T, { hov: st.hov === i, xray: false }));
-  ctx.save(); ctx.translate(hx, hy - 4); ctx.rotate(-a); ctx.translate(-hx, -(hy - 4));
-  drawLayer(up, 64);
-  ctx.restore();
-  // ---- the X-ray pass: a scan line sweeps and shows the bones and roots ----
-  if (m.xr >= 0 && m.xrA > 0) {
-    const sx = hx + CM_U0 + (CM_U1 - CM_U0) * m.xr;
-    ctx.save(); ctx.globalAlpha = m.xrA;
-    ctx.beginPath(); ctx.rect(hx + CM_U0, hy - 80, sx - (hx + CM_U0), 130); ctx.clip();
-    drawLayer(loX, 8);
-    m.teeth.forEach((T, i) => {
-      const r = cmToothRect(i);
-      rr(r.cx - 4, r.cy - 6, 9, 14, 3, T.snap ? '#ff4030' : '#c0f0ff');
-      if (T.snap) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 10) * 0.3; rr(r.cx - 7, r.cy - 9, 15, 26, 4, '#ff4030'); ctx.restore(); drawTextC('!', r.cx + 1, r.cy - 3, '#ffffff', 1); }
-    });
-    ctx.save(); ctx.translate(hx, hy - 4); ctx.rotate(-a); ctx.translate(-hx, -(hy - 4)); drawLayer(upX, 64); ctx.restore();
+  // ---- the lab plinth it stands on ----
+  plasticBox(292, 198, 168, 14, 2, UWOOD, { seed: 61, noShine: 1 });
+  rect(292, 198, 168, 1, '#c8905a');
+  plasticBox(338, 201, 76, 9, 1, UGOLD, { noShine: 1 });
+  drawTextC('TRAINING GATOR', 376, 203, '#3a2606', 1);
+  ctx.save(); ctx.globalAlpha = 0.3; rr(300, 195, 152, 5, 2, '#000'); ctx.restore();
+  // ---- the real croc, scaled down ----
+  cmWithMouth(m, () => {
+    ctx.save(); ctx.translate(CM_OX, CM_OY); ctx.scale(CMS, CMS); ctx.translate(-294, -252);
+    const _mx = mx, _my = my; mx = 294 + (mx - CM_OX) / CMS; my = 252 + (my - CM_OY) / CMS;
+    drawCroc(1 - clamp(m.open, 0, 1), { mood: m.open < 0.3 ? 'angry' : m.xr >= 0 ? 'worried' : 'calm', dry: 1 });
+    mx = _mx; my = _my;
     ctx.restore();
-    if (m.xr < 1) { ctx.save(); ctx.globalAlpha = 0.8 * m.xrA; rect(sx - 1, hy - 70, 2, 110, '#c0f8ff'); ctx.globalAlpha = 0.3 * m.xrA; rect(sx - 4, hy - 70, 8, 110, '#7ad4f0'); ctx.restore(); }
+  });
+  // brass bolts: it is a model, after all
+  [[294, 168], [458, 168]].forEach(([bx, by]) => { fillCircle(bx, by, 3, UGOLD[0]); fillCircle(bx, by, 2, UGOLD[2]); rect(bx - 1, by - 1, 1, 1, UGOLD[4]); });
+  // ---- per-tooth overlays: hover, the snapper she is pointing at ----
+  m.teeth.forEach((T, i) => {
+    const r = cmToothRect(i), pulse = (Math.sin(tNow * 8) + 1) / 2;
+    if (st.hov === i && !T.pressed) { ctx.save(); ctx.globalAlpha = 0.35 + pulse * 0.25; rr(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 3, '#ffe89a'); ctx.restore(); }
+    if (T.mark) { ctx.save(); ctx.globalAlpha = 0.3 + pulse * 0.35; rr(r.x - 3, r.y - 3, r.w + 6, r.h + 6, 3, '#ff4030'); ctx.restore(); }
+  });
+  // ---- the X-ray sweep: a scan line crosses and the snapper glows red ----
+  if (m.xr >= 0 && m.xrA > 0) {
+    const x0 = 290, x1 = 462, sx = x0 + (x1 - x0) * m.xr;
+    ctx.save(); ctx.globalAlpha = 0.22 * m.xrA; rect(x0, 110, sx - x0, 80, '#3a9ad8'); ctx.restore();
+    m.teeth.forEach((T, i) => { const r = cmToothRect(i); if (T.snap && r.cx < sx) { ctx.save(); ctx.globalAlpha = (0.5 + Math.sin(tNow * 10) * 0.3) * m.xrA; rr(r.x - 3, r.y - 3, r.w + 6, r.h + 6, 3, '#ff4030'); ctx.restore(); drawTextC('!', r.cx + 1, r.cy - 3, '#ffffff', 1); } });
+    if (m.xr < 1) { ctx.save(); ctx.globalAlpha = 0.8 * m.xrA; rect(sx - 1, 106, 2, 88, '#c0f8ff'); ctx.globalAlpha = 0.3 * m.xrA; rect(sx - 4, 106, 8, 88, '#7ad4f0'); ctx.restore(); }
   }
-  // ---- brass hinge pin ----
-  fillCircle(hx - 2, hy - 3, 4, UGOLD[0]); fillCircle(hx - 2, hy - 3, 3, UGOLD[2]); rect(hx - 4, hy - 4, 5, 1, UGOLD[0]); rect(hx - 3, hy - 5, 1, 1, UGOLD[4]);
   // ---- the dust sheet it lives under ----
   if (m.sheet > 0) {
     const f = m.sheetT >= 0 ? clamp(m.sheetT, 0, 1) : 0;
@@ -10294,37 +10191,12 @@ function drawCrocModel(m, st) {
     ctx.translate(376 + f * 120, 150 - f * 110); ctx.rotate(f * 0.9); ctx.scale(1 - f * 0.4, 1 - f * 0.3);
     ctx.globalAlpha = 1 - f;
     const SH = ['#3a3a3a', '#a8a49a', '#c8c4b8', '#e0dcd0', '#f4f0e6'];
-    plasticBox(-92, -60, 184, 86, 18, SH, { seed: 7 });
-    for (let k = 0; k < 7; k++) { const fx = -70 + k * 22 + Math.round(Math.sin(tNow * 2 + k) * f * 6); pxLine(fx, -50, fx + 6, 22, SH[1]); pxLine(fx + 1, -50, fx + 7, 22, SH[3]); }
-    for (let x = -88; x < 88; x += 8) rr(x, 22 + (x % 16 ? 2 : 0), 8, 5, 2, SH[2]);
+    plasticBox(-90, -52, 180, 86, 18, SH, { seed: 7 });
+    for (let k = 0; k < 7; k++) { const fx = -70 + k * 22 + Math.round(Math.sin(tNow * 2 + k) * f * 6); pxLine(fx, -44, fx + 6, 30, SH[1]); pxLine(fx + 1, -44, fx + 7, 30, SH[3]); }
+    for (let x = -86; x < 86; x += 8) rr(x, 30 + (x % 16 ? 2 : 0), 8, 5, 2, SH[2]);
     ctx.restore();
   }
 }
-
-
-// tiny pictogram chips for node modifiers (icon, not an ugly bar)
-const MOD_ICONS = {
-  foggy(x, y) { rr(x, y + 3, 7, 3, 1, '#dfe8ec'); rr(x + 2, y + 1, 4, 3, 1, '#dfe8ec'); },
-  swarming(x, y) { rect(x, y + 4, 7, 2, '#fff'); rect(x + 1, y + 1, 1, 3, '#fff'); rect(x + 3, y, 1, 4, '#fff'); rect(x + 5, y + 1, 1, 3, '#fff'); },
-  brittle(x, y) { rr(x + 1, y, 5, 6, 1, '#fff'); rect(x + 3, y + 1, 1, 2, '#95251f'); rect(x + 2, y + 3, 1, 1, '#95251f'); rect(x + 4, y + 4, 1, 2, '#95251f'); },
-  tired(x, y) { rect(x + 1, y, 5, 1, '#fff'); rect(x + 4, y + 1, 1, 1, '#fff'); rect(x + 3, y + 2, 1, 1, '#fff'); rect(x + 2, y + 3, 1, 1, '#fff'); rect(x + 1, y + 4, 5, 1, '#fff'); },
-  toll(x, y) { fillCircle(x + 3, y + 3, 3, '#ffe089'); rect(x + 3, y + 1, 1, 5, '#a4741a'); },
-  blessed(x, y) { rr(x, y + 2, 7, 3, 1, '#fff'); rect(x + 3, y + 3, 1, 1, '#1c5c9e'); rect(x + 3, y, 1, 1, '#fff'); rect(x + 3, y + 6, 1, 1, '#fff'); },
-  richwater(x, y) { rect(x + 1, y + 4, 5, 2, '#ffe089'); rect(x + 1, y + 1, 5, 2, '#ffe089'); rect(x + 2, y + 2, 1, 1, '#a4741a'); rect(x + 2, y + 5, 1, 1, '#a4741a'); },
-  gilded(x, y) { rr(x + 1, y, 5, 4, 1, '#ffe089'); rect(x + 1, y + 4, 2, 2, '#ffe089'); rect(x + 4, y + 4, 2, 2, '#ffe089'); },
-  tailwind(x, y) { rect(x, y + 2, 5, 2, '#fff'); rect(x + 4, y + 1, 1, 4, '#fff'); rect(x + 5, y + 2, 1, 2, '#fff'); rect(x + 3, y, 1, 1, '#fff'); rect(x + 3, y + 5, 1, 1, '#fff'); },
-  charmed(x, y) { rect(x + 3, y, 1, 6, '#fff'); rect(x + 1, y + 2, 5, 1, '#fff'); rect(x + 2, y + 1, 1, 1, '#fff'); rect(x + 4, y + 1, 1, 1, '#fff'); rect(x + 2, y + 4, 1, 1, '#fff'); rect(x + 4, y + 4, 1, 1, '#fff'); },
-};
-function drawModChip(x, y, m) {
-  const md = NODE_MODS[m];
-  x |= 0; y |= 0;
-  rr(x, y + 1, 11, 11, 2, '#00000088');
-  rr(x, y, 11, 11, 2, md.bad ? '#95251f' : '#2c7d3a');
-  rr(x + 1, y + 1, 9, 9, 2, md.bad ? '#33161a' : '#1e3220');
-  (MOD_ICONS[m] || MOD_ICONS.charmed)(x + 2, y + 2);
-}
-
-// ------------------------------------------------------------ swamp map ---
 function drawMiniGator(x, y, type, mut) {
   const cols = { small: ['#6cbe4c', '#4a9636'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
   // in the OCEAN the map shows SHARKS, in the swamp GATORS - never mixed up
@@ -10347,15 +10219,25 @@ function drawMiniGator(x, y, type, mut) {
     rect(x + 15, y + 5, 3, 2, sclera); rect(x + 16, y + 5, 1, 2, pupil);
     if (type === 'boss') { rect(x + 3, y + 1, 3, 2, C.red); rect(x + 17, y + 1, 3, 2, C.red); } // megalodon scars
   } else {
-    rr(x, y + 4, 22, 9, 3, a);
-    rr(x + 1, y + 10, 20, 4, 2, b);
-    [[x + 3], [x + 13]].forEach(([ex]) => {
-      rr(ex, y, 7, 7, 2, a);
-      rect(ex + 2, y + 2, 3, 3, sclera);
-      rect(ex + 3, y + 3, 1, 2, pupil);
+    // a pocket-sized copy of the real croc, seen head on like in the fight:
+    // eye domes riding the snout, a scaly upper jaw, the pink maw with its
+    // two rows of teeth, and the lower jaw
+    const ink = mixHex(b, '#000000', 0.45), lt = mixHex(a, '#ffffff', 0.3);
+    rr(x - 1, y + 15, 24, 4, 1, ink); rr(x, y + 15, 22, 3, 1, b);                   // lower jaw
+    rect(x + 1, y + 17, 20, 1, mixHex(b, '#000000', 0.2));
+    rr(x + 2, y + 10, 18, 6, 1, '#3a0e18'); rect(x + 3, y + 11, 16, 4, '#8a2438');  // the maw
+    for (let k = 0; k < 5; k++) { rect(x + 3 + k * 3 + (k > 2 ? 1 : 0), y + 11, 2, 2, '#f8f2e0'); rect(x + 4 + k * 3, y + 13, 2, 2, '#f4ecd4'); }
+    rr(x - 1, y + 3, 24, 8, 2, ink); rr(x, y + 4, 22, 6, 2, a);                     // upper jaw
+    rect(x + 1, y + 4, 20, 1, lt);
+    for (let k = 0; k < 5; k++) rect(x + 2 + k * 4, y + 6 + (k % 2), 2, 1, b);       // scutes
+    rect(x + 8, y + 5, 1, 1, '#1a0e06'); rect(x + 13, y + 5, 1, 1, '#1a0e06');       // nostrils
+    [[x], [x + 15]].forEach(([ex]) => {
+      rr(ex - 1, y - 1, 9, 6, 2, ink); rr(ex, y, 7, 5, 2, a); rect(ex + 1, y, 5, 1, lt);
+      rr(ex + 1, y + 1, 5, 3, 1, sclera);
+      rect(ex + 3, y + 1, 1, 3, pupil);
+      rect(ex, y - 1, 7, 1, ink);                                                   // brow ridge
     });
-    if (type === 'small' && !mu) { rect(x + 5, y + 2, 2, 2, '#4a9636'); rect(x + 15, y + 2, 2, 2, '#4a9636'); rect(x + 3, y + 8, 2, 1, '#9ce85c'); rect(x + 17, y + 8, 2, 1, '#9ce85c'); }
-    if (type === 'gold' && !mu) { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 16, y + 2, 1, 1, '#fff6c8'); }
+    if (type === 'gold' && !mu) { rect(x + 8, y - 3, 2, 2, '#fff6c8'); rect(x + 18, y + 5, 1, 1, '#fff6c8'); }
     if (type === 'boss') { rect(x + 2, y - 2, 3, 3, C.red); rect(x + 9, y - 3, 3, 4, C.red); rect(x + 16, y - 2, 3, 3, C.red); }
   }
   // ---- MUTATION custom marker: a per-variant snout pattern + a floating gem ----
