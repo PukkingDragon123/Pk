@@ -8111,38 +8111,36 @@ function woodTile(x, y, s, icon, cb, o) {
 // the REAL croc - the same one you fight - lurking in the shallows up to its
 // nostrils.  Every so often it rises, gapes and snaps; click it to provoke it.
 const MENU_WATER = 230;
+const MENU_CROC_X = 324;
 function drawMenuCroc(dt) {
   const g = menuGator;
   g.t += dt;
-  const cyc = 12, ct = g.t % cyc;
-  let rise = 0, close = 0.9;
-  if (ct > 7.5 && ct < 11.6) {
-    const k = ct - 7.5;
-    rise = k < 0.8 ? easeOut(k / 0.8) : k < 3.2 ? 1 : 1 - (k - 3.2) / 0.9;
-    close = k < 0.8 ? 0.9 : k < 2.3 ? lerp(0.9, 0.06, easeOut((k - 0.8) / 1.5)) : k < 2.45 ? lerp(0.06, 1, (k - 2.3) / 0.15) : 1;
-    if (k > 2.45 && !g.snapped) { g.snapped = true; sfx.snap(); shake = Math.max(shake, 4); for (let i = 0; i < 16; i++) parts.push({ x: 300 + (rnd() - 0.5) * 120, y: MENU_WATER - 2, vx: (rnd() - 0.5) * 90, vy: -50 - rnd() * 70, t: 0, life: 0.8, col: '#bfe0f0', sz: 2, g: 240 }); addRipple(300, MENU_WATER + 2, true); }
+  const cyc = 9, ct = g.t % cyc;
+  // it never ducks under: jaws hang wide open, breathing slowly, then SNAP
+  let close = 0.16 + (0.5 + 0.5 * Math.sin(g.t * 0.9)) * 0.12;
+  if (ct > 6.4 && ct < 8.4) {
+    const k = ct - 6.4;
+    close = k < 0.5 ? lerp(close, 0.02, easeOut(k / 0.5)) : k < 0.62 ? lerp(0.02, 1, (k - 0.5) / 0.12) : k < 1.2 ? 1 : lerp(1, close, easeOut((k - 1.2) / 0.8));
+    if (k > 0.62 && !g.snapped) { g.snapped = true; sfx.snap(); shake = Math.max(shake, 5); for (let i = 0; i < 20; i++) parts.push({ x: MENU_CROC_X + (rnd() - 0.5) * 200, y: MENU_WATER - 2, vx: (rnd() - 0.5) * 110, vy: -60 - rnd() * 80, t: 0, life: 0.8, col: '#bfe0f0', sz: 2, g: 240 }); addRipple(MENU_CROC_X, MENU_WATER + 2, true); }
   } else g.snapped = false;
-  const S = 2 / 3, bob = Math.sin(tNow * 1.2) * 1.5;
-  // the upper jaw drops as the mouth closes, so the waterline follows the snout:
-  // lurking shows eyes + nostrils, rising shows the whole gaping maw
-  const snoutTop = 54 + close * 66;
-  const waterY = lerp(snoutTop + 34, 206, clamp(rise, 0, 1)) - bob;
+  const S = 1, waterY = 212;
   ctx.save();
+  // warm backlight halo so the silhouette pops off the sunset
+  glow(MENU_CROC_X, 150, 120, '#ffb070', 0.16);
   ctx.beginPath(); ctx.rect(0, 0, W, MENU_WATER); ctx.clip();
-  ctx.translate(316, MENU_WATER); ctx.scale(S, S); ctx.translate(-294, -waterY);
-  const _mx = mx, _my = my; mx = 294 + (mx - 316) / S; my = waterY + (my - MENU_WATER) / S;
+  ctx.translate(MENU_CROC_X, MENU_WATER); ctx.scale(S, S); ctx.translate(-294, -waterY);
+  const _mx = mx, _my = my; mx = 294 + (mx - MENU_CROC_X) / S; my = waterY + (my - MENU_WATER) / S;
   const sj = G.jawClose; G.jawClose = close;
-  drawCroc(close, { mood: rise > 0.5 ? 'hungry' : 'calm', dry: 1 });
+  drawCroc(close, { mood: close > 0.9 ? 'angry' : 'hungry', dry: 1 });
   G.jawClose = sj; mx = _mx; my = _my;
   ctx.restore();
-  // dusk rim light along the top of its head, catching the sunset
   // wet reflection and ripples round the head
-  ctx.save(); ctx.globalAlpha = 0.28; rect(210, MENU_WATER, 180, 10, '#0a1418'); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.3; rect(MENU_CROC_X - 140, MENU_WATER, 280, 12, '#0a1418'); ctx.restore();
   ctx.save(); ctx.globalAlpha = 0.45;
-  for (let r = 0; r < 4; r++) { const rw = 190 + r * 20 + Math.sin(tNow * 1.5 + r) * 4; rect(300 - rw / 2, MENU_WATER + 1 + r * 3, rw, 1, '#a88aa0'); }
+  for (let r = 0; r < 4; r++) { const rw = 280 + r * 22 + Math.sin(tNow * 1.5 + r) * 4; rect(MENU_CROC_X - rw / 2, MENU_WATER + 1 + r * 3, rw, 1, '#a88aa0'); }
   ctx.restore();
-  if (Math.sin(tNow * 1.7) > 0.96) addRipple(230 + rnd() * 140, MENU_WATER + 3);
-  hit(210, MENU_WATER - 60 - rise * 50, 180, 60 + rise * 50, { id: 'menugator', cursor: true, tip: 'THE GATOR|It is watching you', cb: () => { if (ct < 7) menuGator.t = Math.floor(menuGator.t / cyc) * cyc + 7.5; } });
+  if (Math.sin(tNow * 1.7) > 0.96) addRipple(MENU_CROC_X - 120 + rnd() * 240, MENU_WATER + 3);
+  hit(MENU_CROC_X - 130, 70, 260, MENU_WATER - 70, { id: 'menugator', cursor: true, tip: 'THE GATOR|Click it. Go on.', cb: () => { if (ct < 6.4) menuGator.t = Math.floor(menuGator.t / cyc) * cyc + 6.4; } });
 }
 // the lurking gator: eyes, snout and back scutes breaking the surface.
 // Every so often it rears up and snaps at a dragonfly.
@@ -8214,7 +8212,7 @@ function drawMenu(dt) {
   const dv = G.dive;
   if (dv) dv.t += dt;
   const dk = dv ? clamp(dv.t / 1.0, 0, 1) : 0;
-  const zc = { x: 446, y: 160 };                       // the ranger station door
+  const zc = { x: MENU_CROC_X, y: 150 };                // straight down the gator's throat
   if (dv) { const z = 1 + easeIn(dk) * 6; ctx.save(); ctx.translate(zc.x, zc.y); ctx.scale(z, z); ctx.translate(-zc.x, -zc.y); }
 
   paintCached('menu', 0, 0, W, H, menuStatic);
@@ -8279,34 +8277,34 @@ function drawMenu(dt) {
     return;
   }
 
-  // ---- the title sign, hanging from the bough on two ropes ----
-  const lx = 156, ly = 30 + Math.round(Math.sin(tNow * 0.9) * 1.5);
-  [lx + 34, lx + 232].forEach(rx => { const top = 12 + Math.round(Math.sin(rx / 60) * 3 + rx * 0.02); for (let y = top; y < ly + 3; y += 2) { rect(rx, y, 2, 2, (y >> 1) & 1 ? '#c8b080' : '#a08858'); } });
-  paintCached('menulogo', lx, ly, 272, 76, menuLogo);
-  // glint racing across the letters
+  // ---- the title sign, top-left, hanging on two ropes ----
+  const TS = 0.62, lx = 6, ly = 8 + Math.round(Math.sin(tNow * 0.9) * 1);
+  [lx + 24, lx + 142].forEach(rx => { for (let y = 0; y < ly + 3; y += 2) rect(rx, y, 2, 2, (y >> 1) & 1 ? '#c8b080' : '#a08858'); });
+  ctx.save(); ctx.translate(lx, ly); ctx.scale(TS, TS);
+  paintCached('menulogo', 0, 0, 272, 76, menuLogo);
   const gl = (tNow * 0.35) % 2.2;
-  if (gl < 1) { ctx.save(); ctx.globalAlpha = 0.5; const gx2 = lx + 20 + gl * 230; for (let k = 0; k < 22; k++) rect(gx2 + k * 0.4, ly + 13 + k, 2, 1, '#ffffff'); ctx.restore(); }
+  if (gl < 1) { ctx.globalAlpha = 0.5; const gx2 = 20 + gl * 230; for (let k = 0; k < 22; k++) rect(gx2 + k * 0.4, 13 + k, 2, 1, '#ffffff'); }
+  ctx.restore();
 
-  // ---- the signpost: every menu option is a painted trail arrow ----
-  const PX = 128;
-  rect(PX - 4, 92, 9, 150, '#1a0e06'); rect(PX - 3, 92, 7, 150, '#4e3218'); rect(PX - 3, 92, 2, 150, '#6a4a28'); woodGrain(PX - 1, 94, 4, 140, '#3a2412', '#7c5430', 3);
-  rr(PX - 6, 86, 13, 8, 2, '#1a0e06'); rr(PX - 5, 87, 11, 6, 2, '#6a4a28');
+  // ---- the signpost: every option is a trail arrow, all down the left ----
+  const PX = 14;
+  rect(PX - 4, 58, 9, 190, '#1a0e06'); rect(PX - 3, 58, 7, 190, '#4e3218'); rect(PX - 3, 58, 2, 190, '#6a4a28'); woodGrain(PX - 1, 60, 4, 180, '#3a2412', '#7c5430', 3);
   ensureDaily();
   const idxAll = indexEntries();
   const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
-  signPlank(PX - 30, 98, 176, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
-  signPlank(PX - 118, 134, 124, 20, -1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
-  signPlank(PX - 4, 158, 124, 20, 1, 'FIELD GUIDE', '#3a7a44', () => { G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'FIELD GUIDE|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator you have met') });
-  signPlank(PX - 118, 182, 124, 20, -1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
-  if (idxNew) { const bx = PX + 110, by = 156; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
-  woodTile(PX - 2, 208, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
-  woodTile(PX + 24, 208, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
-  woodTile(PX + 50, 208, 22, 'giftic', () => { G.boothOv = 'gifts'; }, { id: 'giftbtn', tip: 'FREE GIFTS|Follow us for a wombat hat + tee' });
+  signPlank(6, 60, 158, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
+  signPlank(6, 96, 132, 20, 1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
+  signPlank(6, 120, 132, 20, 1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
+  signPlank(6, 144, 132, 20, 1, 'FIELD GUIDE', '#3a7a44', () => { G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'FIELD GUIDE|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator you have met') });
+  if (idxNew) { const bx = 128, by = 142; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
+  woodTile(8, 170, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
+  woodTile(34, 170, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
+  woodTile(60, 170, 22, 'giftic', () => { G.boothOv = 'gifts'; }, { id: 'giftbtn', tip: 'FREE GIFTS|Follow us for a wombat hat + tee' });
   if (G.boothOv) { drawBoothOverlay(); return; }
 
   // ---- the shift log, pinned to the pier post ----
   (function board() {
-    const bx = 400, by = 206, bw = 76, bh = 56;
+    const bx = 8, by = 200, bw = 76, bh = 56;
     rect(bx + 46, by - 12, 8, 14, '#2a1c12');
     paperSheet(bx, by, bw, bh, { ruled: 1, ruledTop: 16 });
     pushPin(bx + bw / 2, by + 2, PINS[2]);
