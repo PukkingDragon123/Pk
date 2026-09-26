@@ -13777,9 +13777,11 @@ function drawMap() {
   const bpos = G.boat ? G.boat : G.map.stage === 0 ? MAP_DOCK : boatPark(nodePos(G.map.stage - 1, G.map.picked[G.map.stage - 1] || 0, G.map.stages[G.map.stage - 1].length));
   const bob = Math.round(Math.sin(tNow * 2.2) * 1);
   const lean = G.boat ? Math.round(G.boat.lean || 0) : 0;
-  ctx.save(); ctx.translate(bpos.x, bpos.y + bob); ctx.scale(0.8, 0.8); ctx.translate(-bpos.x, -(bpos.y + bob));
-  drawRowBoat(bpos.x, bpos.y + bob, lean, !!G.boat);
-  drawBobble(bpos.x + lean * 0.4, bpos.y + 1 + bob, G.ranger, { sc: 0.42, expr: G.boat ? 'wow' : 'happy', act: G.boat ? 'row' : 'idle', ...myFit() });
+  // the park airboat, facing the way it is heading, prop roaring while underway
+  const face = G.boat ? (G.boat.tx < G.boat.sx ? -1 : 1) : (G.mapFace || 1);
+  if (G.boat) G.mapFace = face;
+  ctx.save(); ctx.translate(bpos.x, bpos.y + bob - 2); ctx.rotate(lean * 0.03); ctx.scale(0.4 * face, 0.4);
+  drawAirboat(0, 0, !!G.boat, undefined, { expr: G.boat ? 'wow' : 'happy' });
   ctx.restore();
   drawRipples(0.6);
 
@@ -13820,7 +13822,7 @@ function drawMap() {
   pxLine(452, 24, 452 + Math.cos(na) * 8, 24 + Math.sin(na) * 8, '#c8301f', 2); pxLine(452, 24, 452 - Math.cos(na) * 7, 24 - Math.sin(na) * 7, '#3a3a3a', 1);
   rect(451, 23, 2, 2, UGOLD[0]); rect(446, 14, 4, 1, '#ffffff');
   pxLine(398, 258, 446, 246, '#1a1206', 4); pxLine(399, 257, 445, 245, '#e8b830', 2); rect(446, 244, 4, 4, '#e87a8a'); rect(396, 258, 3, 2, '#3a2a1a');
-  drawTextC(G.boat ? 'ROWING...' : hovNode ? 'CLICK TO ROW THERE' : 'PICK YOUR NEXT STOP', W / 2, H - 12, '#f4e2b8', 1);
+  drawTextC(G.boat ? 'FULL THROTTLE...' : hovNode ? 'CLICK TO ROW THERE' : 'PICK YOUR NEXT STOP', W / 2, H - 12, '#f4e2b8', 1);
 }
 
 function drawRowBoat(x, y, lean, moving) {
