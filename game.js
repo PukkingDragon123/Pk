@@ -9174,105 +9174,447 @@ function drawAirboat(cx, y, moving, dt) {
   for (let d = 0; d < 6; d++) rect(cx + 44 + d * 9, y - 10 - d, 9, 8 + d * 2, '#ffb848');
   ctx.restore();
 }
+// =============================== GLADES SCENERY KIT ==============================
+//  Side-on Everglades painted in the game's pixel style, built from layers that
+//  scroll at their own speed: sky, cumulus, the hammock treeline, bands of
+//  sawgrass, open water, cypress domes, pinelands and mangroves, plus the
+//  wildlife that lives in them.  The intro and every trail event share it.
+// ================================================================================
+const GL = {
+  dawn: ['#2a3a6a', '#4a4a86', '#8a5a8e', '#d8708a', '#f8a07a', '#ffd08a', '#fff0c0'],
+  day: ['#3a7ad0', '#4a8ee0', '#62a4ec', '#7ebaf0', '#9ccff4', '#bfe2f8', '#e0f2fa'],
+  gold: ['#4a5a9a', '#7a6aa8', '#c07a9a', '#f09a7a', '#ffc070', '#ffe09a', '#fff4d0'],
+  dusk: ['#1a1838', '#2e2450', '#4e3262', '#7a4068', '#b05a68', '#e0846a', '#f8b878'],
+  night: ['#060a18', '#0a1224', '#0e1a30', '#12223a', '#182c46', '#1e3650', '#26405a'],
+  storm: ['#1a1e26', '#262c36', '#323a44', '#3e4852', '#4c5862', '#5a6670', '#6a7680'],
+  cypress: ['#1a2a1a', '#243a24', '#2e4a2c', '#3a5a34', '#4a6e40', '#5a8250', '#6a9660'],
+};
+// a vertical sky gradient with a one-pixel dither between bands
+function gSky(cols, y0, y1) {
+  const h = y1 - y0, n = cols.length - 1;
+  for (let y = 0; y < h; y++) {
+    const f = y / h * n, i = Math.min(n - 1, Math.floor(f)), fr = f - i;
+    rect(0, y0 + y, W, 1, cols[i]);
+    if (fr > 0.55) for (let x = (y & 1); x < W; x += 2) rect(x, y0 + y, 1, 1, cols[i + 1]);
+  }
+}
+function gSun(x, y, r, core, halo) {
+  ctx.save();
+  for (let k = 4; k >= 1; k--) { ctx.globalAlpha = 0.07 * k; fillCircle(x, y, r + k * 9, halo || '#ffd890'); }
+  ctx.restore();
+  fillCircle(x, y, r, core || '#fff0c0'); fillCircle(x - Math.round(r * 0.25), y - Math.round(r * 0.25), Math.round(r * 0.55), '#fffbe8');
+}
+// soft rays fanning down from a light source
+function gRays(x, y, n, len, col, a, spread) {
+  ctx.save(); ctx.globalAlpha = a || 0.08; ctx.fillStyle = col || '#fff0c0';
+  for (let k = 0; k < n; k++) {
+    const an = Math.PI / 2 + (k - (n - 1) / 2) * (spread || 0.22) + Math.sin(tNow * 0.3 + k) * 0.02;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(an - 0.04) * len, y + Math.sin(an - 0.04) * len); ctx.lineTo(x + Math.cos(an + 0.04) * len, y + Math.sin(an + 0.04) * len); ctx.fill();
+  }
+  ctx.restore();
+}
+// one puffy cumulus: shaded lumps with a flat, darker base
+function gCloud(x, y, s, lit, mid, shade) {
+  const lumps = [[-18, 2, 9], [-8, -4, 12], [6, -6, 13], [18, 0, 9], [0, 2, 11]];
+  lumps.forEach(([lx, ly, r]) => fillCircle(x + lx * s, y + ly * s + 2, r * s, shade));
+  lumps.forEach(([lx, ly, r]) => fillCircle(x + lx * s, y + ly * s, r * s, mid));
+  lumps.forEach(([lx, ly, r]) => fillCircle(x + lx * s - r * s * 0.25, y + ly * s - r * s * 0.3, r * s * 0.6, lit));
+  rect(x - 26 * s, y + 7 * s, 52 * s, 4 * s, shade);
+}
+function gClouds(scroll, y, n, cols, seed, sc) {
+  for (let k = 0; k < n; k++) {
+    const span = W + 160, bx = hash2(k, seed || 1) * span, x = ((bx - scroll) % span + span) % span - 80;
+    gCloud(x, y + hash2(k, (seed || 1) + 7) * 26, (sc || 1) * (0.6 + hash2(k, (seed || 1) + 3) * 0.6), cols[0], cols[1], cols[2]);
+  }
+}
+// wrap a cached strip horizontally so it can scroll forever
+function gStrip(key, w, h, fn, y, scroll) {
+  const c = getCached(key, w, h, fn);
+  let x = -(((scroll % w) + w) % w);
+  for (; x < W; x += w) ctx.drawImage(c, x, y, w, h);
+}
+// the far hardwood hammocks: rounded tree islands sitting on the horizon
+function gHammocks(key, y, scroll, col, colB, h) {
+  h = h || 24;
+  gStrip('ham' + key, 320, h + 4, () => {
+    for (let i = 0; i < 16; i++) {
+      const cx = i * 20 + hash2(i, 3) * 12, r = 6 + hash2(i, 4) * 9, top = h - r - hash2(i, 5) * 8;
+      if (hash2(i, 6) < 0.3) continue;
+      fillCircle(cx, top + r, r, col); fillCircle(cx + r * 0.7, top + r + 2, r * 0.8, col); fillCircle(cx - r * 0.6, top + r + 3, r * 0.7, col);
+      if (colB) { fillCircle(cx - r * 0.3, top + r * 0.6, r * 0.45, colB); }
+      if (hash2(i, 8) < 0.5) { rect(cx + 2, top - 6, 1, 8, col); fillCircle(cx + 2, top - 7, 3, col); }   // a palm or pine above the crown
+    }
+    rect(0, h, 320, 4, col);
+  }, y - h, scroll);
+}
+// sawgrass: a band of blades with seed heads, cached as a tile per palette
+function gSawgrass(key, y, h, scroll, cols, dens) {
+  gStrip('saw' + key, 240, h, () => {
+    rect(0, h - 3, 240, 3, cols[0]);
+    const n = Math.round(240 * (dens || 1.2));
+    for (let i = 0; i < n; i++) {
+      const x = Math.floor(hash2(i, 11) * 240), bh = Math.floor(h * (0.35 + hash2(i, 12) * 0.65)), c = cols[1 + Math.floor(hash2(i, 13) * (cols.length - 1))];
+      const lean = Math.round((hash2(i, 14) - 0.5) * 3);
+      for (let j = 0; j < bh; j++) rect(x + Math.round(lean * j / bh), h - 1 - j, 1, 1, c);
+      if (hash2(i, 15) < 0.12) { rect(x + lean, h - bh - 2, 1, 3, '#a8804a'); rect(x + lean - 1, h - bh - 1, 1, 1, '#c8a060'); }
+    }
+  }, y - h, scroll);
+}
+// open water: a sky-tinted gradient, horizontal glints drifting past
+function gWater(y0, y1, cols, scroll, glint) {
+  const h = y1 - y0;
+  for (let y = 0; y < h; y++) { const f = y / h; rect(0, y0 + y, W, 1, f < 0.33 ? cols[0] : f < 0.66 ? cols[1] : cols[2]); }
+  ctx.save();
+  for (let k = 0; k < 40; k++) {
+    const yy = y0 + 2 + (k * 13 % Math.max(1, h - 3)), span = W + 40, xx = ((hash2(k, 21) * span - scroll * (0.5 + (yy - y0) / h)) % span + span) % span - 20;
+    ctx.globalAlpha = 0.25 + 0.2 * Math.sin(tNow * 2 + k);
+    rect(xx, yy, 6 + (k % 5) * 3, 1, glint || '#e8f8ff');
+  }
+  ctx.restore();
+}
+// a bald cypress, cached per height: flared trunk, flat foliage pads, moss
+function gCypressSprite(h, dark) {
+  const key = 'cypr' + h + (dark ? 'd' : '');
+  return getCached(key, 60, h + 4, () => {
+    const tr = dark ? ['#141c14', '#1e281e', '#283428'] : ['#3a2a1e', '#5a4230', '#7a5a42'];
+    const lf = dark ? ['#0e1a10', '#16261a', '#1e3222'] : ['#1e3a1e', '#2e5a2a', '#4a7e3a'];
+    const cx = 30;
+    // buttressed base
+    for (let y = 0; y < h; y++) {
+      const f = y / h, w = 3 + Math.round(Math.pow(f, 4) * 9) + (f < 0.1 ? 1 : 2);
+      rect(cx - w, y, w * 2, 1, tr[1]); rect(cx - w, y, 1, 1, tr[0]); rect(cx + w - 2, y, 2, 1, tr[0]); rect(cx - w + 1, y, 1, 1, tr[2]);
+    }
+    for (let k = 0; k < 6; k++) rect(cx - 1 + (k % 2), Math.floor(h * 0.2 + k * h * 0.12), 1, 4, tr[0]);
+    // flat-topped foliage pads stacked up the trunk
+    const pads = [[0.02, 18], [0.12, 22], [0.24, 17], [0.36, 13]];
+    pads.forEach(([py, pw], i) => {
+      const yy = Math.floor(py * h) + 2, side = i % 2 ? 1 : -1;
+      rr(cx - pw + side * 4, yy, pw * 2, 7, 3, lf[0]); rr(cx - pw + side * 4 + 1, yy, pw * 2 - 2, 5, 3, lf[1]);
+      for (let k = 0; k < pw; k += 3) rect(cx - pw + side * 4 + 2 + k * 2, yy + 1, 2, 1, lf[2]);
+      // spanish moss hanging off the pad
+      for (let m = 0; m < 5; m++) { const mx2 = cx - pw + side * 4 + 3 + m * Math.floor(pw * 2 / 5), ml = 4 + ((m * 7 + i * 3) % 7); for (let j = 0; j < ml; j += 1) rect(mx2 + ((j >> 2) & 1), yy + 6 + j, 1, 1, dark ? '#2a3a32' : (j % 3 ? '#8a9a82' : '#a8b8a0')); }
+    });
+  });
+}
+function gCypress(x, baseY, h, dark) { const c = gCypressSprite(h, dark); ctx.drawImage(c, Math.round(x) - 30, Math.round(baseY - h), 60, h + 4); }
+// a stand of cypress trees scrolling as one layer
+function gCypressRow(scroll, baseY, hMin, hMax, gap, seed, dark) {
+  const span = W + gap * 2;
+  for (let k = 0; k < Math.ceil(span / gap) + 1; k++) {
+    const bx = k * gap + hash2(k, seed) * gap * 0.6, x = ((bx - scroll) % span + span) % span - gap;
+    gCypress(x, baseY, Math.round(hMin + hash2(k, seed + 1) * (hMax - hMin)), dark);
+  }
+}
+// a slash pine: a thin straight trunk and a tufted crown
+function gPine(x, baseY, h, dark) {
+  const tr = dark ? '#1a2018' : '#6a4a32', lf = dark ? ['#101a12', '#16241a'] : ['#1e4a2a', '#2e6a3a'];
+  rect(x, baseY - h, 2, h, tr); rect(x, baseY - h, 1, h, dark ? '#242c22' : '#8a6a4a');
+  [[0, 10, 7], [-5, 16, 5], [5, 20, 5], [-3, 26, 4]].forEach(([ox, oy, r]) => { fillCircle(x + ox, baseY - h + oy - 6, r + 1, lf[0]); fillCircle(x + ox - 1, baseY - h + oy - 7, r, lf[1]); });
+}
+// mangrove: arching prop roots and a dense crown
+function gMangrove(x, baseY, w, cols) {
+  cols = cols || ['#1e3a22', '#2e5a32', '#4a7e42', '#5a3a26'];
+  for (let k = 0; k < 7; k++) { const rx = x - w / 2 + k * (w / 6); ctx.save(); ctx.strokeStyle = cols[3]; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + (rx - x) * 0.3, baseY - 22); ctx.quadraticCurveTo(rx, baseY - 26, rx, baseY); ctx.stroke(); ctx.restore(); }
+  rect(x - 2, baseY - 30, 4, 12, cols[3]);
+  [[-w * 0.3, -34, w * 0.34], [w * 0.2, -38, w * 0.36], [0, -44, w * 0.3], [-w * 0.1, -30, w * 0.4]].forEach(([ox, oy, r]) => { fillCircle(x + ox, baseY + oy, r * 0.55 + 1, cols[0]); fillCircle(x + ox - 2, baseY + oy - 2, r * 0.5, cols[1]); fillCircle(x + ox - 4, baseY + oy - 4, r * 0.25, cols[2]); });
+}
+// foreground reeds and cattails whipping past
+function gReeds(scroll, y, n, col, seed, tall) {
+  const span = W + 40;
+  for (let k = 0; k < n; k++) {
+    const bx = hash2(k, seed || 31) * span, x = ((bx - scroll) % span + span) % span - 20, h = (tall || 30) * (0.5 + hash2(k, (seed || 31) + 1) * 0.6);
+    const sw = Math.round(Math.sin(tNow * 1.6 + k) * 2);
+    for (let j = 0; j < h; j++) rect(x + Math.round(sw * j / h), y - j, 2, 1, col);
+    if (hash2(k, (seed || 31) + 2) < 0.4) { rr(x - 1 + sw, y - h - 6, 4, 8, 2, '#4a2e16'); rect(x + sw, y - h - 8, 1, 2, col); }
+  }
+}
+// ---- birds ----
+// an egret in flight, wings keyed by flap -1..1, facing right
+function gEgret(x, y, flap, sc, col) {
+  sc = sc || 1; col = col || '#f8f8f4';
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(sc, sc);
+  const wy = Math.round(flap * 6);
+  rect(-10, 0, 6, 1, '#2a2a2a'); rect(-13, 1, 4, 1, '#2a2a2a');            // trailing legs
+  rr(-5, -2, 12, 5, 2, '#c8ccc8'); rr(-5, -3, 12, 4, 2, col);              // body
+  rect(6, -4, 3, 2, col); rect(8, -6, 3, 2, col); rect(10, -6, 5, 2, col);  // S-neck tucked
+  rect(15, -6, 5, 1, '#f0c030');                                           // dagger bill
+  rect(12, -6, 1, 1, '#1a1a1a');
+  // wing: a long taper that sweeps up and down
+  for (let k = 0; k < 12; k++) { const wx = -3 + k, ww = Math.round(wy * (1 - Math.abs(k - 5) / 8)); rect(wx, -2 - Math.max(0, ww) - (ww < 0 ? 0 : 0), 1, Math.abs(ww) + 2, k > 8 ? '#e8e8e4' : col); }
+  ctx.restore();
+}
+// a spoonbill or ibis in flight (col, bill colour)
+function gWader(x, y, flap, sc, col, colD, bill, spoon) {
+  sc = sc || 1;
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(sc, sc);
+  const wy = Math.round(flap * 6);
+  rect(-11, 0, 6, 1, '#c86a6a');
+  rr(-5, -2, 12, 5, 2, colD); rr(-5, -3, 12, 4, 2, col);
+  rect(6, -3, 6, 2, col); rect(11, -4, 3, 3, col);
+  if (spoon) { rect(14, -3, 5, 1, bill); rr(18, -4, 3, 3, 1, bill); } else { rect(14, -3, 3, 1, bill); rect(16, -2, 2, 1, bill); rect(17, -1, 2, 1, bill); }
+  rect(12, -3, 1, 1, '#1a1a1a');
+  for (let k = 0; k < 12; k++) { const ww = Math.round(wy * (1 - Math.abs(k - 5) / 8)); rect(-3 + k, -2 - Math.max(0, ww), 1, Math.abs(ww) + 2, k > 9 ? colD : col); }
+  ctx.restore();
+}
+// a wading bird standing in the shallows: egret or great blue heron
+function gHeronStand(x, y, sc, kind, peck) {
+  sc = sc || 1;
+  const blue = kind === 'heron';
+  const B = blue ? ['#5a7088', '#7a90a8', '#9ab0c4'] : ['#c8ccc8', '#f0f0ec', '#ffffff'];
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(sc, sc);
+  rect(-2, -14, 1, 14, '#2a2a2a'); rect(2, -14, 1, 14, '#2a2a2a');            // legs
+  rr(-7, -24, 14, 11, 4, B[0]); rr(-7, -25, 13, 10, 4, B[1]); rect(-5, -24, 8, 2, B[2]);
+  rect(-8, -18, 4, 6, B[0]);                                                   // tail plumes
+  const nk = peck ? 6 : 0;
+  rect(3, -30 + nk, 3, 7, B[1]); rect(4, -35 + nk, 3, 6, B[1]); rect(5, -39 + nk, 5, 5, B[1]);   // neck and head
+  if (blue) { rect(5, -39 + nk, 5, 1, '#1a2230'); rect(3, -38 + nk, 3, 1, '#1a2230'); }
+  rect(10, -37 + nk, 7, 1, '#e8b030'); rect(10, -36 + nk, 5, 1, '#c89020');   // bill
+  rect(8, -38 + nk, 1, 1, '#1a1a1a');
+  ctx.restore();
+}
+function gFlock(x, y, n, ph, sc, kind) {
+  for (let k = 0; k < n; k++) {
+    const bx = x - k * 14 * (sc || 1), by = y + Math.abs(k - (n - 1) / 2) * 7 * (sc || 1) + Math.sin(tNow * 2 + k) * 1.5;
+    const flap = Math.sin(tNow * 9 + k * 0.9 + (ph || 0));
+    if (kind === 'spoonbill') gWader(bx, by, flap, sc, '#f498b8', '#d86a90', '#b8a878', true);
+    else if (kind === 'ibis') gWader(bx, by, flap, sc, '#f8f8f4', '#c8ccc8', '#e8502a', false);
+    else gEgret(bx, by, flap, sc);
+  }
+}
+function gPelican(x, y, flap, sc) {
+  sc = sc || 1;
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(sc, sc);
+  const wy = Math.round(flap * 7);
+  rr(-7, -3, 15, 6, 3, '#6a5a4a'); rr(-7, -4, 15, 5, 3, '#8a7a66');
+  rr(7, -8, 5, 5, 2, '#f4ecd8'); rect(11, -6, 9, 2, '#d8a040'); rect(12, -4, 7, 2, '#b88030');
+  rect(9, -7, 1, 1, '#1a1a1a');
+  for (let k = 0; k < 16; k++) { const ww = Math.round(wy * (1 - Math.abs(k - 7) / 10)); rect(-5 + k, -3 - Math.max(0, ww), 1, Math.abs(ww) + 2, k > 12 ? '#3a3228' : '#7a6a58'); }
+  ctx.restore();
+}
+function gTurtle(x, y, sc, head) {
+  sc = sc || 1;
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); ctx.scale(sc, sc);
+  rr(-6, -5, 12, 6, 3, '#2a3a1a'); rr(-5, -6, 10, 5, 3, '#4a6a2a'); rect(-3, -5, 2, 1, '#6a8a3a'); rect(1, -4, 2, 1, '#6a8a3a');
+  const hx = head ? 1 : 0;
+  rr(5 + hx, -4 - hx, 4, 3, 1, '#5a7a3a'); rect(7 + hx, -4 - hx, 1, 1, '#1a1a1a');
+  rect(-5, 0, 2, 1, '#3a4a22'); rect(3, 0, 2, 1, '#3a4a22');
+  ctx.restore();
+}
+// the zebra longwing - Florida's state butterfly
+function gButterfly(x, y, ph, col) {
+  const f = Math.abs(Math.sin(tNow * 14 + ph)), w = Math.max(1, Math.round(4 * f));
+  const c = col || '#1a1a1a';
+  rect(x - w, y - 2, w, 3, c); rect(x + 1, y - 2, w, 3, c); rect(x - w, y, w, 1, '#f8e070'); rect(x + 1, y, w, 1, '#f8e070');
+  rect(x, y - 2, 1, 4, '#2a1a10');
+}
+function gDragonfly(x, y, ph, col) {
+  const blur = Math.sin(tNow * 40 + ph) > 0;
+  ctx.save(); ctx.globalAlpha = 0.55; rect(x - 3, y - (blur ? 2 : 1), 7, 1, '#e8fcff'); rect(x - 2, y + (blur ? 1 : 0), 5, 1, '#e8fcff'); ctx.restore();
+  rect(x - 4, y, 9, 1, col || '#3ab8e8'); rect(x + 4, y - 1, 2, 2, col || '#3ab8e8');
+}
+// a log in the water with its reflection
+function gLog(x, y, w) {
+  rr(x, y - 5, w, 6, 3, '#3a2a1a'); rr(x + 1, y - 6, w - 2, 5, 3, '#6a4a30'); rect(x + 3, y - 6, w - 8, 1, '#8a6a48');
+  fillCircle(x + w - 3, y - 3, 3, '#8a6a48'); fillCircle(x + w - 3, y - 3, 1, '#5a3a22');
+  ctx.save(); ctx.globalAlpha = 0.25; rect(x + 2, y + 1, w - 4, 2, '#1a1008'); ctx.restore();
+}
+// lily pads, some with a flower
+function gLily(x, y, r, flower) {
+  ctx.save(); ctx.scale(1, 0.45); fillCircle(x, y / 0.45, r, '#2a5a2a'); fillCircle(x - 1, y / 0.45 - 1, r - 1, '#4a8a3a'); ctx.restore();
+  rect(x, y - 1, Math.max(1, r - 1), 1, '#1a3a1a');
+  if (flower) { rect(x - 2, y - 3, 5, 2, '#fff0f6'); rect(x - 1, y - 4, 3, 1, '#ffb0cc'); rect(x, y - 3, 1, 1, '#ffe070'); }
+}
+// ---- the park ranger jeep, side on, facing right; (cx, gy) = centre of the ground contact ----
+function gJeep(cx, gy, spd, o) {
+  o = o || {};
+  const x = Math.round(cx) - 32, y = Math.round(gy) - 30, bob = spd > 0 ? Math.round(Math.sin(tNow * 22) * 0.6) : 0;
+  const spin = tNow * spd * 0.25;
+  // dust kicked up behind
+  if (spd > 0) { ctx.save(); for (let k = 0; k < 6; k++) { const ph = (tNow * 2 + k / 6) % 1; ctx.globalAlpha = (1 - ph) * 0.35; fillCircle(x - 4 - ph * 30, gy - 3 - ph * 8 + Math.sin(k) * 2, 2 + ph * 5, o.dust || '#c8b48a'); } ctx.restore(); }
+  ctx.save(); ctx.globalAlpha = 0.3; ctx.scale(1, 0.3); fillCircle(cx, gy / 0.3, 30, '#000'); ctx.restore();
+  // body
+  const yb = y + bob;
+  rr(x + 2, yb + 10, 60, 13, 3, '#1a2616'); rr(x + 3, yb + 10, 58, 11, 3, '#4a6a3a'); rect(x + 4, yb + 10, 56, 2, '#6a8a52');
+  rect(x + 3, yb + 16, 58, 2, '#f0e8c8');                                                 // park stripe
+  rr(x + 44, yb + 6, 18, 8, 2, '#1a2616'); rr(x + 45, yb + 6, 16, 7, 2, '#4a6a3a'); rect(x + 46, yb + 6, 14, 1, '#6a8a52');   // hood
+  rect(x + 60, yb + 9, 3, 3, '#ffe070'); if (o.lights) { ctx.save(); ctx.globalAlpha = 0.18; for (let d = 0; d < 6; d++) rect(x + 63 + d * 8, yb + 7 - d, 8, 6 + d * 2, '#ffd870'); ctx.restore(); }
+  rect(x + 60, yb + 19, 4, 2, '#2a2a2a');                                                 // bumper
+  rr(x - 2, yb + 8, 8, 10, 3, '#1a1a1a'); fillCircle(x + 2, yb + 13, 3, '#3a3a3a');        // spare tyre
+  rect(x + 40, yb - 4, 2, 11, '#2a3a2a'); rect(x + 41, yb - 4, 5, 1, '#2a3a2a');            // windshield frame
+  ctx.save(); ctx.globalAlpha = 0.35; rect(x + 42, yb - 3, 3, 9, '#bfe8ff'); ctx.restore();
+  rect(x + 12, yb - 8, 2, 18, '#2a2a2a'); rect(x + 12, yb - 8, 22, 2, '#2a2a2a'); rect(x + 32, yb - 8, 2, 18, '#2a2a2a');   // roll bar
+  // the ranger at the wheel
+  if (!o.empty) {
+    drawBobble(x + 26, yb + 12, G.ranger || 'scout', Object.assign({ sc: 0.55, expr: o.expr || 'calm', act: o.act || 'idle', flip: false }, myFit()));
+    rect(x + 36, yb + 3, 2, 6, '#1a1a1a'); fillCircle(x + 38, yb + 3, 3, '#2a2a2a');
+  }
+  rect(x + 10, yb + 11, 34, 2, '#3a5a2e');                                                // door line over the legs
+  // wheels
+  [x + 14, x + 50].forEach(wx => {
+    fillCircle(wx, gy - 6, 7, '#141414'); fillCircle(wx, gy - 6, 4, '#8a949c'); fillCircle(wx, gy - 6, 2, '#3a3a3a');
+    for (let k = 0; k < 3; k++) { const a = spin + k * 2.09; rect(wx + Math.round(Math.cos(a) * 3), gy - 6 + Math.round(Math.sin(a) * 3), 1, 1, '#d8e0e4'); }
+    rr(wx - 9, yb + 13, 18, 3, 1, '#2a3a24');
+  });
+}
+
+// ============================ INTO THE PARK (intro) ==============================
+//  A calm ride into the Everglades before the first fight: dawn at the station,
+//  the River of Grass, the cypress domes and a golden mangrove lagoon.  Lots of
+//  birds and wildlife - and deliberately not a single gator.
+// ================================================================================
+const INTRO_DUR = [3.8, 4, 4, 3.6, 2.6];
+function introStation(t) {
+  // the ranger station dock at dawn, Mrs Owlet seeing you off
+  const dx = -Math.max(0, t - 2.4) * 40;
+  ctx.save(); ctx.translate(Math.round(dx), 0);
+  rect(0, 196, 170, 4, '#3a2416'); rect(0, 196, 170, 1, '#8a5a36'); rect(0, 200, 170, 3, '#241408');
+  for (let k = 0; k < 9; k++) { rect(6 + k * 20, 200, 4, 26, '#2a1a0e'); rect(6 + k * 20, 200, 1, 26, '#5a3a22'); }
+  // the station on stilts
+  rect(18, 150, 76, 46, '#4a3424'); rect(18, 150, 76, 2, '#6a4a32');
+  for (let x = 20; x < 94; x += 6) rect(x, 152, 1, 44, '#3a2818');
+  rr(12, 138, 88, 14, 2, '#6a2a1a'); rect(12, 138, 88, 2, '#8a3a26'); for (let x = 14; x < 98; x += 6) rect(x, 141, 3, 10, '#5a2014');
+  [[28, 160], [66, 160]].forEach(([wx, wy]) => { rect(wx, wy, 16, 12, '#ffd070'); rect(wx, wy, 16, 3, '#fff0b0'); rect(wx + 7, wy, 2, 12, '#3a2410'); });
+  rect(48, 170, 12, 26, '#2a1a0e'); rect(57, 182, 2, 2, '#c8a040');
+  rect(84, 108, 1, 32, '#c8c8c8');
+  for (let k = 0; k < 14; k++) { const wv = Math.round(Math.sin(tNow * 5 - k * 0.5) * 1.5); rect(85 + k, 108 + wv, 1, 8, k < 5 ? '#2a4a8a' : (k % 4 < 2 ? '#c83a2a' : '#f4ecd4')); }
+  ctx.save(); ctx.translate(130, 196); ctx.scale(0.5, 0.5);
+  drawOwlet(0, 0, { expr: t < 1.4 ? 'grump' : 'calm', talk: t > 0.3 && t < 2.8, clip: 1, look: { x: 1, y: 0.2 } });
+  ctx.restore();
+  ctx.restore();
+}
+function introShot(shot, t, dt) {
+  if (shot === 0) {
+    // ---- 1. dawn at the station ----
+    gSky(GL.dawn, 0, 152);
+    gRays(372, 128, 9, 180, '#ffe0b0', 0.06, 0.2);
+    gSun(372, 128, 15, '#fff2c8', '#ffb880');
+    gClouds(tNow * 3, 18, 5, ['#ffe0c8', '#f4a8a8', '#b87898'], 3, 1);
+    gHammocks('dawn', 152, tNow * 2, '#4a3a6a', '#5a4a7a', 20);
+    gWater(152, 270, ['#d8849a', '#9a6088', '#5a3a66'], tNow * 6, '#ffe8d0');
+    reflect(372, 152, 230, 18, '#fff0c0', 3, 1.2);
+    // ibis crossing in front of the sun
+    gFlock(120 + t * 34, 96, 6, 0, 0.8, 'ibis');
+    introStation(t);
+    const go = clamp((t - 1.3) / 2.2, 0, 1);
+    const bx = 196 + easeIn(go) * 330, by = 206 + Math.sin(tNow * 2.4);
+    drawAirboat(bx, by, go > 0, dt);
+    if (go > 0.05 && (tNow % 0.08) < dt) parts.push({ x: bx - 50, y: by + 8, vx: -60 - rnd() * 60, vy: -30 - rnd() * 40, t: 0, life: 0.5, col: '#ffe0e8', sz: 2, g: 200 });
+    // egrets fishing in the near shallows, reflected in the pink water
+    [[338, 252, 0], [372, 260, 1]].forEach(([ex, ey, i]) => { ctx.save(); ctx.globalAlpha = 0.25; ctx.translate(ex, ey); ctx.scale(1.1, -0.35); gHeronStand(0, 0, 1, 'egret'); ctx.restore(); gHeronStand(ex, ey, 1.1, 'egret', Math.sin(tNow * 1.3 + i * 2) > 0.85); });
+    gReeds(0, 270, 10, '#1a1426', 5, 40);
+    return typed('DAWN BREAKS OVER THE EVERGLADES.', t - 0.2) + (t > 1.6 ? '\n' + typed("MRS OWLET: 'BRING MY BOAT BACK, ROOKIE.'", t - 1.6) : '');
+  }
+  if (shot === 1) {
+    // ---- 2. the River of Grass: open sky, birds pacing the boat ----
+    const sc = tNow * 60;
+    gSky(GL.day, 0, 142);
+    gSun(420, 34, 10, '#fffbe8', '#fff0c0');
+    gClouds(sc * 0.05, 20, 5, ['#ffffff', '#eaf4fa', '#bcd4e4'], 11, 1.3);
+    gClouds(sc * 0.1, 58, 4, ['#ffffff', '#e0eef6', '#a8c4d8'], 17, 0.8);
+    gHammocks('dayfar', 142, sc * 0.12, '#5a8a8a', '#6a9a94', 18);
+    gSawgrass('dayfar', 156, 16, sc * 0.25, ['#6a8a5a', '#8aa86a', '#a8c080', '#c0d08a']);
+    gWater(156, 204, ['#6aa8d8', '#4a8ac0', '#2a6a9a'], sc * 0.5);
+    // spoonbills lifting off the prairie as we pass
+    gFlock(420 - t * 40, 136 - t * 18, 5, 1.3, 0.75, 'spoonbill');
+    // the egret flock keeping pace overhead
+    gFlock(260 + Math.sin(tNow * 0.8) * 10, 84 + Math.sin(tNow * 1.3) * 3, 7, 0, 1, 'egret');
+    const bob = Math.sin(tNow * 9) * 1.5;
+    drawAirboat(200, 196 + bob, true, dt);
+    for (let k = 0; k < 10; k++) { const ph = (tNow * 3 + k * 0.1) % 1; ctx.save(); ctx.globalAlpha = (1 - ph) * 0.6; rect(150 - ph * 80, 204 - Math.sin(ph * Math.PI) * 10, 3, 2, '#e8f8ff'); ctx.restore(); }
+    gSawgrass('daynear', 270, 70, sc * 1.4, ['#4a6a2a', '#6a8a3a', '#8aa84a', '#a8c060', '#c8d880'], 1.6);
+    return typed('THEY CALL IT THE RIVER OF GRASS.', t - 0.2) + (t > 1.7 ? '\n' + typed('SIXTY MILES WIDE. SIX INCHES DEEP.', t - 1.7) : '');
+  }
+  if (shot === 2) {
+    // ---- 3. the cypress dome: green light, herons, turtles, butterflies ----
+    const sc = tNow * 26;
+    gSky(['#1e3a2a', '#2e5238', '#3e6a46', '#5a8a56', '#7aa46a', '#9ab884', '#b8cc9c'], 0, 200);
+    gRays(170, -10, 7, 240, '#f0ffd0', 0.07, 0.16);
+    gRays(340, -10, 5, 240, '#f0ffd0', 0.05, 0.2);
+    gCypressRow(sc * 0.3, 204, 150, 190, 46, 41, true);
+    gWater(196, 270, ['#3a4a2a', '#2e3a22', '#1e2a18'], sc * 0.8, '#c8e0a0');
+    // a heron on a log, and turtles basking on another
+    const lx = 330 - ((sc * 0.8) % (W + 200)) + 160;
+    gLog(lx - 30, 210, 56); gHeronStand(lx, 205, 1, 'heron', Math.sin(tNow * 1.1) > 0.8);
+    const tx = 200 - ((sc * 0.8 + 260) % (W + 200)) + 200;
+    gLog(tx - 30, 226, 64); [[-22, 0], [-8, 1], [8, 0]].forEach(([ox, i], k) => gTurtle(tx + ox, 221, 1, Math.sin(tNow * 2 + k) > 0.5));
+    for (let k = 0; k < 8; k++) { const px = ((k * 71 - sc * 0.9) % (W + 40) + W + 40) % (W + 40) - 20; gLily(px, 240 + (k * 13) % 26, 5 + k % 3, k % 3 === 0); }
+    gCypressRow(sc * 0.9, 208, 170, 220, 110, 57, false);
+    const bob = Math.sin(tNow * 3) * 1;
+    drawAirboat(236, 214 + bob, true, dt);
+    [[140, 150, 0], [300, 120, 2], [380, 170, 4]].forEach(([bx2, by2, ph]) => gButterfly(bx2 + Math.sin(tNow * 1.1 + ph) * 20, by2 + Math.sin(tNow * 2.3 + ph) * 8, ph));
+    [[100, 190, 0], [360, 200, 3]].forEach(([dx2, dy2, ph]) => gDragonfly(dx2 + Math.sin(tNow * 0.9 + ph) * 30, dy2 + Math.sin(tNow * 3.1 + ph) * 5, ph));
+    gReeds(sc * 1.6, 270, 12, '#0e1a0e', 13, 46);
+    return typed('INTO THE CYPRESS DOMES...', t - 0.2) + (t > 1.7 ? '\n' + typed('HERONS. TURTLES. NOT A GATOR IN SIGHT... YET.', t - 1.7) : '');
+  }
+  if (shot === 3) {
+    // ---- 4. the golden mangrove lagoon where the trail begins ----
+    const slow = 1 - clamp(t / 2.4, 0, 1), sc = tNow * 12 * slow;
+    gSky(GL.gold, 0, 160);
+    gRays(250, 150, 11, 200, '#fff0c0', 0.05, 0.25);
+    gSun(250, 150, 20, '#fff4d0', '#ffc070');
+    gClouds(tNow * 2, 26, 5, ['#fff0d8', '#f8b8a0', '#c88a90'], 23, 1.1);
+    gHammocks('goldfar', 160, 0, '#6a4a5a', '#7a5a66', 14);
+    gWater(160, 270, ['#f0b070', '#a86a6a', '#4a4a6a'], tNow * 5, '#fff0c0');
+    reflect(250, 160, 250, 30, '#fff0c0', 3, 1.1);
+    gMangrove(40, 196, 70); gMangrove(440, 190, 60);
+    // pelicans gliding in, one folds and dives
+    gPelican(80 + t * 50, 60 + Math.sin(tNow * 1.2) * 4, Math.sin(tNow * 4), 1);
+    gPelican(40 + t * 50, 76, Math.sin(tNow * 4 + 1), 0.8);
+    const dv = clamp((t - 1.2) / 0.6, 0, 1);
+    if (t > 1.2) {
+      const px = 330 + dv * 20, py = 70 + dv * dv * 150;
+      if (dv < 1) { ctx.save(); ctx.translate(px, py); ctx.rotate(1.3); gPelican(0, 0, -1, 0.9); ctx.restore(); }
+      else if (!G.cut.dove) { G.cut.dove = true; sfx.splash(); for (let k = 0; k < 14; k++) parts.push({ x: px, y: 220, vx: (rnd() - 0.5) * 90, vy: -40 - rnd() * 70, t: 0, life: 0.7, col: '#fff0d8', sz: 2, g: 220 }); addRipple(px, 222, true); }
+    }
+    // a manatee surfaces for a breath beside the boat
+    const mt = (tNow % 5) / 5, up = Math.sin(clamp(mt * 2, 0, 1) * Math.PI);
+    if (up > 0.05) { const my2 = 238 - up * 5; rr(120, my2, 34, 8, 4, '#5a6a72'); rr(122, my2 - 1, 30, 5, 4, '#7a8a92'); rr(150, my2 - 3, 9, 7, 3, '#6a7a82'); rect(157, my2 - 1, 1, 1, '#1a1a1a'); if (up > 0.8) for (let k = 0; k < 3; k++) rect(160 + k * 2, my2 - 6 - k * 2, 1, 1, '#e8f8ff'); }
+    const bob = Math.sin(tNow * 2.4) * 1;
+    drawAirboat(270, 222 + bob, slow > 0.2, dt);
+    gReeds(0, 270, 8, '#2a1a1a', 29, 36);
+    return typed('THE TRAIL STARTS HERE.', t - 0.2) + (t > 1.6 ? '\n' + typed('SOMEWHERE OUT THERE, THE GATORS ARE WAITING...', t - 1.6) : '');
+  }
+  return '';
+}
 function drawIntro(dt) {
   const cut = G.cut; if (!cut) { G.state = 'map'; return; }
   cut.t += dt;
-  const DUR = [3.6, 2.8, 3.6, 2.4];
-  if (cut.t >= DUR[cut.shot] && !cut.ending) {
-    if (cut.shot >= DUR.length - 1) endIntro();
+  if (cut.t >= INTRO_DUR[cut.shot] && !cut.ending) {
+    if (cut.shot >= INTRO_DUR.length - 1) endIntro();
     else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); }
   }
-  const t = cut.t, R = RANGERS[G.ranger] || RANGERS.scout;
-
-  if (cut.shot === 0) {
-    // --- shot 1: casting off from the ranger station at sundown ---
-    paintCached('menu', 0, 0, W, H, menuStatic);
-    const RX = 384, RY = 118;
-    [[RX + 14, RY + 24], [RX + 84, RY + 24]].forEach(([wx, wy]) => { rect(wx, wy, 22, 18, '#f8c860'); rect(wx + 10, wy, 2, 18, '#3a2410'); rect(wx, wy + 8, 22, 2, '#3a2410'); });
-    // Mrs Owlet on the porch with her clipboard
-    ctx.save(); ctx.translate(RX - 2, RY + 60); ctx.scale(0.55, 0.55);
-    drawOwlet(0, 0, { expr: 'grump', talk: t > 0.4 && t < 2.6, clip: 1, look: { x: -1, y: 0.4 } });
-    ctx.restore();
-    for (let r = 0; r < 40; r++) { const yy = MENU_HZ + 1 + r * 2, ww = Math.max(2, 22 - r * 0.45); ctx.save(); ctx.globalAlpha = Math.max(0.1, 0.8 - r * 0.018); rect(MENU_SUN.x - ww / 2 + Math.round(Math.sin(tNow * 1.2 + r * 1.9) * 2), yy, ww, 1, r < 4 ? '#fff4d0' : '#f8b870'); ctx.restore(); }
-    // the airboat idles, then opens up the throttle
-    const go = clamp((t - 1.5) / 2.0, 0, 1);
-    const bx = 170 + easeIn(go) * 380, by = 214 + Math.sin(tNow * 2.4) * 1;
-    drawAirboat(bx, by, go > 0, dt);
-    drawRipples(0.8);
-    if (go > 0.05 && (tNow % 0.08) < dt) parts.push({ x: bx - 50, y: by + 8, vx: -60 - rnd() * 60, vy: -30 - rnd() * 40, t: 0, life: 0.5, col: '#bfe0f0', sz: 2, g: 200 });
-    cut.cap = typed("MRS OWLET: 'BRING BACK ALL TEN FINGERS.'", t - 0.3) + (t > 2.1 ? '\n' + typed("'...AND MY BOAT.'", t - 2.1) : '');
-  } else if (cut.shot === 1) {
-    // --- shot 2: full throttle through the glades, parallax whipping past ---
-    for (let y = 0; y < 150; y++) { const f = Math.pow(y / 150, 1.3) * (DUSK.length - 1), i = Math.floor(f); rect(0, y, W, 1, DUSK[i]); if (f - i > 0.5 && i + 1 < DUSK.length) for (let x = (y & 1); x < W; x += 2) rect(x, y, 1, 1, DUSK[i + 1]); }
-    fillCircle(360, 140, 22, '#fde0a0'); fillCircle(360, 140, 18, '#fff2cc');
-    const far = (tNow * 18) % 60, mid = (tNow * 90) % 120, near = (tNow * 320) % 90;
-    for (let x = -60; x < W + 60; x += 12) { const h = 8 + ((x / 12 | 0) * 37 % 11); rect(x - far, 150 - h, 13, h, '#3a2848'); }
-    for (let x = -120; x < W + 120; x += 60) {
-      const tx = x - mid + ((x / 60 | 0) % 2) * 20, top = 60 + ((x / 60 | 0) * 29 % 30);
-      rect(tx - 3, top, 6, 150 - top, '#1a1224');
-      for (let c = 0; c < 3; c++) { const cw = 14 + c * 6, cy = top + c * 9; rect(tx - cw, cy, cw * 2, 3, '#20182c'); for (let m = 0; m < cw * 2; m += 3) rect(tx - cw + m, cy + 3, 1, 3 + (m * 7 % 9), '#3a3448'); }
-    }
-    for (let y = 150; y < H; y++) rect(0, y, W, 1, mixC(DUSK[clamp(Math.floor((1 - (y - 150) / 120) * 7) + 1, 0, 8)], '#081018', 0.45 + (y - 150) / 260));
-    ctx.save(); ctx.globalAlpha = 0.5;
-    for (let k = 0; k < 24; k++) { const yy = 154 + (k * 37 % 110), xx = W - ((tNow * (260 + k * 14) + k * 97) % (W + 80)); rect(xx, yy, 20 + k % 30, 1, k % 3 ? '#8a6a8e' : '#f8b870'); }
-    ctx.restore();
-    const bob = Math.sin(tNow * 9) * 1.5;
-    drawAirboat(200, 206 + bob, true, dt);
-    // spray sheet off the stern
-    for (let k = 0; k < 10; k++) { const ph = (tNow * 3 + k * 0.1) % 1; ctx.save(); ctx.globalAlpha = (1 - ph) * 0.6; rect(150 - ph * 80, 214 - Math.sin(ph * Math.PI) * 10, 3, 2, '#dff2fa'); ctx.restore(); }
-    // reeds whipping by in the foreground
-    for (let x = -30; x < W + 30; x += 18) { const h = 30 + ((x / 18 | 0) * 13 % 26); const rx = x - near; rect(rx, H - h, 2, h, '#0c1210'); rect(rx + 3, H - h + 8, 1, h - 8, '#141c16'); rr(rx - 1, H - h - 6, 4, 8, 1, '#2a1a10'); }
-    // a flock bursts up out of the reeds
-    if (t > 0.9) for (let k = 0; k < 7; k++) { const f = t - 0.9, bx2 = 330 + k * 14 - f * 60, by2 = 140 - f * (60 + k * 8) + Math.sin(k) * 6, fl = Math.sin(tNow * 16 + k) > 0; rect(bx2, by2, 3, 1, '#1a1224'); rect(bx2 - 2, by2 + (fl ? -2 : 1), 2, 1, '#1a1224'); rect(bx2 + 3, by2 + (fl ? -2 : 1), 2, 1, '#1a1224'); }
-    // speed lines
-    ctx.save(); ctx.globalAlpha = 0.25; for (let k = 0; k < 12; k++) { const yy = 30 + k * 18, xx = W - ((tNow * 700 + k * 131) % (W + 200)); rect(xx, yy, 60, 1, '#ffffff'); } ctx.restore();
-    cut.cap = typed('HEADING INTO ' + anteName(G.ante) + '...', t - 0.2) + (t > 1.4 ? '\n' + typed(R.name + ' IS ON THE CLOCK.', t - 1.4) : '');
-  } else if (cut.shot === 2) {
-    // --- shot 3: the lagoon.  Engine off.  Something surfaces in the lamp. ---
-    if (!cut.crocShot) {
-      const _r = G.round; G.round = 1;
-      ctx.clearRect(0, 0, W, H);
-      const _mx = mx, _my = my; mx = 120; my = 140;
-      drawCroc(0.4, { mood: 'hungry' });
-      mx = _mx; my = _my; G.round = _r;
-      const oc = document.createElement('canvas'); oc.width = W * 2; oc.height = H * 2;
-      const o = oc.getContext('2d'); o.imageSmoothingEnabled = false;
-      o.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, W * 2, H * 2);
-      cut.crocShot = oc;
-      ctx.setTransform(RS, 0, 0, RS, 0, 0);
-    }
-    drawLair(t, { rain: 0, eyes: t > 0.9, rise: clamp((t - 1.5) / 1.1, 0, 1), shot: cut.crocShot, eyeCol: '#ffd84a', lamp: 1 });
-    if (t > 2.3 && !cut.growled) { cut.growled = true; sfx.boss(); shake = Math.max(shake, 6); fxRing(300, 170, '#ffd84a', 8, 120, 0.5); }
-    cut.cap = typed('THE ENGINE CUTS OUT. THE WATER GOES STILL.', t - 0.2) + (t > 1.8 ? '\n' + typed('THE GATORS ARE HUNGRY TONIGHT.', t - 1.8) : '');
-  } else {
-    // --- shot 4: the ante sign slams into frame ---
-    for (let y = 0; y < H; y++) rect(0, y, W, 1, mixC('#0a0c14', '#1a1024', y / H));
-    for (let k = 0; k < 20; k++) { const on = Math.sin(tNow * 2 + k * 1.7); if (on > 0.3) { ctx.save(); ctx.globalAlpha = on * 0.8; rect((hash2(k, 1) * W + Math.sin(tNow * 0.4 + k) * 12 + W) % W, 30 + hash2(k, 2) * 200, 1, 1, '#fffcc0'); ctx.restore(); } }
+  const t = cut.t;
+  if (cut.shot < 4) cut.cap = introShot(cut.shot, t, dt);
+  else {
+    // ---- 5. the ante sign slams into frame over the evening glades ----
+    gSky(GL.dusk, 0, 190);
+    gHammocks('duskfar', 190, 0, '#2a2038', '#342848', 22);
+    gWater(190, 270, ['#6a4a6a', '#3a2a4a', '#1a1428'], tNow * 4, '#f8c8a0');
+    gFlock(W - t * 70, 60, 5, 0, 0.7, 'egret');
+    for (let k = 0; k < 20; k++) { const on = Math.sin(tNow * 2 + k * 1.7); if (on > 0.3) { ctx.save(); ctx.globalAlpha = on * 0.7; rect((hash2(k, 1) * W + Math.sin(tNow * 0.4 + k) * 12 + W) % W, 150 + hash2(k, 2) * 100, 1, 1, '#fffcc0'); ctx.restore(); } }
     const drop = t < 0.35 ? (1 - easeOut(t / 0.35)) : 0;
     if (t > 0.35 && !cut.slammed) { cut.slammed = true; shake = Math.max(shake, 8); sfx.thunk(); for (let k = 0; k < 16; k++) parts.push({ kind: 'puff', x: 120 + rnd() * 240, y: 196, vx: (rnd() - 0.5) * 90, vy: -10 - rnd() * 30, t: 0, life: 0.7, col: '#8a7a6a', sz: 5, g: 0 }); }
-    const sy = Math.round(56 - drop * 200);
-    // posts
+    const sy = Math.round(50 - drop * 200);
     rect(150, sy + 20, 8, 200, '#1a0e06'); rect(151, sy + 20, 6, 200, '#5a3a1a'); rect(322, sy + 20, 8, 200, '#1a0e06'); rect(323, sy + 20, 6, 200, '#5a3a1a');
     rr(92, sy + 3, 296, 118, 6, '#00000088');
-    plasticBox(90, sy, 300, 116, 6, ['#140a04', '#4a2c14', '#6a4222', '#86582e', '#a8743e'], { seed: 9 });
-    woodGrain(96, sy + 6, 288, 104, '#4a2c14', '#86582e', 31);
-    rr(100, sy + 10, 280, 96, 4, '#2a1808');
-    rr(102, sy + 12, 276, 92, 3, '#3a2412');
-    [[96, sy + 6], [376, sy + 6], [96, sy + 102], [376, sy + 102]].forEach(([nx, ny]) => { rect(nx, ny, 3, 3, '#1a1a1a'); rect(nx, ny, 1, 1, '#9a9a9a'); });
-    drawTextCSh('ANTE ' + G.ante, W / 2, sy + 22, '#f4ecd4', 5, '#1a0e06');
+    rr(90, sy, 300, 116, 7, '#1a0d05'); rr(92, sy + 2, 296, 112, 6, '#6a4222'); rect(94, sy + 3, 292, 5, '#86582e'); rect(94, sy + 104, 292, 6, '#4e2e16');
+    rect(94, sy + 38, 292, 1, '#4e2e16'); rect(94, sy + 39, 292, 1, '#86582e'); rect(94, sy + 76, 292, 1, '#4e2e16'); rect(94, sy + 77, 292, 1, '#86582e');
+    [[98, sy + 6], [378, sy + 6], [98, sy + 102], [378, sy + 102]].forEach(([nx, ny]) => { fillCircle(nx + 1, ny + 1, 3, '#2a1a06'); fillCircle(nx + 1, ny + 1, 2, '#d09a1e'); });
+    drawTextCSh('ANTE ' + G.ante, W / 2, sy + 20, '#fbf2dc', 5, '#1a0e06');
     const an = anteName(G.ante);
-    drawTextCSh(an, W / 2, sy + 60, '#7ed05a', an.length > 14 ? 2 : 3, '#1a0e06');
-    drawTextC(G.ante <= 8 ? (G.ante === 8 ? 'THE KING WAITS' : (8 - G.ante) + ' MORE STRETCHES TO THE KING') : 'THERE IS NO END TO THE SWAMP', W / 2, sy + 88, '#c8b090', 1);
-    drawMiniGator(W / 2 - 11, sy + 124, 'small');
+    drawTextCSh(an, W / 2, sy + 58, '#86dc5e', an.length > 14 ? 2 : 3, '#1a0e06');
+    drawTextC(G.ante <= 8 ? (G.ante === 8 ? 'THE KING WAITS' : (8 - G.ante) + ' MORE STRETCHES TO THE KING') : 'THERE IS NO END TO THE SWAMP', W / 2, sy + 88, '#e8d0a0', 1);
+    // an egret perched on the sign post
+    gHeronStand(330, sy + 20, 0.9, 'egret', false);
   }
-
   // letterbox bars, subtitles and the skip controls on every shot
   rect(0, 0, W, 24, '#000'); rect(0, H - 26, W, 26, '#000');
-  if (cut.shot < 3 && cut.cap) letterboxCaption(cut.cap);
-  hit(0, 24, W, H - 50, { id: 'cutadv', cb: () => { if (cut.shot >= 3) endIntro(); else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); } }, cursor: true });
+  if (cut.shot < 4 && cut.cap) letterboxCaption(cut.cap);
+  hit(0, 24, W, H - 50, { id: 'cutadv', cb: () => { if (cut.shot >= 4) endIntro(); else { cut.shot++; cut.t = 0; cut.cap = ''; sfx.whoosh(); } }, cursor: true });
   button(W - 62, 5, 56, 14, 'SKIP >', '#4a4438', '#28241c', endIntro, { id: 'cutskip' });
-  for (let k = 0; k < 4; k++) rr(8 + k * 9, 9, 6, 6, 2, k === cut.shot ? '#ffe6a0' : k < cut.shot ? '#8a7a58' : '#3a3428');
+  for (let k = 0; k < 5; k++) rr(8 + k * 9, 9, 6, 6, 2, k === cut.shot ? '#ffe6a0' : k < cut.shot ? '#8a7a58' : '#3a3428');
 }
+
 // captions live inside the lower letterbox bar, like subtitles
 function letterboxCaption(txt) {
   const lines = txt.split('\n').filter(Boolean);
