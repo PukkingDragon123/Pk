@@ -13495,36 +13495,202 @@ function letterboxBars() { rect(0, 0, W, 24, '#000'); rect(0, H - 26, W, 26, '#0
 
 // ------------------------------------------------ PYTHON CHASE (encounter) -----
 const PY_GROUND = 228;
-// a Burmese python: a humping chain of patterned coils behind a wedge head
+// a Burmese python in pixel art: the body is a dense run of discs along a spine
+// (ink rim, tan hide, shaded underside, cream belly, a lit ridge and chocolate
+// saddles outlined in black) behind a wedge head with an arrowhead cap
+const PY_COL = { ink: '#24160a', base: '#c89e5e', shade: '#a47a42', belly: '#eedcae', blot: '#5c3a1a', blotIn: '#8e6636', gloss: '#e8ca8e' };
+const PY_DIM = { ink: '#160e06', base: '#94703e', shade: '#76562e', belly: '#bca67e', blot: '#40260e', blotIn: '#664622', gloss: '#b0925c' };
+// a filled pixel disc in the current fillStyle
+function pyDisc(cx, cy, r) {
+  cx = Math.round(cx); cy = Math.round(cy); r = Math.round(r);
+  if (r <= 0) { ctx.fillRect(cx, cy, 1, 1); return; }
+  const q = (r + 0.5) * (r + 0.5);
+  for (let dy = -r; dy <= r; dy++) { const w2 = Math.floor(Math.sqrt(q - dy * dy)); ctx.fillRect(cx - w2, cy + dy, w2 * 2 + 1, 1); }
+}
+// body thickness from the neck (u = 0) to the tail tip (u = 1)
+const pyRad = (u, R) => R * (u < 0.12 ? 0.72 + u / 0.12 * 0.28 : u < 0.58 ? 1 : Math.max(0.1, 1 - (u - 0.58) / 0.42 * 0.95));
+// resample a raw spine [[x, y, flag], ...] (head end first) at a spacing that
+// follows the body's thickness, then add a belly normal and the arc length
+function pySpine(raw, R) {
+  R = R || 7;
+  let L = 0; for (let i = 1; i < raw.length; i++) L += Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]);
+  const ev = [[raw[0][0], raw[0][1], raw[0][2]]], stepAt = s => clamp(pyRad(s / (L || 1), R) * 0.35, 0.8, 3);
+  let s = 0, next = stepAt(0), lastS = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const x0 = raw[i - 1][0], y0 = raw[i - 1][1], dx = raw[i][0] - x0, dy = raw[i][1] - y0, d = Math.hypot(dx, dy);
+    if (d < 1e-6) continue;
+    while (next <= s + d) { const f = (next - s) / d; ev.push([x0 + dx * f, y0 + dy * f, raw[i][2]]); lastS = next; next += stepAt(next); }
+    s += d;
+  }
+  const tip = raw[raw.length - 1];
+  if (s - lastS > 0.3) ev.push([tip[0], tip[1], tip[2]]);
+  const n = ev.length, out = [];
+  let acc = 0;
+  for (let i = 0; i < n; i++) {
+    const p = ev[Math.max(0, i - 1)], q = ev[Math.min(n - 1, i + 1)];
+    let dx = q[0] - p[0], dy = q[1] - p[1];
+    const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+    if (i > 0) acc += Math.hypot(ev[i][0] - ev[i - 1][0], ev[i][1] - ev[i - 1][1]);
+    out.push([ev[i][0], ev[i][1], dy, -dx, acc, ev[i][2]]);
+  }
+  return out;
+}
+// draw samples a..b of a spine as a shaded, patterned tube
+function pyTube(pts, R, o) {
+  o = o || {};
+  const n = pts.length, a = o.from || 0, b = o.to == null ? n - 1 : o.to, P = o.dim ? PY_DIM : PY_COL;
+  if (b < a) return;
+  const L = pts[n - 1][4] || 1, rad = i => pyRad(pts[i][4] / L, R);
+  const pass = (col, f, k) => { ctx.fillStyle = col; for (let i = a; i <= b; i += (k || 1)) f(pts[i], rad(i)); };
+  pass(P.ink, (p, r) => pyDisc(p[0], p[1], r + 1));
+  pass(P.base, (p, r) => pyDisc(p[0], p[1], r));
+  pass(P.shade, (p, r) => pyDisc(p[0] + p[2] * r * 0.26, p[1] + p[3] * r * 0.26, r * 0.7), 2);
+  pass(P.belly, (p, r) => { if (r > 2.5) pyDisc(p[0] + p[2] * r * 0.64, p[1] + p[3] * r * 0.64, r * 0.3); });
+  // saddles along the back, small spots low on the flank between them
+  const gap = R * 2.5, off = o.phase || 0;
+  let next = gap * 0.8 + off, side = gap * 1.3 + off;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], r = rad(i);
+    if (p[4] >= next) {
+      next += gap;
+      if (i >= a && i <= b && r > 1.8) {
+        const bx = p[0] - p[2] * r * 0.2, by = p[1] - p[3] * r * 0.2, br = r * 0.6;
+        ctx.fillStyle = P.ink; pyDisc(bx, by, br + 1);
+        ctx.fillStyle = P.blot; pyDisc(bx, by, br);
+        ctx.fillStyle = P.blotIn; pyDisc(bx - p[3] * br * 0.3, by + p[2] * br * 0.3, br * 0.36);
+      }
+    }
+    if (p[4] >= side) {
+      side += gap;
+      if (i >= a && i <= b && r > 3) {
+        const sx = p[0] + p[2] * r * 0.38, sy = p[1] + p[3] * r * 0.38;
+        ctx.fillStyle = P.ink; pyDisc(sx, sy, r * 0.26 + 1);
+        ctx.fillStyle = P.blot; pyDisc(sx, sy, r * 0.26);
+      }
+    }
+  }
+  pass(P.gloss, (p, r) => { if (r > 2.5) pyDisc(p[0] - p[2] * r * 0.52, p[1] - p[3] * r * 0.52, r * 0.18); }, 2);
+}
+// the head in profile, facing +x, centred on (0, 0): a wedge skull built column
+// by column (arrowhead crown, eye stripe, amber slit eye, cream lip with heat
+// pits) over a cream lower jaw; open 0..1 swings the jaw down on its hinge
+function pyHead(x, y, ang, open, o) {
+  o = o || {};
+  const P = PY_COL, lift = Math.round(open * 1.5);
+  ctx.save(); ctx.translate(Math.round(x), Math.round(y)); if (ang) ctx.rotate(ang); if (o.sc) ctx.scale(o.sc, o.sc);
+  const top = cx => Math.round(cx < -4 ? -5 - (cx + 12) * 0.19 : cx < 7 ? -6.5 : -6.5 + Math.pow((cx - 7) / 8, 2) * 4.5);
+  const lip = cx => Math.round(2 - (cx + 12) * 0.055);
+  const drop = cx => Math.round(Math.max(0, cx + 10) / 24 * open * 10);
+  const jawB = cx => Math.round(6 - (cx + 12) * 0.16);
+  // the mouth, then the lower jaw
+  for (let cx = -11; cx <= 14; cx++) {
+    const l = lip(cx), d = drop(cx), jt = l + 1 + d, jb = Math.max(jt + 1, jawB(Math.min(cx, 13)) + d);
+    if (d > 0 && cx >= -9) {
+      rect(cx, l + 1 - lift, 1, d + lift, cx < -5 ? '#4a0e18' : '#b8384e');
+      if (cx > -6) rect(cx, jt - 1, 1, 1, '#d86a7a');
+    }
+    if (cx === 14) { rect(cx, jt, 1, jb - jt, P.ink); continue; }
+    rect(cx, jt, 1, jb - jt, P.belly); rect(cx, jb, 1, 1, P.ink);
+    if (d === 0 && cx > -10 && cx < 13) rect(cx, jt, 1, 1, P.shade);
+    else if (jb - jt > 2) rect(cx, jb - 1, 1, 1, '#d8c490');
+  }
+  if (open > 0.25) {
+    [1, 4, 7, 10].forEach(cx => rect(cx, lip(cx) + 1 - lift, 1, 2, '#fffaf0'));
+    [2, 5, 8, 11].forEach(cx => rect(cx, lip(cx) + drop(cx) - 1, 1, 2, '#fffaf0'));
+  }
+  // forked tongue, flicking out
+  if (open > 0.2 || Math.sin(tNow * 9) > 0.35) {
+    const ty = lip(12) + 1 + Math.round(drop(12) * 0.5), tl = 5 + Math.round(Math.sin(tNow * 30) * 1.5);
+    rect(13, ty, tl, 1, '#e0304a'); rect(13 + tl, ty - 1, 2, 1, '#e0304a'); rect(13 + tl, ty + 1, 2, 1, '#e0304a');
+  }
+  // the skull
+  ctx.save(); ctx.translate(0, -lift);
+  for (let cx = -12; cx <= 15; cx++) {
+    const t = top(cx), l = lip(cx);
+    rect(cx, t - 1, 1, l - t + 2, P.ink);
+    rect(cx, t, 1, l - t + 1, P.base);
+    if (cx < 12) rect(cx, t, 1, cx < -6 ? 3 : cx < 7 ? 2 : 1, P.blot);                // the arrowhead crown, tapering to the snout
+    if (cx > -9 && cx < 3) rect(cx, t + (cx < -6 ? 3 : 2), 1, 1, P.blotIn);
+    if (cx < 3 && cx > -12) rect(cx, Math.round(-1.5 + (3 - cx) * 0.2), 1, 2, P.blot);  // stripe from the eye down to the jaw
+    if (cx > 9 && cx < 14) rect(cx, -3, 1, 1, P.blot);                                  // ...and on toward the nostril
+    rect(cx, l, 1, 1, P.belly);                                                         // cream lip scales
+    if (cx > -11) rect(cx, l - 1, 1, 1, P.shade);
+  }
+  rect(16, top(15), 1, lip(15) - top(15) + 1, P.ink);
+  [3, 6, 9, 12].forEach(cx => rect(cx, lip(cx), 1, 1, P.shade));                       // heat pits
+  // amber eye with a slit pupil
+  rect(4, -5, 5, 1, P.ink); rect(4, -1, 5, 1, P.ink); rect(3, -4, 1, 3, P.ink); rect(9, -4, 1, 3, P.ink);
+  rect(4, -4, 5, 3, '#f0b830'); rect(4, -2, 5, 1, '#d08a20'); rect(6, -4, 1, 3, '#140a06'); rect(5, -4, 1, 1, '#fff8d0');
+  rect(13, top(13) + 1, 1, 1, P.ink);                                                   // nostril
+  ctx.restore();
+  ctx.restore();
+}
+// the python slithering along the ground behind a reared head at (hx, gy)
 function drawPython(hx, gy, o) {
   o = o || {};
-  const n = o.n || 30, t = tNow * (o.speed || 7);
-  const seg = [];
-  for (let i = 0; i < n; i++) {
-    const x = hx - 10 - i * 8.5, hump = Math.max(0, Math.sin(t - i * 0.55)) * (o.flat ? 1 : 7);
-    seg.push([x, gy - 7 - hump, 7.5 - i * 0.12]);
+  const R = o.r || 8.5, L = o.len || 260, t = tNow * (o.speed || 7), rear = o.rear || 0, HS = 4 / 3;
+  const hy = gy - 16 - rear, raw = [];
+  for (let s = 0; s <= L; s += 3) {
+    const u = s / L, r = pyRad(u, R), nb = Math.max(0, 1 - s / 52), neck = nb * nb * (3 - 2 * nb);
+    const A = (o.flat ? 1 : 11) * Math.min(1, s / 60) * (1 - 0.55 * u), wave = 0.5 + 0.5 * Math.sin(t - s * 0.075);
+    raw.push([hx - 12 - s, lerp(gy - r - wave * wave * A, hy + 3, neck)]);
   }
-  for (let i = n - 1; i >= 0; i--) {
-    const [x, y, r] = seg[i];
-    fillCircle(x, y + 1, r + 1, '#2a1a0c');
-    fillCircle(x, y, r, '#c8a060');
-    if (i % 3 === 0) fillCircle(x, y - 1, r * 0.55, '#5a3a1a');
-    else if (i % 3 === 1) { fillCircle(x - 2, y - 2, r * 0.35, '#7a5a2a'); fillCircle(x + 2, y + 1, r * 0.3, '#5a3a1a'); }
-    rect(x - r * 0.6, y + r * 0.3, r * 1.2, 2, '#f0dca8');
-  }
-  // the head, reared up a little when it lunges
-  const lift = o.rear || 0, hy = gy - 13 - lift, open = o.open || 0;
-  ctx.save(); ctx.translate(Math.round(hx), Math.round(hy)); ctx.rotate(-lift * 0.02);
-  rr(-12, -8, 26, 14, 6, '#2a1a0c'); rr(-11, -7, 24, 12, 5, '#c8a060');
-  rr(-6, -7, 12, 5, 2, '#8a6030'); rect(-4, -6, 3, 2, '#5a3a1a'); rect(3, -6, 3, 2, '#5a3a1a');
-  rect(4, -5, 4, 3, '#ffe060'); rect(6, -5, 1, 3, '#140a06');                     // eye with a slit pupil
-  if (open > 0.1) {
-    rr(4, 2, 12, 4 + open * 8, 2, '#2a0a10'); rr(5, 3, 10, 2 + open * 7, 2, '#c84a5a');
-    rect(6, 3, 1, 3, '#ffffff'); rect(12, 3, 1, 3, '#ffffff');
-  }
-  // flicking forked tongue
-  if (Math.sin(tNow * 9) > 0.3) { rect(14, 2, 7, 1, '#e0304a'); rect(21, 1, 2, 1, '#e0304a'); rect(21, 3, 2, 1, '#e0304a'); }
+  // dust where the coils slap the road
+  ctx.save();
+  for (let k = 0; k < 4; k++) { const ph = (tNow * 1.8 + k / 4) % 1, px = hx - 40 - k * 46 - ph * 30; ctx.globalAlpha = (1 - ph) * 0.4; fillCircle(px, gy - 3 - ph * 6, 3 + Math.round(ph * 6), '#d8c49a'); }
   ctx.restore();
+  pyTube(pySpine(raw, R), R);
+  pyHead(hx, hy, o.ang || 0, o.open || 0, { sc: HS });
+}
+// a big live oak whose mossy limb reaches out over the road
+function pyLimbPt(f) { const u = 1 - f; return [u * u * 322 + 2 * u * f * 262 + f * f * 190, u * u * 66 + 2 * u * f * 30 + f * f * 44]; }
+function pyOak(x, gy) {
+  // trunk with a root flare and bark ridges
+  rect(x - 13, 20, 26, gy - 20, '#24160a'); rect(x - 12, 20, 24, gy - 20, '#5a3e26');
+  for (let r = 0; r < 18; r++) { const k = r / 17, hw = Math.round(12 + k * k * 13); rect(x - hw - 1, gy - 17 + r, hw * 2 + 2, 1, '#24160a'); rect(x - hw, gy - 17 + r, hw * 2, 1, '#5a3e26'); }
+  [[-9, -1], [-1, 0], [8, 1]].forEach(([ox, dir]) => { for (let r = 0; r < 12; r++) rect(x + ox + Math.round(dir * r * r / 14), gy - 12 + r, 1, 1, '#3a2616'); });
+  rect(x - 26, gy, 52, 1, '#24160a');
+  rect(x + 4, 20, 7, gy - 22, '#44301c'); rect(x - 11, 20, 3, gy - 22, '#6e5034');
+  for (let k = 0; k < 9; k++) { const bx = x - 8 + (k * 5) % 18, by = 30 + k * 19; rect(bx, by, 1, 14 + (k % 3) * 5, '#3a2616'); rect(bx + 1, by + 2, 1, 6, '#7a5a3a'); }
+  fillCircle(x - 3, 120, 3, '#3a2616'); fillCircle(x - 3, 120, 1, '#24160a');
+  // the limb: thick at the trunk, thinning toward the tip
+  ctx.fillStyle = '#24160a'; for (let f = 0; f <= 1; f += 0.01) { const [lx, ly] = pyLimbPt(f); pyDisc(lx, ly, 7 - f * 3.4); }
+  ctx.fillStyle = '#5a3e26'; for (let f = 0; f <= 1; f += 0.01) { const [lx, ly] = pyLimbPt(f); pyDisc(lx, ly, 6 - f * 3.4); }
+  ctx.fillStyle = '#3e2a18'; for (let f = 0; f <= 1; f += 0.01) { const [lx, ly] = pyLimbPt(f); pyDisc(lx, ly + 2, 3.4 - f * 2); }
+  ctx.fillStyle = '#7a5a3a'; for (let f = 0; f <= 0.95; f += 0.01) { const [lx, ly] = pyLimbPt(f); ctx.fillRect(Math.round(lx), Math.round(ly - 5 + f * 3), 1, 1); }
+  // leaves crowding the top of the frame
+  for (let k = 0; k < 16; k++) { const lx = 180 + k * 12 + hash2(k, 5) * 8, ly = 18 + hash2(k, 6) * 14, lr = 7 + Math.round(hash2(k, 7) * 5); fillCircle(lx, ly + 1, lr + 1, '#12301a'); fillCircle(lx, ly, lr, k % 2 ? '#24502c' : '#2e6034'); fillCircle(lx - 2, ly - 2, lr - 3, '#3e7440'); }
+  // Spanish moss swaying under the limb
+  for (let k = 0; k < 12; k++) {
+    const f = 0.08 + k * 0.075, [lx, ly] = pyLimbPt(f), len = 10 + Math.round(hash2(k, 9) * 18);
+    for (let d = 0; d < len; d++) { const sw = Math.round(Math.sin(tNow * 1.6 + k + d * 0.25) * d * 0.08); rect(lx + sw + (d % 3 === 1 ? 1 : 0), ly + 4 + d, 1, 1, d % 4 === 0 ? '#6a7a5a' : '#9aa888'); }
+  }
+}
+// the python round the jeep: a helix whose front halves pass over the jeep and
+// back halves behind it, the neck rearing up at the front, the tail draped off the back
+function pyCoil(cx, cy, ry, R) {
+  const x0 = cx + 30, pitch = 28, turns = 2.25, raw = [];
+  const hx = x0 + 24, hy = cy - ry - 16;
+  for (let k = 0; k <= 12; k++) { const f = k / 12, u = 1 - f; raw.push([u * u * (hx - 12) + 2 * u * f * (x0 + 2) + f * f * x0, u * u * (hy + 3) + 2 * u * f * (hy - 2) + f * f * (cy - ry), 1]); }
+  for (let th = 0.08; th <= turns * Math.PI * 2 + 0.01; th += 0.08) raw.push([x0 - pitch * th / (Math.PI * 2), cy - ry * Math.cos(th), Math.sin(th) > 0 ? 1 : 0]);
+  const xe = raw[raw.length - 1][0], ye = raw[raw.length - 1][1];
+  for (let k = 1; k <= 20; k++) { const f = k / 20; raw.push([xe - 3 - f * 40, lerp(ye, 229, Math.sin(Math.min(1, f * 1.5) * Math.PI / 2)), 1]); }
+  const pts = pySpine(raw, R), runs = [];
+  for (let i = 0; i < pts.length; i++) { const fr = pts[i][5] === 1, last = runs[runs.length - 1]; if (last && last.front === fr) last.b = i; else runs.push({ a: i, b: i, front: fr }); }
+  return { pts, runs, hx, hy };
+}
+// the python lying on the limb with its head hanging, blending into the drop
+function pyHang(drop) {
+  const N = 64, e = easeOut(Math.min(1, drop / 0.35)), fall = drop * drop * 116, raw = [];
+  const sway = Math.sin(tNow * 3) * 3;
+  for (let i = 0; i < N; i++) {
+    let lx, ly;
+    if (i < 16) { lx = 236 + sway * (1 - i / 16); ly = 78 - i * 2.3; }
+    else { const f = 0.66 - (i - 16) / (N - 17) * 0.56, [px, py] = pyLimbPt(f); lx = px; ly = py - (7 - f * 3.4) - 4; }
+    const fx = 240 + Math.sin(i * 0.2 + tNow * 9) * 8 * Math.min(1, i / 14), fy = 78 - i * 2.3;
+    raw.push([lerp(lx, fx, e), lerp(ly, fy, e) + fall, 1]);
+  }
+  return { pts: pySpine(raw, 7), hx: raw[0][0], hy: raw[0][1] + 11 };
 }
 function pyObstacleArt(o) {
   const x = Math.round(o.x), y = PY_GROUND;
@@ -13540,32 +13706,43 @@ TRAIL.python = {
   how: ['TAP / SPACE to JUMP logs, fences and crates.', 'Tap again in the air to double jump. Grab the coins!'],
   revealCap: 'IT CRUSHES THE JEEP! RUN, RANGER, RUN!!', revealDur: 2.2,
   reveal(t, dt) {
-    trailBackdrop('pine', 0);
-    // the jeep rolls to a stop under a big pine... then it drops
+    // the jeep rolls to a stop under a big oak... the python drops and wraps it
     const stop = clamp(t / 0.5, 0, 1), jx = 200 + easeOut(stop) * 40;
+    const drop = clamp((t - 0.45) / 0.35, 0, 1), crush = t > 0.8 ? Math.min(1, (t - 0.8) * 4) : 0;
+    const punch = t > 0.8 ? Math.max(0, 1 - (t - 0.8) / 0.45) : 0;
+    ctx.save();
+    if (punch > 0) { const z = 1 + 0.05 * easeOut(punch); ctx.translate(jx, 205); ctx.scale(z, z); ctx.translate(-jx, -205); }
+    trailBackdrop('pine', 0);
     if (t < 0.5 && (tNow % 0.06) < dt) tsfx.skid();
-    const drop = clamp((t - 0.45) / 0.35, 0, 1);
-    gPine(262, 212, 190, false);
-    rect(222, 34, 60, 5, '#5a4030'); rect(222, 34, 60, 1, '#7a5a40');
-    const crush = t > 0.8 ? Math.min(1, (t - 0.8) * 4) : 0;
-    // coils wrap the jeep: the far half of each loop is drawn behind it, the near half in front
-    const coil = (front) => { if (drop < 1) return; for (let k = 0; k < 3; k++) { ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = '#2a1a0c'; ctx.lineWidth = 10; ctx.beginPath(); ctx.ellipse(jx, 206 + k * 7, 40 - k * 3, 9, -0.08, front ? 0.05 : Math.PI, front ? Math.PI - 0.05 : Math.PI * 2); ctx.stroke(); ctx.strokeStyle = k % 2 ? '#b8904a' : '#c8a060'; ctx.lineWidth = 7; ctx.stroke(); ctx.strokeStyle = '#5a3a1a'; ctx.lineWidth = 2; ctx.setLineDash([4, 7]); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); } };
-    coil(false);
+    pyOak(318, 214);
+    let coil = null;
+    if (drop >= 1) {
+      const tight = easeOut(clamp((t - 0.8) / 0.3, 0, 1)), ry = 30 - tight * 9 + Math.sin(tNow * 7) * tight * 0.8;
+      coil = pyCoil(jx, 213 + tight * 2, ry, 7);
+      coil.runs.forEach(r => { if (!r.front) pyTube(coil.pts, 7, { from: r.a, to: r.b, dim: true }); });
+    }
     ctx.save(); ctx.translate(jx, 234); ctx.scale(1, 1 - crush * 0.14); ctx.rotate(crush * 0.05); ctx.translate(-jx, -234);
     gJeep(jx, 234, t < 0.5 ? 60 * (1 - stop) : 0, { empty: t > 1.15, expr: 'shocked' });
     ctx.restore();
-    coil(true);
+    if (coil) {
+      coil.runs.forEach(r => { if (r.front) pyTube(coil.pts, 7, { from: r.a, to: r.b }); });
+      pyHead(coil.hx, coil.hy + Math.sin(tNow * 3) * 1.5, 0.14, t > 1 ? 0.75 + Math.sin(tNow * 14) * 0.15 : 0.35, { sc: 4 / 3 });
+    } else {
+      // on the limb, then falling head first
+      const h = pyHang(drop);
+      if (drop > 0) { ctx.save(); ctx.globalAlpha = 0.5; for (let k = 0; k < 5; k++) rect(226 + k * 7, h.hy - 60 - k * 9, 1, 30, '#ffffff'); ctx.restore(); }
+      pyTube(h.pts, 7);
+      pyHead(h.hx, h.hy, Math.PI / 2, drop > 0 ? 0.6 : 0.15, { sc: 4 / 3 });
+    }
     if (t > 0.8 && !this._crushed) { this._crushed = true; tsfx.crash(); tsfx.hiss(); shake = Math.max(shake, 9); tDebris(jx + 10, 214, 16, ['#bfe8ff', '#4a6a3a', '#2a2a2a', '#e8f8ff'], 180); }
     if (t < 0.4) this._crushed = false;
-    // the python falling, then coiled round the jeep
-    if (drop < 1) { const py = 40 + drop * 150; for (let i = 0; i < 16; i++) { fillCircle(250 + Math.sin(i * 0.6 + t * 8) * 10, py - i * 9, 7 - i * 0.2, i % 3 ? '#c8a060' : '#5a3a1a'); } }
-    else drawPython(jx + 46 + Math.sin(tNow * 3) * 4, 212, { n: 3, rear: 18, open: 0.8, flat: true });
     // the ranger bails out and legs it
     if (t > 1.15) {
       const f = clamp((t - 1.15) / 0.5, 0, 1), rx = jx + 10 + f * 110, ry = PY_GROUND - Math.sin(f * Math.PI) * 40;
       drawBobble(rx, ry, G.ranger, Object.assign({ sc: 1, act: f < 1 ? 'jump' : 'run', expr: 'scared' }, myFit()));
       if (f < 1) { ctx.save(); ctx.translate(rx + 22, ry - 52); ctx.scale(0.6, 0.6); tBang(0, 0, '!!', '#ff5a3a', t - 1.15); ctx.restore(); }
     }
+    ctx.restore();
   },
   init(s) {
     Object.assign(s, { timer: 15, dur: 15, scroll: 0, v: 150, y: 0, vy: 0, air: false, jumps: 0, gap: 120, hits: 0, coins: 0, stumble: 0, obs: [], coinsL: [], spawn: 0.6, cSpawn: 0.9, msg: '', msgT: 0, smash: [], won: false, caught: false, end: 0 });
