@@ -1532,11 +1532,15 @@ function drawBobble(cx, gy, key, o) {
     if (aa === 'wave' && side > 0) return { x: 11, y: by - 1, r: 2.1 + Math.sin(t * 6) * 0.3 };
     if (aa === 'point' && side > 0) return { x: 12, y: by + 3, r: 1.1 };
     if (aa === 'think' && side > 0) return { x: 7, y: by - 5, r: -0.5 };
+    if (aa === 'guard') return { x: side * 8, y: by + 5 + Math.sin(t * 6 + side) * 0.7, r: side * 2.7 };
+    if (aa === 'punch') return side > 0 ? { x: 11, y: by + 2, r: -2.3, len: 1.4 } : { x: -8, y: by + 5, r: -2.7 };
+    if (aa === 'knock') return side > 0 ? { x: 11, y: by + 2, r: -2.35 + Math.abs(Math.sin(t * 20)) * 0.55, len: 1.2 } : { x: -8, y: by + 5, r: -2.7 };
+    if (aa === 'hurt') return { x: side * 11, y: by + 2, r: -side * (2.3 + Math.sin(t * 24) * 0.5) };
     return { x: side * 10, y: by + 6 + Math.sin(t * 1.3 + side) * 0.6, r: side * (0.14 + Math.sin(t * 1.3 + side) * 0.03) };
   };
   [-1, 1].forEach(side => {
     const a2 = pose(side);
-    ctx.save(); ctx.translate(a2.x, a2.y); ctx.rotate(a2.r);
+    ctx.save(); ctx.translate(a2.x, a2.y); ctx.rotate(a2.r); if (a2.len) ctx.scale(1, a2.len);
     plasticBox(-3, -2, 6, 10, 2, topR, { noShine: 1 });
     if (shirt && shirt.pat === 'stripes') for (let j = 0; j < 8; j += 3) rect(-2, j, 4, 1, shirt.col2);
     plasticBox(-4, 6, 8, 7, 3, gR, { noShine: 1 });
@@ -4532,6 +4536,7 @@ function pressTooth(i) {
   burst(p.x, p.y, '#fef9e6', 5, 40);
   fxRing(p.x, p.y, '#fff6c8', 2, 11, 0.26); fxPuff(p.x, p.y + 6, 2, '#e8e0c8');
   sfx.click(G.pool.clicks);
+  rangerFx('knock', { tx: p.x, ty: p.y });
   if (bossIs('restless') && G.pool.clicks % 3 === 0) relocateSnaps();
   if (bossIs('snakegator') && G.pool.clicks % 4 === 0) {
     const pick = G.mouth.filter(q => !q.pressed && !q.gone && !q.snap && !q.revealed);
@@ -4636,6 +4641,7 @@ let charmPop = {}; // charm id -> pop timer (badge bounce when it activates)
 function popCharm(id) { if (id) charmPop[id] = 0.45; }
 
 function bank(sweep) {
+  if (G.state === 'play' && !G.seq && G.pool && G.pool.clicks > 0 && (sweep || !((bossIs('lockjaw') && G.pool.clicks < 4) || (bossIs('shellback') && G.pool.clicks < 6)))) rangerFx('punch');
   if (G.state !== 'play' || G.seq) return;
   if (G.pool.clicks === 0) { sfx.error(); float(248, 232, 'PRESS A TOOTH FIRST!', C.red, 1); return; }
   if (!sweep && bossIs('lockjaw') && G.pool.clicks < 4) { sfx.error(); float(248, 232, 'LOCKJAW: NEED 4+ TEETH', C.red, 1); return; }
@@ -4696,7 +4702,7 @@ function finishBank(q) {
 function startSnap(i) {
   const s = G.mouth[i];
   s.pressed = true; s.revealed = 'snap';
-  G.state = 'snap'; G.snapT = 0; G.snapIdx = i;
+  G.state = 'snap'; G.snapT = 0; G.snapIdx = i; rangerFx('hurt');
   G.deckOpen = false; G.drag = null; G.inspect = null;
   if (has('insurance')) { gainMoney(5); float(60, 150, 'INSURANCE +$5', C.gold, 1, 1.4); popCharm('insurance'); }
   { const sp = toothScreenPos(i); fxRing(sp.x, sp.y, '#ff5a4a', 4, 34, 0.4); fxStars(sp.x, sp.y, '#ff8a6a', 7, 110); fxLines(sp.x, sp.y, '#ffffffaa', 8, 120); }
@@ -8287,6 +8293,7 @@ function drawPlay() {
   drawSceneBack(th);
   drawCroc(G.jawClose);
   drawSceneFront(th);
+  drawRangerFighter();
   drawSidebar();
   drawTopBar(false);
   if (G.summer) drawCrabs();
@@ -8323,6 +8330,53 @@ function drawPlay() {
     drawTextCSh('SNAP RISK ' + risk + '%', 428, 240, risk >= 34 ? C.red : risk >= 15 ? C.orange : C.green, 1);
     drawTextCSh(unpressed.length + (unpressed.length === 1 ? ' TOOTH LEFT' : ' TEETH LEFT'), 428, 252, C.dim, 1);
   }
+}
+
+// ============================ THE RANGER FIGHTS BACK ============================
+//  In a boss fight your ranger squares up beside the jaws: a boxer's bounce in a
+//  guard stance, a knuckle-knock on every tooth you press, a flying uppercut
+//  into the chin when you bank, and a spin-out with stars when it snaps.
+function rangerFx(kind, o) { if (!bossFxOn()) return; G.rf = Object.assign({ kind, t: 0 }, o || {}); if (kind === 'knock') G.rfKnock = { t: 0, x: o.tx, y: o.ty }; }
+let rfLast = 0;
+function fistPop(x, y, k, glove) {
+  const s = k < 0.25 ? 0.6 + easeOut(k / 0.25) * 0.9 : 1.5 - (k - 0.25) * 0.6, g = (GLOVES[glove] && gloveUnlocked(glove) ? GLOVES[glove] : GLOVES.bare).skin;
+  const gd = mixC(g, '#000000', 0.45), gl = mixC(g, '#ffffff', 0.35);
+  ctx.save(); ctx.globalAlpha = k > 0.65 ? clamp((1 - k) / 0.35, 0, 1) : 1; ctx.translate(Math.round(x), Math.round(y)); ctx.scale(s, s); ctx.rotate(-0.3);
+  rr(-7, -6, 14, 12, 4, '#141008'); rr(-6, -5, 12, 10, 3, g); rect(-5, -5, 10, 2, gl);
+  for (let k2 = 0; k2 < 3; k2++) rect(-4 + k2 * 3, -1, 1, 3, gd);
+  rr(-9, -2, 5, 6, 2, '#141008'); rr(-8, -1, 3, 4, 1, g);            // thumb
+  rr(-4, 5, 9, 5, 2, '#141008'); rr(-3, 5, 7, 4, 1, '#2c7d3a');     // cuff
+  ctx.restore();
+  if (k < 0.3) { ctx.save(); ctx.globalAlpha = 1 - k / 0.3; for (let a = 0; a < 8; a++) { const an = a / 8 * Math.PI * 2, r = 8 + k * 40; rect(x + Math.cos(an) * r, y + Math.sin(an) * r, 2, 2, '#fff6c8'); } ctx.restore(); }
+}
+function drawRangerFighter() {
+  if (!bossFxOn()) return;
+  const dt = Math.min(0.05, Math.max(0, tNow - rfLast)); rfLast = tNow;
+  const f = G.rf || (G.rf = { kind: 'guard', t: 0 }); f.t += dt;
+  const HX = 131, HY = 263, fit = myFit();
+  let x = HX + Math.sin(tNow * 3) * 1.5, y = HY - Math.abs(Math.sin(tNow * 6)) * 2, act = 'guard', expr = 'mad', rot = 0, t2;
+  if (f.kind === 'knock') { act = 'knock'; t2 = f.t; if (f.t > 0.32) f.kind = 'guard'; }
+  else if (f.kind === 'punch') {
+    const T = f.t, tx = 204, ty = 250;
+    if (T < 0.16) { const k = easeOut(T / 0.16); x = lerp(HX, tx, k); y = lerp(HY, ty, k) - Math.sin(k * Math.PI) * 26; act = 'jump'; expr = 'mad'; }
+    else if (T < 0.46) {
+      x = tx; y = ty - 18 - Math.sin((T - 0.16) / 0.3 * Math.PI) * 10; act = 'punch'; expr = 'mad';
+      if (!f.hit) { f.hit = true; shake = Math.max(shake, 7); tsfx.crash(); sfx.snap(); fxStars(222, 222, '#ffe070', 10, 120); fxRing(222, 222, '#ffffff', 4, 40, 0.3); f.pow = 0; }
+    } else if (T < 0.74) { const k = easeIn((T - 0.46) / 0.28); x = lerp(tx, HX, k); y = lerp(ty - 18, HY, k) - Math.sin(k * Math.PI) * 18; act = 'jump'; expr = 'happy'; rot = -k * 6.28; }
+    else f.kind = 'guard';
+    if (f.pow !== undefined) { f.pow += dt; if (f.pow < 0.55) { ctx.save(); ctx.translate(234, 196); const s = f.pow < 0.1 ? 1.8 - f.pow * 6 : 1.2; ctx.scale(s, s); ctx.rotate(-0.15); vf(() => vS(0, 0, 12, 28, 15, 0), '#ffd23f', { lw: 2 }); drawTextCSh('POW!', 0, -4, '#ffffff', 1, '#8a1a10'); ctx.restore(); } }
+  } else if (f.kind === 'hurt') {
+    const T = f.t, k = clamp(T / 0.5, 0, 1);
+    x = HX - Math.sin(k * Math.PI * 0.5) * 16; y = HY - Math.sin(k * Math.PI) * 20; rot = k < 1 ? -k * 5 : 0; act = 'hurt'; expr = 'panic';
+    if (T > 0.5) { rot = 0; x = HX - 16 + Math.min(1, (T - 0.5) / 0.5) * 16; y = HY; act = 'guard'; expr = 'scared'; dazedStars(x, y - 60, 12); }
+    if (T > 1.3) f.kind = 'guard';
+  }
+  ctx.save(); if (rot) { ctx.translate(x, y - 22); ctx.rotate(rot); ctx.translate(-x, -(y - 22)); }
+  drawBobble(Math.round(x), Math.round(y), G.ranger, Object.assign({ sc: 1, act, expr, t: t2 }, fit));
+  ctx.restore();
+  // the knuckle-knock lands on the tooth you pressed
+  const kn = G.rfKnock;
+  if (kn) { kn.t += dt; fistPop(kn.x, kn.y, kn.t / 0.45, fit.glove); if (kn.t < 0.3) drawTextCSh('KNOCK!', kn.x + 14, kn.y - 16, '#fff4d8', 1, '#3a2410'); if (kn.t > 0.45) G.rfKnock = null; }
 }
 
 // ------------------------------------------------------------ snap anim ---
