@@ -2156,7 +2156,7 @@ const CROC_STYLES = {
   turtle: { a: '#8a9a4e', b: '#5c6a2e', c: '#b0bc6a', d: '#3a4420', maw: '#5a2a1a', mawD: '#3a1a0e', tongue: '#d0766a', tongueHi: '#e89a8a', sclera: '#f8f4dc', shell: true, sleepy: true },
   lilgator: { a: '#6cbe4c', b: '#4a9636', c: '#9ce85c', d: '#2e6322', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f8f4dc', baby: true },
   big: { a: '#4e8f3d', b: '#2f6626', c: '#79b944', d: '#1f4519', maw: '#40101c', mawD: '#2a0a12', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e8c8', scars: true, ridge: true },
-  twofang: { a: '#57755a', b: '#3a523e', c: '#7d9a80', d: '#263a2a', maw: '#3a0e18', mawD: '#260810', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e0c0', fangs: true, scars: true },
+  twofang: { a: '#57755a', b: '#3a523e', c: '#7d9a80', d: '#263a2a', maw: '#3a0e18', mawD: '#260810', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#f0e0c0', scars: true },
   murky: { a: '#7a6a40', b: '#584a28', c: '#9c8c58', d: '#3a3018', maw: '#3a2010', mawD: '#281408', tongue: '#a86040', tongueHi: '#c08058', sclera: '#d8d0a8', algae: true, sleepy: true },
   cotton: { a: '#b8b0a0', b: '#8c8474', c: '#d8d0c0', d: '#5a5448', maw: '#f0ece0', mawD: '#c8c2b2', tongue: '#e08898', tongueHi: '#f0aab8', sclera: '#fff', paleMaw: true },
   lockjaw: { a: '#6a8a5a', b: '#48633c', c: '#8fae7c', d: '#2e4426', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', brace: true },
@@ -2165,15 +2165,19 @@ const CROC_STYLES = {
   tender: { a: '#6aa060', b: '#477043', c: '#92c688', d: '#2c4a28', maw: '#78243a', mawD: '#521626', tongue: '#e87890', tongueHi: '#f89cb0', sclera: '#f8f4dc', bandage: true, teary: true },
   diet: { a: '#8a9a78', b: '#647250', c: '#aebc9c', d: '#42503a', maw: '#4a2430', mawD: '#321820', tongue: '#b06a78', tongueHi: '#c88a96', sclera: '#e8e8d0', skinny: true },
   restless: { a: '#6a5a8a', b: '#484060', c: '#8f7cae', d: '#2e2844', maw: '#38102a', mawD: '#240a1c', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#e8c8c8', redEye: true, bags: true },
-  king: { a: '#4a7a3a', b: '#305424', c: '#74a858', d: '#1e3a16', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', crown: true, moss: true },
+  king: { a: '#4a7a3a', b: '#305424', c: '#74a858', d: '#1e3a16', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', moss: true },
   mudcake: { a: '#8a6a3a', b: '#644a24', c: '#a88c54', d: '#40300f', maw: '#3a2410', mawD: '#281808', tongue: '#a86040', tongueHi: '#c08058', sclera: '#d8d0a8', mudDrips: true },
-  shellback: { a: '#6a8a4a', b: '#486030', c: '#8fae68', d: '#2e401e', maw: '#4a2810', mawD: '#321a08', tongue: '#c98a63', tongueHi: '#e0aa8a', sclera: '#f0e8c8', shell: true },
+  shellback: { a: '#6a8a4a', b: '#486030', c: '#8fae68', d: '#2e401e', maw: '#4a2810', mawD: '#321a08', tongue: '#c98a63', tongueHi: '#e0aa8a', sclera: '#f0e8c8' },
   albino: { a: '#e0d4cc', b: '#b8a89e', c: '#f4ece6', d: '#8a7a70', maw: '#e88898', mawD: '#c06878', tongue: '#f0a8b8', tongueHi: '#f8c8d4', sclera: '#ffe8e8', redEye: true, paleMaw: true },
   twin: { a: '#3a6a72', b: '#26484e', c: '#5a929c', d: '#142a30', maw: '#301024', mawD: '#1e0a16', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#e8e8d0', twinEyes: true, ridge: true },
   gold: { a: '#d8b842', b: '#a8882a', c: '#f0d868', d: '#7a6014', maw: '#5a3010', mawD: '#3e2008', tongue: '#e0a050', tongueHi: '#f0c078', sclera: '#fff6dc', goldTooth: true },
   phantom: { a: '#7a9aa8', b: '#5a7684', c: '#a8c4d0', d: '#3a5260', maw: '#28404c', mawD: '#182c36', tongue: '#5a8494', tongueHi: '#7aa4b4', sclera: '#d8f4ff', sleepy: true },
   junkjaw: { a: '#9a6a4a', b: '#6f4a30', c: '#c08a5e', d: '#4a3020', maw: '#3a1c14', mawD: '#28120c', tongue: '#a85848', tongueHi: '#c07860', sclera: '#e8d8c0', metal: true, scars: true },
-  bogqueen: { a: '#8a5a9a', b: '#623e70', c: '#b07cc4', d: '#3e2848', maw: '#3a1030', mawD: '#280a20', tongue: '#c94f8a', tongueHi: '#e077aa', sclera: '#f4e8ff', crown: true, bags: true },
+  bogqueen: { a: '#8a5a9a', b: '#623e70', c: '#b07cc4', d: '#3e2848', maw: '#3a1030', mawD: '#280a20', tongue: '#c94f8a', tongueHi: '#e077aa', sclera: '#f4e8ff', bags: true },
+  hydra: { a: '#4a8a5a', b: '#2e6040', c: '#76b884', d: '#1a3a26', maw: '#3a1020', mawD: '#260812', tongue: '#b8455a', tongueHi: '#d06a7c', sclera: '#fff0c0', scars: true, ridge: true },
+  snakegator: { a: '#b8945a', b: '#8a6a3a', c: '#d8b87a', d: '#4a3418', maw: '#4a1420', mawD: '#320b14', tongue: '#e0304a', tongueHi: '#f06a7a', sclera: '#f0d860', slit: true },
+  mecha: { a: '#8a96a4', b: '#5a6674', c: '#b8c4d0', d: '#2e3844', maw: '#1a2430', mawD: '#0e1620', tongue: '#3a8ac8', tongueHi: '#6ab8f0', sclera: '#1a1a2a' },
+  pirate: { a: '#5a7a4a', b: '#3a5a30', c: '#7a9a64', d: '#22381c', maw: '#4a1420', mawD: '#320b14', tongue: '#c94f63', tongueHi: '#e0778a', sclera: '#f0e8c8', scars: true, goldTooth: true },
   apexpred: { a: '#2e3a34', b: '#1c2620', c: '#48584e', d: '#0e1612', maw: '#2e0810', mawD: '#1c040a', tongue: '#8a3040', tongueHi: '#a84858', sclera: '#e8d0c0', redEye: true, scars: true, fangs: true, ridge: true },
 };
 // SHARK styles for the MALDIVES summer stage (grey-blue hide, pale bellies)
@@ -2498,6 +2502,10 @@ const BOSSES = [
   { id: 'phantom', name: 'THE PHANTOM', desc: 'Your TEETH pool is hidden until you bank' },
   { id: 'junkjaw', name: 'JUNKJAW', desc: 'X-Rays cost $1 each' },
   { id: 'bogqueen', name: 'BOG QUEEN', desc: 'The snappers hide among the 3 highest-value teeth' },
+  { id: 'hydra', name: 'HYDRAGATOR', desc: '+2 snap teeth - but every bank knocks one head out (-1 snapper)' },
+  { id: 'snakegator', name: 'SNAKEGATOR', desc: 'Every 4th press its coils squeeze a NEW snapper into the mouth' },
+  { id: 'mecha', name: 'MECHA-CHOMP', desc: 'SYSTEM REBOOT: chain MULT resets to 1 after every 5th press' },
+  { id: 'pirate', name: 'CAPTAIN CHOMP', desc: 'Only 2 BITES this round, but every bank plunders +$3' },
 ];
 const FINAL_BOSS = { id: 'apexpred', name: 'APEX PREDATOR', desc: '2 snap teeth, and only 1 X-Ray' };
 
@@ -4090,7 +4098,7 @@ const rangerUnlocked = k => !RANGERS[k].ach || !!meta.ach[RANGERS[k].ach];
 const bossIs = id => !!(G.boss && G.round === 2 && G.boss.id === id);
 const xraysBlocked = () => bossIs('murky');
 const snapCountFor = () => {
-  return 1 + ((bossIs('twofang') || bossIs('apexpred') || bossIs('king')) ? 1 : 0)
+  return 1 + ((bossIs('twofang') || bossIs('apexpred') || bossIs('king')) ? 1 : 0) + (bossIs('hydra') ? 2 - (G.hydraDown || 0) : 0)
     + (nodeModOn('swarming') ? 1 : 0);
 };
 
@@ -4270,7 +4278,8 @@ function startFight(node) {
   }
   if (G.boss) indexSee('boss_' + G.boss.id);
   G.crabs = []; G.crabT = 2.5 + rnd() * 3; // hermit crabs (summer only)
-  G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0;
+  G.roundPressed = 0; G.heartUsed = false; G.roundBanks = 0; G.hydraDown = 0;
+  if (bossIs('pirate')) G.bites = Math.min(G.bites, 2);
   G.denturesUsed = false; G.feastTimes = [];
   G.roundBuffMult = G.eventBuffs.mult || 0;
   G.drawPile = shuffle(G.deck.slice());
@@ -4524,6 +4533,11 @@ function pressTooth(i) {
   fxRing(p.x, p.y, '#fff6c8', 2, 11, 0.26); fxPuff(p.x, p.y + 6, 2, '#e8e0c8');
   sfx.click(G.pool.clicks);
   if (bossIs('restless') && G.pool.clicks % 3 === 0) relocateSnaps();
+  if (bossIs('snakegator') && G.pool.clicks % 4 === 0) {
+    const pick = G.mouth.filter(q => !q.pressed && !q.gone && !q.snap && !q.revealed);
+    if (pick.length > 1) { choice(pick).snap = true; float(W / 2 + 50, 100, 'THE COILS SQUEEZE: +1 SNAPPER!', C.red, 1, 1.4); shake = Math.max(shake, 3); tsfx.hiss(); }
+  }
+  if (bossIs('mecha') && G.pool.clicks % 5 === 0 && G.pool.mult > 1) { G.pool.mult = 1; float(W / 2 + 50, 100, 'SYSTEM REBOOT: MULT 1', '#3ae8ff', 1, 1.4); tone(880, 0.08, 'square', 0.06, -600); }
   checkSweep();
 }
 
@@ -4659,6 +4673,8 @@ function finishBank(q) {
   G.score += val;
   G.stats.banks++;
   G.roundBanks++;
+  if (bossIs('hydra') && (G.hydraDown || 0) < 2) { G.hydraDown = (G.hydraDown || 0) + 1; float(W / 2 + 60, 96, 'A HEAD GOES DOWN! -1 SNAPPER', C.green, 1, 1.6); tsfx.crash(); shake = Math.max(shake, 5); }
+  if (bossIs('pirate')) { gainMoney(3); float(W / 2 + 60, 110, 'PLUNDER +$3', C.gold, 1, 1.4); }
   G.scorePulse = 0.5;
   quest('bank8', 1);
   if (val > G.stats.bestBank) G.stats.bestBank = val;
@@ -5384,6 +5400,203 @@ function resolveDrop() {
   }
 }
 
+// ============================ BOSS SIGNATURE LOOKS =============================
+//  Every boss wears something nobody else does, and it moves: fangs that gleam,
+//  chains that swing, a crown that sparkles, a parrot that flaps.  The layer is
+//  drawn in two halves around the croc: BACK (necks, coils, shells, capes,
+//  auras - anything behind the head) and FRONT (props on the snout and head).
+// ================================================================================
+const bossFxOn = () => !!(G.round === 2 && G.boss && !G.summer);
+// a little ring of stars for a dazed head
+function dazedStars(x, y, r) { for (let k = 0; k < 4; k++) { const a = tNow * 4 + k * 1.57; const sx = x + Math.cos(a) * r, sy = y + Math.sin(a) * r * 0.35; rect(sx - 1, sy, 3, 1, '#ffe070'); rect(sx, sy - 1, 1, 3, '#ffe070'); } }
+// a hydra side head in profile on a thick neck; dir -1 faces left
+function hydraHead(bx, by, hx, hy, dir, open, st, ko) {
+  const P = [st.d, st.b, st.a, st.c];
+  hx = Math.round(hx); hy = Math.round(hy);
+  // the neck rising from behind the big head
+  const pts = []; for (let k = 0; k <= 20; k++) { const f = k / 20, u = 1 - f, cx = hx - dir * 6, cy = (by + hy) / 2; pts.push([u * u * bx + 2 * u * f * cx + f * f * hx, u * u * by + 2 * u * f * cy + f * f * (hy + 16)]); }
+  [[P[0], 11], [P[1], 10], [P[2], 7]].forEach(([c, r], pass) => { ctx.fillStyle = c; pts.forEach(([x, y]) => pyDisc(x - (pass === 2 ? dir * 2 : 0), y, r)); });
+  ctx.fillStyle = P[3]; pts.forEach(([x, y], i) => { if (i % 3 === 1) ctx.fillRect(Math.round(x) - 5, Math.round(y), 3, 1); });
+  ctx.save(); ctx.translate(hx, hy); if (ko) ctx.rotate(dir * 0.3);
+  const j = Math.round((ko ? 0.9 : open) * 12);
+  // lower jaw and the open mouth
+  rr(-21, 6 + j, 42, 12, 4, P[0]); rr(-20, 7 + j, 40, 10, 4, P[1]); rect(-18, 8 + j, 36, 2, P[2]);
+  rr(-18, 2, 36, 6 + j, 2, st.mawD); rr(-16, 3, 32, 4 + j, 2, st.maw);
+  for (let k = 0; k < 5; k++) { rect(-14 + k * 7, 3, 4, 4, '#f4f0dc'); rect(-14 + k * 7, 3, 4, 1, '#ffffff'); if (j > 3) rect(-11 + k * 7, 3 + j, 4, 4, '#f4f0dc'); }
+  if (ko) { rect(-4, 8, 8, 6 + j - 4, st.tongue); rect(-3, 8, 3, 2, st.tongueHi); }
+  // upper jaw with nostrils
+  rr(-23, -12, 46, 16, 4, P[0]); rr(-22, -11, 44, 14, 4, P[1]); rr(-21, -10, 42, 10, 3, P[2]); rect(-18, -9, 36, 2, P[3]);
+  rect(-7, -8, 3, 2, P[0]); rect(4, -8, 3, 2, P[0]);
+  for (let k = 0; k < 4; k++) rect(-16 + k * 10, -3, 3, 2, P[1]);
+  // eyes on top
+  [-12, 6].forEach(ex => {
+    rr(ex - 2, -20, 12, 10, 3, P[0]); rr(ex - 1, -19, 10, 8, 3, P[2]);
+    if (ko) { for (let k = 0; k < 4; k++) { rect(ex + 1 + k, -17 + k, 1, 1, '#1b1408'); rect(ex + 4 - k, -17 + k, 1, 1, '#1b1408'); } }
+    else { rr(ex, -18, 8, 6, 2, st.sclera); const lk = clamp((mx - hx) / 80, -1, 1) * 2; rect(ex + 3 + Math.round(lk), -17, 2, 4, '#1b1408'); rect(ex - 2, -21, 12, 2, P[0]); }
+  });
+  ctx.restore();
+  if (ko) dazedStars(hx, hy - 26, 12);
+}
+// the snakegator's python body coiled all round the head
+function snakeCoil(breath) {
+  const cps = [[452, 262], [476, 190], [468, 100], [430, 36], [360, 16], [294, 12], [228, 16], [160, 36], [120, 100], [114, 170], [126, 226], [146, 250]];
+  const raw = [];
+  for (let i = 0; i < cps.length - 1; i++) {
+    const p0 = cps[Math.max(0, i - 1)], p1 = cps[i], p2 = cps[i + 1], p3 = cps[Math.min(cps.length - 1, i + 2)];
+    for (let s = 0; s < 1; s += 0.1) {
+      const s2 = s * s, s3 = s2 * s;
+      const x = 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * s + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * s2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * s3);
+      const y = 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * s + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * s2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * s3);
+      raw.push([x + Math.sin(tNow * 1.2 + i) * breath, y + Math.cos(tNow * 1.2 + i) * breath * 0.6, 1]);
+    }
+  }
+  const pts = pySpine(raw, 12);
+  pyTube(pts, 12);
+  // the rattle on the tail tip
+  const tip = raw[raw.length - 1], sh = Math.round(Math.sin(tNow * 40) * (Math.sin(tNow * 0.9) > 0.3 ? 2 : 0));
+  for (let k = 0; k < 4; k++) { rr(tip[0] + 2 + k * 6 + sh, tip[1] - 5 + k, 7, 9 - k, 3, '#3a2a14'); rr(tip[0] + 3 + k * 6 + sh, tip[1] - 4 + k, 5, 7 - k, 2, k % 2 ? '#d8c08a' : '#b89a62'); }
+}
+function bossFxBack(id, g) {
+  const { maw, bodyX, bodyW, st } = g, cx = maw.x + maw.w / 2, jy = g.jy0;
+  if (id === 'hydra') {
+    const down = G.hydraDown || 0;
+    const oL = Math.max(0, Math.sin(tNow * 3.1)) ** 3, oR = Math.max(0, Math.sin(tNow * 3.1 + 2.2)) ** 3;
+    hydraHead(bodyX + 14, jy + 110, 136 + Math.sin(tNow * 1.3) * 2, 84 + Math.cos(tNow * 1.1) * 3, -1, oL, st, down >= 2);
+    hydraHead(bodyX + bodyW - 14, jy + 110, 452 + Math.sin(tNow * 1.2 + 1) * 2, 88 + Math.cos(tNow * 1.4) * 3, 1, oR, st, down >= 1);
+    if (!down && oL > 0.9 && (tNow % 0.5) < 0.02) fxPuff(100, 96, 2, '#cfe8f0');
+  } else if (id === 'snakegator') snakeCoil(1.5);
+  else if (id === 'shellback') {
+    const rock = Math.sin(tNow * 0.8) * 1.5, sx = cx, sy = jy - 6 + rock;
+    for (let r = 0; r < 70; r++) { const hh = Math.round(Math.sqrt(Math.max(0, 1 - (r / 70) ** 2)) * 46); [-1, 1].forEach(sd => { const x = sx + sd * r; rect(x, sy - hh, 1, hh + 4, st.d); if (hh > 2) rect(x, sy - hh + 1, 1, hh + 2, r % 23 < 2 ? '#2a3418' : (hh - (r % 11)) % 13 < 2 ? '#3a4a22' : '#5c7038'); }); }
+    for (let k = -3; k <= 3; k++) { const px = sx + k * 20, ph = Math.round(Math.sqrt(Math.max(0, 1 - (Math.abs(k * 20) / 70) ** 2)) * 46); rect(px - 2, sy - ph - 6, 4, 6, '#d8d0b0'); rect(px - 1, sy - ph - 9, 2, 3, '#f4f0dc'); }
+  } else if (id === 'loanshark') {
+    const fx = cx + 30, fy = jy - 4, sw = Math.sin(tNow * 1.5) * 2;
+    for (let r = 0; r < 44; r++) { const w = Math.round((44 - r) * 0.55); rect(fx - w + Math.round(sw * r / 44) + Math.round(r * 0.3), fy - r, w * 2, 1, r > 40 ? st.d : st.b); rect(fx - w + Math.round(sw * r / 44) + Math.round(r * 0.3), fy - r, 2, 1, st.c); }
+  } else if (id === 'king') {
+    [-1, 1].forEach(sd => { const x0 = sd < 0 ? bodyX - 18 : bodyX + bodyW - 4; rr(x0, jy + 10, 22, 90, 8, '#5a0a14'); rr(x0 + 2, jy + 12, 18, 86, 7, '#a81a2a'); rect(x0 + 4, jy + 14, 4, 80, '#c83040'); rr(x0 - 2, jy + 4, 26, 12, 5, '#f4f0e8'); for (let k = 0; k < 4; k++) rect(x0 + 3 + k * 6, jy + 8, 2, 3, '#1a1a1a'); });
+  } else if (id === 'albino') {
+    ctx.save(); for (let k = 5; k >= 1; k--) { ctx.globalAlpha = 0.05 + Math.sin(tNow * 1.5) * 0.015; fillCircle(cx, jy + 20, 60 + k * 16, '#e8f0ff'); } ctx.restore();
+  } else if (id === 'apexpred') {
+    ctx.save(); ctx.globalAlpha = 0.12 + Math.sin(tNow * 3) * 0.05; fillCircle(cx, jy + 60, 170, '#c8202a'); ctx.restore();
+    const ph = tNow % 1.6; if (ph < 0.12) { stormBolt(bodyX - 10, 0, jy + 40, Math.floor(tNow / 1.6)); stormBolt(bodyX + bodyW + 8, 0, jy + 50, Math.floor(tNow / 1.6) + 5); }
+  } else if (id === 'bogqueen' || id === 'murky') {
+    ctx.save(); for (let k = 0; k < 6; k++) { ctx.globalAlpha = 0.07; pxDust(bodyX + 20 + k * 44 + Math.sin(tNow * 0.6 + k) * 10, jy + 30 + (k % 2) * 30, 30, id === 'murky' ? '#6a7a3a' : '#8a4aa8'); } ctx.restore();
+  } else if (id === 'phantom') {
+    ctx.globalAlpha = 0.72 + Math.sin(tNow * 2.3) * 0.12 + (Math.sin(tNow * 17) > 0.97 ? -0.3 : 0);
+  } else if (id === 'restless') {
+    if ((tNow % 1.7) < 0.18) ctx.translate(Math.round(Math.sin(tNow * 90) * 2), Math.round(Math.cos(tNow * 70)));
+  }
+}
+function bossFxFront(id, g) {
+  const { maw, bodyX, bodyW, jy, ey, exL, exR, st } = g, cx = maw.x + maw.w / 2, low = maw.y + maw.h;
+  ctx.globalAlpha = 1;
+  if (id === 'twofang') {
+    [maw.x - 14, maw.x + maw.w + 1].forEach((fx, i) => {
+      for (let r = 0; r < 30; r++) { const w = Math.max(1, Math.round(6 * (1 - r / 30))); rect(fx + 6 - w, jy + 55 + r, w * 2, 1, r > 26 ? '#cfc8a8' : '#f4f0dc'); rect(fx + 6 + w - 1, jy + 55 + r, 1, 1, '#b8b090'); rect(fx + 6 - w, jy + 55 + r, 1, 1, '#1a1408'); }
+      const gl = (tNow * 0.6 + i * 0.5) % 1; if (gl < 0.4) rect(fx + 4, jy + 56 + gl * 60, 2, 2, '#ffffff');
+      const dr = (tNow * 0.7 + i * 0.3) % 1; ctx.save(); ctx.globalAlpha = 0.7 * (1 - dr); rect(fx + 5, jy + 85, 1, Math.round(dr * 14), '#bfe8ff'); rect(fx + 4, jy + 85 + Math.round(dr * 14), 3, 3, '#bfe8ff'); ctx.restore();
+    });
+  } else if (id === 'murky') {
+    for (let x = bodyX; x < bodyX + bodyW; x += 7) { const ln = 6 + Math.round(hash2(x, 3) * 12), sw = Math.round(Math.sin(tNow * 1.4 + x * 0.1) * 2); for (let j = 0; j < ln; j++) rect(x + Math.round(sw * j / ln), jy + 56 + j, 2, 1, j % 3 ? '#4a6a2a' : '#6a8a3a'); }
+    for (let k = 0; k < 8; k++) { const ph = (tNow * 0.5 + k / 8) % 1, bx = bodyX + 10 + (k * 37) % (bodyW - 20); ctx.save(); ctx.globalAlpha = 0.7 * (1 - ph); ring(bx + Math.sin(ph * 8 + k) * 3, 250 - ph * 50, 2 + (k % 2), '#bfe0c0', 1); ctx.restore(); }
+  } else if (id === 'cotton') {
+    [[cx - 50, jy - 6], [cx + 4, jy - 12], [cx + 52, jy - 4]].forEach(([px, py], i) => pxClump(px, py, 12, 7, ['#b8b0a0', '#d8d0c4', '#ece6dc', '#f8f4ee', '#ffffff'], 60 + i, { rag: 0.55 }));
+    [maw.x - 6, maw.x + maw.w + 6].forEach((mx2, i) => { const ph = (tNow * 0.6 + i * 0.5) % 1; ctx.save(); ctx.globalAlpha = 0.5 * (1 - ph); pxDust(mx2 + (i ? 1 : -1) * ph * 26, low - 30 - ph * 20, 3 + ph * 8, '#f4f0ec'); ctx.restore(); });
+  } else if (id === 'lockjaw') {
+    [[bodyX + 12, 1], [bodyX + bodyW - 16, -1]].forEach(([lx, sd]) => {
+      const sw = Math.sin(tNow * 2 + sd) * 3;
+      for (let k = 0; k < 12; k++) { const y = jy + 14 + k * 8, x = lx + Math.round(Math.sin(k / 11 * Math.PI) * sw * sd); if (k % 2) { rect(x - 1, y, 3, 8, '#3a3a3a'); rect(x, y + 1, 1, 6, '#a8b0b6'); } else { rr(x - 3, y, 7, 8, 3, '#3a3a3a'); rr(x - 2, y + 1, 5, 6, 2, '#8a949c'); rect(x - 1, y + 2, 3, 4, '#3a3a3a'); } }
+    });
+    const pa = Math.sin(tNow * 2.4) * 0.35, lx = cx, ly = low + 10;
+    ctx.save(); ctx.translate(lx, ly); ctx.rotate(pa);
+    for (let a = 0; a < 12; a++) { const an = Math.PI + a / 11 * Math.PI; rect(Math.cos(an) * 6, 10 + Math.sin(an) * 7, 2, 2, '#8a949c'); }
+    rr(-9, 10, 18, 16, 3, '#5a3a0a'); rr(-8, 11, 16, 14, 3, '#e8b830'); rect(-7, 11, 14, 2, '#fff0a0'); fillCircle(0, 16, 2, '#3a2a0a'); rect(0, 17, 1, 5, '#3a2a0a');
+    ctx.restore();
+  } else if (id === 'loanshark') {
+    const sw = Math.sin(tNow * 1.8) * 0.3;
+    for (let k = 0; k <= 16; k++) { const a = Math.PI * (0.1 + k / 16 * 0.8), x = cx + Math.cos(a) * 70, y = low + 12 + Math.sin(a) * 22; rect(x, y, 3, 2, k % 2 ? '#c89a20' : '#ffd84a'); }
+    ctx.save(); ctx.translate(cx, low + 34); ctx.rotate(sw); fillCircle(0, 6, 8, '#6a4a08'); fillCircle(0, 6, 7, '#ffd84a'); fillCircle(0, 6, 5, '#e8b830'); drawTextC('$', 1, 3, '#6a4a08', 1); ctx.restore();
+    const cp = (tNow * 0.4) % 1; if (cp < 0.5) { const f = cp / 0.5, x = cx + 60 + f * 40, y = jy - 10 - Math.sin(f * Math.PI) * 50, w = Math.max(1, Math.round(Math.abs(Math.cos(tNow * 14)) * 4)); rect(x - w, y - 4, w * 2, 8, '#ffd84a'); rect(x - w, y - 4, 1, 8, '#fff6c8'); }
+    rr(maw.x + maw.w - 6, low - 34, 16, 8, 1, '#2a5a2a'); rr(maw.x + maw.w - 5, low - 33, 14, 6, 1, '#8ac878'); rect(maw.x + maw.w, low - 31, 3, 2, '#2a5a2a');
+  } else if (id === 'ironjaw') {
+    for (let x = bodyX + 8; x < bodyX + bodyW - 8; x += 14) { rect(x, jy + 4, 2, 2, '#5a646c'); rect(x, jy + 4, 1, 1, '#d8e2e8'); }
+    [-1, 1].forEach((sd, i) => { const ph = (tNow * 0.9 + i * 0.5) % 1; ctx.save(); ctx.globalAlpha = 0.55 * (1 - ph); pxDust(cx + sd * 28 + sd * ph * 10, jy + 4 - ph * 24, 3 + ph * 6, '#c8ccd0'); ctx.restore(); });
+    const sp = tNow % 2.4; if (sp < 0.25) { const sx = cx - 40 + hash2(Math.floor(tNow / 2.4), 1) * 80; for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, r = sp * 60; rect(sx + Math.cos(a) * r, jy + 30 + Math.sin(a) * r * 0.6, 1, 1, k % 2 ? '#ffe070' : '#ff9a2a'); } }
+  } else if (id === 'tender') {
+    [[cx - 64, jy + 22], [cx + 44, jy + 34]].forEach(([bx, by]) => { rr(bx, by, 22, 8, 3, '#b8906a'); rr(bx + 1, by + 1, 20, 6, 2, '#f0c8a0'); rect(bx + 8, by + 2, 6, 4, '#e0b490'); for (let k = 0; k < 3; k++) rect(bx + 9 + k * 2, by + 3, 1, 1, '#c89a70'); });
+    const bob = Math.round(Math.sin(tNow * 1.5) * 1); rr(cx - 18, jy - 28 + bob, 36, 16, 6, '#2a4a8a'); rr(cx - 17, jy - 27 + bob, 34, 14, 6, '#6aa8e8'); rect(cx - 14, jy - 25 + bob, 10, 3, '#bfe0ff'); rect(cx - 2, jy - 31 + bob, 4, 5, '#c83028');
+    ctx.save(); ctx.translate(maw.x - 2, low - 30); ctx.rotate(-0.5); rr(-2, -22, 5, 24, 2, '#1a1a1a'); rect(-1, -21, 3, 20, '#f0f4f6'); rect(0, -12, 1, 11, '#e82a2a'); fillCircle(0, 2, 3, '#e82a2a'); ctx.restore();
+  } else if (id === 'diet') {
+    const sw = Math.sin(tNow * 1.6) * 0.2;
+    ctx.save(); ctx.translate(maw.x + maw.w - 4, jy + 60); ctx.rotate(0.5 + sw); pxClump(8, 10, 9, 6, ['#1e4a1a', '#3a7a2a', '#5aa83a', '#8ad05a', '#bfe88a'], 71, { rag: 0.6 }); rect(0, 6, 10, 1, '#dff0b0'); ctx.restore();
+    for (let x = bodyX + 6; x < bodyX + bodyW - 6; x++) { rect(x, jy + 44 + Math.round(Math.sin(x * 0.02) * 1), 1, 5, x % 2 ? '#e8c830' : '#f8d848'); if (x % 6 === 0) rect(x, jy + 44, 1, 2, '#3a2a0a'); }
+    const dp = (tNow * 0.5) % 1; ctx.save(); ctx.globalAlpha = 1 - dp; rr(exR + 30, ey + 4 + dp * 18, 3, 5, 1, '#8ad0f0'); ctx.restore();
+  } else if (id === 'restless') {
+    const pulse = Math.sin(tNow * 8) > 0 ? 1 : 0;
+    for (let k = 0; k < 7; k++) rect(exR + 4 + k * 2, ey - 8 - (k % 2) * 2 - pulse, 2, 2, '#c8203a');
+    for (let k = 0; k < 3; k++) { const a = tNow * 3 + k * 2.1; rect(exL - 20 + Math.cos(a) * 8, ey - 14 + Math.sin(a) * 4, 3, 1, '#ffe070'); }
+    rr(bodyX + bodyW - 30, jy - 22, 16, 14, 2, '#3a2a1a'); rr(bodyX + bodyW - 29, jy - 21, 14, 12, 2, '#f0ece0'); rect(bodyX + bodyW - 27, jy - 19, 10, 3, '#5a3a1a'); rect(bodyX + bodyW - 15, jy - 18, 3, 6, '#f0ece0');
+    for (let k = 0; k < 3; k++) { const ph = (tNow * 0.8 + k / 3) % 1; ctx.save(); ctx.globalAlpha = 0.5 * (1 - ph); rect(bodyX + bodyW - 24 + Math.sin(ph * 6 + k) * 2, jy - 26 - ph * 14, 1, 3, '#ffffff'); ctx.restore(); }
+  } else if (id === 'king' || id === 'bogqueen') {
+    const q = id === 'bogqueen', gold = q ? ['#3a1a4a', '#8a5ab8', '#c89ae8', '#f4e0ff'] : ['#5a3a0a', '#d8a020', '#ffd84a', '#fff4b0'];
+    const w = q ? 60 : 72, x0 = cx - w / 2, by = jy - 8, pk = q ? 3 : 5;
+    rect(x0 - 1, by - 12, w + 2, 13, gold[0]); rect(x0, by - 11, w, 11, gold[1]); rect(x0, by - 11, w, 3, gold[2]); rect(x0, by - 2, w, 2, gold[0]);
+    for (let k = 0; k < pk; k++) { const px = x0 + Math.round((k + 0.5) * w / pk), ph = 10 + (k === Math.floor(pk / 2) ? 6 : 0); for (let r = 0; r < ph; r++) { const hw = Math.max(1, Math.round((ph - r) * 0.45)); rect(px - hw, by - 12 - r, hw * 2, 1, r === ph - 1 ? gold[3] : gold[1]); rect(px - hw, by - 12 - r, 1, 1, gold[0]); } fillCircle(px, by - 12 - ph, 2, q ? '#e8f0ff' : '#e82a2a'); }
+    [x0 + 12, x0 + w / 2, x0 + w - 12].forEach((gx, k) => { rr(gx - 3, by - 9, 7, 6, 2, gold[0]); rect(gx - 2, by - 8, 5, 4, ['#e82a2a', '#2a6ae8', '#2ae86a'][k]); rect(gx - 1, by - 8, 1, 1, '#ffffff'); });
+    const sh = (tNow * 0.5) % 1; if (sh < 0.3) for (let y = 0; y < 11; y++) rect(x0 + sh / 0.3 * w + y * 0.5, by - 11 + y, 2, 1, gold[3]);
+    for (let k = 0; k < 4; k++) { const tw = Math.sin(tNow * 5 + k * 1.7); if (tw > 0.5) { const sx = x0 - 10 + k * (w + 20) / 3, sy = by - 24 + (k % 2) * 10; rect(sx - 2, sy, 5, 1, gold[3]); rect(sx, sy - 2, 1, 5, gold[3]); } }
+    if (q) { [x0 - 4, x0 + w + 2].forEach((mx2, i) => { for (let s = 0; s < 4; s++) { const ln = 14 + ((s * 7 + i * 3) % 12); for (let j = 0; j < ln; j++) rect(mx2 + (i ? s * 3 : -s * 3) + ((j >> 2) & 1), by - 6 + j, 1, 1, j % 3 ? '#8a9a82' : '#b0c0a4'); } });
+      for (let k = 0; k < 7; k++) { const a = tNow * 0.9 + k * 0.9, fx = cx + Math.cos(a) * (120 + (k % 3) * 12), fy = jy + 40 + Math.sin(a * 1.3) * 50; if (Math.sin(tNow * 4 + k) > -0.3) { ctx.save(); ctx.globalAlpha = 0.25; fillCircle(fx, fy, 3, '#d8ff6a'); ctx.restore(); rect(fx, fy, 1, 1, '#f4ffc0'); } } }
+  } else if (id === 'mudcake') {
+    [[cx - 70, jy + 6], [cx - 10, jy - 2], [cx + 50, jy + 8]].forEach(([mx2, my2], i) => { pxClump(mx2, my2, 13, 6, ['#2a1a0a', '#4a3018', '#6a4a24', '#8a6a3a', '#a8845a'], 80 + i, { rag: 0.5 }); const ph = (tNow * 0.7 + i * 0.37) % 1; rr(mx2 - 1, my2 + 6 + ph * 40, 3, 4, 1, '#5a4020'); if (ph > 0.9) rect(mx2 - 3, my2 + 48, 7, 1, '#6a4a24'); });
+    for (let k = 0; k < 3; k++) { const a = tNow * (3 + k) + k * 2, fx = cx + Math.cos(a) * (40 + k * 18), fy = jy - 20 + Math.sin(a * 1.7) * 12; rect(fx, fy, 2, 2, '#1a1a1a'); if (Math.sin(tNow * 60 + k) > 0) { rect(fx - 1, fy - 2, 1, 1, '#d8e8f0'); rect(fx + 2, fy - 2, 1, 1, '#d8e8f0'); } }
+  } else if (id === 'albino') {
+    [exL, exR].forEach(ex => { ctx.save(); ctx.globalAlpha = 0.2 + Math.sin(tNow * 3) * 0.1; fillCircle(ex + 11, ey + 10, 14, '#ff4a4a'); ctx.restore(); });
+    for (let k = 0; k < 10; k++) if (Math.sin(tNow * 4 + k * 2.3) > 0.8) { const sx = bodyX + (k * 53) % bodyW, sy = jy + (k * 29) % 60; rect(sx, sy, 1, 1, '#ffffff'); }
+  } else if (id === 'twin') {
+    for (let y = jy + 2; y < jy + 54; y++) { rect(cx, y, 1, 1, st.d); if (y % 6 === 0) rect(cx - 2, y, 5, 1, '#e8d8c0'); }
+    ctx.save(); ctx.globalAlpha = 0.13; rect(bodyX - 3, jy + 1, cx - bodyX + 3, 56, '#c83a8a'); ctx.restore();
+  } else if (id === 'phantom') {
+    for (let k = 0; k < 10; k++) { const ph = (tNow * 0.35 + k / 10) % 1, wx = bodyX + 10 + (k * 47) % (bodyW - 20); ctx.save(); ctx.globalAlpha = 0.4 * (1 - ph); rect(wx + Math.sin(ph * 6 + k) * 5, jy + 40 - ph * 60, 2, 4, '#c8f4ff'); ctx.restore(); }
+  } else if (id === 'junkjaw') {
+    const wob = Math.sin(tNow * 3) * 0.12;
+    ctx.save(); ctx.translate(cx + 40, jy - 4); ctx.rotate(wob); rr(-8, -18, 16, 18, 1, '#3a3a3a'); rr(-7, -17, 14, 16, 1, '#a8b0b6'); rect(-7, -12, 14, 6, '#c83028'); rect(-5, -11, 6, 1, '#ffffff'); rect(-7, -17, 14, 1, '#e8f0f4'); ctx.restore();
+    rr(cx - 30, jy + 20, 44, 14, 1, '#1a1a1a'); rr(cx - 29, jy + 21, 42, 12, 1, '#f0f4f6'); rect(cx - 29, jy + 21, 42, 2, '#2a4a8a'); for (let k = 0; k < 6; k++) rect(cx - 25 + k * 6, jy + 26, 4, 5, '#2a2a2a'); rect(cx - 30, jy + 30, 8, 3, '#c89a60');
+    fillCircle(maw.x - 8, jy + 70, 9, '#0a0a0a'); fillCircle(maw.x - 8, jy + 70, 5, st.a); ring(maw.x - 8, jy + 70, 7, '#3a3a3a', 1);
+    for (let k = 0; k < 12; k++) rect(bodyX + bodyW - 30 + Math.round(Math.sin(k + tNow * 2) * 2), jy - 20 + k * 2, 1, 2, '#8a5a2a');
+  } else if (id === 'apexpred') {
+    ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 4) * 0.3; [[bodyX + 30, jy + 18], [bodyX + bodyW - 60, jy + 26]].forEach(([sx, sy]) => { rect(sx, sy, 10, 2, '#ff3a2a'); rect(sx + 2, sy - 3, 2, 8, '#ff3a2a'); rect(sx + 6, sy - 3, 2, 8, '#ff3a2a'); }); ctx.restore();
+    [-1, 1].forEach((sd, i) => { const ph = (tNow * 0.7 + i * 0.5) % 1; ctx.save(); ctx.globalAlpha = 0.45 * (1 - ph); pxDust(cx + sd * 28, jy + 6 - ph * 26, 3 + ph * 7, '#5a4a4a'); ctx.restore(); });
+  } else if (id === 'snakegator') {
+    for (let k = 0; k < 5; k++) { const bx = bodyX + 30 + k * 50, by = jy + 22 + (k % 2) * 12; rr(bx - 1, by - 1, 18, 10, 4, '#24160a'); rr(bx, by, 16, 8, 4, '#5c3a1a'); rect(bx + 5, by + 3, 6, 2, '#8e6636'); }
+    const fl = (tNow % 2.6); if (fl < 0.35) { const ln = Math.round(Math.sin(fl / 0.35 * Math.PI) * 18); rect(cx, jy + 58, 1, ln, '#e0304a'); rect(cx - 2, jy + 58 + ln, 2, 2, '#e0304a'); rect(cx + 1, jy + 58 + ln, 2, 2, '#e0304a'); }
+  } else if (id === 'mecha') {
+    rr(exL - 8, ey - 2, exR - exL + 44, 24, 5, '#10141a'); rr(exL - 6, ey, exR - exL + 40, 20, 4, '#1a2a3a');
+    const scan = (tNow * 0.8) % 1; for (let y = 0; y < 20; y++) { ctx.save(); ctx.globalAlpha = 0.35; rect(exL - 6, ey + y, exR - exL + 40, 1, y % 2 ? '#0a3a5a' : '#12486a'); ctx.restore(); }
+    [exL, exR].forEach(ex => { ctx.save(); ctx.globalAlpha = 0.35; fillCircle(ex + 11, ey + 10, 9, '#3ae8ff'); ctx.restore(); rr(ex + 4, ey + 6, 14, 8, 3, '#8af4ff'); rect(ex + 8, ey + 8, 6, 4, '#ffffff'); });
+    rect(exL - 6 + scan * (exR - exL + 36), ey, 3, 20, '#bff8ff');
+    rect(cx - 1, jy - 30, 2, 22, '#5a646c'); const bl = Math.sin(tNow * 6) > 0; fillCircle(cx, jy - 32, 3, bl ? '#ff3a2a' : '#6a1a14'); if (bl) { ctx.save(); ctx.globalAlpha = 0.3; fillCircle(cx, jy - 32, 7, '#ff3a2a'); ctx.restore(); }
+    for (let x = bodyX + 10; x < bodyX + bodyW - 10; x += 26) { rect(x, jy + 2, 1, 50, '#4a545c'); rect(x + 1, jy + 2, 1, 50, '#c8d4dc'); }
+    [[bodyX + 6, jy + 8], [bodyX + bodyW - 12, jy + 8]].forEach(([gx, gy]) => { ctx.save(); ctx.translate(gx + 3, gy + 3); ctx.rotate(tNow * 2); for (let k = 0; k < 6; k++) { ctx.rotate(Math.PI / 3); rect(-1, -6, 2, 3, '#8a949c'); } ctx.restore(); fillCircle(gx + 3, gy + 3, 3, '#aab4bc'); });
+    if ((tNow % 3.2) < 0.12) { ctx.save(); ctx.globalAlpha = 0.5; for (let k = 0; k < 6; k++) rect(bodyX, jy + hash2(k, Math.floor(tNow * 20)) * 180, bodyW, 1, k % 2 ? '#3ae8ff' : '#ff3aa8'); ctx.restore(); }
+  } else if (id === 'pirate') {
+    // tricorn hat with a skull, a patch, a gold hoop, and a parrot
+    const hx = cx, hy = jy - 4;
+    rr(hx - 24, hy - 32, 48, 26, 9, '#0a0a0a'); rr(hx - 23, hy - 31, 46, 24, 8, '#1e1e1e'); rect(hx - 16, hy - 29, 12, 2, '#3a3a3a');
+    for (let c = -50; c <= 50; c++) { const f = Math.abs(c) / 50, bot = hy - Math.round(f * f * 16), top = bot - 7 - Math.round(Math.pow(f, 1.5) * 8); rect(hx + c, top - 1, 1, bot - top + 2, '#0a0a0a'); rect(hx + c, top, 1, bot - top, '#1e1e1e'); rect(hx + c, top, 1, 1, '#e8b830'); rect(hx + c, bot - 1, 1, 1, '#a87a18'); }
+    rr(hx - 6, hy - 26, 12, 10, 3, '#f0ece0'); rect(hx - 4, hy - 23, 2, 2, '#141414'); rect(hx + 2, hy - 23, 2, 2, '#141414'); rect(hx - 1, hy - 20, 2, 1, '#141414'); rect(hx - 8, hy - 15, 16, 2, '#f0ece0'); rect(hx - 6, hy - 15, 2, 2, '#141414'); rect(hx + 4, hy - 15, 2, 2, '#141414');
+    rr(exR - 2, ey, 30, 22, 6, '#0a0a0a'); rr(exR, ey + 2, 26, 18, 5, '#1e1e1e'); rect(exR + 4, ey + 4, 6, 2, '#3a3a3a');
+    for (let k = 0; k < 40; k++) rect(exR - 40 + k, ey - 2 + Math.round(k * 0.12), 1, 2, '#1a1a1a');
+    ring(bodyX - 2, jy + 50, 6, '#ffd84a', 1); ring(bodyX - 2, jy + 50, 5, '#c89a20', 1);
+    const pb = Math.round(Math.abs(Math.sin(tNow * 2)) * -3), px = hx - 44, py = hy - 22 + pb, flap = Math.sin(tNow * 14) > 0 && (tNow % 3) < 0.8;
+    rr(px - 5, py - 14, 12, 16, 5, '#1a1a1a'); rr(px - 4, py - 13, 10, 14, 4, '#e82a2a'); rect(px - 3, py - 12, 4, 4, '#ff6a4a');
+    rect(px - 3, py - 6, 8, 6, '#2ab84a'); rect(px - 3, py - 1, 8, 2, '#2a6ae8'); if (flap) { rect(px - 12, py - 16, 8, 5, '#2ab84a'); rect(px - 14, py - 18, 4, 3, '#2a6ae8'); } else { rect(px - 6, py - 8, 3, 8, '#2ab84a'); }
+    rr(px + 3, py - 12, 5, 5, 2, '#f8d048'); rect(px + 6, py - 10, 3, 3, '#1a1a1a'); rect(px + 1, py - 12, 2, 2, '#ffffff'); rect(px + 2, py - 12, 1, 1, '#000');
+    rect(px - 1, py + 2, 2, 3, '#e8b030'); rect(px + 3, py + 2, 2, 3, '#e8b030');
+    if ((tNow % 3) < 0.8) drawTextCSh('ARRR!', px - 18, py - 28, '#ffe8b0', 1, '#1a0e06');
+  }
+}
+
 // ------------------------------------------------------------ gator -------
 // a cached shading overlay for the croc's jaws: dithered falloff toward the
 // base, dark rolled-off sides, a lit rim along the top and a pitted hide grain
@@ -5413,6 +5626,8 @@ function drawCroc(closeT, opts) {
   const MD = (opts.mood && CROC_MOODS[opts.mood]) || crocMood(opts.dt);
   const quiver = MD.quiver ? Math.sin(tNow * 13) * 0.7 : 0;
   const breathe = (G.state === 'play' || G.state === 'menu' || G.cpDraw) ? Math.sin(tNow * 1.6) * 1.4 + quiver : 0;
+  const bfx = bossFxOn() && !opts.noFx;
+  if (bfx) { ctx.save(); bossFxBack(G.boss.id, { maw, bodyX, bodyW, st, jy0: maw.y - 58 + jawDrop + breathe }); }
   const mawC = st.maw, mawD = st.mawD;
 
   // --- tail curling out of the water behind the body ---
@@ -5751,7 +5966,7 @@ function drawCroc(closeT, opts) {
       } else {
         const dx = clamp((mx - (ex + 11)) / 60, -1, 1) * 3 + sacX * 2;
         const dy = clamp((my - (ey + 10)) / 60, -1, 1) * 2 + sacY * 1.5;
-        const pw = Math.max(2, Math.round(4 * MD.pupil)), ph2 = Math.max(4, Math.round(8 * MD.pupil));
+        const pw = st.slit ? 2 : Math.max(2, Math.round(4 * MD.pupil)), ph2 = st.slit ? 11 : Math.max(4, Math.round(8 * MD.pupil));
         rect(EO.x + 8 - (pw >> 1) + dx, EO.y + 6 - (ph2 >> 1) + dy, pw, ph2, st.redEye ? '#8a1010' : '#1b1408');
         rect(EO.x + 9 - (pw >> 1) + dx, EO.y + 7 - (ph2 >> 1) + dy, 1, 2, '#fff');
       }
@@ -5874,6 +6089,7 @@ function drawCroc(closeT, opts) {
     for (let k = 0; k < n; k++) { const sx = bodyX + 18 + Math.round(k * span / (n - 1)); rect(sx, jy + 2, 4, 52, st.d); rect(sx + 1, jy + 2, 1, 52, '#00000033'); }
     ctx.restore();
   }
+  if (bfx) { bossFxFront(G.boss.id, { maw, bodyX, bodyW, jy, ey, exL, exR, st }); ctx.restore(); }
 }
 
 function toothTip(s) {
@@ -6596,7 +6812,7 @@ Object.assign(BADGE_ART, {
     [[-22, 22], [-11, 22], [0, 22], [11, 22], [22, 22], [-16, 14], [-5, 14], [6, 14], [17, 14], [-10, 6], [1, 6], [12, 6], [-4, -2], [7, -2]].forEach(([cx, cy]) => vcoin(cx, cy, 6.5, '#f2c040'));
     vf(() => vGemPath(1, -8, 0.36), vrg('#3aff9a', 1, -8, 6), { lw: 1.2 });
     vsp(-20, -6, 4); vsp(26, 4, 3.5);
-  } },
+} },
   airfan: { f: '#2a78b8', d() {
     ctx.save(); ctx.globalAlpha = 0.35; vf(() => vC(0, 0, 30), '#dff4ff', { lw: 0 }); ctx.restore();
     for (let k = 0; k < 3; k++) vf(() => vX(0, 0, 1, k * VTAU / 3 + 0.4, () => { ctx.moveTo(0, -3); ctx.bezierCurveTo(8, -10, 10, -26, 2, -30); ctx.bezierCurveTo(-6, -26, -6, -10, 0, -3); ctx.closePath(); }), vsh('#f4ecd8', -10, -30, 20, 30), { lw: 1.6 });
@@ -9982,6 +10198,10 @@ const BOSS_QUIPS = {
   junkjaw: 'EVERY SCAN COSTS. EVERY MISTAKE COSTS MORE.',
   bogqueen: 'HER SNAPPERS SLEEP IN THE RICHEST TEETH.',
   apexpred: 'THE END OF THE SWAMP. THE END OF YOU?',
+  hydra: 'THREE HEADS. THREE APPETITES. ONE DENTIST.',
+  snakegator: 'HALF GATOR, HALF PYTHON, ALL SQUEEZE.',
+  mecha: 'BUILT IN A SECRET LAB. PROGRAMMED TO CHOMP.',
+  pirate: 'IT SAILED THE SEVEN SWAMPS FOR YOUR GOLD.',
 };
 // render the REAL styled croc once per boss and keep the sprite (2x)
 let bossShot = null;
