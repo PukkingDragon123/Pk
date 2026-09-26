@@ -9078,57 +9078,6 @@ function endIntro() {
 }
 const typed = (txt, t, cps) => txt.slice(0, Math.floor(Math.max(0, t) * (cps || 22)));
 // a proper Everglades airboat, facing right; y = hull top line
-function drawAirboat(cx, y, moving, dt) {
-  const spin = tNow * (moving ? 26 : 5);
-  // spray kicked up behind the stern while underway
-  if (moving && dt !== undefined && (tNow % 0.22) < dt) addRipple(cx - 40, y + 16, false);
-  if (moving) {
-    ctx.save();
-    for (let i = 0; i < 7; i++) {
-      const ph = (tNow * 2.4 + i * 0.71) % 1;
-      ctx.globalAlpha = (1 - ph) * 0.5;
-      rect(cx - 46 - ph * 28, y + 4 - Math.sin(ph * Math.PI) * (6 + i), 2, 2, '#9fd8e0');
-    }
-    ctx.restore();
-  }
-  ctx.save(); ctx.globalAlpha = 0.28; rr(cx - 46, y + 13, 96, 5, 2, '#04080a'); ctx.restore();
-  // twin rudder fins behind the cage
-  rect(cx - 49, y - 24, 3, 24, '#8a2430'); rect(cx - 43, y - 29, 3, 29, '#c23a4a');
-  // fan cage with spinning prop
-  const fx = cx - 26, fy = y - 16;
-  fillCircle(fx, fy, 17, '#26323a');
-  fillCircle(fx, fy, 15, '#0c141a');
-  ctx.save(); ctx.globalAlpha = 0.5;
-  for (let m = -12; m <= 12; m += 6) { const hh = Math.floor(Math.sqrt(Math.max(0, 225 - m * m))); rect(fx + m, fy - hh, 1, hh * 2, '#3a4a55'); }
-  ctx.restore();
-  ctx.save(); ctx.translate(fx, fy);
-  for (let b = 0; b < 3; b++) {
-    ctx.save(); ctx.rotate(spin + b * (Math.PI * 2 / 3));
-    rect(-1, -14, 3, 13, '#c8ccd0'); rect(-2, -14, 5, 4, '#e8ecf0');
-    ctx.restore();
-  }
-  ctx.restore();
-  fillCircle(fx, fy, 3, '#4a565e');
-  // flat aluminum hull with upswept bow (right)
-  rr(cx - 44, y, 92, 12, 3, '#8a949c');
-  rr(cx - 42, y - 3, 88, 6, 3, '#aab4bc');
-  rect(cx + 42, y - 6, 8, 9, '#aab4bc'); rect(cx + 46, y - 9, 4, 6, '#8a949c');
-  rect(cx - 44, y + 9, 92, 3, '#3c464e');
-  rect(cx - 40, y + 3, 84, 3, '#2c7d3a'); // park-service stripe
-  // raised driver perch + the ranger up top
-  rect(cx - 8, y - 22, 3, 22, '#5a646c'); rect(cx + 14, y - 22, 3, 22, '#5a646c');
-  rr(cx - 12, y - 27, 32, 7, 2, '#c23a4a');           // bench seat
-  rect(cx - 12, y - 27, 32, 2, '#e05a6a');
-  drawBobble(cx + 4, y - 25, G.ranger, {
-    sc: 0.62, expr: 'calm', act: 'idle',
-    ...myFit(),
-  });
-  // bow headlamp + beam
-  rr(cx + 34, y - 12, 8, 7, 2, '#2a2018'); rect(cx + 40, y - 10, 3, 3, '#ffd54a');
-  ctx.save(); ctx.globalAlpha = 0.07 + Math.sin(tNow * 5) * 0.02;
-  for (let d = 0; d < 6; d++) rect(cx + 44 + d * 9, y - 10 - d, 9, 8 + d * 2, '#ffb848');
-  ctx.restore();
-}
 // =============================== GLADES SCENERY KIT ==============================
 //  Side-on Everglades painted in the game's pixel style, built from layers that
 //  scroll at their own speed: sky, cumulus, the hammock treeline, bands of
@@ -9169,13 +9118,6 @@ function gRays(x, y, n, len, col, a, spread) {
   ctx.restore();
 }
 // one puffy cumulus: shaded lumps with a flat, darker base
-function gCloud(x, y, s, lit, mid, shade) {
-  const lumps = [[-18, 2, 9], [-8, -4, 12], [6, -6, 13], [18, 0, 9], [0, 2, 11]];
-  lumps.forEach(([lx, ly, r]) => fillCircle(x + lx * s, y + ly * s + 2, r * s, shade));
-  lumps.forEach(([lx, ly, r]) => fillCircle(x + lx * s, y + ly * s, r * s, mid));
-  lumps.forEach(([lx, ly, r]) => fillCircle(x + lx * s - r * s * 0.25, y + ly * s - r * s * 0.3, r * s * 0.6, lit));
-  rect(x - 26 * s, y + 7 * s, 52 * s, 4 * s, shade);
-}
 function gClouds(scroll, y, n, cols, seed, sc) {
   for (let k = 0; k < n; k++) {
     const span = W + 160, bx = hash2(k, seed || 1) * span, x = ((bx - scroll) % span + span) % span - 80;
@@ -9216,41 +9158,7 @@ function gSawgrass(key, y, h, scroll, cols, dens) {
   }, y - h, scroll);
 }
 // open water: a sky-tinted gradient, horizontal glints drifting past
-function gWater(y0, y1, cols, scroll, glint) {
-  const h = y1 - y0;
-  for (let y = 0; y < h; y++) { const f = y / h; rect(0, y0 + y, W, 1, f < 0.33 ? cols[0] : f < 0.66 ? cols[1] : cols[2]); }
-  ctx.save();
-  for (let k = 0; k < 40; k++) {
-    const yy = y0 + 2 + (k * 13 % Math.max(1, h - 3)), span = W + 40, xx = ((hash2(k, 21) * span - scroll * (0.5 + (yy - y0) / h)) % span + span) % span - 20;
-    ctx.globalAlpha = 0.25 + 0.2 * Math.sin(tNow * 2 + k);
-    rect(xx, yy, 6 + (k % 5) * 3, 1, glint || '#e8f8ff');
-  }
-  ctx.restore();
-}
 // a bald cypress, cached per height: flared trunk, flat foliage pads, moss
-function gCypressSprite(h, dark) {
-  const key = 'cypr' + h + (dark ? 'd' : '');
-  return getCached(key, 60, h + 4, () => {
-    const tr = dark ? ['#141c14', '#1e281e', '#283428'] : ['#3a2a1e', '#5a4230', '#7a5a42'];
-    const lf = dark ? ['#0e1a10', '#16261a', '#1e3222'] : ['#1e3a1e', '#2e5a2a', '#4a7e3a'];
-    const cx = 30;
-    // buttressed base
-    for (let y = 0; y < h; y++) {
-      const f = y / h, w = 3 + Math.round(Math.pow(f, 4) * 9) + (f < 0.1 ? 1 : 2);
-      rect(cx - w, y, w * 2, 1, tr[1]); rect(cx - w, y, 1, 1, tr[0]); rect(cx + w - 2, y, 2, 1, tr[0]); rect(cx - w + 1, y, 1, 1, tr[2]);
-    }
-    for (let k = 0; k < 6; k++) rect(cx - 1 + (k % 2), Math.floor(h * 0.2 + k * h * 0.12), 1, 4, tr[0]);
-    // flat-topped foliage pads stacked up the trunk
-    const pads = [[0.02, 18], [0.12, 22], [0.24, 17], [0.36, 13]];
-    pads.forEach(([py, pw], i) => {
-      const yy = Math.floor(py * h) + 2, side = i % 2 ? 1 : -1;
-      rr(cx - pw + side * 4, yy, pw * 2, 7, 3, lf[0]); rr(cx - pw + side * 4 + 1, yy, pw * 2 - 2, 5, 3, lf[1]);
-      for (let k = 0; k < pw; k += 3) rect(cx - pw + side * 4 + 2 + k * 2, yy + 1, 2, 1, lf[2]);
-      // spanish moss hanging off the pad
-      for (let m = 0; m < 5; m++) { const mx2 = cx - pw + side * 4 + 3 + m * Math.floor(pw * 2 / 5), ml = 4 + ((m * 7 + i * 3) % 7); for (let j = 0; j < ml; j += 1) rect(mx2 + ((j >> 2) & 1), yy + 6 + j, 1, 1, dark ? '#2a3a32' : (j % 3 ? '#8a9a82' : '#a8b8a0')); }
-    });
-  });
-}
 function gCypress(x, baseY, h, dark) { const c = gCypressSprite(h, dark); ctx.drawImage(c, Math.round(x) - 30, Math.round(baseY - h), 60, h + 4); }
 // a stand of cypress trees scrolling as one layer
 function gCypressRow(scroll, baseY, hMin, hMax, gap, seed, dark) {
@@ -9261,18 +9169,7 @@ function gCypressRow(scroll, baseY, hMin, hMax, gap, seed, dark) {
   }
 }
 // a slash pine: a thin straight trunk and a tufted crown
-function gPine(x, baseY, h, dark) {
-  const tr = dark ? '#1a2018' : '#6a4a32', lf = dark ? ['#101a12', '#16241a'] : ['#1e4a2a', '#2e6a3a'];
-  rect(x, baseY - h, 2, h, tr); rect(x, baseY - h, 1, h, dark ? '#242c22' : '#8a6a4a');
-  [[0, 10, 7], [-5, 16, 5], [5, 20, 5], [-3, 26, 4]].forEach(([ox, oy, r]) => { fillCircle(x + ox, baseY - h + oy - 6, r + 1, lf[0]); fillCircle(x + ox - 1, baseY - h + oy - 7, r, lf[1]); });
-}
 // mangrove: arching prop roots and a dense crown
-function gMangrove(x, baseY, w, cols) {
-  cols = cols || ['#1e3a22', '#2e5a32', '#4a7e42', '#5a3a26'];
-  for (let k = 0; k < 7; k++) { const rx = x - w / 2 + k * (w / 6); ctx.save(); ctx.strokeStyle = cols[3]; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + (rx - x) * 0.3, baseY - 22); ctx.quadraticCurveTo(rx, baseY - 26, rx, baseY); ctx.stroke(); ctx.restore(); }
-  rect(x - 2, baseY - 30, 4, 12, cols[3]);
-  [[-w * 0.3, -34, w * 0.34], [w * 0.2, -38, w * 0.36], [0, -44, w * 0.3], [-w * 0.1, -30, w * 0.4]].forEach(([ox, oy, r]) => { fillCircle(x + ox, baseY + oy, r * 0.55 + 1, cols[0]); fillCircle(x + ox - 2, baseY + oy - 2, r * 0.5, cols[1]); fillCircle(x + ox - 4, baseY + oy - 4, r * 0.25, cols[2]); });
-}
 // foreground reeds and cattails whipping past
 function gReeds(scroll, y, n, col, seed, tall) {
   const span = W + 40;
@@ -9380,36 +9277,341 @@ function gLily(x, y, r, flower) {
   if (flower) { rect(x - 2, y - 3, 5, 2, '#fff0f6'); rect(x - 1, y - 4, 3, 1, '#ffb0cc'); rect(x, y - 3, 1, 1, '#ffe070'); }
 }
 // ---- the park ranger jeep, side on, facing right; (cx, gy) = centre of the ground contact ----
+
+// ============================ HAND-DRAWN TEXTURE KIT =============================
+//  Everything here is painted pixel by pixel into cached sprites: ragged leafy
+//  clumps lit from the top-left with an ink rim, bark plates, dithered cloud
+//  bellies, rippled water, rutted dirt and tufted grass.  Nothing is a plain shape.
+// ================================================================================
+const PX_LEAF = ['#10261a', '#1c4024', '#2c5c30', '#46803e', '#72a650'];
+const PX_LEAF_D = ['#0a140e', '#101e14', '#16281a', '#1e3422', '#28422c'];
+const PX_BARK = ['#24160c', '#44291a', '#664530', '#8a6646'];
+const PX_BARK_D = ['#0e120c', '#161c14', '#1e261c', '#283224'];
+// a ragged, shaded clump of leaves or needles centred on (cx, cy)
+function pxClump(cx, cy, rx, ry, P, seed, o) {
+  o = o || {};
+  cx = Math.round(cx); cy = Math.round(cy); seed = seed || 0;
+  const rag = o.rag === undefined ? 0.5 : o.rag;
+  const inside = (x, y) => {
+    const n = hash2(Math.floor((cx + x) / 2) * 3 + seed * 17, Math.floor((cy + y) / 2) * 5 + seed * 7);
+    return (x * x) / (rx * rx) + (y * y) / (ry * ry) <= 1 - rag * 0.45 + n * rag * 0.9;
+  };
+  for (let y = -ry - 2; y <= ry + 2; y++) for (let x = -rx - 2; x <= rx + 2; x++) {
+    if (!inside(x, y)) continue;
+    let c;
+    if (!inside(x, y + 1) || !inside(x + 1, y) || (!inside(x - 1, y) && y > -ry * 0.3)) c = P[0];
+    else if (!inside(x, y - 1) || !inside(x - 1, y)) c = P[3];
+    else {
+      const n = hash2((cx + x) * 11 + seed, (cy + y) * 7 + seed * 3), fleck = hash2(Math.floor((cx + x) / 2) + seed, (cy + y) * 3);
+      const v = 0.5 - 0.32 * x / rx - 0.5 * y / ry + (n - 0.5) * 0.5 + (fleck > 0.8 ? 0.25 : 0);
+      c = v < 0.22 ? P[1] : v < 0.56 ? P[2] : v < 0.86 ? P[3] : P[4];
+    }
+    ctx.fillStyle = c; ctx.fillRect(cx + x, cy + y, 1, 1);
+  }
+}
+// a vertical run of bark: rim, shaded plates and cracks
+function pxBark(x, y0, y1, w, B, seed) {
+  for (let y = y0; y < y1; y++) {
+    rect(x, y, 1, 1, B[0]); rect(x + w - 1, y, 1, 1, B[0]);
+    for (let i = 1; i < w - 1; i++) {
+      const n = hash2(i * 13 + seed, Math.floor(y / 3) * 7 + seed), crack = hash2(Math.floor(y / 4) + seed * 3, i) > 0.82;
+      const f = i / (w - 1);
+      rect(x + i, y, 1, 1, crack ? B[0] : f < 0.35 ? (n > 0.3 ? B[3] : B[2]) : f < 0.7 ? (n > 0.7 ? B[3] : B[2]) : (n > 0.6 ? B[2] : B[1]));
+    }
+  }
+}
+// ---- slash pine: a lean trunk with plated bark and tufted needle clumps ----
+function gPineSprite(h, dark, v) {
+  return getCached('pinex' + h + (dark ? 'd' : '') + v, 60, h + 10, () => {
+    const L = dark ? PX_LEAF_D : PX_LEAF, B = dark ? PX_BARK_D : PX_BARK, cx = 30, sd = h * 7 + v * 31;
+    const lean = (hash2(v, h) - 0.5) * 5, tx = y => Math.round(cx + lean * (1 - y / h));
+    for (let y = 8; y < h + 8; y++) { const w = y > h + 4 ? 5 : y > h + 1 ? 4 : 3; pxBark(tx(y - 8) - (w >> 1), y, y + 1, w, B, sd); }
+    for (let k = 0; k < 3; k++) { const yy = Math.round(h * (0.5 + k * 0.12)) + 8, sd2 = k % 2 ? 1 : -1; rect(tx(yy - 8) + sd2 * 2, yy, 2, 1, B[1]); rect(tx(yy - 8) + sd2 * 3, yy - 1, 1, 1, B[1]); }
+    const tufts = [], nb = 5 + (v % 2);
+    for (let k = 0; k < nb; k++) {
+      const side = k % 2 ? 1 : -1, by = Math.round(h * (0.08 + k * 0.075)) + 8, len = 4 + Math.round(hash2(k, sd) * 6);
+      for (let j = 0; j < len; j++) rect(tx(by - 8) + side * (1 + j), by - Math.round(j * 0.45), 1, 1, B[1]);
+      tufts.push([side * (len + 2), by - Math.round(len * 0.45) - 1, 7 + Math.round(hash2(k, sd + 1) * 4), 4 + Math.round(hash2(k, sd + 2) * 2)]);
+    }
+    tufts.push([0, 9, 8, 6]);
+    tufts.sort((a, b) => a[1] - b[1]).reverse().forEach(([ox, oy, rx, ry], i) => pxClump(tx(oy - 8) + ox, oy, rx, ry, L, sd + i, { rag: 0.6 }));
+  });
+}
+function gPine(x, baseY, h, dark) {
+  h = Math.round(h); const v = Math.abs(Math.round(x * 0.37 + h)) % 3;
+  ctx.drawImage(gPineSprite(h, dark, v), Math.round(x) - 29, Math.round(baseY - h) - 8, 60, h + 10);
+}
+// ---- cumulus: lumpy mass, lit crown, dithered grey belly ----
+function gCloud(x, y, s, lit, mid, shade) {
+  const q = Math.round(s * 10), S = q / 10, w = Math.ceil(64 * S) + 6, hh = Math.ceil(34 * S) + 6;
+  const c = getCached('cld' + q + lit + mid + shade, w, hh, () => {
+    const lumps = [[-18, 2, 9], [-8, -4, 12], [6, -6, 13], [18, 0, 9], [0, 2, 11]].map(([lx, ly, r]) => [w / 2 + lx * S, hh * 0.62 + ly * S, r * S]);
+    const baseY = hh * 0.62 + 9 * S, inn = (px, py) => py <= baseY && lumps.some(([lx, ly, r]) => (px - lx) ** 2 + (py - ly) ** 2 <= r * r * (0.92 + hash2(px >> 1, py >> 1) * 0.16));
+    const edge = mixHex(shade, '#20304a', 0.25);
+    for (let py = 0; py < hh; py++) for (let px = 0; px < w; px++) {
+      if (!inn(px, py)) continue;
+      let col;
+      if (!inn(px, py + 1) || !inn(px + 1, py)) col = py > baseY - 3 * S ? edge : shade;
+      else {
+        let best = 0; lumps.forEach(([lx, ly, r]) => { const d = 1 - Math.hypot(px - lx + r * 0.3, py - ly + r * 0.35) / r; if (d > best) best = d; });
+        const v = best * 1.2 - (py - (baseY - 12 * S)) / (14 * S) * 0.5 + (hash2(px, py) - 0.5) * 0.18;
+        col = v > 0.62 ? lit : v > 0.5 ? (((px + py) & 1) ? lit : mid) : v > 0.18 ? mid : v > 0.06 ? (((px + py) & 1) ? mid : shade) : shade;
+      }
+      ctx.fillStyle = col; ctx.fillRect(px, py, 1, 1);
+    }
+  });
+  ctx.drawImage(c, Math.round(x - w / 2), Math.round(y - hh * 0.62), w, hh);
+}
+// ---- open water: dithered bands and a rippled wave tile ----
+function gWater(y0, y1, cols, scroll, glint) {
+  const h = Math.round(y1 - y0);
+  gStrip('wtr' + h + cols.join('') + (glint || ''), 192, h, () => {
+    const dk = mixHex(cols[2], '#000000', 0.25), lt = glint || '#e8f8ff';
+    for (let y = 0; y < h; y++) {
+      const f = y / h, band = f < 0.33 ? 0 : f < 0.66 ? 1 : 2, fr = (f * 3) % 1;
+      rect(0, y, 192, 1, cols[band]);
+      if (band < 2 && fr > 0.78) for (let x = (y & 1); x < 192; x += 2) rect(x, y, 1, 1, cols[band + 1]);
+      // wave crests and troughs, finer and denser toward the horizon
+      const gap = 5 + Math.round(f * 9), len = 2 + Math.round(f * 6);
+      if (y % Math.max(2, Math.round(2 + f * 4)) === 0) {
+        for (let x = Math.round(hash2(y, 3) * gap); x < 192; x += gap + Math.round(hash2(x, y) * gap)) {
+          rect(x, y, len, 1, mixHex(cols[band], lt, 0.35 + (1 - f) * 0.2));
+          rect(x + 1, y + 1, Math.max(1, len - 1), 1, mixHex(cols[band], dk, 0.5));
+        }
+      }
+    }
+  }, y0, scroll * 0.6);
+  ctx.save();
+  for (let k = 0; k < 34; k++) {
+    const yy = y0 + 2 + (k * 13 % Math.max(1, h - 3)), span = W + 40, xx = ((hash2(k, 21) * span - scroll * (0.5 + (yy - y0) / h)) % span + span) % span - 20;
+    ctx.globalAlpha = 0.3 + 0.25 * Math.sin(tNow * 2 + k);
+    rect(xx, yy, 3 + (k % 4) * 2, 1, glint || '#e8f8ff'); rect(xx + 1, yy - 1, 1, 1, '#ffffff');
+  }
+  ctx.restore();
+}
+// ---- ground tiles ----
+// rutted dirt road with pebbles and a grassy lip
+function gRoad(y, h, scroll, pal) {
+  pal = pal || ['#a8845a', '#c09a68', '#8a6a44', '#6e5234', '#d8b47e'];
+  gStrip('road' + h + pal[0], 240, h, () => {
+    for (let yy = 0; yy < h; yy++) for (let x = 0; x < 240; x++) {
+      const n = hash2(x, yy * 3 + 1), n2 = hash2(x >> 2, yy + 9);
+      const rut = Math.abs(yy - h * 0.3) < 1.5 || Math.abs(yy - h * 0.7) < 1.5;
+      let c = pal[0];
+      if (rut) c = n > 0.25 ? pal[2] : pal[3];
+      else if (n > 0.93) c = pal[3]; else if (n > 0.8) c = pal[2]; else if (n2 > 0.75) c = pal[1];
+      if (yy === 0) c = pal[4]; if (yy >= h - 2) c = yy === h - 1 ? pal[3] : pal[2];
+      ctx.fillStyle = c; ctx.fillRect(x, yy, 1, 1);
+    }
+    for (let k = 0; k < 40; k++) { const px = Math.floor(hash2(k, 71) * 238), py = 2 + Math.floor(hash2(k, 72) * (h - 5)); rect(px, py, 2, 1, pal[4]); rect(px, py + 1, 2, 1, pal[3]); }
+    for (let x = 0; x < 240; x += 1 + Math.floor(hash2(x, 5) * 4)) if (hash2(x, 6) > 0.5) rect(x, 0, 1, 1 + Math.floor(hash2(x, 7) * 2), '#5a7a32');
+  }, y, scroll);
+}
+// a band of tufted grass with the odd wildflower
+function gGrass(key, y, h, scroll, pal, flowers) {
+  pal = pal || ['#3e5e26', '#4a6a2a', '#5e7e34', '#7a9a44', '#98b85a'];
+  gStrip('grs' + key + h, 240, h, () => {
+    for (let yy = 0; yy < h; yy++) for (let x = 0; x < 240; x++) { const n = hash2(x, yy * 5 + 3); ctx.fillStyle = n > 0.85 ? pal[0] : n > 0.5 ? pal[1] : pal[2]; ctx.fillRect(x, yy, 1, 1); }
+    for (let k = 0; k < 420; k++) {
+      const bx = Math.floor(hash2(k, 31) * 240), by = Math.floor(hash2(k, 32) * h) + 2, bh = 2 + Math.floor(hash2(k, 33) * 5), lean = hash2(k, 34) > 0.5 ? 1 : -1;
+      for (let j = 0; j < bh; j++) rect(bx + (j > bh / 2 ? lean : 0), by - j, 1, 1, j === bh - 1 ? pal[4] : j > bh / 2 ? pal[3] : pal[2]);
+      rect(bx, by + 1, 1, 1, pal[0]);
+    }
+    if (flowers) for (let k = 0; k < 18; k++) { const fx = Math.floor(hash2(k, 41) * 236) + 2, fy = 3 + Math.floor(hash2(k, 42) * (h - 5)), fc = ['#f8f0e0', '#f8d048', '#c890e8', '#f890a8'][k % 4]; rect(fx, fy, 1, 1, fc); rect(fx - 1, fy + 1, 3, 1, fc); rect(fx, fy + 2, 1, 1, '#ffe070'); }
+  }, y, scroll);
+}
+// ---- bald cypress, cached per height: plated flared trunk, leafy pads, moss ----
+function gCypressSprite(h, dark) {
+  return getCached('cypx' + h + (dark ? 'd' : ''), 60, h + 4, () => {
+    const B = dark ? PX_BARK_D : ['#2a1c12', '#4a3424', '#6a4c34', '#8a6a4a'], L = dark ? PX_LEAF_D : ['#142a16', '#1e3e1e', '#2e5a2a', '#46783a', '#6a9a4a'];
+    const cx = 30;
+    for (let y = 0; y < h; y++) { const f = y / h, w = 5 + Math.round(Math.pow(f, 4) * 16) + (f > 0.2 ? 1 : 0); pxBark(cx - (w >> 1), y, y + 1, w, B, h); }
+    // knees poking up at the base
+    [[-14, 5], [12, 4], [-20, 3]].forEach(([ox, kh]) => { for (let j = 0; j < kh; j++) rect(cx + ox, h - j, 2, 1, j === kh - 1 ? B[3] : B[1]); });
+    const pads = [[0.03, 17], [0.13, 21], [0.25, 16], [0.37, 12]];
+    pads.forEach(([py, pw], i) => {
+      const yy = Math.floor(py * h) + 4, side = i % 2 ? 1 : -1;
+      pxClump(cx + side * 4, yy, pw, 4, L, h + i * 9, { rag: 0.45 });
+      for (let m = 0; m < 5; m++) { const mx2 = cx + side * 4 - pw + 3 + m * Math.floor(pw * 2 / 5), ml = 4 + ((m * 7 + i * 3) % 8); for (let j = 0; j < ml; j++) rect(mx2 + ((j >> 2) & 1), yy + 4 + j, 1, 1, dark ? '#243430' : (j % 3 ? '#8a9a82' : '#b0c0a4')); }
+    });
+  });
+}
+// ---- red mangrove: arching prop roots under a dense leafy crown ----
+function gMangrove(x, baseY, w, cols) {
+  w = Math.round(w); cols = cols || ['#1e3a22', '#2e5a32', '#4a7e42', '#5a3a26'];
+  const L = [mixHex(cols[0], '#000000', 0.35), cols[0], cols[1], cols[2], mixHex(cols[2], '#e8f0a0', 0.35)];
+  const c = getCached('mgx' + w + cols.join(''), w + 20, 64, () => {
+    const cx = (w + 20) / 2, gy = 62, R = cols[3], Rd = mixHex(R, '#000000', 0.4), Rl = mixHex(R, '#ffffff', 0.25);
+    for (let k = 0; k < 7; k++) {
+      const rx = cx - w / 2 + k * (w / 6), sx = cx + (rx - cx) * 0.25;
+      for (let s = 0; s <= 1; s += 0.012) { const u = 1 - s, px = u * u * sx + 2 * u * s * rx + s * s * rx, py = u * u * (gy - 24) + 2 * u * s * (gy - 30) + s * s * gy; rect(px, py, 2, 1, Rd); rect(px, py - 1, 1, 1, Rl); }
+    }
+    pxBark(cx - 2, gy - 34, gy - 20, 5, [Rd, R, R, Rl], w);
+    [[-w * 0.3, -36, w * 0.3], [w * 0.22, -40, w * 0.32], [0, -47, w * 0.28], [-w * 0.08, -32, w * 0.36]].forEach(([ox, oy, r], i) => pxClump(cx + ox, gy + oy, Math.round(r * 0.62), Math.round(r * 0.42), L, w + i * 5, { rag: 0.55 }));
+  });
+  ctx.drawImage(c, Math.round(x - (w + 20) / 2), Math.round(baseY - 62), w + 20, 64);
+}
+// ================================ THE AIRBOAT =====================================
+// riveted aluminium hull, caged prop, V-twin engine, twin striped rudders
+function airboatSprite(part) {
+  return getCached('airb2' + part, 112, 56, () => {
+    ctx.save(); ctx.translate(56, 40);
+    const OL = '#141a1e', AL = ['#3c464e', '#6a747c', '#8e98a0', '#b0bac2', '#d8e0e6'];
+    if (part === 'back') {
+      // rudders
+      [[-50, 25, '#8a2430', '#b83040'], [-44, 30, '#b83040', '#e04a5a']].forEach(([rx, rh, c1, c2]) => {
+        rect(rx - 1, -rh - 1, 5, rh + 1, OL); rect(rx, -rh, 3, rh, c2); rect(rx + 2, -rh, 1, rh, c1);
+        for (let yy = -rh + 3; yy < -2; yy += 7) rect(rx, yy, 3, 2, '#f4ecd8');
+      });
+      // the shroud behind the prop
+      fillCircle(-26, -16, 18, OL); fillCircle(-26, -16, 17, '#2a343c'); fillCircle(-26, -16, 15, '#0c141a');
+      for (let r = 4; r < 15; r += 4) ring(-26, -16, r, '#162028', 1);
+    } else if (part === 'cage') {
+      // mesh guard over the spinning prop: rim, spokes and a grid
+      for (let m = -13; m <= 13; m += 4) { const hh = Math.floor(Math.sqrt(Math.max(0, 196 - m * m))); for (let yy = -hh; yy <= hh; yy += 1) if ((yy & 1) === 0) rect(-26 + m, -16 + yy, 1, 1, '#5a6870'); }
+      for (let m = -13; m <= 13; m += 4) { const ww = Math.floor(Math.sqrt(Math.max(0, 196 - m * m))); for (let xx = -ww; xx <= ww; xx += 2) rect(-26 + xx, -16 + m, 1, 1, '#5a6870'); }
+      for (let a = 0; a < 64; a++) { const an = a / 64 * Math.PI * 2, lit = Math.cos(an + 2.3) > 0.2; rect(-26 + Math.cos(an) * 16, -16 + Math.sin(an) * 16, 1, 1, OL); rect(-26 + Math.cos(an) * 15, -16 + Math.sin(an) * 15, 1, 1, lit ? AL[4] : AL[2]); rect(-26 + Math.cos(an) * 14, -16 + Math.sin(an) * 14, 1, 1, AL[1]); }
+      fillCircle(-26, -16, 3, OL); fillCircle(-26, -16, 2, AL[2]); rect(-27, -17, 1, 1, AL[4]);
+    } else {
+      // engine block and exhaust stacks between the cage and the seat
+      rr(-15, -15, 12, 14, 2, OL); rr(-14, -14, 10, 12, 2, '#3a3f44');
+      for (let k = 0; k < 5; k++) rect(-13, -12 + k * 2, 8, 1, '#565c62');
+      rect(-14, -14, 10, 1, '#6e767c');
+      [[-12, -22], [-8, -24]].forEach(([ex, ey]) => { rect(ex - 1, ey, 3, -ey - 13, OL); rect(ex, ey + 1, 1, -ey - 14, AL[4]); rect(ex - 1, ey, 3, 1, '#2a2a2a'); });
+      // hull: gunwale, shaded sides, rub rail, stripe, rivets, panel seams, upswept bow
+      for (let x = -45; x <= 50; x++) {
+        const bow = x > 36 ? Math.round((x - 36) * (x - 36) / 22) : 0, top = -4 - bow, bot = 12 - Math.max(0, Math.round((x - 40) * 0.6));
+        rect(x, top - 1, 1, 1, OL); rect(x, bot, 1, 1, OL);
+        for (let y = top; y < bot; y++) {
+          const f = (y - top) / Math.max(1, bot - top);
+          let c = y === top ? AL[4] : y === top + 1 ? AL[3] : f < 0.42 ? AL[2] : f < 0.78 ? ((x + y) & 1 && f < 0.5 ? AL[2] : AL[1]) : AL[0];
+          if (y === 3 || y === 4) c = x > 38 ? AL[2] : '#2c7d3a'; if (y === 5 && x <= 38) c = '#f4ecd8';
+          ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1);
+        }
+        if (x % 4 === 0 && x < 40) { rect(x, top + 2, 1, 1, AL[4]); rect(x, 9, 1, 1, AL[3]); rect(x + 1, 10, 1, 1, AL[0]); }
+        if (x % 16 === 3 && x < 36) { rect(x, top + 3, 1, bot - top - 4, AL[0]); rect(x + 1, top + 3, 1, bot - top - 4, AL[3]); }
+      }
+      [[-20, 7], [12, 8]].forEach(([dx, dy]) => { rect(dx, dy, 3, 1, AL[0]); rect(dx + 1, dy - 1, 2, 1, AL[4]); });   // dents and scuffs
+      // deck clutter: rope coil, cooler, jerrycan
+      for (let a = 0; a < 20; a++) { const an = a / 20 * Math.PI * 2; rect(-36 + Math.cos(an) * 4, -6 + Math.sin(an) * 1.6, 1, 1, a % 3 ? '#c8a060' : '#8a6a3a'); }
+      rr(22, -10, 12, 7, 1, OL); rr(23, -9, 10, 5, 1, '#f0f4f6'); rect(23, -9, 10, 2, '#3a7ac8'); rect(26, -8, 4, 1, '#bfe0ff');
+      rr(35, -11, 6, 8, 1, OL); rr(36, -10, 4, 6, 1, '#c83028'); rect(36, -10, 1, 6, '#e8584a'); rect(37, -12, 2, 1, OL);
+      // driver perch: tube posts, cross brace, stitched bench
+      [-8, 14].forEach(px => { rect(px - 1, -22, 4, 19, OL); rect(px, -22, 2, 18, AL[2]); rect(px, -22, 1, 18, AL[4]); });
+      for (let k = 0; k < 20; k++) rect(-6 + k, -8 - Math.round(k * 0.4), 1, 1, AL[1]);
+      rr(-13, -28, 34, 8, 2, OL); rr(-12, -27, 32, 6, 2, '#b83040'); rect(-11, -27, 30, 2, '#e05a6a');
+      for (let k = -10; k < 18; k += 3) rect(k, -24, 2, 1, '#8a2430');
+      // bow lamp
+      rr(33, -13, 9, 8, 2, OL); rr(34, -12, 7, 6, 2, '#4a4038'); fillCircle(40, -9, 2, AL[4]); rect(40, -10, 2, 2, '#ffe070'); rect(40, -10, 1, 1, '#ffffff');
+    }
+    ctx.restore();
+  });
+}
+function drawAirboat(cx, y, moving, dt) {
+  cx = Math.round(cx); y = Math.round(y);
+  const spin = tNow * (moving ? 26 : 5);
+  if (moving && dt !== undefined && (tNow % 0.22) < dt) addRipple(cx - 40, y + 16, false);
+  if (moving) {
+    ctx.save();
+    for (let i = 0; i < 9; i++) { const ph = (tNow * 2.4 + i * 0.61) % 1; ctx.globalAlpha = (1 - ph) * 0.6; rect(cx - 46 - ph * 30, y + 6 - Math.sin(ph * Math.PI) * (6 + i), 2, 2, i % 2 ? '#e8fcff' : '#9fd8e0'); }
+    // bow wake curling off the hull
+    for (let k = 0; k < 6; k++) { const wv = Math.round(Math.sin(tNow * 12 + k) * 1); rect(cx + 30 + k * 3, y + 11 - k + wv, 3, 1, '#e8fcff'); }
+    ctx.restore();
+  }
+  ctx.save(); ctx.globalAlpha = 0.3; rr(cx - 46, y + 12, 98, 5, 2, '#04080a'); ctx.restore();
+  ctx.drawImage(airboatSprite('back'), cx - 56, y - 40, 112, 56);
+  ctx.save(); ctx.translate(cx - 26, y - 16);
+  for (let b = 0; b < 3; b++) {
+    ctx.save(); ctx.rotate(spin + b * (Math.PI * 2 / 3));
+    rect(-2, -14, 4, 13, '#141a1e'); rect(-1, -14, 2, 13, '#c8a45a'); rect(-1, -14, 1, 13, '#e8cc88'); rect(-2, -14, 4, 3, '#e8ecf0');
+    ctx.restore();
+  }
+  if (moving) { ctx.globalAlpha = 0.18; fillCircle(0, 0, 13, '#c8ccd0'); }
+  ctx.restore();
+  ctx.drawImage(airboatSprite('cage'), cx - 56, y - 40, 112, 56);
+  ctx.drawImage(airboatSprite('hull'), cx - 56, y - 40, 112, 56);
+  drawBobble(cx + 4, y - 26, G.ranger, { sc: 0.62, expr: 'calm', act: 'idle', ...myFit() });
+  ctx.save(); ctx.globalAlpha = 0.08 + Math.sin(tNow * 5) * 0.02;
+  for (let d = 0; d < 6; d++) rect(cx + 44 + d * 9, y - 11 - d, 9, 8 + d * 2, '#ffb848');
+  ctx.restore();
+}
+// ================================= THE JEEP ======================================
+// olive park-service jeep: shaded tub with mud splatter, vented hood, grille,
+// chrome lamp, roll bar, spare, radio whip with a flag, badge on the door
+function jeepSprite(part) {
+  return getCached('jeep2' + part, 80, 48, () => {
+    ctx.save(); ctx.translate(6, 14);     // local (0,0) = the old top-left (x, yb)
+    const OL = '#10160c', G5 = ['#26361e', '#3a5430', '#4a6a3a', '#5e7e46', '#7a9a58'];
+    const MUD = ['#5a4028', '#7a5a38', '#9a7a50'];
+    if (part === 'back') {
+      // radio whip with a pennant
+      rect(4, -16, 1, 26, '#2a2a2a'); rect(5, -16, 5, 1, '#e8642a'); rect(5, -15, 4, 1, '#e8642a'); rect(5, -14, 2, 1, '#c84a1a');
+      // roll bar
+      [[12, -8, 2, 19], [32, -8, 2, 19]].forEach(([bx, by, bw, bh]) => { rect(bx - 1, by, bw + 2, bh, OL); rect(bx, by, 1, bh, '#6a6a66'); rect(bx + 1, by, 1, bh, '#3a3a38'); });
+      rect(12, -9, 22, 3, OL); rect(12, -8, 22, 1, '#6a6a66');
+      // seat back
+      rr(17, 0, 8, 12, 2, OL); rr(18, 1, 6, 10, 2, '#7a4a2a'); rect(19, 2, 1, 8, '#9a6a3a');
+      // spare tyre with tread
+      fillCircle(2, 13, 6, OL); fillCircle(2, 13, 5, '#242424');
+      for (let a = 0; a < 12; a++) { const an = a / 12 * Math.PI * 2; rect(2 + Math.cos(an) * 5, 13 + Math.sin(an) * 5, 1, 1, a % 2 ? '#3a3a3a' : '#141414'); }
+      fillCircle(2, 13, 2, '#8a949c'); rect(1, 12, 1, 1, '#d0d8dc');
+      // the tub
+      for (let x = 1; x <= 62; x++) for (let y = 9; y <= 23; y++) {
+        const edge = x === 1 || x === 62 || y === 9 || y === 23;
+        let c = edge ? OL : y === 10 ? G5[4] : y === 11 ? G5[3] : y < 17 ? ((x + y) % 7 === 0 ? G5[3] : G5[2]) : y < 20 ? G5[1] : G5[0];
+        if (y === 16 || y === 17) c = edge ? OL : y === 16 ? '#f0e8c8' : '#b8b090';
+        const nm = hash2(x, y * 3);
+        if (!edge && y > 18 && nm > (y > 21 ? 0.45 : 0.72)) c = MUD[Math.floor(nm * 3) % 3];
+        ctx.fillStyle = c; ctx.fillRect(x, y, 1, 1);
+      }
+      // wheel arches
+      [14, 50].forEach(wx => { for (let a = 0; a <= 20; a++) { const an = Math.PI + a / 20 * Math.PI; rect(wx + Math.cos(an) * 9, 24 + Math.sin(an) * 9, 1, 2, OL); rect(wx + Math.cos(an) * 8, 24 + Math.sin(an) * 8, 1, 1, G5[0]); } });
+      // hood with vents
+      for (let x = 44; x <= 62; x++) for (let y = 5; y <= 10; y++) { const edge = y === 5 || x === 62; ctx.fillStyle = edge ? OL : y === 6 ? G5[4] : G5[3]; ctx.fillRect(x, y, 1, 1); }
+      for (let k = 0; k < 3; k++) { rect(48 + k * 4, 7, 2, 1, G5[1]); rect(48 + k * 4, 8, 2, 1, G5[0]); }
+      // windshield
+      rect(40, -5, 3, 12, OL); rect(41, -4, 1, 10, '#5a6a5a'); rect(43, -4, 3, 10, '#9ad0e8'); rect(44, -3, 1, 3, '#e8fcff'); rect(45, 2, 1, 2, '#e8fcff'); rect(43, -5, 4, 1, OL);
+      // grille, lamp, bumper
+      rect(62, 7, 3, 13, OL); for (let y = 8; y < 19; y += 2) rect(63, y, 1, 1, '#5a5a56');
+      fillCircle(62, 10, 3, OL); fillCircle(62, 10, 2, '#c8ccd0'); rect(62, 9, 2, 2, '#ffe070'); rect(62, 9, 1, 1, '#ffffff');
+      rr(58, 19, 10, 4, 1, OL); rect(59, 20, 8, 1, '#a8b0b6'); rect(59, 21, 8, 1, '#6a7076'); rect(60, 20, 1, 1, '#2a2a2a'); rect(65, 20, 1, 1, '#2a2a2a');
+      rect(-1, 19, 4, 3, OL); rect(0, 20, 2, 1, '#6a7076');
+    } else if (part === 'door') {
+      // the door over the driver's legs: panel seam, handle, park badge
+      for (let x = 10; x <= 44; x++) { rect(x, 11, 1, 1, G5[4]); rect(x, 12, 1, 1, G5[3]); rect(x, 13, 1, 3, G5[2]); }
+      rect(10, 11, 1, 5, OL); rect(44, 11, 1, 5, OL);
+      rect(36, 13, 4, 1, '#c8ccd0'); rect(36, 14, 4, 1, '#4a4a48');
+      fillCircle(19, 13, 3, OL); fillCircle(19, 13, 2, '#e8b830'); rect(18, 12, 3, 3, '#2c7d3a'); rect(19, 12, 1, 1, '#f4ecd8');
+      // steering wheel
+      rect(36, 3, 2, 7, OL); fillCircle(38, 3, 3, OL); fillCircle(38, 3, 2, '#3a3a3a'); rect(37, 2, 1, 1, '#6a6a6a');
+    }
+    ctx.restore();
+  });
+}
+function jeepWheel(wx, wy, spin) {
+  fillCircle(wx, wy, 8, '#0a0a0a'); fillCircle(wx, wy, 7, '#1e1e1e');
+  for (let a = 0; a < 14; a++) { const an = spin + a / 14 * Math.PI * 2; rect(wx + Math.round(Math.cos(an) * 7), wy + Math.round(Math.sin(an) * 7), 1, 1, a % 2 ? '#3c3c3c' : '#0a0a0a'); }
+  rect(wx - 5, wy - 6, 3, 1, '#343434'); rect(wx - 6, wy - 5, 1, 2, '#343434');
+  fillCircle(wx, wy, 4, '#3a4046'); fillCircle(wx, wy, 3, '#8a949c'); rect(wx - 2, wy - 2, 2, 1, '#d0d8dc');
+  for (let k = 0; k < 5; k++) { const an = spin + k * 1.2566; rect(wx + Math.round(Math.cos(an) * 2), wy + Math.round(Math.sin(an) * 2), 1, 1, '#2a2a2a'); }
+  rect(wx, wy, 1, 1, '#1a1a1a');
+}
 function gJeep(cx, gy, spd, o) {
   o = o || {};
   const x = Math.round(cx) - 32, y = Math.round(gy) - 30, bob = spd > 0 ? Math.round(Math.sin(tNow * 22) * 0.6) : 0;
-  const spin = tNow * spd * 0.25;
-  // dust kicked up behind
-  if (spd > 0) { ctx.save(); for (let k = 0; k < 6; k++) { const ph = (tNow * 2 + k / 6) % 1; ctx.globalAlpha = (1 - ph) * 0.35; fillCircle(x - 4 - ph * 30, gy - 3 - ph * 8 + Math.sin(k) * 2, 2 + ph * 5, o.dust || '#c8b48a'); } ctx.restore(); }
-  ctx.save(); ctx.globalAlpha = 0.3; ctx.scale(1, 0.3); fillCircle(cx, gy / 0.3, 30, '#000'); ctx.restore();
-  // body
-  const yb = y + bob;
-  rr(x + 2, yb + 10, 60, 13, 3, '#1a2616'); rr(x + 3, yb + 10, 58, 11, 3, '#4a6a3a'); rect(x + 4, yb + 10, 56, 2, '#6a8a52');
-  rect(x + 3, yb + 16, 58, 2, '#f0e8c8');                                                 // park stripe
-  rr(x + 44, yb + 6, 18, 8, 2, '#1a2616'); rr(x + 45, yb + 6, 16, 7, 2, '#4a6a3a'); rect(x + 46, yb + 6, 14, 1, '#6a8a52');   // hood
-  rect(x + 60, yb + 9, 3, 3, '#ffe070'); if (o.lights) { ctx.save(); ctx.globalAlpha = 0.18; for (let d = 0; d < 6; d++) rect(x + 63 + d * 8, yb + 7 - d, 8, 6 + d * 2, '#ffd870'); ctx.restore(); }
-  rect(x + 60, yb + 19, 4, 2, '#2a2a2a');                                                 // bumper
-  rr(x - 2, yb + 8, 8, 10, 3, '#1a1a1a'); fillCircle(x + 2, yb + 13, 3, '#3a3a3a');        // spare tyre
-  rect(x + 40, yb - 4, 2, 11, '#2a3a2a'); rect(x + 41, yb - 4, 5, 1, '#2a3a2a');            // windshield frame
-  ctx.save(); ctx.globalAlpha = 0.35; rect(x + 42, yb - 3, 3, 9, '#bfe8ff'); ctx.restore();
-  rect(x + 12, yb - 8, 2, 18, '#2a2a2a'); rect(x + 12, yb - 8, 22, 2, '#2a2a2a'); rect(x + 32, yb - 8, 2, 18, '#2a2a2a');   // roll bar
-  // the ranger at the wheel
-  if (!o.empty) {
-    drawBobble(x + 26, yb + 12, G.ranger || 'scout', Object.assign({ sc: 0.55, expr: o.expr || 'calm', act: o.act || 'idle', flip: false }, myFit()));
-    rect(x + 36, yb + 3, 2, 6, '#1a1a1a'); fillCircle(x + 38, yb + 3, 3, '#2a2a2a');
-  }
-  rect(x + 10, yb + 11, 34, 2, '#3a5a2e');                                                // door line over the legs
-  // wheels
-  [x + 14, x + 50].forEach(wx => {
-    fillCircle(wx, gy - 6, 7, '#141414'); fillCircle(wx, gy - 6, 4, '#8a949c'); fillCircle(wx, gy - 6, 2, '#3a3a3a');
-    for (let k = 0; k < 3; k++) { const a = spin + k * 2.09; rect(wx + Math.round(Math.cos(a) * 3), gy - 6 + Math.round(Math.sin(a) * 3), 1, 1, '#d8e0e4'); }
-    rr(wx - 9, yb + 13, 18, 3, 1, '#2a3a24');
-  });
+  const spin = tNow * spd * 0.25, yb = y + bob;
+  if (spd > 0) { ctx.save(); for (let k = 0; k < 7; k++) { const ph = (tNow * 2 + k / 7) % 1; ctx.globalAlpha = (1 - ph) * 0.4; pxDust(x - 4 - ph * 34, gy - 3 - ph * 8 + Math.sin(k) * 2, 2 + ph * 5, o.dust || '#c8b48a'); } ctx.restore(); }
+  ctx.save(); ctx.globalAlpha = 0.3; ctx.scale(1, 0.3); fillCircle(cx, gy / 0.3, 32, '#000'); ctx.restore();
+  ctx.drawImage(jeepSprite('back'), x - 6, yb - 14, 80, 48);
+  if (o.lights) { ctx.save(); ctx.globalAlpha = 0.18; for (let d = 0; d < 6; d++) rect(x + 65 + d * 8, yb + 7 - d, 8, 6 + d * 2, '#ffd870'); ctx.restore(); }
+  if (!o.empty) drawBobble(x + 26, yb + 12, G.ranger || 'scout', Object.assign({ sc: 0.55, expr: o.expr || 'calm', act: o.act || 'idle', flip: false }, myFit()));
+  ctx.drawImage(jeepSprite('door'), x - 6, yb - 14, 80, 48);
+  [x + 14, x + 50].forEach(wx => jeepWheel(wx, gy - 7, spin));
+}
+// a lumpy dust puff (not a circle): three offset blobs with a lit top
+function pxDust(x, y, r, col) {
+  r = Math.max(1, Math.round(r));
+  fillCircle(x, y, r, col); fillCircle(x - r * 0.6, y + 1, Math.max(1, r - 1), col); fillCircle(x + r * 0.5, y - r * 0.3, Math.max(1, r - 1), mixC(col, '#ffffff', 0.2));
 }
 
 // ============================ INTO THE PARK (intro) ==============================
@@ -13341,17 +13543,15 @@ function trailBackdrop(biome, scroll, o) {
     gSun(400, 40, 10, '#fffbe8', '#fff0c0');
     gClouds(scroll * 0.04, 22, 4, ['#ffffff', '#e8f2f8', '#b8d0e0'], 7, 1.1);
     gHammocks('pinefar', 170, scroll * 0.1, '#5a7a6a', '#6a8a78', 22);
-    rect(0, 170, W, 18, '#6a8a5a'); rect(0, 170, W, 1, '#8aa870');
+    gGrass('pfar', 170, 18, scroll * 0.2, ['#5e7e52', '#668a58', '#6a8a5a', '#78985e', '#8aa870']);
     const span = W + 60;
     for (let k = 0; k < 14; k++) { const x = ((k * 43 + hash2(k, 3) * 30 - scroll * 0.3) % span + span) % span - 30; gPine(x, 190, 70 + (k * 17) % 40, true); }
-    rect(0, 186, W, 30, '#5a7a3a'); rect(0, 186, W, 2, '#7a9a4a');
+    gGrass('pmid', 186, 28, scroll * 0.6, ['#46662a', '#52722e', '#5a7a3a', '#6e8e44', '#8aaa52'], true);
     for (let k = 0; k < 16; k++) { const x = ((k * 37 - scroll * 0.6) % span + span) % span - 30; gPine(x, 206, 90 + (k * 23) % 50, false); }
     for (let k = 0; k < 22; k++) { const x = ((k * 29 - scroll * 0.7) % span + span) % span - 30; const y = 206 + (k % 3); for (let f = 0; f < 5; f++) { rect(x + f * 3 - 6, y - 5 - (f % 2) * 2, 2, 6, f % 2 ? '#3a6a2a' : '#4a7a32'); } }
     // the dirt road with its ruts
-    rect(0, 212, W, 28, '#a8845a'); rect(0, 212, W, 2, '#c8a070'); rect(0, 238, W, 2, '#7a5a3a');
-    for (let k = 0; k < 30; k++) { const x = ((k * 31 - scroll) % (W + 20) + W + 20) % (W + 20) - 10; rect(x, 220 + (k % 3) * 6, 8, 1, '#8a6a44'); }
-    rect(0, 240, W, 30, '#4a6a2a');
-    for (let k = 0; k < 40; k++) { const x = ((k * 13 - scroll * 1.2) % (W + 10) + W + 10) % (W + 10) - 5; rect(x, 240 + (k % 4) * 2, 1, 4 + k % 3, '#6a8a3a'); }
+    gRoad(212, 28, scroll);
+    gGrass('pnear', 240, 30, scroll * 1.2, ['#34521e', '#3e5e24', '#4a6a2a', '#5e7e34', '#7a9a44'], true);
   } else if (biome === 'prairie') {
     gSky(o.sky || GL.day, 0, 150);
     gClouds(scroll * 0.05, 24, 5, ['#ffffff', '#eaf4fa', '#bcd4e4'], 11, 1.2);
@@ -13372,7 +13572,7 @@ function trailBackdrop(biome, scroll, o) {
     fillCircle(380, 50, 12, '#fff8d8'); fillCircle(376, 47, 10, '#fffdf0');
     const span = W + 60;
     for (let k = 0; k < 16; k++) { const x = ((k * 37 - scroll * 0.3) % span + span) % span - 30; gPine(x, 200, 80 + (k * 23) % 50, true); }
-    rect(0, 196, W, 74, '#0e1a14');
+    gGrass('night', 196, 74, scroll, ['#08120c', '#0c1810', '#0e1a14', '#142418', '#1c3020']);
   } else if (biome === 'storm') {
     gSky(GL.storm, 0, 170);
     gClouds(scroll * 0.2, 10, 6, ['#6a7680', '#4c5862', '#323a44'], 5, 1.6);
