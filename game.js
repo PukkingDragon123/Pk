@@ -3820,7 +3820,7 @@ function indexSee(key, quiet) {
   if (!meta.index.seen[key]) {
     meta.index.seen[key] = true;
     saveMeta();
-    if (!quiet) toasts.push({ name: 'NEW INDEX ENTRY!', sub: 'CLAIM COOKIES IN THE INDEX', t: 0 });
+    if (!quiet) toasts.push({ name: 'NEW CROCPEDIA ENTRY!', sub: 'CLAIM COOKIES IN THE CROCPEDIA', t: 0 });
   }
 }
 const indexBounty = key => key.startsWith('boss_') ? 15 : key.startsWith('mut_') ? 10
@@ -5340,7 +5340,7 @@ function drawCroc(closeT, opts) {
   const jawDrop = closeT * (maw.h - 26);
   const MD = (opts.mood && CROC_MOODS[opts.mood]) || crocMood(opts.dt);
   const quiver = MD.quiver ? Math.sin(tNow * 13) * 0.7 : 0;
-  const breathe = (G.state === 'play' || G.state === 'menu') ? Math.sin(tNow * 1.6) * 1.4 + quiver : 0;
+  const breathe = (G.state === 'play' || G.state === 'menu' || G.cpDraw) ? Math.sin(tNow * 1.6) * 1.4 + quiver : 0;
   const mawC = st.maw, mawD = st.mawD;
 
   // --- tail curling out of the water behind the body ---
@@ -5454,7 +5454,7 @@ function drawCroc(closeT, opts) {
       pressedTint: s.pressed, outline,
       xray: scanning, xraySnap: scanning && xrayShowsSnap(i), xrayT: scanning ? G.xanim.t : 0,
     });
-    if (!s.pressed && !scanning && G.state !== 'menu') {
+    if (!s.pressed && !scanning && G.state !== 'menu' && !G.cpDraw) {
       const hideVal = bossIs('cotton');
       const vs = hideVal ? '?' : '' + s.t.base;
       const vy = sl.up ? ty + th - 7 : ty + 2;
@@ -10027,103 +10027,460 @@ function indexEntries() {
   BOSSES.forEach(b => list.push({ key: 'boss_' + b.id, boss: b.id, name: b.name, col: '#ff8a8a', tier: 3, abil: 'BOSS RULE', tag: 'BOSS RULE', desc: b.desc, flav: BOSS_QUIPS[b.id] || 'It is very hungry.' }));
   return list;
 }
-function cpEnter() { G.cp = null; }
-function drawIndex() {
-  const th = THEMES.night;
-  drawSceneBack(th); drawSceneFront(th);
-  overlayDim(0.78);
+// =============================== THE CROCPEDIA =================================
+//  The ranger's field encyclopedia: a leather book open on the station desk with
+//  a bookmark tab per section - live croc portraits, boss files, a postcard album
+//  of every badge (click one to hold it up and flip it over) and a specimen
+//  drawer of teeth.  Pages turn when you change section.
+// ================================================================================
+const CP_TABS = [
+  { id: 'mut', name: 'CROCS', col: '#3a8a4a' },
+  { id: 'boss', name: 'BOSSES', col: '#b83a2a' },
+  { id: 'charm', name: 'BADGES', col: '#c8961e' },
+  { id: 'tooth', name: 'TEETH', col: '#3a6ab0' },
+];
+const CPB = { x: 8, y: 22, w: 464, h: 244 };
+const CPL = { x: 20, y: 28, w: 216, h: 228 };
+const CPR = { x: 244, y: 28, w: 216, h: 228 };
+const CP_INK = '#3a2614', CP_PENCIL = '#8a7658', CP_PAPER = '#f6ecd4';
+const CP_PER = 12;   // postcards per page
+function cpEnter() { G.cp = { tab: 'mut', sel: {}, page: 0, turn: null, zoom: null, t: 0, stamp: {} }; }
+function cpTurn(fn, dir) {
+  const cp = G.cp; if (!cp || cp.turn) return;
+  cp.turn = { t: 0, dir: dir || 1, fn, done: false };
+  sfx.whoosh();
+}
+function cpEntries(tab) {
   const all = indexEntries();
-  const seenN = all.filter(e => meta.index.seen[e.key]).length;
-  const owed = all.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]);
-  const owedCk = owed.reduce((a, e) => a + indexBounty(e.key), 0);
-  drawTextCSh('SWAMP INDEX', W / 2, 5, C.gold, 2);
-  drawTextC('LOGGED ' + seenN + ' / ' + all.length + '  -  FIND THEM IN PLAY TO FILL THE BOOK', W / 2, 20, '#8aa0a8', 1);
-  panel(6, 3, 88, 15, { face: '#26321e', edge: '#5a7a3a' });
-  ICONS.cookie(10, 6); drawText(fmt(meta.rp || 0) + ' CK', 24, 8, C.gold, 1);
-  if (owed.length) {
-    button(W - 112, 3, 106, 15, 'CLAIM +' + owedCk + ' CK', '#e8a020', '#98650e', () => {
-      owed.forEach(e => { meta.index.claimed[e.key] = true; });
-      addRP(owedCk, 'INDEX BOUNTY');
-      if (seenN >= all.length && !meta.index.done) { meta.index.done = true; addRP(60, 'INDEX COMPLETE!'); }
-      saveMeta(); sfx.ach();
-    }, { id: 'idxclaim', tip: 'INDEX BOUNTY|' + owed.length + ' new find(s) to cash in|Fill the book for a +60 bonus' });
-  } else drawTextC(seenN >= all.length ? 'BOOK COMPLETE!' : 'NO NEW FINDS', W - 58, 7, seenN >= all.length ? C.green : '#54707a', 1);
-
-  // ---- four tabs, each with its own live count ----
-  if (!G.idxTab) G.idxTab = 'mut';
-  const TABS = [['mut', 'CROCS', e => e.mut], ['boss', 'BOSSES', e => e.boss], ['charm', 'BADGES', e => e.charm], ['tooth', 'TEETH', e => e.tooth]];
-  TABS.forEach(([k, lbl, sel], i) => {
-    const tw = 108, tx = 12 + i * (tw + 6), on = G.idxTab === k;
-    const grp = all.filter(sel), got = grp.filter(e => meta.index.seen[e.key]).length;
-    const fresh = grp.some(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]);
-    if (on) plaque(tx, 26, tw, 15, { tint: '#c9941a', r: 2, noStud: 1 });
-    else { rr(tx, 26, tw, 16, 2, '#2a3a42'); rr(tx + 1, 27, tw - 2, 14, 2, '#16222a'); }
-    drawTextC(lbl + '  ' + got + '/' + grp.length, tx + tw / 2, 31, on ? C.gold : '#7a8a92', 1);
-    if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.35; rect(tx + tw - 6, 29, 3, 3, C.gold); ctx.restore(); }
-    hit(tx, 26, tw, 16, { id: 'idxtab' + k, cursor: true, cb: () => { G.idxTab = k; sfx.click(2); } });
+  if (tab === 'mut') return all.filter(e => e.mut);
+  if (tab === 'boss') return all.filter(e => e.boss);
+  if (tab === 'tooth') return all.filter(e => e.tooth);
+  return all.filter(e => e.charm).sort((a, b) => (a.tier - b.tier) || (CHARMS.indexOf(a.charm) - CHARMS.indexOf(b.charm)));
+}
+const cpSeen = e => !!meta.index.seen[e.key];
+const cpFresh = e => cpSeen(e) && !meta.index.claimed[e.key];
+function cpClaim(list) {
+  const all = indexEntries();
+  let ck = 0;
+  list.forEach(e => { if (cpFresh(e)) { meta.index.claimed[e.key] = true; ck += indexBounty(e.key); G.cp.stamp[e.key] = 0; } });
+  if (!ck) return;
+  addRP(ck, 'CROCPEDIA');
+  if (all.every(cpSeen) && !meta.index.done) { meta.index.done = true; addRP(60, 'CROCPEDIA COMPLETE!'); }
+  saveMeta(); sfx.ach();
+}
+// ---- the desk and the book ----
+function cpDeskStatic() {
+  for (let y = 0; y < H; y += 18) { rect(0, y, W, 18, ((y / 18) | 0) % 2 ? '#3a2616' : '#342214'); rect(0, y + 17, W, 1, '#1e1208'); woodGrain(0, y + 1, W, 16, '#2a1a0c', '#4a3220', y * 3); }
+  ctx.save(); ctx.globalAlpha = 0.18; fillCircle(70, 30, 150, '#ffd890'); ctx.restore();
+  ctx.save(); ctx.globalAlpha = 0.45; rect(0, 0, W, 6, '#000'); rect(0, H - 6, W, 6, '#000'); ctx.restore();
+  // the leather book: stitched cover, page stacks, spine gutter
+  rr(CPB.x + 3, CPB.y + 5, CPB.w, CPB.h, 8, '#00000088');
+  plasticBox(CPB.x, CPB.y, CPB.w, CPB.h, 8, ['#0c1a10', '#1a3622', '#24462c', '#2e5a38', '#3c7048'], { seed: 88, noShine: 1 });
+  ctx.save(); ctx.globalAlpha = 0.5;
+  for (let x = CPB.x + 8; x < CPB.x + CPB.w - 8; x += 6) { rect(x, CPB.y + 4, 3, 1, '#c8a060'); rect(x, CPB.y + CPB.h - 5, 3, 1, '#c8a060'); }
+  for (let y = CPB.y + 8; y < CPB.y + CPB.h - 8; y += 6) { rect(CPB.x + 4, y, 1, 3, '#c8a060'); rect(CPB.x + CPB.w - 5, y, 1, 3, '#c8a060'); }
+  ctx.restore();
+  [[CPB.x, CPB.y], [CPB.x + CPB.w - 16, CPB.y], [CPB.x, CPB.y + CPB.h - 16], [CPB.x + CPB.w - 16, CPB.y + CPB.h - 16]].forEach(([cx, cy], i) => {
+    plasticBox(cx, cy, 16, 16, 4, UGOLD, { noShine: 1 }); rect(cx + 3, cy + 3, 10, 10, UGOLD[3]); rect(cx + 4, cy + 4, 4, 1, UGOLD[4]);
   });
-  const sel = (TABS.find(t => t[0] === G.idxTab) || TABS[0])[2];
-  const page = all.filter(sel);
-
-  const tipFor = (e, got, fresh, tierLbl) => got
-    ? (e.name + '|' + tierLbl + '|' + e.abil + (e.flav ? "|'" + e.flav + "'" : '') + (fresh ? '|+' + indexBounty(e.key) + ' COOKIES TO CLAIM' : '|CLAIMED'))
-    : ('??? UNDISCOVERED|' + (e.charm ? 'Own this badge to log it' : e.tooth ? 'Add this tooth to your deck to log it' : 'Meet it on the trail to log it') + '|Worth +' + indexBounty(e.key) + ' COOKIES');
-
-  if (G.idxTab === 'charm' || G.idxTab === 'tooth') {
-    // ---- compact collection grid (98 badges / 20 teeth) ----
-    const isT = G.idxTab === 'tooth';
-    const cols = isT ? 10 : 14, cell = isT ? 44 : 33, chh = isT ? 60 : 30;
-    const gx0 = (W - cols * cell) / 2, gy0 = 50;
-    page.forEach((e, i) => {
-      const x = gx0 + (i % cols) * cell, y = gy0 + Math.floor(i / cols) * chh;
-      const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
-      const cw = cell - 5, ch2 = chh - 5;
-      if (got) {
-        goldFrame(x, y, cw, ch2, { r: 3, thin: 1, field: mixHex('#16242c', e.col, 0.22), fieldD: '#0d1720', fieldL: mixHex('#2c4250', e.col, 0.22), glow: fresh ? 0.26 : 0 });
-      } else { rr(x, y, cw, ch2, 2, '#243038'); rr(x + 1, y + 1, cw - 2, ch2 - 2, 2, '#0f181e'); }
-      if (got) {
-        if (isT) drawTooth(x + 7, y + 6, cw - 14, ch2 - 22, true, e.tooth, {});
-        else { ctx.save(); ctx.globalAlpha = 1; (ICONS[e.charm.ico] || ICONS.star)(x + cw / 2 - 6, y + 4); ctx.restore(); }
-        drawTextC(e.name.split(' ')[0].slice(0, isT ? 7 : 5), x + cw / 2, y + ch2 - 9, '#9fb8c0', 1);
-        if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.35; rect(x + cw - 4, y + 2, 3, 3, C.gold); ctx.restore(); }
-      } else drawTextC('?', x + cw / 2, y + ch2 / 2 - 4, '#2f4048', 1);
-      hit(x, y, cw, ch2, { id: 'idx' + e.key, cursor: true, tip: tipFor(e, got, fresh, RAR_NAME[e.tier] || 'COMMON') });
-    });
-  } else {
-    // ---- detailed journal cards (crocs + bosses) ----
-    const cols = 6, cw = 78, ch = 60, gx0 = 8, gy0 = 48;
-    page.forEach((e, i) => {
-      const x = gx0 + (i % cols) * cw, y = gy0 + Math.floor(i / cols) * ch;
-      const got = !!meta.index.seen[e.key], fresh = got && !meta.index.claimed[e.key];
-      const tierLbl = e.boss ? 'BOSS' : MUT_TIER_NAME[e.tier];
-      const tierCol = e.boss ? '#ff8a8a' : MUT_TIER_COL[e.tier];
-      if (got) {
-        goldFrame(x, y, cw - 6, ch - 6, {
-          r: 4, field: mixHex('#16242c', e.col, 0.2), fieldD: '#0d1720', fieldL: mixHex('#2c4250', e.col, 0.2),
-          glow: fresh ? 0.28 + Math.sin(tNow * 4) * 0.08 : 0,
-        });
-      } else steelTile(x, y, cw - 6, ch - 6, { field: '#101a20' });
-      if (got) {
-        if (e.boss) {
-          const bx = x + 34, by2 = y + 15;
-          rr(bx - 12, by2 - 7, 24, 14, 3, '#00000055'); rr(bx - 11, by2 - 6, 22, 12, 3, '#8a3030');
-          rect(bx - 7, by2 - 3, 3, 3, C.red); rect(bx + 4, by2 - 3, 3, 3, C.red);
-          for (let t = 0; t < 5; t++) rect(bx - 9 + t * 4, by2 + 3, 2, 4, '#f4f0dc');
-          rect(bx - 10, by2 - 9, 3, 3, C.redD); rect(bx + 7, by2 - 9, 3, 3, C.redD);
-        } else drawMutChip(x + 34, y + 15, e.mut);
-        drawTextC(e.name.slice(0, 12), x + 35, y + 26, '#eafcff', 1);
-        drawTextC(tierLbl, x + 35, y + 36, tierCol, 1);
-        drawTextC(e.tag.slice(0, 13), x + 35, y + 46, '#8aa0a8', 1);
-        if (fresh) { ctx.save(); ctx.globalAlpha = 0.5 + Math.sin(tNow * 6) * 0.3; drawTextC('NEW', x + cw - 18, y + 3, C.gold, 1); ctx.restore(); }
-      } else {
-        drawTextC('?', x + 35, y + 11, '#2f4048', 2);
-        drawTextC('NOT MET', x + 35, y + 32, '#2f4048', 1);
-        drawTextC('+' + indexBounty(e.key) + ' CK', x + 35, y + 44, '#2f4048', 1);
-      }
-      hit(x, y, cw - 6, ch - 6, { id: 'idx' + e.key, cursor: true, tip: tipFor(e, got, fresh, tierLbl) });
-    });
+  // page stacks peeking under both pages
+  for (let k = 3; k >= 1; k--) {
+    rr(CPL.x - k, CPL.y + k, CPL.w + k, CPL.h, 3, k & 1 ? '#d8cca8' : '#eadfc0');
+    rr(CPR.x, CPR.y + k, CPR.w + k, CPR.h, 3, k & 1 ? '#d8cca8' : '#eadfc0');
   }
-  button(W / 2 - 45, 250, 90, 15, '< BACK', '#3a5560', '#243a44', () => { G.state = 'menu'; }, { id: 'idxback' });
+  [CPL, CPR].forEach((P, side) => {
+    rr(P.x, P.y, P.w, P.h, 3, CP_PAPER);
+    // faint ruled lines and a margin, like a real field notebook
+    ctx.save(); ctx.globalAlpha = 0.16;
+    for (let y = P.y + 24; y < P.y + P.h - 6; y += 10) rect(P.x + 6, y, P.w - 12, 1, '#6a8ab0');
+    rect(side ? P.x + P.w - 14 : P.x + 12, P.y + 4, 1, P.h - 8, '#d86a6a');
+    ctx.restore();
+    // the gutter darkens toward the spine
+    for (let k = 0; k < 10; k++) { ctx.save(); ctx.globalAlpha = 0.05 * (10 - k) / 3; rect(side ? P.x + k : P.x + P.w - 1 - k, P.y, 1, P.h, '#6a4a20'); ctx.restore(); }
+    // paper fibre speckle
+    ctx.save(); ctx.globalAlpha = 0.25; for (let k = 0; k < 120; k++) rect(P.x + 3 + Math.floor(hash2(k, side * 7 + 1) * (P.w - 6)), P.y + 3 + Math.floor(hash2(k, side * 7 + 2) * (P.h - 6)), 1, 1, '#c8b890'); ctx.restore();
+  });
+  rect(238, CPB.y + 3, 6, CPB.h - 6, '#142a1a');
+  rect(239, CPB.y + 3, 1, CPB.h - 6, '#2e5a38');
+}
+function cpTitle(P, txt, sub, col) {
+  drawTextSh(txt, P.x + 14, P.y + 7, col || CP_INK, 2, '#d8c8a0');
+  const tw = textW(txt, 2);
+  // hand-drawn squiggle underline
+  for (let x = 0; x < tw + 4; x++) rect(P.x + 13 + x, P.y + 19 + Math.round(Math.sin(x * 0.5) * 0.8), 1, 1, col || CP_INK);
+  if (sub) drawText(sub, P.x + P.w - 12 - textW(sub, 1), P.y + 11, CP_PENCIL, 1);
+}
+// a rubber stamp, rotated a touch
+function cpRubber(cx, cy, txt, col, rot, a) {
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot || -0.18); ctx.globalAlpha = a === undefined ? 0.85 : a;
+  const w = textW(txt, 1) + 10;
+  rr(-w / 2, -7, w, 14, 3, col); rr(-w / 2 + 1, -6, w - 2, 12, 2, CP_PAPER); rr(-w / 2 + 2, -5, w - 4, 10, 2, col);
+  drawTextC(txt, 0, -3, CP_PAPER, 1);
+  ctx.restore();
+}
+// red-pen ring around the selected cell
+function cpPenRing(x, y, w, h) {
+  ctx.save(); ctx.strokeStyle = '#c8302a'; ctx.lineWidth = 1.2; ctx.globalAlpha = 0.9;
+  ctx.beginPath();
+  for (let i = 0; i <= 44; i++) { const a = i / 40 * Math.PI * 2 - 0.4, wob = 1 + Math.sin(i * 1.7) * 0.03; const px = x + w / 2 + Math.cos(a) * (w / 2 + 4) * wob, py = y + h / 2 + Math.sin(a) * (h / 2 + 4) * wob; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+  ctx.stroke(); ctx.restore();
+}
+// ---- live croc portrait: the real fight croc, posed inside a photo ----
+const CP_SIL = document.createElement('canvas');
+function cpCroc(e, x, y, w, h, seen) {
+  // evening swamp backdrop
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  const sky = ['#3a2a52', '#5a3a62', '#8a4a62', '#c86a5a', '#e8a060'];
+  sky.forEach((c, i) => rect(x, y + i * (h * 0.55 / sky.length), w, h * 0.55 / sky.length + 1, c));
+  ctx.save(); ctx.globalAlpha = 0.5; fillCircle(x + w * 0.72, y + h * 0.5, 14, '#ffe0a0'); ctx.restore();
+  for (let k = 0; k < 14; k++) { const tx = x + k * (w / 13), th = 8 + (k * 7) % 12; rect(tx, y + h * 0.55 - th, 3, th, '#2a2038'); rr(tx - 4, y + h * 0.55 - th - 4, 11, 6, 2, '#2a2038'); }
+  rect(x, y + h * 0.55, w, h * 0.45, '#1e3a4a');
+  ctx.save(); ctx.globalAlpha = 0.3; for (let k = 0; k < 8; k++) rect(x + ((k * 37 + tNow * 8) % w), y + h * 0.6 + k * 4, 12, 1, '#8ab0c8'); ctx.restore();
+  // pose the real croc
+  const sv = { mouth: G.mouth, jaw: G.jawClose, mut: G.mut, round: G.round, nt: G.nodeType, boss: G.boss, summer: G.summer, mx, my };
+  const mut = e.mut || null, boss = e.boss ? (BOSSES.find(b => b.id === e.boss) || null) : null;
+  const n = 10 + (mut === 'extra' ? 4 : 0) - (mut === 'dwarf' ? 2 : 0) + (boss && boss.id === 'king' ? 2 : 0) - (boss && boss.id === 'tender' ? 2 : 0);
+  G.mouth = []; for (let i = 0; i < n; i++) G.mouth.push({ t: { type: i === 3 ? 'gold' : i === 7 ? 'ruby' : 'plain', base: 3 }, pressed: false, gone: false, revealed: null, snap: false, pop: 0 });
+  G.mut = mut; G.boss = boss; G.round = boss ? 2 : 1; G.nodeType = boss ? 'boss' : 'big'; G.summer = false;
+  G.cpDraw = true; mx = -999; my = -999;
+  const ph = (tNow + (e.key.length * 0.7)) % 6;
+  const close = ph < 4.2 ? 0.3 + Math.sin(tNow * 1.1) * 0.12 : ph < 4.5 ? lerp(0.3, 0.02, (ph - 4.2) / 0.3) : ph < 4.62 ? 1 : ph < 5.4 ? 1 : lerp(1, 0.3, (ph - 5.4) / 0.6);
+  const mood = ph > 4.1 && ph < 5.4 ? 'hungry' : boss ? 'angry' : 'calm';
+  const S = h / 200;
+  const draw = () => { ctx.save(); ctx.translate(x + w / 2, y + h - 2); ctx.scale(S, S); ctx.translate(-294, -252); drawCroc(close, { mood, dry: 1 }); ctx.restore(); };
+  try {
+    if (seen) draw();
+    else {
+      // an unmet croc is just a shadow in the reeds
+      const cw = Math.ceil(W * RS), chh = Math.ceil(H * RS);
+      if (CP_SIL.width !== cw) { CP_SIL.width = cw; CP_SIL.height = chh; }
+      const sc2 = CP_SIL.getContext('2d'); sc2.setTransform(1, 0, 0, 1, 0, 0); sc2.clearRect(0, 0, cw, chh);
+      sc2.setTransform(RS, 0, 0, RS, 0, 0); sc2.imageSmoothingEnabled = false;
+      const main = ctx; ctx = sc2; try { draw(); } finally { ctx = main; }
+      sc2.setTransform(1, 0, 0, 1, 0, 0); sc2.globalCompositeOperation = 'source-in'; sc2.fillStyle = '#10141c'; sc2.fillRect(0, 0, cw, chh); sc2.globalCompositeOperation = 'source-over';
+      ctx.drawImage(CP_SIL, 0, 0, W, H);
+      ctx.save(); ctx.globalAlpha = 0.5; rect(x, y, w, h, '#1a1422'); ctx.restore();
+      drawTextCSh('?', x + w / 2, y + h / 2 - 8, '#f4ecd8', 3, '#000');
+    }
+  } finally {
+    G.mouth = sv.mouth; G.jawClose = sv.jaw; G.mut = sv.mut; G.round = sv.round; G.nodeType = sv.nt; G.boss = sv.boss; G.summer = sv.summer; G.cpDraw = false; mx = sv.mx; my = sv.my;
+  }
+  ctx.restore();
+}
+// a polaroid with two strips of tape holding it to the page
+function cpPhoto(x, y, w, h, rot, inner) {
+  ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(rot); ctx.translate(-(x + w / 2), -(y + h / 2));
+  rr(x + 2, y + 3, w, h + 10, 2, '#00000044');
+  rr(x - 1, y - 1, w + 2, h + 12, 2, '#c8bca0');
+  rr(x, y, w, h + 10, 2, '#fbf8f0');
+  inner(x + 4, y + 4, w - 8, h - 6);
+  ctx.restore();
+  [[x + 10, y - 4, -0.3], [x + w - 22, y - 4, 0.3]].forEach(([tx, ty, tr]) => { ctx.save(); ctx.translate(tx + 6, ty + 3); ctx.rotate(tr); ctx.globalAlpha = 0.75; rect(-8, -3, 18, 7, '#f0e4a8'); ctx.globalAlpha = 0.3; rect(-8, -3, 18, 1, '#ffffff'); ctx.restore(); });
+}
+// ---- grid cells ----
+function cpCell(e, x, y, w, h, i, onSel, sel, drawArt) {
+  const seen = cpSeen(e), fresh = cpFresh(e);
+  const hov = mx >= x && mx < x + w && my >= y && my < y + h;
+  const lift = hov ? -1 : 0;
+  rr(x + 1, y + 2, w, h, 2, '#00000030');
+  rr(x, y + lift, w, h, 2, seen ? '#fbf8f0' : '#e0d6bc');
+  rr(x + 2, y + 2 + lift, w - 4, h - 12, 1, seen ? '#2a2a3a' : '#c8bc9c');
+  if (seen) { ctx.save(); ctx.beginPath(); ctx.rect(x + 2, y + 2 + lift, w - 4, h - 12); ctx.clip(); drawArt(x + 2, y + 2 + lift, w - 4, h - 12); ctx.restore(); }
+  else drawTextC('?', x + w / 2, y + (h - 12) / 2 - 4 + lift, '#a89c7c', 2);
+  const nm = seen ? e.name : '???';
+  drawTextC(nm.length > 11 ? nm.slice(0, 10) + '.' : nm, x + w / 2, y + h - 8 + lift, seen ? CP_INK : '#a89c7c', 1);
+  if (fresh) { ctx.save(); ctx.translate(x + w - 6, y + 4 + lift); ctx.rotate(0.3); rr(-9, -4, 18, 8, 2, '#e8302a'); drawTextC('NEW', 0, -2, '#ffffff', 1); ctx.restore(); }
+  if (sel) cpPenRing(x, y, w, h);
+  if (hov && !sel) { ctx.save(); ctx.globalAlpha = 0.18; rr(x - 1, y - 1 + lift, w + 2, h + 2, 3, '#ffd870'); ctx.restore(); }
+  hit(x, y, w, h, { id: 'cpc' + e.key, cursor: true, cb: () => { onSel(e); sfx.click(2); } });
+}
+function cpBountyRow(e, x, y) {
+  if (!cpSeen(e)) { drawText('LOG IT TO EARN +' + indexBounty(e.key) + ' COOKIES', x, y, CP_PENCIL, 1); return; }
+  if (cpFresh(e)) {
+    button(x, y - 3, 110, 16, 'CLAIM +' + indexBounty(e.key) + ' CK', '#c8302a', '#7a1a14', () => cpClaim([e]), { id: 'cpclaim' + e.key, tip: 'FIELD BOUNTY|Cash this entry in for cookies' });
+  } else {
+    const st = G.cp.stamp[e.key];
+    const k = st === undefined ? 1 : clamp(st / 0.25, 0, 1);
+    const sc = 1 + (1 - k) * 1.2;
+    ctx.save(); ctx.translate(x + 40, y + 3); ctx.scale(sc, sc); ctx.translate(-(x + 40), -(y + 3));
+    cpRubber(x + 40, y + 3, 'LOGGED  +' + indexBounty(e.key), '#2a7a3a', -0.12, 0.85 * k + 0.1);
+    ctx.restore();
+  }
+}
+// ---- CROCS + BOSSES: a grid of photos on the left, the full file on the right ----
+function cpFilePages(tab) {
+  const cp = G.cp, list = cpEntries(tab);
+  if (!cp.sel[tab]) cp.sel[tab] = (list.find(cpSeen) || list[0]).key;
+  const cur = list.find(e => e.key === cp.sel[tab]) || list[0];
+  const got = list.filter(cpSeen).length;
+  cpTitle(CPL, tab === 'mut' ? 'CROC VARIANTS' : 'BOSS FILES', got + '/' + list.length + ' LOGGED');
+  const cols = 3, cw = 64, chh = tab === 'mut' ? 44 : 36, gx = CPL.x + 9, gy = CPL.y + 28, dy = chh + 4;
+  list.forEach((e, i) => {
+    const x = gx + (i % cols) * (cw + 4), y = gy + Math.floor(i / cols) * dy;
+    cpCell(e, x, y, cw, chh, i, en => { if (en.key !== cp.sel[tab]) cpTurn(() => { cp.sel[tab] = en.key; }, 1); }, e.key === cp.sel[tab], (ax, ay, aw, ah) => {
+      rect(ax, ay, aw, ah, tab === 'mut' ? mixHex('#1e3a4a', MUTATIONS[e.mut].col, 0.25) : '#3a1a1a');
+      ctx.save(); ctx.globalAlpha = 0.25; rect(ax, ay + ah * 0.62, aw, ah * 0.38, '#0a1418'); ctx.restore();
+      const cs = CROC_STYLES[e.boss];
+      ctx.save(); ctx.translate(ax + aw / 2 - 16, ay + ah / 2 - 12); ctx.scale(1.45, 1.45);
+      drawMiniGator(0, 0, tab === 'mut' ? 'big' : 'boss', e.mut || null, cs ? { a: cs.a, b: cs.b } : null);
+      ctx.restore();
+    });
+  });
+  // ---- right page: the file ----
+  const R = CPR, seen = cpSeen(cur);
+  const tierLbl = tab === 'boss' ? 'BOSS' : MUT_TIER_NAME[cur.tier], tierCol = tab === 'boss' ? '#c8302a' : ['#5a7a6a', '#2a8aa8', '#7a4ad0', '#d8702a', '#e0306a'][cur.tier] || '#5a7a6a';
+  drawTextSh(seen ? cur.name : '???', R.x + 14, R.y + 7, CP_INK, 2, '#d8c8a0');
+  rr(R.x + R.w - 14 - textW(tierLbl, 1) - 8, R.y + 8, textW(tierLbl, 1) + 8, 11, 3, tierCol);
+  drawText(tierLbl, R.x + R.w - 10 - textW(tierLbl, 1) - 8, R.y + 11, '#ffffff', 1);
+  cpPhoto(R.x + 14, R.y + 27, 188, 94, -0.015, (px, py, pw, phh) => cpCroc(cur, px, py, pw, phh, seen));
+  let y = R.y + 140;
+  if (seen) {
+    if (tab === 'mut') {
+      const ab = MUT_ABIL[cur.mut] || { name: cur.abil, desc: cur.desc || '' };
+      drawText('ABILITY:', R.x + 14, y, CP_PENCIL, 1); drawText(ab.name, R.x + 60, y, tierCol, 1); y += 10;
+      y = drawSmallWrapped(ab.desc, R.x + 14, y, R.w - 28, CP_INK) + 3;
+    } else {
+      drawText('BOSS RULE:', R.x + 14, y, CP_PENCIL, 1); y += 10;
+      y = drawSmallWrapped(cur.desc, R.x + 14, y, R.w - 28, CP_INK) + 3;
+    }
+    if (cur.flav) y = drawSmallWrapped("'" + cur.flav + "'", R.x + 14, y + 2, R.w - 28, '#6a5a8a') + 3;
+    if (tab === 'mut') { const mu = MUTATIONS[cur.mut]; if (mu && mu.sizeMul) drawText('SIZE: ' + (mu.sizeMul > 1 ? 'COLOSSAL' : 'POCKET-SIZED'), R.x + 14, y + 2, CP_PENCIL, 1); }
+  } else {
+    y = drawSmallWrapped(tab === 'mut' ? 'NOT MET YET. VARIANTS WEAR A GEM ABOVE THEIR HEAD ON THE TRAIL MAP.' : 'NOT MET YET. BOSSES WAIT AT THE END OF EVERY ANTE.', R.x + 14, y, R.w - 28, CP_PENCIL) + 4;
+  }
+  cpBountyRow(cur, R.x + 14, R.y + R.h - 20);
+  drawTextC('- ' + (list.indexOf(cur) + 1) + ' -', R.x + R.w / 2 + 40, R.y + R.h - 10, CP_PENCIL, 1);
+}
+// ---- BADGES: a postcard album across both pages ----
+function cpPostcard(e, x, y, w, h, rot) {
+  const def = e.charm, art = BADGE_ART[def.id] || BADGE_ART_DEFAULT, rc = RAR_COL[def.rar || 0];
+  ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(rot); ctx.translate(-(x + w / 2), -(y + h / 2));
+  rr(x + 1, y + 2, w, h, 2, '#00000038');
+  rr(x, y, w, h, 2, '#c8b890'); rr(x + 1, y + 1, w - 2, h - 2, 2, '#fbf4e2');
+  // the picture: the medal on a sunburst in its own enamel colour, over a glade
+  const ph = h - 12;
+  ctx.save(); ctx.beginPath(); ctx.rect(x + 3, y + 3, w - 6, ph); ctx.clip();
+  rect(x + 3, y + 3, w - 6, ph, mixHex(art.f, '#000000', 0.2));
+  ctx.save(); ctx.globalAlpha = 0.22; ctx.fillStyle = '#ffffff'; const cx2 = x + w / 2, cy2 = y + 3 + ph / 2;
+  for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2 + 0.2; ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(cx2 + Math.cos(a - 0.12) * 60, cy2 + Math.sin(a - 0.12) * 60); ctx.lineTo(cx2 + Math.cos(a + 0.12) * 60, cy2 + Math.sin(a + 0.12) * 60); ctx.fill(); }
+  ctx.restore();
+  for (let t2 = 0; t2 < 5; t2++) { const tx = x + 4 + t2 * 14, th = 5 + (t2 * 5) % 5; rect(tx, y + 3 + ph - th, 2, th, '#1a2a20'); rr(tx - 3, y + ph - th, 8, 4, 2, '#1a2a20'); }
+  const bs = (ph + 6) / 42;
+  ctx.drawImage(badgeCanvas(def.id, def.rar || 0, null, false, 2), cx2 - 16 * bs, y + 2, 32 * bs, 42 * bs);
+  ctx.restore();
+  // a little stamp and its postmark in the corner
+  rr(x + w - 13, y + 4, 9, 11, 1, '#fbf4e2'); rr(x + w - 12, y + 5, 7, 9, 1, rc);
+  ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = '#2a2a5a'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.arc(x + w - 14, y + 14, 4, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  // the caption strip
+  const nm = def.name.length <= 10 ? def.name : fitLines(def.name, w - 6)[0], nw = textW(nm, 1);
+  if (nw > w - 6) { ctx.save(); ctx.translate(x + w / 2, y + h - 9); ctx.scale((w - 6) / nw, 1); drawTextC(nm, 0, 0, CP_INK, 1); ctx.restore(); }
+  else drawTextC(nm, x + w / 2, y + h - 9, CP_INK, 1);
+  rect(x + 2, y + h - 2, w - 4, 1, rc);
+  ctx.restore();
+}
+function cpAlbum() {
+  const cp = G.cp, list = cpEntries('charm');
+  const got = list.filter(cpSeen).length, pages = Math.ceil(list.length / (CP_PER * 2));
+  cp.page = clamp(cp.page, 0, pages - 1);
+  cpTitle(CPL, 'BADGE POSTCARDS', got + '/' + list.length);
+  drawText('SPREAD ' + (cp.page + 1) + ' OF ' + pages, CPR.x + 14, CPR.y + 11, CP_PENCIL, 1);
+  drawText(['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHICAL'][(list[cp.page * CP_PER * 2] || list[0]).tier] + ' +', CPR.x + CPR.w - 12 - textW('LEGENDARY +', 1), CPR.y + 11, CP_PENCIL, 1);
+  const cw = 64, chh = 42;
+  [CPL, CPR].forEach((P, side) => {
+    for (let j = 0; j < CP_PER; j++) {
+      const idx = cp.page * CP_PER * 2 + side * CP_PER + j, e = list[idx];
+      if (!e) break;
+      const x = P.x + 7 + (j % 3) * (cw + 5), y = P.y + 26 + Math.floor(j / 3) * (chh + 4);
+      const rot = (hash2(idx, 5) - 0.5) * 0.08;
+      const hov = mx >= x && mx < x + cw && my >= y && my < y + chh;
+      if (cpSeen(e)) {
+        ctx.save(); if (hov) { ctx.translate(0, -2); }
+        cpPostcard(e, x, y, cw, chh, rot);
+        ctx.restore();
+        if (cpFresh(e)) { ctx.save(); ctx.translate(x + 6, y + 4); ctx.rotate(-0.3); rr(-9, -4, 18, 8, 2, '#e8302a'); drawTextC('NEW', 0, -2, '#ffffff', 1); ctx.restore(); }
+        hit(x, y, cw, chh, { id: 'cpp' + e.key, cursor: true, tip: e.name + '|' + RAR_NAME[e.tier] + '|CLICK TO PICK IT UP', cb: () => { cp.zoom = { e, t: 0, flip: 0, want: 0 }; sfx.click(2); } });
+      } else {
+        ctx.save(); ctx.strokeStyle = '#b8a880'; ctx.setLineDash([2, 2]); ctx.lineWidth = 0.8; ctx.strokeRect(x + 0.5, y + 0.5, cw - 1, chh - 1); ctx.setLineDash([]); ctx.restore();
+        drawTextC('?', x + cw / 2, y + 10, '#c8b890', 2);
+        drawTextC('NOT FOUND', x + cw / 2, y + 28, '#b8a880', 1);
+        hit(x, y, cw, chh, { id: 'cpp' + e.key, tip: '??? UNDISCOVERED|Own this badge in a run to log it|Worth +' + indexBounty(e.key) + ' COOKIES' });
+      }
+    }
+  });
+  // page corners: dog-eared arrows
+  const corner = (side, en, cb) => {
+    const x = side ? CPR.x + CPR.w - 26 : CPL.x + 4, y = CPL.y + CPL.h - 20;
+    const hov = en && mx >= x && mx < x + 22 && my >= y && my < y + 18;
+    ctx.save(); ctx.globalAlpha = en ? 1 : 0.3;
+    rr(x, y, 22, 16, 3, hov ? '#e8c060' : '#d8c8a0'); drawTextC(side ? '>' : '<', x + 11, y + 5, CP_INK, 1);
+    ctx.restore();
+    if (en) hit(x, y, 22, 16, { id: 'cpcorner' + side, cursor: true, cb });
+  };
+  corner(0, cp.page > 0, () => cpTurn(() => { cp.page--; }, -1));
+  corner(1, cp.page < pages - 1, () => cpTurn(() => { cp.page++; }, 1));
+  drawTextC('- ' + (cp.page * 2 + 1) + ' -', CPL.x + CPL.w / 2, CPL.y + CPL.h - 10, CP_PENCIL, 1);
+  drawTextC('- ' + (cp.page * 2 + 2) + ' -', CPR.x + CPR.w / 2, CPR.y + CPR.h - 10, CP_PENCIL, 1);
+}
+// the postcard held up close: flips between picture and message
+function cpZoom(dt) {
+  const cp = G.cp, z = cp.zoom; if (!z) return;
+  z.t += dt;
+  z.flip += (z.want - z.flip) * Math.min(1, dt * 9);
+  const k = easeOut(clamp(z.t / 0.25, 0, 1));
+  ctx.save(); ctx.globalAlpha = 0.65 * k; rect(0, 0, W, H, '#0a0806'); ctx.restore();
+  hit(0, 0, W, H, { id: 'cpzoomclose', cb: () => { cp.zoom = null; } });
+  const def = z.e.charm, art = BADGE_ART[def.id] || BADGE_ART_DEFAULT, e = z.e;
+  const cw = 246, chh = 160, cx = W / 2, cy = H / 2 - 4;
+  const sx = Math.abs(Math.cos(z.flip * Math.PI)), back = z.flip > 0.5;
+  ctx.save(); ctx.translate(cx, cy); ctx.scale((0.6 + 0.4 * k) * Math.max(0.02, sx), 0.6 + 0.4 * k); ctx.rotate(-0.02);
+  const x = -cw / 2, y = -chh / 2;
+  rr(x + 4, y + 6, cw, chh, 4, '#00000066');
+  rr(x, y, cw, chh, 4, '#c8b890'); rr(x + 2, y + 2, cw - 4, chh - 4, 3, '#fbf4e2');
+  if (!back) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x + 7, y + 7, cw - 14, chh - 14); ctx.clip();
+    const f = art.f;
+    for (let i = 0; i < 12; i++) rect(x + 7, y + 7 + i * 13, cw - 14, 14, mixHex(mixHex(f, '#ffffff', 0.3), mixHex(f, '#000000', 0.5), i / 11));
+    ctx.save(); ctx.globalAlpha = 0.2; ctx.fillStyle = '#ffffff'; for (let s = 0; s < 14; s++) { const a = s / 14 * Math.PI * 2 + tNow * 0.1; ctx.beginPath(); ctx.moveTo(x + 76, y + 80); ctx.lineTo(x + 76 + Math.cos(a - 0.08) * 220, y + 80 + Math.sin(a - 0.08) * 220); ctx.lineTo(x + 76 + Math.cos(a + 0.08) * 220, y + 80 + Math.sin(a + 0.08) * 220); ctx.fill(); } ctx.restore();
+    // cypress silhouettes along the bottom of the scene
+    for (let t2 = 0; t2 < 9; t2++) { const tx = x + 10 + t2 * 28, th = 18 + (t2 * 13) % 16; rect(tx, y + chh - 8 - th, 3, th, '#1a2a20'); rr(tx - 7, y + chh - 12 - th, 17, 8, 3, '#1a2a20'); }
+    rect(x + 7, y + chh - 16, cw - 14, 9, '#16303a');
+    ctx.drawImage(badgeCanvas(def.id, def.rar || 0, def.ed, false, 3), x + 18, y + 14, 32 * 3.3, 42 * 3.3);
+    ctx.restore();
+    drawTextSh('GREETINGS FROM THE', x + 126, y + 16, '#fff4d0', 1, '#00000088');
+    drawTextSh('EVERGLADES', x + 126, y + 26, '#ffe070', 2, '#00000088');
+    const nl = fitLines(def.name, 108);
+    nl.slice(0, 2).forEach((ln, i) => drawTextSh(ln, x + 126, y + 54 + i * 14, '#ffffff', 2, '#00000099'));
+    rr(x + 126, y + 86, textW(RAR_NAME[def.rar || 0], 1) + 10, 12, 3, RAR_COL[def.rar || 0]);
+    drawText(RAR_NAME[def.rar || 0], x + 131, y + 89, '#ffffff', 1);
+    drawTextSh('CLICK TO TURN OVER', x + 126, y + chh - 24, '#e8f0f4', 1, '#00000099');
+  } else {
+    rect(x + cw / 2, y + 14, 1, chh - 28, '#c8b890');
+    drawText('BADGE NO.' + (CHARMS.indexOf(def) + 1), x + 12, y + 12, CP_PENCIL, 1);
+    let yy = y + 26;
+    yy = drawSmallWrapped(def.desc, x + 12, yy, cw / 2 - 22, CP_INK) + 6;
+    if (def.flav) yy = drawSmallWrapped("'" + def.flav + "'", x + 12, yy, cw / 2 - 22, '#6a5a8a') + 6;
+    drawText('SHOP PRICE $' + def.cost, x + 12, y + chh - 20, CP_PENCIL, 1);
+    // stamp with the medal, cancelled by an EVERGLADES NP postmark
+    const sx2 = x + cw - 48, sy2 = y + 12;
+    rr(sx2 - 2, sy2 - 2, 40, 48, 1, '#e8dcc0');
+    for (let k2 = 0; k2 < 10; k2++) { fillCircle(sx2 - 2 + k2 * 4.4, sy2 - 2, 1, '#fbf4e2'); fillCircle(sx2 - 2 + k2 * 4.4, sy2 + 46, 1, '#fbf4e2'); }
+    rr(sx2, sy2, 36, 44, 1, mixHex(art.f, '#ffffff', 0.25));
+    ctx.drawImage(badgeCanvas(def.id, def.rar || 0, def.ed, false, 2), sx2 + 3, sy2 + 1, 30, 40);
+    ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = '#2a2a5a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx2 - 4, sy2 + 34, 13, 0, Math.PI * 2); ctx.stroke();
+    for (let k2 = 0; k2 < 4; k2++) { ctx.beginPath(); ctx.moveTo(sx2 + 10, sy2 + 26 + k2 * 5); for (let q = 0; q < 30; q += 3) ctx.lineTo(sx2 + 10 + q, sy2 + 26 + k2 * 5 + Math.sin(q * 0.5) * 1.5); ctx.stroke(); }
+    ctx.restore();
+    drawTextC('EVERGLADES', sx2 - 4, sy2 + 32, '#2a2a5a', 1);
+    ['TO: THE BRAVE RANGER', 'RANGER STATION', 'EVERGLADES N.P.'].forEach((ln, i) => { drawText(ln, x + cw / 2 + 10, y + 78 + i * 16, CP_INK, 1); rect(x + cw / 2 + 10, y + 86 + i * 16, cw / 2 - 22, 1, '#b8a880'); });
+    if (cpFresh(e)) button(x + cw / 2 + 10, y + chh - 28, 100, 16, 'CLAIM +' + indexBounty(e.key) + ' CK', '#c8302a', '#7a1a14', () => cpClaim([e]), { id: 'cpzclaim' });
+    else cpRubber(x + cw - 50, y + chh - 20, 'LOGGED', '#2a7a3a', -0.15);
+  }
+  ctx.restore();
+  hit(cx - cw / 2, cy - chh / 2, cw, chh, { id: 'cpzoomflip', cursor: true, cb: () => { z.want = z.want ? 0 : 1; sfx.whoosh(); } });
+  if (back && cpFresh(e)) { /* the claim button above takes priority */ }
+}
+// ---- TEETH: a specimen drawer and a bell jar ----
+function cpTeeth() {
+  const cp = G.cp, list = cpEntries('tooth');
+  if (!cp.sel.tooth) cp.sel.tooth = (list.find(cpSeen) || list[0]).key;
+  const cur = list.find(e => e.key === cp.sel.tooth) || list[0];
+  cpTitle(CPL, 'SPECIMEN DRAWER', list.filter(cpSeen).length + '/' + list.length);
+  const cols = 4, cw = 48, chh = 36;
+  // the drawer: a wooden tray of velvet slots
+  rr(CPL.x + 6, CPL.y + 26, CPL.w - 12, 5 * (chh + 3) + 6, 3, '#6a4222');
+  rr(CPL.x + 8, CPL.y + 28, CPL.w - 16, 5 * (chh + 3) + 2, 2, '#4a2a16');
+  list.forEach((e, i) => {
+    const x = CPL.x + 11 + (i % cols) * (cw + 3), y = CPL.y + 31 + Math.floor(i / cols) * (chh + 3);
+    const seen = cpSeen(e), sel = e.key === cp.sel.tooth, hov = mx >= x && mx < x + cw && my >= y && my < y + chh;
+    rr(x, y, cw, chh, 2, sel ? '#8a2a3a' : '#5a1a26'); rr(x + 1, y + 1, cw - 2, chh - 2, 2, hov ? '#7a2a36' : '#6a1e2c');
+    if (seen) drawTooth(x + cw / 2 - 7, y + 4, 14, 20, true, e.tooth, {});
+    else drawTextC('?', x + cw / 2, y + 8, '#9a5a66', 2);
+    drawTextC(seen ? e.name.split(' ')[0].slice(0, 8) : '???', x + cw / 2, y + chh - 8, seen ? '#f4dca8' : '#9a5a66', 1);
+    if (cpFresh(e)) rect(x + cw - 5, y + 2, 3, 3, C.gold);
+    if (sel) { ctx.save(); ctx.globalAlpha = 0.4 + Math.sin(tNow * 5) * 0.2; ctx.strokeStyle = '#ffd870'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y + 0.5, cw - 1, chh - 1); ctx.restore(); }
+    hit(x, y, cw, chh, { id: 'cpt' + e.key, cursor: true, cb: () => { if (e.key !== cp.sel.tooth) cpTurn(() => { cp.sel.tooth = e.key; }, 1); sfx.click(2); } });
+  });
+  const R = CPR, seen = cpSeen(cur), d = TOOTH_DEFS[cur.tooth];
+  drawTextSh(seen ? cur.name : '???', R.x + 14, R.y + 7, CP_INK, 2, '#d8c8a0');
+  // bell jar on a little wooden stand
+  const jx = R.x + R.w / 2, jy = R.y + 34;
+  rr(jx - 44, jy + 90, 88, 8, 2, '#5a3a1e'); rr(jx - 40, jy + 86, 80, 6, 2, '#7a5230');
+  ctx.save(); ctx.globalAlpha = 0.5; fillCircle(jx, jy + 50, 34, '#ffe8a0'); ctx.restore();
+  if (seen) { const bob = Math.round(Math.sin(tNow * 1.5) * 2); drawTooth(jx - 18, jy + 28 + bob, 36, 50, true, cur.tooth, {}); }
+  else drawTextC('?', jx, jy + 40, '#a89c7c', 4);
+  ctx.save(); ctx.globalAlpha = 0.28; ctx.fillStyle = '#dff4ff'; ctx.beginPath(); ctx.moveTo(jx - 36, jy + 86); ctx.lineTo(jx - 36, jy + 24); ctx.quadraticCurveTo(jx - 36, jy, jx, jy); ctx.quadraticCurveTo(jx + 36, jy, jx + 36, jy + 24); ctx.lineTo(jx + 36, jy + 86); ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.globalAlpha = 0.6; ctx.fillStyle = '#ffffff'; ctx.fillRect(jx - 30, jy + 20, 3, 50); ctx.restore();
+  rr(jx - 5, jy - 4, 10, 6, 2, '#c8a060');
+  let y = R.y + 140;
+  if (seen) {
+    const rarIdx = d.rar || 0;
+    rr(R.x + 14, y - 2, textW(RAR_NAME[rarIdx], 1) + 8, 11, 3, RAR_COL[rarIdx]); drawText(RAR_NAME[rarIdx], R.x + 18, y + 1, '#ffffff', 1);
+    drawText('BASE VALUE ' + d.base, R.x + 26 + textW(RAR_NAME[rarIdx], 1), y + 1, CP_PENCIL, 1); y += 14;
+    y = drawSmallWrapped(d.desc, R.x + 14, y, R.w - 28, CP_INK) + 3;
+    if (d.flav) y = drawSmallWrapped("'" + d.flav + "'", R.x + 14, y + 2, R.w - 28, '#6a5a8a');
+  } else drawSmallWrapped('NOT COLLECTED YET. ADD THIS TOOTH TO YOUR DECK TO LOG IT.', R.x + 14, y, R.w - 28, CP_PENCIL);
+  cpBountyRow(cur, R.x + 14, R.y + R.h - 20);
+}
+// ---- the page-turn overlay ----
+function cpTurnFx(dt) {
+  const cp = G.cp, tr = cp.turn; if (!tr) return;
+  tr.t += dt / 0.42;
+  if (tr.t >= 0.5 && !tr.done) { tr.done = true; tr.fn(); }
+  if (tr.t >= 1) { cp.turn = null; return; }
+  const th = tr.t * Math.PI, c = Math.cos(th), spine = 240, pw = 216;
+  const fwd = tr.dir > 0;
+  const x0 = spine, span = c * pw * (fwd ? 1 : -1);
+  const left = Math.min(x0, x0 + span), w = Math.abs(span);
+  if (w < 1) return;
+  const shade = 1 - Math.abs(c);
+  ctx.save();
+  ctx.globalAlpha = 0.25 * shade; rect(span > 0 ? left + w : left - 10, CPL.y, 10, CPL.h, '#000'); ctx.globalAlpha = 1;
+  rr(left, CPL.y - 2 * shade, w, CPL.h + 4 * shade, 3, CP_PAPER);
+  ctx.globalAlpha = 0.15 + shade * 0.3; rect(left, CPL.y - 2 * shade, w, CPL.h + 4 * shade, '#8a6a3a');
+  ctx.globalAlpha = 0.16; for (let y = CPL.y + 24; y < CPL.y + CPL.h - 6; y += 10) rect(left + 4, y, Math.max(0, w - 8), 1, '#6a8ab0');
+  ctx.restore();
+}
+function drawIndex(dt) {
+  dt = dt || 0.016;
+  if (!G.cp) cpEnter();
+  const cp = G.cp;
+  cp.t += dt;
+  Object.keys(cp.stamp).forEach(k => cp.stamp[k] += dt);
+  paintCached('cpdesk', 0, 0, W, H, cpDeskStatic);
+  // ---- bookmark tabs across the top edge ----
+  const tabW = 62;
+  const bx0 = 10;
+  const back = mx >= bx0 && mx < bx0 + 50 && my >= 4 && my < 22;
+  rr(bx0, back ? 3 : 5, 50, 20, 3, back ? '#6a7a82' : '#4a5a62'); rr(bx0 + 1, (back ? 3 : 5) + 1, 48, 3, 2, '#8a9aa2');
+  drawTextC('< BACK', bx0 + 25, back ? 9 : 11, '#f4f0e0', 1);
+  hit(bx0, 3, 50, 20, { id: 'cpback', cursor: true, cb: () => { G.state = 'menu'; G.cp = null; sfx.click(2); } });
+  CP_TABS.forEach((tb, i) => {
+    const x = 66 + i * (tabW + 4), on = cp.tab === tb.id;
+    const list = cpEntries(tb.id), fresh = list.some(cpFresh);
+    const hov = mx >= x && mx < x + tabW && my >= 2 && my < 24;
+    const ty = on ? 2 : hov ? 5 : 7;
+    rr(x, ty, tabW, 26 - ty, 3, mixHex(tb.col, '#000000', 0.35)); rr(x + 1, ty + 1, tabW - 2, 24 - ty, 3, tb.col);
+    rect(x + 3, ty + 2, tabW - 6, 2, mixHex(tb.col, '#ffffff', 0.35));
+    drawTextC(tb.name + ' ' + list.filter(cpSeen).length, x + tabW / 2, ty + 5, '#ffffff', 1);
+    if (fresh) { ctx.save(); ctx.globalAlpha = 0.6 + Math.sin(tNow * 6) * 0.4; fillCircle(x + tabW - 4, ty + 3, 3, '#ffe070'); ctx.restore(); }
+    hit(x, 2, tabW, 22, { id: 'cptab' + tb.id, cursor: true, cb: () => { if (cp.tab !== tb.id) { cpTurn(() => { cp.tab = tb.id; cp.page = 0; cp.zoom = null; }, i > CP_TABS.findIndex(q => q.id === cp.tab) ? 1 : -1); } } });
+  });
+  // ---- cookies + claim-everything stamp ----
+  const owed = indexEntries().filter(cpFresh), owedCk = owed.reduce((a, e) => a + indexBounty(e.key), 0);
+  rr(W - 146, 4, 64, 16, 3, '#1e2a18'); ICONS.cookie(W - 143, 6); drawText(fmt(meta.rp || 0), W - 128, 9, C.gold, 1);
+  if (owed.length) button(W - 78, 3, 72, 18, 'CLAIM ' + owedCk, '#c8302a', '#7a1a14', () => cpClaim(owed), { id: 'cpclaimall', tip: 'FIELD BOUNTY|' + owed.length + ' new entries to cash in|Fill the whole book for +60 more' });
+  else drawTextC(indexEntries().every(cpSeen) ? 'COMPLETE!' : 'ALL CLAIMED', W - 42, 9, '#9ab87a', 1);
+  // ---- the open book ----
+  if (cp.tab === 'mut' || cp.tab === 'boss') cpFilePages(cp.tab);
+  else if (cp.tab === 'charm') cpAlbum();
+  else cpTeeth();
+  cpTurnFx(dt);
+  // the book swings open when you first pull it off the shelf
+  if (cp.t < 0.5) {
+    const k = easeOut(cp.t / 0.5), w = Math.round((1 - k) * 232);
+    if (w > 0) { plasticBox(240 - 4, CPB.y, w + 4, CPB.h, 6, ['#0c1a10', '#1a3622', '#24462c', '#2e5a38', '#3c7048'], { seed: 88, noShine: 1 }); if (w > 90) drawTextCSh('CROCPEDIA', 240 + w / 2, CPB.y + 100, '#f2c848', 2, '#0c1a10'); }
+  }
+  cpZoom(dt);
 }
 
 // --------------------------------------------------- SKINS (cosmetics) -----
@@ -11938,7 +12295,7 @@ function drawModChip(x, y, m) {
 }
 
 // ------------------------------------------------------------ swamp map ---
-function drawMiniGator(x, y, type, mut) {
+function drawMiniGator(x, y, type, mut, tint) {
   const cols = { small: ['#6cbe4c', '#4a9636'], big: ['#4e8f3d', '#2f6626'], gold: ['#d8b842', '#a8882a'], boss: ['#8a3030', '#5e1c1c'] };
   // in the OCEAN the map shows SHARKS, in the swamp GATORS - never mixed up
   const sea = !!G.summer;
@@ -11946,6 +12303,7 @@ function drawMiniGator(x, y, type, mut) {
   let [a, b] = (sea ? seaCols : cols)[type] || (sea ? seaCols : cols).small;
   const mu = mut && MUTATIONS[mut];
   if (mu && mu.tint) { a = mu.tint.a || a; b = mu.tint.b || b; } // variant hide colour
+  if (tint) { a = tint.a; b = tint.b; }
   let sclera = '#f8f4dc', pupil = '#1b1408';
   if (mut === 'albino') pupil = '#c81818';
   if (mut === 'alien') { sclera = '#0c0c14'; pupil = '#9cff8c'; }
@@ -13894,7 +14252,7 @@ function frame(ms) {
     case 'shop': drawShop(); break;
     case 'bosscut': drawBossCut(dt); break;
     case 'bossintro': drawBossIntro(); break;
-    case 'index': drawIndex(); break;
+    case 'index': drawIndex(dt); break;
     case 'gameover': drawGameOver(); break;
     case 'win': drawWin(); break;
   }
