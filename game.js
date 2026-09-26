@@ -1152,7 +1152,9 @@ function bobFace(p, expr, phase, look, opt) {
   else if (expr === 'sleepy') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, 2, i ? 0.25 : -0.25); }); }
   else if (expr === 'smug') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, i ? -2 : 1, 0); }); }
   else if (expr === 'mad' || expr === 'grit') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, 3, i ? -0.6 : 0.6); }); }
-  else if (expr === 'wow' || expr === 'shocked' || expr === 'scared' || expr === 'panic') { [-EX, EX].forEach(ox => bead(ox, 3)); }
+  // surprise and fear never grow the eyes - the brows jump instead
+  else if (expr === 'wow' || expr === 'shocked') { [-EX, EX].forEach(ox => { bead(ox, 2); brow(ox, -3, 0); }); }
+  else if (expr === 'scared' || expr === 'panic') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, -2, i ? 0.5 : -0.5); }); }
   else if (expr === 'worry' || expr === 'sad') { [-EX, EX].forEach((ox, i) => { bead(ox, 2); brow(ox, -1, i ? 0.5 : -0.5); }); }
   else { [-EX, EX].forEach(ox => bead(ox, 2)); }
 
@@ -1165,7 +1167,16 @@ function bobFace(p, expr, phase, look, opt) {
     const zz = (tNow * 0.6 + phase) % 3.4;
     if (zz < 2.2) { ctx.save(); ctx.globalAlpha = 0.85 - zz * 0.34; drawText('z', EX + 6 + zz * 2, EY - 8 - zz * 5, '#cfe8f0', 1); ctx.restore(); }
   }
-  if (expr === 'love') { [-EX, EX].forEach(ox => { rect(ox - 2, EY - 2, 2, 2, '#e2486a'); rect(ox + 1, EY - 2, 2, 2, '#e2486a'); rect(ox - 2, EY, 5, 1, '#e2486a'); rect(ox - 1, EY + 1, 3, 1, '#e2486a'); }); }
+  if (expr === 'love') {   // a little heart floats up beside the head; the eyes stay beads
+    const hf = (tNow * 0.7 + phase) % 2;
+    if (hf < 1.4) {
+      ctx.save(); ctx.globalAlpha = 1 - hf / 1.4;
+      const hx = EX + 7 + Math.round(Math.sin(hf * 5) * 1), hy = EY - 9 - Math.round(hf * 6);
+      rect(hx, hy, 2, 2, '#e2486a'); rect(hx + 3, hy, 2, 2, '#e2486a'); rect(hx, hy + 2, 5, 1, '#e2486a'); rect(hx + 1, hy + 3, 3, 1, '#e2486a'); rect(hx + 2, hy + 4, 1, 1, '#e2486a');
+      rect(hx, hy, 1, 1, '#ffb0c4');
+      ctx.restore();
+    }
+  }
 
   // ---- mouths: one or two strokes ----
   const MY = opt.topeyes ? 3 : 5, MX = shake;
@@ -2880,7 +2891,7 @@ const RANGERS = {
   },
   medic: {
     name: 'SWAMP MEDIC', animal: 'THE OPOSSUM', col: '#7fd4e8', ach: 'boss',
-    lines: ['+1 BITE EVERY ROUND', 'STARTS HOLDING A FREE NOVOCAINE'],
+    lines: ['+1 BITE EVERY ROUND', 'STARTS HOLDING FREE MELLOW MINTS'],
     flav: 'Prescribes more biting.',
   },
   trader: {
@@ -3566,7 +3577,7 @@ function boothBuy(it) {
 function boothItemArt(it, cx, cy) {
   if (it.kind === 'cos') { cosIcon(it.cat, it.k, cx, cy, it.cat === 'hat' || it.cat === 'shoes' ? 2 : 1.6); return; }
   ctx.save(); ctx.translate(cx - 12, cy - 12); ctx.scale(2, 2);
-  if (it.kind === 'card') (ICONS[it.def.ico] || ICONS.star)(0, 0);
+  if (it.kind === 'card') { ctx.restore(); drawItemArt(it.def, cx, cy + 2, 1.1); return; }
   else if (it.kind === 'perk') (ICONS[PERKS[it.k].ico] || ICONS.star)(0, 0);
   else if (it.kind === 'tin') { rr(1, 2, 10, 9, 2, '#1a2a4a'); rr(2, 3, 8, 7, 2, '#3a6ac8'); rect(2, 3, 8, 2, '#c8a040'); ICONS.cookie(0, -2); }
   ctx.restore();
@@ -4765,7 +4776,7 @@ function buyCosmetic(c) {
 function buyPack(p) {
   if (!p || p.sold) return;
   if (G.money < p.price) { sfx.error(); float(mx, my - 10, 'NOT ENOUGH $', C.red, 1); return; }
-  if (p.kind === 'tool' && G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
+  if (p.kind === 'tool' && G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'ITEM SLOTS FULL', C.red, 1); return; }
   G.money -= p.price;
   p.sold = true;
   quest('buy4', 1);
@@ -4779,11 +4790,11 @@ function buyItem(it) {
     if (G.charms.length >= 5) { sfx.error(); float(mx, my - 10, 'CHARM SLOTS FULL', C.red, 1); return; }
     G.charms.push(it.def);
     indexSee('charm_' + it.def.id, true);
-    flyers.push({ x: mx, y: my, tx: 120 + (G.charms.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#3e8cd0' });
+    flyers.push({ x: mx, y: my, tx: 120 + (G.charms.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: '#3e8cd0', def: it.def });
   } else if (it.kind === 'cons' || it.kind === 'tool') {
-    if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
+    if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'ITEM SLOTS FULL', C.red, 1); return; }
     G.cons.push(it.def);
-    flyers.push({ x: mx, y: my, tx: 385 + (G.cons.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: it.kind === 'tool' ? '#3a9a8a' : '#8a5fd0' });
+    flyers.push({ x: mx, y: my, tx: 385 + (G.cons.length - 1) * 31 + 15, ty: 33, t: 0, ico: it.def.ico, col: it.kind === 'tool' ? '#3a9a8a' : '#8a5fd0', def: it.def });
   } else if (it.kind === 'tooth') {
     G.deck.push(mkTooth(it.type));
     flyers.push({ x: mx, y: my, tx: 57, ty: 218, t: 0, tooth: it.type });
@@ -5013,7 +5024,7 @@ function pickPack(i) {
   if (o.tooth) {
     G.deck.push(mkTooth(o.tooth));
   } else {
-    if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'CARD SLOTS FULL', C.red, 1); return; }
+    if (G.cons.length >= 3) { sfx.error(); float(mx, my - 10, 'ITEM SLOTS FULL', C.red, 1); return; }
     G.cons.push(o.tool);
   }
   o.taken = true;
@@ -5837,56 +5848,1748 @@ const RAR_NAME = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'LEGENDARY', 'MYTHICAL']
 // charms render as park BADGES: a circular emblem with ribbon tails
 // JURASSIC PASS goes full T-REX once the deck holds 5+ amber teeth
 const trexActive = () => G.charms && G.charms.some(c => c.id === 'jurassic') && G.deck && G.deck.filter(x => x.type === 'amber').length >= 5;
+// =================== HI-RES VECTOR ITEM ART (badges + snacks) ===================
+//  Badges and snacks are drawn with smooth canvas paths at the full supersampled
+//  resolution - finer than the logical pixel grid - then cached per item, so a
+//  badge costs one drawImage however much detail it carries.
+//  Working space: 100 units across a badge, centred on (0,0).
+// ================================================================================
+const VTAU = Math.PI * 2;
+const VINK = '#1a0f1e';
+const VTOOTH = '#f3ecd6';
+// ---- path builders (append to the current path) ----
+function vC(x, y, r) { ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, VTAU); }
+function vE(x, y, rx, ry, rot) { rot = rot || 0; ctx.moveTo(x + Math.cos(rot) * rx, y + Math.sin(rot) * rx); ctx.ellipse(x, y, rx, ry, rot, 0, VTAU); }
+function vR(x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function vP(pts) { ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.closePath(); }
+function vS(x, y, n, r1, r2, rot) {
+  for (let i = 0; i < n * 2; i++) {
+    const a = (rot === undefined ? -Math.PI / 2 : rot) + i * Math.PI / n, r = i % 2 ? r2 : r1;
+    if (i) ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); else ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+  }
+  ctx.closePath();
+}
+function vPolyN(x, y, n, r, rot) { for (let i = 0; i < n; i++) { const a = (rot || 0) + i * VTAU / n; if (i) ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); else ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } ctx.closePath(); }
+// run a local-space path builder under a transform (the path keeps the transform)
+function vX(x, y, s, rot, fn) { ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); if (s !== 1) ctx.scale(s, s); fn(); ctx.restore(); }
+// a molar: two cusps on top, two rounded roots, 40 tall and 32 wide at s = 1
+function vTooth(x, y, s, rot) {
+  vX(x, y, s, rot, () => {
+    ctx.moveTo(-14, -11);
+    ctx.bezierCurveTo(-17, -22, -6, -23, 0, -17);
+    ctx.bezierCurveTo(6, -23, 17, -22, 14, -11);
+    ctx.bezierCurveTo(13, -1, 12, 7, 9, 16);
+    ctx.bezierCurveTo(8, 21, 3, 21, 3, 15);
+    ctx.bezierCurveTo(2, 9, -2, 9, -3, 15);
+    ctx.bezierCurveTo(-3, 21, -8, 21, -9, 16);
+    ctx.bezierCurveTo(-12, 7, -13, -1, -14, -11);
+    ctx.closePath();
+  });
+}
+// a canine fang pointing down, 40 tall at s = 1
+function vFang(x, y, s, rot) {
+  vX(x, y, s, rot, () => {
+    ctx.moveTo(-11, -20);
+    ctx.bezierCurveTo(-4, -24, 4, -24, 11, -20);
+    ctx.bezierCurveTo(11, -6, 6, 10, 1, 20);
+    ctx.quadraticCurveTo(0, 22, -1, 20);
+    ctx.bezierCurveTo(-5, 10, -11, -6, -11, -20);
+    ctx.closePath();
+  });
+}
+function vHeart(x, y, s, rot) {
+  vX(x, y, s, rot, () => {
+    ctx.moveTo(0, 18);
+    ctx.bezierCurveTo(-24, 2, -22, -20, -8, -18);
+    ctx.bezierCurveTo(-3, -17, 0, -13, 0, -9);
+    ctx.bezierCurveTo(0, -13, 3, -17, 8, -18);
+    ctx.bezierCurveTo(22, -20, 24, 2, 0, 18);
+    ctx.closePath();
+  });
+}
+function vDrop(x, y, s, rot) {
+  vX(x, y, s, rot, () => {
+    ctx.moveTo(0, -20);
+    ctx.bezierCurveTo(4, -10, 14, 0, 14, 7);
+    ctx.bezierCurveTo(14, 15, 8, 20, 0, 20);
+    ctx.bezierCurveTo(-8, 20, -14, 15, -14, 7);
+    ctx.bezierCurveTo(-14, 0, -4, -10, 0, -20);
+    ctx.closePath();
+  });
+}
+function vBolt(x, y, s, rot) { vX(x, y, s, rot, () => vP([4, -22, -12, 3, -1, 3, -5, 22, 13, -5, 2, -5])); }
+function vGemPath(x, y, s, rot) { vX(x, y, s, rot, () => vP([-10, -12, 10, -12, 18, -3, 0, 18, -18, -3])); }
+function vLeaf(x, y, len, w, rot) {
+  vX(x, y, 1, rot, () => {
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(len * 0.45, -w, len, 0);
+    ctx.quadraticCurveTo(len * 0.45, w, 0, 0);
+    ctx.closePath();
+  });
+}
+// ---- paints ----
+function vlg(col, x0, y0, x1, y1, lt, dk) {
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, mixC(col, '#ffffff', lt === undefined ? 0.5 : lt));
+  g.addColorStop(0.5, col);
+  g.addColorStop(1, mixC(col, '#000000', dk === undefined ? 0.42 : dk));
+  return g;
+}
+// light from the top-left across a box
+function vsh(col, x, y, w, h, lt, dk) { return vlg(col, x, y, x + w, y + h, lt, dk); }
+function vrg(col, x, y, r, lt, dk) {
+  const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.05, x, y, r);
+  g.addColorStop(0, mixC(col, '#ffffff', lt === undefined ? 0.6 : lt));
+  g.addColorStop(0.55, col);
+  g.addColorStop(1, mixC(col, '#000000', dk === undefined ? 0.38 : dk));
+  return g;
+}
+function vmetal(ramp, x0, y0, x1, y1) {   // banded metal: shine, base, shade, bounce
+  const g = ctx.createLinearGradient(x0, y0, x1, y1);
+  g.addColorStop(0, ramp[3]); g.addColorStop(0.22, ramp[4]); g.addColorStop(0.45, ramp[2]);
+  g.addColorStop(0.72, ramp[1]); g.addColorStop(0.9, ramp[2]); g.addColorStop(1, ramp[3]);
+  return g;
+}
+// fill (and ink) a path
+function vf(path, fill, o) {
+  o = o || {};
+  ctx.beginPath(); path();
+  if (fill) { ctx.fillStyle = fill; ctx.fill(o.eo ? 'evenodd' : 'nonzero'); }
+  if (o.lw !== 0) { ctx.lineWidth = o.lw || 2.2; ctx.strokeStyle = o.ink || VINK; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); }
+}
+// stroke only
+function vl(path, col, lw, o) {
+  o = o || {};
+  ctx.beginPath(); path();
+  ctx.lineWidth = lw || 2; ctx.strokeStyle = col; ctx.lineJoin = 'round'; ctx.lineCap = o.cap || 'round';
+  if (o.dash) ctx.setLineDash(o.dash);
+  ctx.stroke();
+  if (o.dash) ctx.setLineDash([]);
+}
+function vline(x0, y0, x1, y1, col, lw) { vl(() => { ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }, col, lw); }
+// glossy highlight
+function vgl(x, y, rx, ry, rot, a) { ctx.save(); ctx.globalAlpha = a === undefined ? 0.55 : a; ctx.fillStyle = '#ffffff'; ctx.beginPath(); vE(x, y, rx, ry, rot || 0); ctx.fill(); ctx.restore(); }
+// four-point twinkle
+function vsp(x, y, r, col, a) {
+  ctx.save(); ctx.globalAlpha = a === undefined ? 1 : a; ctx.fillStyle = col || '#ffffff';
+  ctx.beginPath(); ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r); ctx.fill(); ctx.restore();
+}
+// clip to a path while fn paints
+function vclip(path, fn) { ctx.save(); ctx.beginPath(); path(); ctx.clip(); fn(); ctx.restore(); }
+// a shaded tooth in one call
+function vtoothFill(x, y, s, col, rot) {
+  vf(() => vTooth(x, y, s, rot), vsh(col || VTOOTH, x - 16 * s, y - 20 * s, 32 * s, 40 * s, 0.6, 0.35));
+  vgl(x - 6 * s, y - 11 * s, 4 * s, 2.4 * s, -0.5, 0.75);
+}
+function vfangFill(x, y, s, col, rot) {
+  vf(() => vFang(x, y, s, rot), vsh(col || VTOOTH, x - 11 * s, y - 20 * s, 22 * s, 40 * s, 0.6, 0.35));
+}
+// tiny text in the game's pixel font, at unit scale (sc = font pixel size in units)
+function vtext(s, cx, y, col, sc, ink) {
+  const w = textW(s, 1) * sc;
+  ctx.save(); ctx.translate(cx - w / 2, y); ctx.scale(sc, sc);
+  if (ink) [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]].forEach(([ox, oy]) => drawText(s, ox, oy, ink, 1));
+  drawText(s, 0, 0, col, 1);
+  ctx.restore();
+}
+function vcoin(x, y, r, col) {
+  col = col || '#f2c040';
+  vf(() => vC(x, y, r), vrg(col, x, y, r, 0.55, 0.35));
+  vl(() => vC(x, y, r * 0.72), mixC(col, '#000000', 0.3), Math.max(1, r * 0.12));
+  vgl(x - r * 0.35, y - r * 0.4, r * 0.3, r * 0.16, -0.6, 0.7);
+}
+// ---- shared motifs ----
+function vspiral(x, y, rmax, turns, col, lw) {
+  vl(() => { const n = turns * 40; for (let i = 0; i <= n; i++) { const f = i / n, a = f * turns * VTAU, r = f * rmax; if (i) ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); else ctx.moveTo(x, y); } }, col, lw);
+}
+function vGear(x, y, r, teeth, depth) {
+  depth = depth || r * 0.22;
+  const n = teeth * 4;
+  for (let i = 0; i <= n; i++) {
+    const a = i / n * VTAU, q = i % 4, rr2 = q === 0 || q === 1 ? r : r - depth;
+    const px = x + Math.cos(a) * rr2, py = y + Math.sin(a) * rr2;
+    if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+  }
+  ctx.closePath();
+}
+function vflame(x, y, s, col1, col2) {
+  vf(() => vX(x, y, s, 0, () => { ctx.moveTo(0, 16); ctx.bezierCurveTo(-14, 12, -12, -4, -4, -10); ctx.bezierCurveTo(-4, -4, 0, -2, 1, -6); ctx.bezierCurveTo(2, -12, 0, -18, 4, -24); ctx.bezierCurveTo(14, -12, 14, 10, 0, 16); ctx.closePath(); }), vlg(col1 || '#ff7a2a', x, y - 24 * s, x, y + 16 * s, 0.4, 0.3), { lw: 1.6 });
+  vf(() => vX(x, y + 5 * s, s * 0.55, 0, () => { ctx.moveTo(0, 16); ctx.bezierCurveTo(-12, 10, -8, -6, 0, -14); ctx.bezierCurveTo(8, -6, 12, 10, 0, 16); ctx.closePath(); }), col2 || '#ffe27a', { lw: 0 });
+}
+// water band with a wavy top edge
+function vwater(y, amp, col, x0, x1, ph) {
+  x0 = x0 === undefined ? -60 : x0; x1 = x1 === undefined ? 60 : x1;
+  vf(() => { ctx.moveTo(x0, 70); ctx.lineTo(x0, y); for (let x = x0; x <= x1; x += 4) ctx.lineTo(x, y + Math.sin(x * 0.18 + (ph || 0)) * amp); ctx.lineTo(x1, 70); ctx.closePath(); }, vlg(col, 0, y - amp, 0, y + 30, 0.3, 0.45), { lw: 1.6 });
+}
+function vcloud(x, y, s, col) {
+  vf(() => vX(x, y, s, 0, () => { vC(-8, 2, 7); vC(0, -3, 9); vC(9, 2, 7); vR(-15, 2, 30, 8, 4); }), col || '#ffffff', { lw: 0 });
+}
+// cute gator head seen from the front (used by several badges)
+function vGator(x, y, s, o) {
+  o = o || {};
+  const G1 = o.col || '#5cb84a';
+  vX(x, y, s, o.rot || 0, () => {
+    // eye bumps
+    [-1, 1].forEach(sd => vf(() => vC(sd * 11, -13, 8), vrg(G1, sd * 11, -13, 8)));
+    // head + long snout
+    vf(() => { ctx.moveTo(-18, -8); ctx.bezierCurveTo(-20, -18, 20, -18, 18, -8); ctx.bezierCurveTo(20, 4, 16, 20, 0, 22); ctx.bezierCurveTo(-16, 20, -20, 4, -18, -8); ctx.closePath(); }, vsh(G1, -18, -18, 36, 40, 0.45, 0.4));
+    // scales / scutes on the brow
+    [[-6, -9], [0, -11], [6, -9]].forEach(([sx, sy]) => vf(() => vE(sx, sy, 2.4, 1.6), mixC(G1, '#000000', 0.25), { lw: 0 }));
+    // eyes
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 11, -14, 4.2), '#fff6c8', { lw: 1.2 }); vf(() => vE(sd * 11, -14, 1.2, 3.4), '#1a1008', { lw: 0 }); vgl(sd * 11 - 1.6, -16, 1.2, 0.8, 0, 0.9); });
+    // nostrils
+    [-1, 1].forEach(sd => vf(() => vE(sd * 5, 12, 1.8, 1.2), mixC(G1, '#000000', 0.5), { lw: 0 }));
+    // mouth line + little teeth
+    if (!o.noMouth) {
+      vl(() => { ctx.moveTo(-15, 4); ctx.quadraticCurveTo(0, 12, 15, 4); }, VINK, 1.6);
+      [-11, -5, 5, 11].forEach(tx => vf(() => vP([tx - 2, 5 + Math.abs(tx) * -0.18 + 3, tx + 2, 5 + Math.abs(tx) * -0.18 + 3, tx, 10 - Math.abs(tx) * 0.2]), '#ffffff', { lw: 0.8 }));
+    }
+    vgl(-9, -2, 6, 3, -0.4, 0.28);
+  });
+}
+function vSkull(x, y, s, col) {
+  col = col || '#efe8d4';
+  vX(x, y, s, 0, () => {
+    vf(() => { ctx.moveTo(-16, 2); ctx.bezierCurveTo(-18, -22, 18, -22, 16, 2); ctx.bezierCurveTo(16, 8, 11, 9, 10, 12); ctx.lineTo(10, 18); ctx.lineTo(-10, 18); ctx.lineTo(-10, 12); ctx.bezierCurveTo(-11, 9, -16, 8, -16, 2); ctx.closePath(); }, vsh(col, -16, -18, 32, 36, 0.5, 0.4));
+    [-1, 1].forEach(sd => vf(() => vE(sd * 7, -1, 5, 5.6), '#1a0f1e', { lw: 0 }));
+    vf(() => vP([0, 5, -2.5, 9, 2.5, 9]), '#1a0f1e', { lw: 0 });
+    [-6, -2, 2, 6].forEach(tx => vline(tx, 13, tx, 18, '#1a0f1e', 1.2));
+    vgl(-8, -11, 4, 2, -0.5, 0.6);
+  });
+}
+function vEye(x, y, r, iris, slit) {
+  vf(() => vE(x, y, r, r * 0.7), '#fffbe8');
+  vf(() => vC(x, y, r * 0.55), vrg(iris || '#f0b020', x, y, r * 0.55, 0.4, 0.4), { lw: 0 });
+  if (slit) vf(() => vE(x, y, r * 0.12, r * 0.5), '#140a06', { lw: 0 });
+  else vf(() => vC(x, y, r * 0.25), '#140a06', { lw: 0 });
+  vgl(x - r * 0.25, y - r * 0.28, r * 0.16, r * 0.1, 0, 0.9);
+}
+// ================================ BADGE ART ======================================
+//  Every badge is an enamel medal: a rim whose shape and metal say its rarity, an
+//  enamel field in the badge's own colour, and a unique hand-built emblem.
+// ================================================================================
+const VMETAL = {
+  bronze: ['#2a1508', '#6a3a18', '#a8662e', '#dc9e5e', '#fbdcb0'],
+  silver: ['#1a2228', '#586a74', '#9aacb6', '#d6e2e8', '#ffffff'],
+  gold: ['#2a1a06', '#8a5f10', '#d09a1e', '#f2c848', '#fff2c0'],
+  rust: ['#1e0e06', '#5a2a10', '#8a4a1e', '#b8703a', '#dca070'],
+  ice: ['#16303a', '#4f8aa0', '#9cd8ec', '#dcf6ff', '#ffffff'],
+  rose: ['#2a0a14', '#7a2a48', '#c85a82', '#f09ab8', '#ffe0ec'],
+};
+const RIBBON_COL = ['#5d7a86', '#3e8cd0', '#d0563e', '#9a4fd0', '#e8a020', '#3fc8c0'];
+function vRibbon(rar) {
+  const col = RIBBON_COL[rar] || RIBBON_COL[0];
+  [-1, 1].forEach(sd => {
+    const pts = [sd * 4, 26, sd * 22, 20, sd * 30, 76, sd * 21, 67, sd * 13, 78];
+    vf(() => vP(pts), vlg(col, sd * 4, 20, sd * 30, 78, 0.35, 0.45), { lw: 2 });
+    // centre stripe running down the tail
+    vf(() => vP([sd * 11, 23, sd * 16, 22, sd * 23, 72, sd * 20, 69, sd * 18, 74]), mixC(col, '#ffffff', 0.62), { lw: 0 });
+    // fold shading where the tail tucks under the medal
+    ctx.save(); ctx.globalAlpha = 0.35; vf(() => vP([sd * 4, 26, sd * 22, 20, sd * 23, 30, sd * 6, 34]), '#000000', { lw: 0 }); ctx.restore();
+  });
+}
+// the rim + field; returns the field radius
+function vFrame(rar, field, metalKey) {
+  const M = VMETAL[metalKey] || VMETAL[['bronze', 'silver', 'gold', 'gold', 'gold', 'silver'][rar] || 'bronze'];
+  const metal = (r) => vmetal(M, -r, -r, r, r);
+  let fr = 43;
+  // drop shadow under the whole medal
+  ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#000'; ctx.beginPath(); vC(2, 4, 55); ctx.fill(); ctx.restore();
+  if (rar === 0) {
+    vf(() => vC(0, 0, 52), metal(52), { lw: 2.6 });
+    for (let k = 0; k < 28; k++) { const a = k / 28 * VTAU; vline(Math.cos(a) * 46.5, Math.sin(a) * 46.5, Math.cos(a) * 50, Math.sin(a) * 50, M[1], 1.2); }
+    vf(() => vC(0, 0, 45), M[1], { lw: 1.4 });
+  } else if (rar === 1) {
+    vf(() => { const n = 180; for (let i = 0; i <= n; i++) { const a = i / n * VTAU, r = 50 + 3.2 * Math.cos(a * 16); i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); }, metal(53), { lw: 2.6 });
+    vl(() => vC(0, 0, 46.5), M[4], 1.4);
+    vf(() => vC(0, 0, 45), M[1], { lw: 1.4 });
+  } else if (rar === 2) {
+    vf(() => vPolyN(0, 0, 8, 56, -Math.PI / 2 + Math.PI / 8), metal(56), { lw: 2.6 });
+    vf(() => vPolyN(0, 0, 8, 48, -Math.PI / 2 + Math.PI / 8), M[1], { lw: 1.4 });
+    for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + Math.PI / 8 + i * Math.PI / 4; vf(() => vC(Math.cos(a) * 51.5, Math.sin(a) * 51.5, 2.6), vrg(M[3], Math.cos(a) * 51.5, Math.sin(a) * 51.5, 2.6), { lw: 1 }); }
+    fr = 44;
+  } else if (rar === 3) {
+    vf(() => vS(0, 0, 14, 60, 50, -Math.PI / 2), metal(60), { lw: 2.4 });
+    vf(() => vC(0, 0, 49), vrg('#7a3ab0', 0, 0, 49, 0.3, 0.5), { lw: 2 });
+    [0, 1, 2, 3].forEach(k => { const a = Math.PI / 4 + k * Math.PI / 2; const gx = Math.cos(a) * 46, gy = Math.sin(a) * 46; vf(() => vGemPath(gx, gy, 0.28, a + Math.PI / 2), vrg('#e070ff', gx, gy, 5), { lw: 1 }); });
+    fr = 43;
+  } else if (rar === 4) {
+    // laurel wreath swept up both sides
+    [-1, 1].forEach(sd => {
+      for (let k = 0; k < 7; k++) {
+        const a = Math.PI / 2 + sd * (0.35 + k * 0.33), lx = Math.cos(a) * 55, ly = Math.sin(a) * 55;
+        vf(() => vLeaf(lx, ly, 17, 6.5, a + sd * 1.9 + Math.PI), vsh('#f2c848', lx - 8, ly - 8, 16, 16, 0.5, 0.45), { lw: 1.4 });
+      }
+    });
+    // little crown on top
+    vf(() => vP([-14, -50, -16, -64, -8, -56, 0, -68, 8, -56, 16, -64, 14, -50]), vsh('#f2c848', -16, -68, 32, 18), { lw: 1.8 });
+    vf(() => vC(0, -58, 2.6), vrg('#e8403a', 0, -58, 2.6), { lw: 0.8 });
+    vf(() => vC(0, 0, 51), metal(51), { lw: 2.6 });
+    vl(() => vC(0, 0, 47.5), M[4], 1.2);
+    vf(() => vC(0, 0, 46), M[1], { lw: 1.4 });
+    fr = 44;
+  } else {
+    // mythical: an eight-point star that shifts through the whole spectrum
+    let g;
+    if (ctx.createConicGradient) {
+      g = ctx.createConicGradient(0, 0, 0);
+      ['#ff6a8a', '#ffd84a', '#7aff8a', '#4ad8ff', '#a86aff', '#ff6a8a'].forEach((c, i) => g.addColorStop(i / 5, c));
+    } else g = vlg('#7ad8ff', -60, -60, 60, 60);
+    vf(() => vS(0, 0, 8, 63, 50, -Math.PI / 2), g, { lw: 2.4 });
+    ctx.save(); ctx.globalAlpha = 0.5; vf(() => vS(0, 0, 8, 58, 48, -Math.PI / 2 + Math.PI / 8), '#ffffff', { lw: 0 }); ctx.restore();
+    vf(() => vC(0, 0, 49), metal(49), { lw: 2.2 });
+    vf(() => vC(0, 0, 46), M[1], { lw: 1.4 });
+    fr = 44;
+  }
+  // the enamel field
+  vf(() => vC(0, 0, fr), vrg(field, 0, -6, fr * 1.15, 0.35, 0.5), { lw: 1.4 });
+  // faint sunburst engraved into the enamel
+  ctx.save(); ctx.globalAlpha = rar >= 3 ? 0.14 : 0.08;
+  vclip(() => vC(0, 0, fr), () => { for (let k = 0; k < 16; k++) { const a = k / 16 * VTAU; vf(() => vP([0, 0, Math.cos(a - 0.09) * 60, Math.sin(a - 0.09) * 60, Math.cos(a + 0.09) * 60, Math.sin(a + 0.09) * 60]), '#ffffff', { lw: 0 }); } });
+  ctx.restore();
+  return fr;
+}
+// the domed-glass shine over the whole medal
+function vDome(fr) {
+  vclip(() => vC(0, 0, fr), () => {
+    ctx.save(); ctx.globalAlpha = 0.22; ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(0, 0, fr, Math.PI * 1.05, Math.PI * 1.75); ctx.arc(8, 10, fr * 1.05, Math.PI * 1.62, Math.PI * 1.12, true); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+}
+// one entry per badge id: f = enamel field colour, d = the emblem painter
+const BADGE_ART = {
+  sweet: { f: '#e8588c', d() {
+    vf(() => vX(-13, -10, 1, 0.62, () => vR(-2.6, 0, 5.2, 40, 2.6)), vsh('#fbf4e8', -18, -10, 12, 40), { lw: 1.8 });
+    vtoothFill(11, 7, 0.95);
+    vf(() => vC(-13, -11, 16), vrg('#ff4f86', -13, -11, 16, 0.5, 0.35));
+    vclip(() => vC(-13, -11, 14.6), () => vspiral(-13, -11, 16, 2.6, '#fff0f6', 3.4));
+    vl(() => vC(-13, -11, 16), VINK, 2.2);
+    vgl(-19, -18, 5, 2.6, -0.6, 0.75);
+    vsp(25, -18, 5.5); vsp(-28, 14, 3.6, '#ffe0f0');
+  } },
+  overbite: { f: '#2f9a94', d() {
+    vf(() => vE(0, 19, 26, 9), vsh('#c83a50', -26, 10, 52, 18), { lw: 2 });
+    vf(() => { ctx.moveTo(-33, -6); ctx.quadraticCurveTo(0, -34, 33, -6); ctx.quadraticCurveTo(0, -1, -33, -6); ctx.closePath(); }, vsh('#f27a90', -33, -26, 66, 22));
+    [-25, 25].forEach(tx => vf(() => vR(tx - 5.5, -8, 11, 13, 4.5), vsh(VTOOTH, tx - 5.5, -8, 11, 13, 0.6, 0.3), { lw: 1.6 }));
+    [-7.5, 7.5].forEach(tx => { vf(() => vR(tx - 7.5, -11, 15, 30, 5.5), vsh(VTOOTH, tx - 7.5, -11, 15, 30, 0.65, 0.3)); vgl(tx - 3, -3, 2, 6, 0, 0.8); });
+    // boing lines
+    [-1, 1].forEach(sd => { vline(sd * 20, 16, sd * 27, 24, '#fff6d0', 2); vline(sd * 16, 22, sd * 19, 30, '#fff6d0', 2); });
+  } },
+  greedy: { f: '#2e7a36', d() {
+    vGator(0, -2, 1.25, { noMouth: true });
+    vcoin(0, 20, 12.5, '#f2c040');
+    vtext('$', 0, 15.5, '#8a5a10', 2.2);
+    [-9, 9].forEach(tx => vf(() => vP([tx - 3, 10, tx + 3, 10, tx, 16]), '#ffffff', { lw: 1 }));
+    vsp(-24, 20, 4); vsp(24, 14, 3);
+  } },
+  magnet: { f: '#2f5fc8', d() {
+    const U = () => { ctx.moveTo(-14, -24); ctx.lineTo(-14, 2); ctx.arc(0, 2, 14, Math.PI, 0, true); ctx.lineTo(14, -24); };
+    vX(-6, 6, 1, -0.5, () => { vl(U, VINK, 16, { cap: 'butt' }); vl(U, '#e0403a', 12, { cap: 'butt' }); vl(() => { ctx.moveTo(-17, -6); ctx.lineTo(-17, 2); ctx.arc(0, 2, 17, Math.PI, Math.PI * 0.6, true); }, '#ff8a70', 2.2); });
+    vX(-6, 6, 1, -0.5, () => { [-14, 14].forEach(tx => vf(() => vR(tx - 6, -32, 12, 9, 1.5), vsh('#d8e4ea', tx - 6, -32, 12, 9, 0.6, 0.35), { lw: 1.8 })); });
+    vtoothFill(20, -16, 0.62, VTOOTH, 0.4);
+    [0, 1, 2].forEach(k => vl(() => ctx.arc(8, -8, 9 + k * 5, -1.6, -0.2), '#bfe8ff', 1.6, { dash: [3, 3] }));
+  } },
+  babyfangs: { f: '#b07ad8', d() {
+    vtoothFill(0, 4, 1.2);
+    [-1, 1].forEach(sd => vf(() => vC(sd * 6.5, 0, 2.3), '#2a1418', { lw: 0 }));
+    [-1, 1].forEach(sd => vgl(sd * 6.5 - 0.8, -0.8, 0.8, 0.8, 0, 1));
+    vl(() => ctx.arc(0, 5, 4.5, 0.25, Math.PI - 0.25), '#2a1418', 1.8);
+    ctx.save(); ctx.globalAlpha = 0.5; [-1, 1].forEach(sd => vf(() => vE(sd * 11, 6, 3.2, 2), '#ff8aa8', { lw: 0 })); ctx.restore();
+    // bow on top
+    vf(() => vP([0, -18, -11, -25, -11, -11]), vsh('#ff6aa0', -11, -25, 11, 14), { lw: 1.4 });
+    vf(() => vP([0, -18, 11, -25, 11, -11]), vsh('#ff6aa0', 0, -25, 11, 14), { lw: 1.4 });
+    vf(() => vC(0, -18, 3), '#ff9ac0', { lw: 1.2 });
+    [[-27, -6, 0.42], [26, -12, 0.36], [22, 20, 0.3]].forEach(([hx, hy, hs]) => vf(() => vHeart(hx, hy, hs), vsh('#ff5a8a', hx - 8, hy - 8, 16, 14), { lw: 1.2 }));
+  } },
+  crown: { f: '#2446a0', d() {
+    vtoothFill(0, 12, 0.95);
+    vf(() => vP([-22, -2, -26, -26, -13, -13, 0, -30, 13, -13, 26, -26, 22, -2]), vsh('#f4c43a', -26, -30, 52, 28, 0.55, 0.4));
+    vf(() => vR(-23, -6, 46, 7, 2), vsh('#d89a1e', -23, -6, 46, 7), { lw: 1.6 });
+    [[-26, -26], [0, -30], [26, -26]].forEach(([bx, by]) => vf(() => vC(bx, by, 3.2), vrg('#fff0a0', bx, by, 3.2), { lw: 1.2 }));
+    vf(() => vGemPath(0, -14, 0.34), vrg('#ff3a4a', 0, -14, 6), { lw: 1.2 });
+    [-13, 13].forEach(gx => vf(() => vC(gx, -9, 2.6), vrg('#4ab8ff', gx, -9, 2.6), { lw: 1 }));
+    vgl(-12, -17, 5, 2, -0.3, 0.6);
+    vsp(28, 2, 5); vsp(-28, 8, 3.5);
+  } },
+  license: { f: '#44687a', d() {
+    ctx.save(); ctx.rotate(-0.12);
+    vf(() => vR(-30, -21, 60, 42, 4), vsh('#f6eed8', -30, -21, 60, 42, 0.4, 0.25), { lw: 2.2 });
+    vf(() => vR(-30, -21, 60, 9, 4), vsh('#2f7a5a', -30, -21, 60, 9), { lw: 0 });
+    vtext('LICENSE', 0, -19.5, '#eafff4', 1.6);
+    vf(() => vR(-25, -8, 20, 24, 2), vsh('#9ad0e8', -25, -8, 20, 24), { lw: 1.4 });
+    vtoothFill(-15, 5, 0.42);
+    [[-1, -4], [-1, 2], [-1, 8]].forEach(([lx2, ly2], i) => vline(lx2 + 2, ly2, lx2 + (i === 2 ? 16 : 26), ly2, '#9a8a6a', 2));
+    vf(() => vC(18, 13, 7.5), vrg('#d8403a', 18, 13, 7.5), { lw: 1.4 });
+    vf(() => vP([14, 18, 12, 28, 17, 25, 18, 20]), '#b82a2a', { lw: 1 }); vf(() => vP([22, 18, 24, 28, 19, 25, 18, 20]), '#b82a2a', { lw: 1 });
+    vS(18, 13, 5, 4, 1.8); ctx.fillStyle = '#ffd0c0'; ctx.fill();
+    ctx.restore();
+  } },
+  fairy: { f: '#4a3ab0', d() {
+    ctx.save(); ctx.globalAlpha = 0.72;
+    [[-1, -8, 16, 9, -0.5], [-1, 6, 12, 7, 0.4], [1, -8, 16, 9, 0.5], [1, 6, 12, 7, -0.4]].forEach(([sd, wy, rx, ry, rot]) => vf(() => vE(sd * 15, wy, rx, ry, rot), vrg('#bff0ff', sd * 15, wy, rx), { lw: 1.4, ink: '#3a6a9a' }));
+    ctx.restore();
+    vtoothFill(0, 2, 0.8);
+    [-1, 1].forEach(sd => vf(() => vC(sd * 4.5, -1, 1.7), '#2a1418', { lw: 0 }));
+    vl(() => ctx.arc(0, 3, 3, 0.3, Math.PI - 0.3), '#2a1418', 1.4);
+    vline(9, 8, 26, -14, '#f4e0a0', 2.4);
+    vf(() => vS(27, -16, 5, 8, 3.4), vrg('#ffe25a', 27, -16, 8), { lw: 1.4 });
+    [[-22, 22, 3], [-28, 8, 2.4], [16, 24, 2.6], [30, 2, 2]].forEach(([sx, sy, r]) => vsp(sx, sy, r * 1.6, '#fff6c0'));
+    vl(() => { ctx.moveTo(26, -14); ctx.bezierCurveTo(10, -26, -20, -24, -30, -6); }, '#ffe8a0', 1.2, { dash: [2, 3] });
+  } },
+  tinfang: { f: '#4a6a60', d() {
+    vf(() => vFang(0, 0, 1.4), vmetal(VMETAL.silver, -15, -28, 15, 28), { lw: 2.4 });
+    vl(() => { ctx.moveTo(-15, -12); ctx.bezierCurveTo(-5, -9, 5, -9, 15, -12); }, '#4a5a64', 1.6);
+    vl(() => { ctx.moveTo(-12, 6); ctx.bezierCurveTo(-4, 8, 4, 8, 11, 6); }, '#4a5a64', 1.6);
+    [[-9, -18], [9, -18], [-7, -2], [7, -2], [0, 14]].forEach(([rx, ry]) => { vf(() => vC(rx, ry, 2.2), vrg('#e8f0f4', rx, ry, 2.2), { lw: 1 }); });
+    vgl(-6, -12, 2.5, 10, 0.1, 0.6);
+  } },
+  snaggle: { f: '#23804a', d() {
+    [[-22, 18, -0.3], [24, 16, 0.25]].forEach(([bx, by, br]) => vf(() => vX(bx, by, 1, br, () => vR(-12, -7, 24, 14, 1.5)), vsh('#7ac87a', bx - 12, by - 7, 24, 14), { lw: 1.6 }));
+    vtoothFill(0, -2, 1.05, VTOOTH, -0.38);
+    vf(() => vC(-8, 8, 3), '#c8a040', { lw: 0.8 });
+    vcoin(17, -17, 10);
+    vtext('$', 17, -21, '#8a5a10', 1.8);
+    vsp(-24, -16, 4);
+  } },
+  numb: { f: '#3a8ad0', d() {
+    vf(() => vX(-4, 4, 1, -0.7, () => { ctx.moveTo(-9, -24); ctx.lineTo(9, -24); ctx.lineTo(11, 12); ctx.quadraticCurveTo(0, 18, -11, 12); ctx.closePath(); }), vsh('#e8f4fa', -20, -24, 30, 40, 0.5, 0.35));
+    vf(() => vX(-4, 4, 1, -0.7, () => vR(-10, -30, 20, 8, 2)), vsh('#3a6ad0', -18, -32, 22, 12), { lw: 1.8 });
+    vf(() => vX(-4, 4, 1, -0.7, () => vR(-6, 12, 12, 8, 2)), vsh('#c8d4dc', -8, 10, 14, 12), { lw: 1.6 });
+    vX(-4, 4, 1, -0.7, () => { vf(() => vR(-7, -14, 14, 12, 2), '#6ab8ff', { lw: 1 }); });
+    vf(() => { ctx.moveTo(8, 12); ctx.bezierCurveTo(18, 8, 28, 14, 24, 22); ctx.bezierCurveTo(20, 30, 8, 28, 8, 20); ctx.closePath(); }, vsh('#7ad8ff', 8, 8, 20, 22, 0.55, 0.3));
+    vgl(15, 15, 3, 1.6, -0.3, 0.8);
+    // snowflake
+    for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3; vline(22 + Math.cos(a) * 9, -18 + Math.sin(a) * 9, 22 - Math.cos(a) * 9, -18 - Math.sin(a) * 9, '#ffffff', 2.2); }
+    vf(() => vC(22, -18, 2.4), '#dff6ff', { lw: 1 });
+  } },
+  glass: { f: '#7a1e2a', d() {
+    ctx.save(); ctx.globalAlpha = 0.85;
+    vf(() => { ctx.moveTo(-18, 0); ctx.bezierCurveTo(-20, -26, 20, -26, 18, 0); ctx.bezierCurveTo(18, 8, 12, 9, 12, 12); ctx.lineTo(12, 16); ctx.lineTo(-12, 16); ctx.lineTo(-12, 12); ctx.bezierCurveTo(-12, 9, -18, 8, -18, 0); ctx.closePath(); }, vrg('#bff4ff', -4, -8, 26, 0.6, 0.35), { lw: 2, ink: '#1a4a5a' });
+    vf(() => { ctx.moveTo(-14, 18); ctx.lineTo(14, 18); ctx.lineTo(12, 28); ctx.quadraticCurveTo(0, 32, -12, 28); ctx.closePath(); }, vrg('#bff4ff', 0, 22, 16, 0.6, 0.35), { lw: 2, ink: '#1a4a5a' });
+    ctx.restore();
+    [-1, 1].forEach(sd => vf(() => vE(sd * 7.5, -3, 5, 5.5), '#1a3a4a', { lw: 0 }));
+    [-8, -3, 2, 7].forEach(tx => vf(() => vR(tx - 2, 14, 4, 6, 1.4), '#ffffff', { lw: 1, ink: '#1a4a5a' }));
+    vl(() => { ctx.moveTo(4, -21); ctx.lineTo(1, -13); ctx.lineTo(6, -8); ctx.lineTo(2, 0); }, '#ffffff', 1.8);
+    vl(() => { ctx.moveTo(1, -13); ctx.lineTo(-5, -15); }, '#ffffff', 1.4);
+    vgl(-9, -14, 5, 2.4, -0.5, 0.8);
+    vsp(22, -20, 4); vsp(-24, 22, 3);
+  } },
+  rootcanal: { f: '#1f6a6a', d() {
+    vtoothFill(-4, 6, 1.35);
+    vf(() => { ctx.moveTo(-9, -8); ctx.bezierCurveTo(-8, -14, 0, -14, 1, -8); ctx.bezierCurveTo(2, -2, 0, 2, -1, 4); ctx.lineTo(-2, 22); ctx.lineTo(-4, 4); ctx.lineTo(-7, 22); ctx.lineTo(-9, 4); ctx.bezierCurveTo(-10, 0, -10, -3, -9, -8); ctx.closePath(); }, vsh('#ff7a90', -10, -14, 12, 36, 0.4, 0.3), { lw: 1.4 });
+    // drill bit angling in
+    vX(16, -20, 1, 0.75, () => {
+      vf(() => vR(-5, -26, 10, 20, 3), vsh('#dfe8ee', -5, -26, 10, 20), { lw: 1.8 });
+      vf(() => vR(-3, -8, 6, 12, 1), vsh('#9aacb6', -3, -8, 6, 12), { lw: 1.4 });
+      vf(() => vP([-2, 4, 2, 4, 0, 11]), '#6a7a84', { lw: 1 });
+    });
+    [0, 1].forEach(k => vl(() => ctx.arc(8, -10, 6 + k * 5, 0.9, 2.1), '#ffffff', 1.4));
+  } },
+  chewtoy: { f: '#e0782a', d() {
+    const bone = () => vX(0, 2, 1, -0.45, () => {
+      vC(-22, -6, 7); vC(-22, 6, 7); vC(22, -6, 7); vC(22, 6, 7); vR(-22, -6, 44, 12, 4);
+    });
+    ctx.save(); ctx.fillStyle = VINK; ctx.beginPath(); bone(); ctx.lineWidth = 4.4; ctx.strokeStyle = VINK; ctx.stroke(); ctx.restore();
+    vf(bone, vsh('#ff8ab8', -28, -16, 56, 36, 0.5, 0.35), { lw: 0 });
+    vgl(-12, -4, 10, 2.4, -0.45, 0.6);
+    vX(0, 2, 1, -0.45, () => { vf(() => vC(0, 0, 3.5), '#c84a7a', { lw: 0 }); });
+    ['#fff6c0'].forEach(c => { vline(-8, -24, -4, -18, c, 2.2); vline(2, -27, 2, -20, c, 2.2); vline(12, -24, 8, -18, c, 2.2); });
+  } },
+  coldblood: { f: '#2a6aa8', d() {
+    vf(() => vR(-7, -30, 14, 50, 7), vsh('#f2fbff', -7, -30, 14, 50, 0.5, 0.25), { lw: 2.2 });
+    vf(() => vC(0, 24, 10), vrg('#3ab0ff', 0, 24, 10), { lw: 2.2 });
+    vf(() => vR(-3, 4, 6, 18, 3), '#3ab0ff', { lw: 0 });
+    [-18, -10, -2, 6].forEach(ty => vline(3, ty, 7, ty, '#6a8a9a', 1.4));
+    vgl(-3, -18, 1.4, 8, 0, 0.8);
+    // frost crystals
+    [[-22, -10, 9], [20, -18, 7], [22, 14, 6]].forEach(([sx, sy, r]) => { for (let k = 0; k < 3; k++) { const a = k * Math.PI / 3 + 0.3; vline(sx + Math.cos(a) * r, sy + Math.sin(a) * r, sx - Math.cos(a) * r, sy - Math.sin(a) * r, '#e8fbff', 2); } });
+  } },
+  collector: { f: '#5a3a22', d() {
+    vf(() => vR(-32, -24, 64, 48, 3), vsh('#9a6a3a', -32, -24, 64, 48, 0.4, 0.4), { lw: 2.2 });
+    vf(() => vR(-27, -19, 54, 38, 2), vsh('#2a3a2a', -27, -19, 54, 38, 0.2, 0.4), { lw: 1.4 });
+    [[-15, -2, -0.15, VTOOTH], [0, -4, 0, '#fff6d0'], [15, -2, 0.15, '#e8f0ff']].forEach(([fx, fy, fr, fc]) => { vfangFill(fx, fy, 0.5, fc, fr); vf(() => vC(fx, fy - 9, 1.6), '#e0403a', { lw: 0.8 }); });
+    [-15, 0, 15].forEach(lx => vf(() => vR(lx - 5, 10, 10, 5, 1), '#f4ecd0', { lw: 0.8 }));
+    ctx.save(); ctx.globalAlpha = 0.28; vf(() => vP([-27, -19, -10, -19, -27, 6]), '#ffffff', { lw: 0 }); ctx.restore();
+  } },
+  loose: { f: '#3a8ab8', d() {
+    vl(() => { ctx.moveTo(-6, -14); ctx.bezierCurveTo(-20, -30, -30, -10, -32, -26); }, '#f4ecd8', 2);
+    vf(() => vC(-32, -27, 5), vrg('#d8a040', -32, -27, 5), { lw: 1.4 });
+    vtoothFill(2, 4, 1.05, VTOOTH, 0.3);
+    vl(() => vE(-3, -11, 5, 3, 0.3), '#f4ecd8', 2);
+    // wiggle marks
+    [0, 1].forEach(k => { vl(() => ctx.arc(2, 4, 24 + k * 6, -0.6, 0.2), '#dff4ff', 2); vl(() => ctx.arc(2, 4, 24 + k * 6, 2.9, 3.7), '#dff4ff', 2); });
+  } },
+  braces: { f: '#2f9a78', d() {
+    vf(() => { ctx.moveTo(-34, -4); ctx.quadraticCurveTo(0, -26, 34, -4); ctx.quadraticCurveTo(0, 30, -34, -4); ctx.closePath(); }, vsh('#e04a5a', -34, -20, 68, 40));
+    vf(() => { ctx.moveTo(-28, -4); ctx.quadraticCurveTo(0, -18, 28, -4); ctx.quadraticCurveTo(0, 20, -28, -4); ctx.closePath(); }, '#5a1020', { lw: 1.2 });
+    [-18, -9, 0, 9, 18].forEach(tx => { const ty = -12 + Math.abs(tx) * 0.2; vf(() => vR(tx - 4.2, ty, 8.4, 11, 2.4), vsh(VTOOTH, tx - 4, ty, 8, 11, 0.6, 0.3), { lw: 1.2 }); });
+    [-18, -9, 0, 9, 18].forEach(tx => { const ty = -7 + Math.abs(tx) * 0.2; vf(() => vR(tx - 2, ty - 1, 4, 3.5, 0.8), vsh('#dfe8ee', tx - 2, ty - 1, 4, 4), { lw: 0.8 }); });
+    vl(() => { ctx.moveTo(-22, -3); ctx.quadraticCurveTo(0, -10, 22, -3); }, '#c8d8e0', 1.2);
+    vgl(-14, -14, 6, 2, -0.2, 0.3);
+  } },
+  mirror: { f: '#6a3aa8', d() {
+    vf(() => vX(10, 12, 1, -0.7, () => vR(-3, 0, 6, 30, 3)), vmetal(VMETAL.silver, 0, 10, 30, 40), { lw: 1.8 });
+    vf(() => vC(-6, -6, 18), vmetal(VMETAL.silver, -24, -24, 12, 12), { lw: 2.2 });
+    vf(() => vC(-6, -6, 14), vrg('#bfe0ff', -8, -8, 15, 0.5, 0.2), { lw: 1.4 });
+    vclip(() => vC(-6, -6, 14), () => { vtoothFill(-6, -3, 0.62); ctx.save(); ctx.globalAlpha = 0.45; vf(() => vP([-20, -20, -12, -20, 4, 8, -4, 8]), '#ffffff', { lw: 0 }); ctx.restore(); });
+    vsp(18, -22, 5); vsp(-26, 18, 3.5);
+  } },
+  goldrush: { f: '#6a4a24', d() {
+    vf(() => vE(0, 12, 32, 12), vsh('#8a949c', -32, 0, 64, 24), { lw: 2.2 });
+    vf(() => vE(0, 9, 26, 8), vsh('#4a545c', -26, 1, 52, 16), { lw: 1.2 });
+    [[-12, 7, 5], [-3, 9, 4], [9, 6, 5.5], [16, 10, 3.5], [3, 3, 3.5]].forEach(([nx, ny, r]) => vf(() => { vPolyN(nx, ny, 6, r, nx * 0.3); }, vrg('#ffd040', nx, ny, r), { lw: 1 }));
+    vtoothFill(0, -16, 0.72, '#ffd24a');
+    vsp(-20, -18, 6); vsp(22, -12, 4.5); vsp(14, -30, 3);
+  } },
+  slowbite: { f: '#a07a3a', d() {
+    [-26, 26].forEach(py => vf(() => vR(-22, py - 4, 44, 8, 2.5), vsh('#8a5a2a', -22, py - 4, 44, 8), { lw: 1.8 }));
+    [-16, 16].forEach(px => vline(px, -22, px, 22, '#6a4222', 3));
+    vf(() => { ctx.moveTo(-12, -22); ctx.lineTo(12, -22); ctx.bezierCurveTo(12, -8, 2, -4, 2, 0); ctx.bezierCurveTo(2, 4, 12, 8, 12, 22); ctx.lineTo(-12, 22); ctx.bezierCurveTo(-12, 8, -2, 4, -2, 0); ctx.bezierCurveTo(-2, -4, -12, -8, -12, -22); ctx.closePath(); }, 'rgba(210,240,255,0.55)', { lw: 1.8, ink: '#3a5a6a' });
+    vf(() => { ctx.moveTo(-8, -14); ctx.lineTo(8, -14); ctx.quadraticCurveTo(2, -6, 0, -2); ctx.quadraticCurveTo(-2, -6, -8, -14); ctx.closePath(); }, '#f4ecd8', { lw: 0 });
+    vf(() => { ctx.moveTo(-11, 21); ctx.quadraticCurveTo(0, 8, 11, 21); ctx.closePath(); }, '#f4ecd8', { lw: 0 });
+    [0, 1, 2].forEach(k => vf(() => vC(0, 3 + k * 4, 1.1), '#f4ecd8', { lw: 0 }));
+    vgl(-8, -12, 1.5, 6, 0.2, 0.7);
+  } },
+  swampheart: { f: '#2f5a2a', d() {
+    vf(() => vHeart(0, 4, 1.35), vsh('#5aa84a', -30, -22, 60, 50, 0.45, 0.45), { lw: 2.4 });
+    ctx.save(); vclip(() => vHeart(0, 4, 1.35), () => { for (let k = 0; k < 18; k++) vf(() => vC(-24 + (k * 13) % 48, -16 + ((k * 7) % 36), 2 + (k % 3)), 'rgba(40,90,30,0.5)', { lw: 0 }); }); ctx.restore();
+    // lotus on top
+    [-1, 0, 1].forEach(k => vf(() => vX(0, -14, 1, k * 0.6, () => { ctx.moveTo(0, 4); ctx.quadraticCurveTo(-7, -6, 0, -16); ctx.quadraticCurveTo(7, -6, 0, 4); ctx.closePath(); }), vsh('#ff9ac8', -7, -30, 14, 20, 0.55, 0.3), { lw: 1.4 }));
+    vf(() => vE(0, -11, 6, 2.5), '#ffe25a', { lw: 1 });
+    vgl(-12, -4, 6, 3, -0.6, 0.45);
+  } },
+  wisdom: { f: '#243a78', d() {
+    vtoothFill(0, 8, 1.1);
+    [-1, 1].forEach(sd => { vl(() => vC(sd * 6.5, 4, 5), '#2a1a10', 1.8); vf(() => vC(sd * 6.5, 4, 1.8), '#2a1418', { lw: 0 }); });
+    vline(-1.5, 4, 1.5, 4, '#2a1a10', 1.6);
+    vl(() => ctx.arc(0, 11, 3.5, 0.3, Math.PI - 0.3), '#2a1418', 1.4);
+    // mortarboard
+    vf(() => vP([-24, -16, 0, -26, 24, -16, 0, -6]), vsh('#2a2a3a', -24, -26, 48, 20, 0.4, 0.3), { lw: 1.8 });
+    vf(() => vR(-11, -14, 22, 7, 2), '#1a1a2a', { lw: 1.4 });
+    vl(() => { ctx.moveTo(0, -16); ctx.lineTo(18, -12); ctx.lineTo(19, -2); }, '#f4c43a', 1.6);
+    vf(() => vR(17, -3, 4, 6, 1), '#f4c43a', { lw: 0.8 });
+    vsp(-26, 12, 4); vsp(26, 18, 3);
+  } },
+  apex: { f: '#8a1a1a', d() {
+    vf(() => { ctx.moveTo(-32, 0); ctx.quadraticCurveTo(0, -30, 32, 0); ctx.quadraticCurveTo(0, 30, -32, 0); ctx.closePath(); }, vrg('#ffd02a', 0, 0, 30, 0.5, 0.35), { lw: 2.4 });
+    vf(() => vE(0, 0, 4.5, 17), '#140806', { lw: 0 });
+    vl(() => { ctx.moveTo(-26, -6); ctx.quadraticCurveTo(0, -24, 26, -6); }, '#5a2a06', 1.6);
+    vgl(-9, -8, 5, 2.6, -0.3, 0.7);
+    // three claw rakes across
+    [-10, 0, 10].forEach(k => vl(() => { ctx.moveTo(-26 + k, 26); ctx.quadraticCurveTo(-6 + k, 0, 16 + k, -28); }, 'rgba(255,240,230,0.9)', 2.6));
+  } },
+  echo: { f: '#34288a', d() {
+    const jaw = (ox, a) => {
+      ctx.save(); ctx.globalAlpha = a;
+      vf(() => { ctx.moveTo(-26 + ox, -4); ctx.quadraticCurveTo(-4 + ox, -28, 26 + ox, -14); ctx.lineTo(24 + ox, -6); ctx.quadraticCurveTo(0 + ox, -10, -26 + ox, -4); ctx.closePath(); }, vsh('#5cb84a', -26 + ox, -28, 52, 24));
+      vf(() => { ctx.moveTo(-26 + ox, 4); ctx.quadraticCurveTo(0 + ox, 10, 24 + ox, 8); ctx.lineTo(26 + ox, 16); ctx.quadraticCurveTo(-4 + ox, 26, -26 + ox, 4); ctx.closePath(); }, vsh('#4a9a3a', -26 + ox, 4, 52, 22));
+      [-14, -6, 2, 10, 18].forEach(tx => { vf(() => vP([tx + ox - 2.5, -7 + tx * -0.12, tx + ox + 2.5, -7 + tx * -0.12, tx + ox, -1 + tx * -0.12]), '#ffffff', { lw: 0.8 }); vf(() => vP([tx + ox - 2.5, 7 + tx * 0.05, tx + ox + 2.5, 7 + tx * 0.05, tx + ox, 1.5 + tx * 0.05]), '#ffffff', { lw: 0.8 }); });
+      ctx.restore();
+    };
+    jaw(-14, 0.28); jaw(-7, 0.55); jaw(2, 1);
+    vf(() => vC(-6, -14, 2.2), '#fff6c8', { lw: 1 });
+  } },
+  bloodpact: { f: '#3a0a12', d() {
+    vf(() => vR(-26, -26, 46, 50, 3), vsh('#f0e0b8', -26, -26, 46, 50, 0.3, 0.3), { lw: 2 });
+    [-26, 24].forEach(ry => vf(() => vR(-30, ry - 4, 54, 8, 4), vsh('#d8c090', -30, ry - 4, 54, 8), { lw: 1.6 }));
+    [-14, -7, 0, 7].forEach(ly => vline(-19, ly, 12, ly, '#a08860', 1.6));
+    vf(() => vC(12, 12, 10), vrg('#c8202a', 12, 12, 10, 0.4, 0.4), { lw: 1.8 });
+    vfangFill(12, 12, 0.3, '#ffe8e0');
+    vf(() => vDrop(22, -18, 0.42), vsh('#e8202a', 16, -26, 12, 16, 0.5, 0.3), { lw: 1.2 });
+    vf(() => vDrop(26, -4, 0.28), vsh('#e8202a', 22, -10, 8, 12, 0.5, 0.3), { lw: 1 });
+  } },
+  venom: { f: '#4a1a6a', d() {
+    // a viper striking down, one fang dripping into the flask
+    vf(() => { ctx.moveTo(-34, -30); ctx.bezierCurveTo(-20, -34, -4, -30, 2, -20); ctx.lineTo(-2, -14); ctx.bezierCurveTo(-10, -18, -22, -18, -30, -14); ctx.closePath(); }, vsh('#6ac85a', -34, -34, 36, 20, 0.45, 0.4), { lw: 2 });
+    vf(() => { ctx.moveTo(-30, -12); ctx.bezierCurveTo(-20, -14, -10, -12, -4, -8); ctx.lineTo(-8, -4); ctx.bezierCurveTo(-16, -6, -24, -6, -32, -4); ctx.closePath(); }, vsh('#5ab84a', -32, -14, 28, 10), { lw: 1.8 });
+    vf(() => vP([-3, -17, 1, -17, -2, -8]), '#ffffff', { lw: 1 });
+    vf(() => vP([-10, -16, -7, -16, -9, -11]), '#ffffff', { lw: 0.8 });
+    vEye(-16, -26, 3, '#ffd040', true);
+    vf(() => vC(-30, -24, 1), '#1a3010', { lw: 0 });
+    vl(() => { ctx.moveTo(-6, -6); ctx.lineTo(-9, 0); ctx.moveTo(-9, 0); ctx.lineTo(-12, 2); ctx.moveTo(-9, 0); ctx.lineTo(-7, 3); }, '#e0302a', 1.2);
+    vf(() => vDrop(-1, -2, 0.3), vsh('#7aff5a', -5, -8, 9, 12, 0.5, 0.3), { lw: 1 });
+    vf(() => vDrop(4, 8, 0.24), vsh('#7aff5a', 1, 3, 7, 10, 0.5, 0.3), { lw: 0.9 });
+    vf(() => { ctx.moveTo(6, 4); ctx.lineTo(18, 4); ctx.lineTo(18, 12); ctx.lineTo(28, 28); ctx.quadraticCurveTo(12, 34, -4, 28); ctx.lineTo(6, 12); ctx.closePath(); }, 'rgba(220,245,255,0.6)', { lw: 2, ink: '#2a4a5a' });
+    vf(() => { ctx.moveTo(2, 20); ctx.lineTo(22, 20); ctx.lineTo(27, 28); ctx.quadraticCurveTo(12, 33, -3, 28); ctx.closePath(); }, vsh('#6aff4a', -3, 20, 30, 12, 0.5, 0.35), { lw: 0 });
+    vf(() => vR(4, 0, 16, 5, 1.5), vsh('#8a5a2a', 4, 0, 16, 5), { lw: 1.4 });
+    [[10, 24, 1.6], [16, 27, 1.2], [20, 23, 1]].forEach(([bx, by, r]) => vf(() => vC(bx, by, r), '#d8ffc0', { lw: 0 }));
+    vgl(10, 14, 1.4, 4, 0.5, 0.6);
+    vsp(26, -20, 4.5);
+  } },
+  feast: { f: '#c8401e', d() {
+    vX(0, 0, 1, -0.75, () => { vf(() => vR(-2.8, -30, 5.6, 58, 2.6), vmetal(VMETAL.silver, -3, -30, 3, 28), { lw: 1.8 }); vf(() => { ctx.moveTo(-7, -32); ctx.lineTo(7, -32); ctx.lineTo(7, -18); ctx.quadraticCurveTo(0, -12, -7, -18); ctx.closePath(); }, vmetal(VMETAL.silver, -7, -32, 7, -12), { lw: 1.6 }); [-3.5, 0, 3.5].forEach(fx => vline(fx, -32, fx, -24, '#4a5a64', 1)); });
+    vX(0, 0, 1, 0.75, () => { vf(() => vR(-2.8, -4, 5.6, 32, 2.6), vsh('#8a5a2a', -3, -4, 6, 32), { lw: 1.6 }); vf(() => { ctx.moveTo(-3, -4); ctx.lineTo(-3, -32); ctx.quadraticCurveTo(8, -24, 4, -4); ctx.closePath(); }, vmetal(VMETAL.silver, -3, -32, 8, -4), { lw: 1.6 }); });
+    vf(() => vBolt(0, 0, 0.9), vsh('#ffe04a', -12, -22, 26, 44, 0.5, 0.3), { lw: 2 });
+  } },
+  dentures: { f: '#1f7a7a', d() {
+    vf(() => { ctx.moveTo(-28, -4); ctx.quadraticCurveTo(0, -26, 28, -4); ctx.lineTo(26, 2); ctx.quadraticCurveTo(0, -16, -26, 2); ctx.closePath(); }, vsh('#f27a90', -28, -26, 56, 28));
+    [-18, -9, 0, 9, 18].forEach(tx => vf(() => vR(tx - 4, -10 + Math.abs(tx) * 0.3, 8, 10, 2.5), vsh(VTOOTH, tx - 4, -10, 8, 10, 0.6, 0.3), { lw: 1.2 }));
+    vf(() => { ctx.moveTo(-26, 10); ctx.quadraticCurveTo(0, 30, 26, 10); ctx.lineTo(28, 16); ctx.quadraticCurveTo(0, 38, -28, 16); ctx.closePath(); }, vsh('#f27a90', -28, 10, 56, 28));
+    [-16, -8, 0, 8, 16].forEach(tx => vf(() => vR(tx - 3.8, 8 + Math.abs(tx) * -0.3 + 4, 7.6, 9, 2.5), vsh(VTOOTH, tx - 4, 10, 8, 9, 0.6, 0.3), { lw: 1.2 }));
+    // wind-up key
+    vf(() => vR(26, -2, 6, 4, 1), vmetal(VMETAL.gold, 26, -2, 32, 2), { lw: 1 });
+    vf(() => { vE(36, -6, 4, 6, 0); vE(36, 6, 4, 6, 0); }, vmetal(VMETAL.gold, 32, -12, 40, 12), { lw: 1.2 });
+    [-1, 1].forEach(sd => vl(() => ctx.arc(0, 6, 34, sd > 0 ? -0.3 : Math.PI - 0.3, sd > 0 ? 0.1 : Math.PI + 0.1), '#dffaff', 1.8));
+  } },
+};
+Object.assign(BADGE_ART, {
+  gambit: { f: '#2a2a3a', d() {
+    vclip(() => vC(0, 0, 44), () => { for (let i = -4; i < 4; i++) for (let j = 0; j < 3; j++) if ((i + j) & 1) vf(() => vR(i * 12, 12 + j * 12, 12, 12, 0), '#4a4a62', { lw: 0 }); });
+    // a gator-headed chess knight
+    vf(() => { ctx.moveTo(-16, 22); ctx.lineTo(-12, 6); ctx.bezierCurveTo(-18, -2, -16, -18, -4, -24); ctx.lineTo(4, -30); ctx.lineTo(6, -24); ctx.bezierCurveTo(18, -22, 26, -12, 24, -4); ctx.lineTo(10, -4); ctx.bezierCurveTo(6, 2, 10, 6, 12, 6); ctx.lineTo(16, 22); ctx.closePath(); }, vsh('#6cc85a', -18, -30, 44, 52, 0.45, 0.45), { lw: 2.2 });
+    vf(() => vR(-20, 20, 40, 8, 3), vsh('#f2c848', -20, 20, 40, 8), { lw: 1.8 });
+    vEye(2, -16, 4.4, '#ffd040', true);
+    [12, 18].forEach(tx => vf(() => vP([tx - 2, -4, tx + 2, -4, tx, 1]), '#ffffff', { lw: 0.8 }));
+    [[-8, -8], [-12, 0], [-6, 2]].forEach(([sx, sy]) => vf(() => vE(sx, sy, 2.2, 1.5), '#3a8a2a', { lw: 0 }));
+    vf(() => vC(22, -8, 1.2), '#1a3a10', { lw: 0 });
+  } },
+  compound: { f: '#3a4a58', d() {
+    const gear = (x, y, r, t, rot, col) => { vX(x, y, 1, rot, () => {}); vf(() => vX(x, y, 1, rot, () => vGear(0, 0, r, t)), vrg(col, x, y, r, 0.45, 0.4), { lw: 1.8 }); vf(() => vC(x, y, r * 0.35), vrg('#2a3440', x, y, r * 0.35), { lw: 1.4 }); };
+    gear(-12, -8, 18, 10, 0.1, '#f2c848');
+    gear(16, 10, 13, 8, 0.3, '#c8d4dc');
+    gear(-4, 22, 9, 6, 0.2, '#e08a4a');
+    vfangFill(-12, -8, 0.24, VTOOTH);
+    vgl(-18, -16, 5, 2, -0.6, 0.6);
+  } },
+  kingmaker: { f: '#4a1a78', d() {
+    vX(0, 4, 1, 0.55, () => { vf(() => vR(-3, -26, 6, 52, 3), vsh('#d09a1e', -3, -26, 6, 52), { lw: 1.8 }); vf(() => vC(0, -28, 6), vrg('#ff3a5a', 0, -28, 6), { lw: 1.6 }); vf(() => vC(0, 26, 4), vrg('#f2c848', 0, 26, 4), { lw: 1.4 }); });
+    vf(() => vP([-24, 2, -28, -20, -16, -10, -8, -26, 0, -12, 8, -26, 16, -10, 28, -20, 24, 2]), vsh('#f4c43a', -28, -26, 56, 28), { lw: 2 });
+    [-8, 8].forEach(tx => vfangFill(tx, -6, 0.28, VTOOTH));
+    vf(() => vR(-25, -2, 50, 8, 2.5), vsh('#d89a1e', -25, -2, 50, 8), { lw: 1.6 });
+    [-14, 0, 14].forEach((gx, i) => vf(() => vC(gx, 2, 2.6), vrg(['#4ab8ff', '#ff3a4a', '#7aff6a'][i], gx, 2, 2.6), { lw: 1 }));
+    vsp(-26, 22, 4); vsp(24, 24, 3);
+  } },
+  prism: { f: '#141626', d() {
+    vl(() => { ctx.moveTo(-44, 4); ctx.lineTo(-10, -2); }, '#ffffff', 3.2);
+    ['#ff4a5a', '#ff9a3a', '#ffe84a', '#5aff6a', '#4ac8ff', '#9a6aff'].forEach((c, i) => vf(() => vP([6, 2 + i * 1.5, 44, -10 + i * 7, 44, -4 + i * 7, 6, 3.4 + i * 1.5]), c, { lw: 0 }));
+    ctx.save(); ctx.globalAlpha = 0.8;
+    vf(() => vP([0, -26, 22, 16, -22, 16]), vlg('#bff0ff', -22, -26, 22, 16, 0.6, 0.2), { lw: 2.2, ink: '#2a4a6a' });
+    ctx.restore();
+    vl(() => { ctx.moveTo(0, -26); ctx.lineTo(4, 16); }, 'rgba(255,255,255,0.7)', 1.4);
+    vgl(-6, -4, 3, 10, 0.5, 0.5);
+  } },
+  undertow: { f: '#12306a', d() {
+    for (let k = 0; k < 5; k++) vl(() => { const n = 60; for (let i = 0; i <= n; i++) { const f = i / n, a = f * 5 + k * 1.26, r = 4 + f * 34; const px = Math.cos(a) * r, py = Math.sin(a) * r * 0.62; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); } }, ['#bfe8ff', '#7ac8f0', '#4a9ad8', '#2a6ab0', '#9ad8ff'][k], 3.2 - k * 0.3);
+    vf(() => vE(0, 0, 6, 3.6), '#08183a', { lw: 1.2 });
+    // a little paper boat caught in the spin
+    vX(18, -18, 1, 0.5, () => { vf(() => vP([-9, 0, 9, 0, 5, 5, -5, 5]), vsh('#f4ecd8', -9, 0, 18, 5), { lw: 1.2 }); vf(() => vP([-2, 0, 0, -9, 4, 0]), '#e0e8f0', { lw: 1 }); });
+  } },
+  chum: { f: '#4a5a3a', d() {
+    vf(() => { ctx.moveTo(-22, -8); ctx.lineTo(22, -8); ctx.lineTo(17, 26); ctx.lineTo(-17, 26); ctx.closePath(); }, vmetal(VMETAL.silver, -22, -8, 22, 26), { lw: 2.2 });
+    [0, 12].forEach(by => vline(-20 + by * 0.14, by + 2, 20 - by * 0.14, by + 2, '#586a74', 1.6));
+    vl(() => ctx.arc(0, -8, 22, Math.PI, 0), '#586a74', 2);
+    // fish tail + head poking out
+    vf(() => vP([-14, -8, -22, -26, -8, -18, -6, -8]), vsh('#7ab0c8', -22, -26, 16, 18), { lw: 1.6 });
+    vf(() => { ctx.moveTo(4, -8); ctx.bezierCurveTo(6, -22, 22, -22, 22, -12); ctx.lineTo(16, -8); ctx.closePath(); }, vsh('#7ab0c8', 4, -22, 18, 14), { lw: 1.6 });
+    vf(() => vC(15, -15, 1.8), '#1a1008', { lw: 0 });
+    vf(() => vE(0, -8, 18, 4), vsh('#a8402a', -18, -12, 36, 8), { lw: 1.2 });
+    // flies
+    [[-20, -30], [22, -30], [0, -34]].forEach(([fx, fy]) => { vf(() => vC(fx, fy, 1.8), '#1a1a1a', { lw: 0 }); ctx.save(); ctx.globalAlpha = 0.6; vf(() => { vE(fx - 2, fy - 2, 2, 1.2, -0.5); vE(fx + 2, fy - 2, 2, 1.2, 0.5); }, '#dff4ff', { lw: 0 }); ctx.restore(); });
+  } },
+  jackpot: { f: '#8a1a24', d() {
+    vf(() => vR(-26, -28, 52, 56, 6), vsh('#e84a3a', -26, -28, 52, 56, 0.4, 0.4), { lw: 2.2 });
+    vf(() => vR(-22, -26, 44, 8, 3), vsh('#f2c848', -22, -26, 44, 8), { lw: 1.4 });
+    vtext('JACKPOT', 0, -24.5, '#6a1a08', 1.35);
+    vf(() => vR(-21, -14, 42, 20, 2), '#fbf6e8', { lw: 1.6 });
+    [-14, 0, 14].forEach(sx => { vline(sx + 7, -14, sx + 7, 6, '#c8b890', 1); vtext('7', sx, -9.5, '#e0202a', 2.3); });
+    vf(() => vR(-18, 12, 36, 10, 2), vsh('#2a2a3a', -18, 12, 36, 10), { lw: 1.4 });
+    vline(30, -10, 30, 8, '#8a949c', 2.6); vf(() => vC(30, -14, 4.5), vrg('#ff3a3a', 30, -14, 4.5), { lw: 1.4 });
+    [[-30, -30], [32, -26], [-32, 20]].forEach(([sx, sy]) => vsp(sx, sy, 4.5, '#fff6c0'));
+  } },
+  ouroboros: { f: '#1e4a2a', d() {
+    vl(() => vC(0, 2, 24), VINK, 13);
+    vl(() => ctx.arc(0, 2, 24, -1.2, 4.7), '#5cb84a', 9.5);
+    for (let k = 0; k < 14; k++) { const a = -1.1 + k * 0.42; vf(() => vE(Math.cos(a) * 24, 2 + Math.sin(a) * 24, 2.6, 1.6, a), '#3a8a2a', { lw: 0 }); }
+    // head biting its own tail
+    vX(Math.cos(-1.45) * 24, 2 + Math.sin(-1.45) * 24, 1, 0.1, () => {
+      vf(() => { ctx.moveTo(-10, -4); ctx.bezierCurveTo(-8, -12, 10, -12, 16, -6); ctx.lineTo(16, 2); ctx.bezierCurveTo(8, 6, -8, 6, -10, 2); ctx.closePath(); }, vsh('#6cc85a', -10, -12, 26, 18));
+      vf(() => vC(-2, -7, 3), '#fff6c8', { lw: 1 }); vf(() => vE(-2, -7, 0.9, 2.2), '#140a06', { lw: 0 });
+      [4, 9, 13].forEach(tx => vf(() => vP([tx - 1.6, -1, tx + 1.6, -1, tx, 3]), '#ffffff', { lw: 0.6 }));
+    });
+    vf(() => vP([-6, -22, -14, -26, -10, -18]), '#3a8a2a', { lw: 1.2 });
+    vsp(0, 2, 6, '#fff6c0', 0.8);
+  } },
+  hoard: { f: '#2a1a2a', d() {
+    // the dragon's wing looming behind the pile
+    vf(() => { ctx.moveTo(-6, -2); ctx.lineTo(-30, -30); ctx.quadraticCurveTo(-24, -20, -26, -12); ctx.quadraticCurveTo(-18, -14, -18, -6); ctx.quadraticCurveTo(-10, -10, -6, -2); ctx.closePath(); }, vsh('#8a2a4a', -30, -30, 24, 28), { lw: 1.6 });
+    vEye(18, -18, 8, '#ff8a2a', true);
+    vl(() => { ctx.moveTo(8, -26); ctx.quadraticCurveTo(18, -30, 28, -24); }, '#5a1a2a', 2.2);
+    // the pile
+    [[-22, 22], [-11, 22], [0, 22], [11, 22], [22, 22], [-16, 14], [-5, 14], [6, 14], [17, 14], [-10, 6], [1, 6], [12, 6], [-4, -2], [7, -2]].forEach(([cx, cy]) => vcoin(cx, cy, 6.5, '#f2c040'));
+    vf(() => vGemPath(1, -8, 0.36), vrg('#3aff9a', 1, -8, 6), { lw: 1.2 });
+    vsp(-20, -6, 4); vsp(26, 4, 3.5);
+  } },
+  airfan: { f: '#2a78b8', d() {
+    ctx.save(); ctx.globalAlpha = 0.35; vf(() => vC(0, 0, 30), '#dff4ff', { lw: 0 }); ctx.restore();
+    for (let k = 0; k < 3; k++) vf(() => vX(0, 0, 1, k * VTAU / 3 + 0.4, () => { ctx.moveTo(0, -3); ctx.bezierCurveTo(8, -10, 10, -26, 2, -30); ctx.bezierCurveTo(-6, -26, -6, -10, 0, -3); ctx.closePath(); }), vsh('#f4ecd8', -10, -30, 20, 30), { lw: 1.6 });
+    vf(() => vC(0, 0, 6), vrg('#e0403a', 0, 0, 6), { lw: 1.6 });
+    // the safety cage
+    vl(() => vC(0, 0, 32), '#2a3440', 3.4); vl(() => vC(0, 0, 32), '#c8d4dc', 1.8);
+    for (let k = 0; k < 8; k++) { const a = k * VTAU / 8; vline(Math.cos(a) * 8, Math.sin(a) * 8, Math.cos(a) * 31, Math.sin(a) * 31, 'rgba(200,212,220,0.8)', 1.2); }
+    [0, 1].forEach(k => vl(() => ctx.arc(0, 0, 36 + k * 4, -0.6 + k * 0.2, 0.3 + k * 0.2), '#ffffff', 1.6));
+  } },
+  baitbucket: { f: '#2a7a78', d() {
+    vf(() => { ctx.moveTo(-20, -6); ctx.lineTo(20, -6); ctx.lineTo(16, 26); ctx.lineTo(-16, 26); ctx.closePath(); }, vsh('#e0b040', -20, -6, 40, 32), { lw: 2.2 });
+    [4, 16].forEach(by => vline(-19 + by * 0.1, by, 19 - by * 0.1, by, '#a07a20', 1.6));
+    vf(() => vE(0, -6, 20, 4.5), vsh('#5a3a1a', -20, -10, 40, 9), { lw: 1.6 });
+    vl(() => ctx.arc(0, -6, 20, Math.PI, 0), '#586a74', 2);
+    // a wriggly worm waving hello
+    vl(() => { ctx.moveTo(-4, -8); ctx.bezierCurveTo(-8, -18, 4, -20, 2, -28); ctx.bezierCurveTo(0, -34, 8, -36, 10, -30); }, VINK, 7);
+    vl(() => { ctx.moveTo(-4, -8); ctx.bezierCurveTo(-8, -18, 4, -20, 2, -28); ctx.bezierCurveTo(0, -34, 8, -36, 10, -30); }, '#ff8aa0', 4.6);
+    vf(() => vC(9.5, -31.5, 1), '#1a0a10', { lw: 0 });
+    vcoin(16, 16, 6.5);
+  } },
+  mosquitonet: { f: '#2a4a32', d() {
+    vf(() => { ctx.moveTo(-28, 22); ctx.bezierCurveTo(-30, -24, 30, -24, 28, 22); ctx.closePath(); }, 'rgba(230,245,255,0.28)', { lw: 2, ink: '#dff4ff' });
+    vclip(() => { ctx.moveTo(-28, 22); ctx.bezierCurveTo(-30, -24, 30, -24, 28, 22); ctx.closePath(); }, () => { for (let k = -40; k < 40; k += 6) { vline(k, -30, k + 30, 30, 'rgba(230,245,255,0.5)', 0.9); vline(k, 30, k + 30, -30, 'rgba(230,245,255,0.5)', 0.9); } });
+    vf(() => vR(-32, 20, 64, 6, 3), vsh('#8a6a3a', -32, 20, 64, 6), { lw: 1.6 });
+    // the trapped skeeter
+    vf(() => vE(0, 2, 7, 3.4, -0.3), vsh('#5a4a3a', -7, -2, 14, 8), { lw: 1.2 });
+    vf(() => vC(-7, 4, 2.6), '#3a2a1a', { lw: 1 });
+    vline(-9, 5, -16, 8, '#2a1a10', 1.2);
+    ctx.save(); ctx.globalAlpha = 0.7; vf(() => { vE(2, -4, 6, 2.4, -0.8); vE(6, -2, 6, 2.4, -0.3); }, '#e8f8ff', { lw: 0.8, ink: '#6a8a9a' }); ctx.restore();
+    [[-4, 5, 4, 12], [2, 5, 6, 12], [5, 4, 11, 10]].forEach(([a, b2, c2, d2]) => vline(a, b2, c2, d2, '#2a1a10', 1));
+  } },
+  duckcall: { f: '#d07020', d() {
+    vf(() => vX(0, 10, 1, -0.2, () => vR(-24, -6, 34, 12, 5)), vsh('#8a5a2a', -24, 0, 34, 16), { lw: 2 });
+    vf(() => vX(0, 10, 1, -0.2, () => vR(8, -4, 12, 8, 2)), vmetal(VMETAL.gold, 8, 2, 20, 16), { lw: 1.6 });
+    vX(0, 10, 1, -0.2, () => { [-16, -8].forEach(bx => vline(bx, -6, bx, 6, '#5a3a18', 1.6)); });
+    // the duck it calls
+    vf(() => vC(-10, -16, 11), vsh('#2a8a4a', -21, -27, 22, 22), { lw: 2 });
+    vf(() => { ctx.moveTo(-2, -16); ctx.quadraticCurveTo(8, -18, 12, -13); ctx.quadraticCurveTo(6, -9, -2, -11); ctx.closePath(); }, vsh('#f2a830', -2, -18, 14, 9), { lw: 1.6 });
+    vf(() => vC(-8, -19, 2), '#1a1008', { lw: 0 }); vgl(-8.6, -19.6, 0.7, 0.7, 0, 1);
+    vf(() => vR(-19, -7, 18, 3, 1.5), '#f4f0e0', { lw: 0.8 });
+    // notes
+    [[18, -26], [26, -14]].forEach(([nx, ny]) => { vf(() => vE(nx, ny, 3, 2.2, -0.4), '#fff6d8', { lw: 1 }); vline(nx + 2.6, ny - 1, nx + 2.6, ny - 10, '#fff6d8', 1.6); });
+  } },
+  gumbo: { f: '#8a3a1a', d() {
+    [0, 1, 2].forEach(k => vl(() => { ctx.moveTo(-10 + k * 10, -12); ctx.bezierCurveTo(-16 + k * 10, -20, -4 + k * 10, -24, -10 + k * 10, -34); }, 'rgba(255,255,255,0.7)', 2.4));
+    vf(() => { ctx.moveTo(-26, -8); ctx.lineTo(26, -8); ctx.bezierCurveTo(26, 16, 16, 24, 0, 24); ctx.bezierCurveTo(-16, 24, -26, 16, -26, -8); ctx.closePath(); }, vmetal(['#10141a', '#2a323a', '#4a545c', '#7a868e', '#aab4bc'], -26, -8, 26, 24), { lw: 2.4 });
+    vf(() => vE(0, -8, 26, 6), vsh('#c86a2a', -26, -14, 52, 12, 0.4, 0.4), { lw: 2 });
+    [[-10, -9, '#ff7a4a'], [4, -7, '#5aa83a'], [12, -10, '#f4ecd8'], [-2, -11, '#e84a2a']].forEach(([gx, gy, gc]) => vf(() => vE(gx, gy, 3.4, 2), gc, { lw: 0.8 }));
+    [-1, 1].forEach(sd => vf(() => vR(sd * 30 - 4, -8, 8, 5, 2), '#2a323a', { lw: 1.4 }));
+    vf(() => vX(16, -18, 1, 0.5, () => vR(-2, -14, 4, 22, 2)), vsh('#c8a060', 14, -30, 8, 24), { lw: 1.4 });
+    vgl(-14, 4, 6, 3, -0.4, 0.35);
+  } },
+  rangerpin: { f: '#2a6a3a', d() {
+    vf(() => vE(0, 10, 34, 9), vsh('#c89a5a', -34, 1, 68, 18, 0.4, 0.4), { lw: 2.2 });
+    vf(() => { ctx.moveTo(-18, 8); ctx.bezierCurveTo(-18, -20, -8, -26, 0, -26); ctx.bezierCurveTo(8, -26, 18, -20, 18, 8); ctx.closePath(); }, vsh('#d8aa6a', -18, -26, 36, 34, 0.45, 0.4), { lw: 2.2 });
+    vl(() => { ctx.moveTo(0, -26); ctx.lineTo(0, -12); }, '#8a6a3a', 1.6);
+    vl(() => { ctx.moveTo(-6, -24); ctx.quadraticCurveTo(-8, -10, -10, 0); }, '#a8804a', 1.4); vl(() => { ctx.moveTo(6, -24); ctx.quadraticCurveTo(8, -10, 10, 0); }, '#a8804a', 1.4);
+    vf(() => vR(-18, 0, 36, 6, 1.5), vsh('#3a6a3a', -18, 0, 36, 6), { lw: 1.4 });
+    vf(() => vS(0, 3, 5, 8, 3.6), vrg('#ffd84a', 0, 3, 8), { lw: 1.4 });
+    vsp(24, -18, 4.5); vsp(-26, -12, 3.5);
+  } },
+  fireflyjar: { f: '#10183a', d() {
+    ctx.save(); ctx.globalAlpha = 0.45; vf(() => vC(0, 4, 26), vrg('#fff28a', 0, 4, 28, 0.6, 0.9), { lw: 0 }); ctx.restore();
+    vf(() => { ctx.moveTo(-18, -16); ctx.lineTo(18, -16); ctx.bezierCurveTo(24, -10, 24, 26, 14, 28); ctx.lineTo(-14, 28); ctx.bezierCurveTo(-24, 26, -24, -10, -18, -16); ctx.closePath(); }, 'rgba(210,240,255,0.32)', { lw: 2.2, ink: '#bfe0f0' });
+    vf(() => vR(-16, -24, 32, 8, 2), vmetal(VMETAL.gold, -16, -24, 16, -16), { lw: 1.8 });
+    [[-8, 4], [6, -4], [10, 14], [-4, 18], [0, 6]].forEach(([fx, fy], i) => { ctx.save(); ctx.globalAlpha = 0.6; vf(() => vC(fx, fy, 5), '#fff06a', { lw: 0 }); ctx.restore(); vf(() => vC(fx, fy, 2), '#ffffe0', { lw: 0 }); });
+    vgl(-12, 0, 2.4, 10, 0.1, 0.55);
+  } },
+  tacklecharm: { f: '#1a5a8a', d() {
+    vl(() => { ctx.moveTo(4, -36); ctx.lineTo(4, -6); }, '#f4f0e0', 1.4);
+    vl(() => { ctx.moveTo(4, -8); ctx.lineTo(4, 14); ctx.arc(-4, 14, 8, 0, Math.PI * 0.95); }, VINK, 5);
+    vl(() => { ctx.moveTo(4, -8); ctx.lineTo(4, 14); ctx.arc(-4, 14, 8, 0, Math.PI * 0.95); }, '#c8d4dc', 3);
+    vf(() => vP([-12, 14, -14, 6, -9, 12]), '#c8d4dc', { lw: 1.2 });
+    // spinner lure
+    vf(() => vX(4, -12, 1, 0.3, () => vE(0, 0, 7, 12)), vmetal(VMETAL.gold, -4, -24, 12, 0), { lw: 1.8 });
+    vf(() => vX(4, -12, 1, 0.3, () => vE(0, 0, 3, 6)), '#ff4a3a', { lw: 0 });
+    vf(() => vC(4, -26, 3), vrg('#e8f0f4', 4, -26, 3), { lw: 1.2 });
+    [[-20, -16, 4], [18, 10, 3], [-18, 22, 2.5]].forEach(([bx, by, r]) => vl(() => vC(bx, by, r), 'rgba(220,245,255,0.8)', 1.2));
+  } },
+  airhorn: { f: '#b8202a', d() {
+    vf(() => vR(-26, -10, 20, 34, 5), vsh('#e8403a', -26, -10, 20, 34, 0.45, 0.4), { lw: 2 });
+    vf(() => vR(-26, -2, 20, 10, 0), '#fbf4e0', { lw: 1.2 });
+    vtext('HONK', -16, 0.5, '#b8202a', 1.2);
+    vf(() => vR(-22, -18, 12, 8, 2), vmetal(VMETAL.silver, -22, -18, -10, -10), { lw: 1.6 });
+    vf(() => { ctx.moveTo(-12, -16); ctx.lineTo(4, -20); ctx.lineTo(18, -32); ctx.lineTo(22, -8); ctx.lineTo(4, -12); ctx.closePath(); }, vmetal(VMETAL.silver, -12, -32, 22, -8), { lw: 2 });
+    [0, 1, 2].forEach(k => vl(() => ctx.arc(20, -20, 8 + k * 6, -0.9, 0.9), '#fff6d8', 2));
+  } },
+  goldgrill: { f: '#4a1a6a', d() {
+    vf(() => { ctx.moveTo(-32, -6); ctx.quadraticCurveTo(0, -20, 32, -6); ctx.quadraticCurveTo(0, 34, -32, -6); ctx.closePath(); }, vsh('#c8404a', -32, -16, 64, 40), { lw: 2.2 });
+    vf(() => { ctx.moveTo(-26, -4); ctx.quadraticCurveTo(0, -12, 26, -4); ctx.quadraticCurveTo(0, 24, -26, -4); ctx.closePath(); }, '#3a0a14', { lw: 1 });
+    [-18, -9, 0, 9, 18].forEach(tx => vf(() => vR(tx - 4, -9 + Math.abs(tx) * 0.14, 8, 9, 2), vmetal(VMETAL.gold, tx - 4, -9, tx + 4, 0), { lw: 1 }));
+    [-12, -4, 4, 12].forEach(tx => vf(() => vR(tx - 3.5, 5 - Math.abs(tx) * 0.1, 7, 6, 1.6), vmetal(VMETAL.gold, tx - 4, 4, tx + 4, 11), { lw: 1 }));
+    vf(() => vGemPath(0, -5, 0.16), '#bff8ff', { lw: 0.6 });
+    vsp(24, -18, 5); vsp(-24, 18, 4); vsp(0, 26, 3);
+  } },
+  heronfeather: { f: '#2a7a8a', d() {
+    vf(() => vX(-4, 2, 1, 0.7, () => { ctx.moveTo(0, -34); ctx.bezierCurveTo(12, -20, 10, 10, 0, 30); ctx.bezierCurveTo(-10, 10, -12, -20, 0, -34); ctx.closePath(); }), vsh('#dff0f8', -24, -30, 44, 60, 0.4, 0.3), { lw: 2 });
+    vX(-4, 2, 1, 0.7, () => { vline(0, -34, 0, 36, '#6a8a9a', 1.6); for (let k = 0; k < 7; k++) { vline(0, -22 + k * 7, 8, -26 + k * 7, '#a8c0cc', 1); vline(0, -22 + k * 7, -8, -26 + k * 7, '#a8c0cc', 1); } });
+    // heron head in profile
+    vf(() => { ctx.moveTo(10, -10); ctx.bezierCurveTo(10, -22, 24, -24, 26, -14); ctx.lineTo(40, -10); ctx.lineTo(26, -8); ctx.bezierCurveTo(22, -2, 12, 0, 10, -10); ctx.closePath(); }, vsh('#8ab0c8', 10, -24, 30, 24), { lw: 1.8 });
+    vf(() => vP([26, -14, 42, -11, 26, -9]), '#f2c040', { lw: 1.2 });
+    vEye(20, -15, 3, '#ffd040');
+    vl(() => { ctx.moveTo(16, -20); ctx.quadraticCurveTo(8, -26, 2, -24); }, '#2a3a4a', 1.4);
+  } },
+  otterpaw: { f: '#6a4222', d() {
+    vcoin(0, 6, 26, '#f2c040');
+    vf(() => vE(0, 12, 11, 9), vsh('#5a3418', -11, 3, 22, 18), { lw: 1.8 });
+    [[-13, -2], [-5, -8], [5, -8], [13, -2]].forEach(([tx, ty]) => vf(() => vE(tx, ty, 4.2, 5.2), vsh('#5a3418', tx - 4, ty - 5, 8, 10), { lw: 1.4 }));
+    vgl(-4, 8, 3, 1.6, -0.3, 0.4);
+    vsp(24, -20, 5); vsp(-26, -18, 3.5);
+  } },
+  cypressroot: { f: '#c8702a', d() {
+    vclip(() => vC(0, 0, 44), () => {
+      vf(() => vR(-50, -50, 100, 60, 0), vlg('#ffb85a', 0, -40, 0, 10, 0.4, 0.2), { lw: 0 });
+      vf(() => vC(-16, -10, 11), '#fff0b8', { lw: 0 });
+      vwater(12, 1.2, '#2a6a7a');
+    });
+    vf(() => { ctx.moveTo(-6, 14); ctx.lineTo(-4, -18); ctx.lineTo(4, -18); ctx.lineTo(6, 14); ctx.closePath(); }, vsh('#5a3a22', -6, -18, 12, 32), { lw: 1.8 });
+    vf(() => { ctx.moveTo(-26, -12); ctx.quadraticCurveTo(0, -40, 26, -12); ctx.quadraticCurveTo(10, -22, 0, -18); ctx.quadraticCurveTo(-10, -22, -26, -12); ctx.closePath(); }, vsh('#3a6a2a', -26, -34, 52, 24), { lw: 1.8 });
+    // knobby cypress knees poking from the water
+    [[-18, 16, 5], [16, 17, 6], [26, 18, 3.5]].forEach(([kx, ky, kh]) => vf(() => { ctx.moveTo(kx - 3, ky + 2); ctx.quadraticCurveTo(kx - 3, ky - kh, kx, ky - kh); ctx.quadraticCurveTo(kx + 3, ky - kh, kx + 3, ky + 2); ctx.closePath(); }, vsh('#6a4a2a', kx - 3, ky - kh, 6, kh + 2), { lw: 1.4 }));
+    [[-12, 14], [12, 15]].forEach(([rx, ry]) => vl(() => { ctx.moveTo(rx * 0.3, 12); ctx.quadraticCurveTo(rx, 10, rx * 1.4, ry + 2); }, '#4a2a18', 2.4));
+  } },
+  dragonfly: { f: '#1a8a9a', d() {
+    ctx.save(); ctx.globalAlpha = 0.72;
+    [[-1, -6, -0.35], [1, -6, 0.35], [-1, 3, 0.2], [1, 3, -0.2]].forEach(([sd, wy, rot]) => vf(() => vE(sd * 17, wy, 16, 5.2, rot * -sd * -1), vlg('#dffcff', sd * 2, wy - 5, sd * 32, wy + 5, 0.5, 0.2), { lw: 1.2, ink: '#3a7a8a' }));
+    ctx.restore();
+    [[-1, -6, -0.35], [1, -6, 0.35]].forEach(([sd, wy]) => { for (let k = 0; k < 3; k++) vline(sd * (6 + k * 8), wy - 3, sd * (8 + k * 8), wy + 3, 'rgba(58,122,138,0.5)', 0.8); });
+    vf(() => vR(-2.6, -8, 5.2, 36, 2.6), vlg('#3ad0ff', 0, -8, 0, 28, 0.4, 0.4), { lw: 1.6 });
+    for (let k = 0; k < 5; k++) vline(-2.6, 2 + k * 5, 2.6, 2 + k * 5, '#1a5a7a', 1);
+    vf(() => vE(0, -10, 5, 4.2), vlg('#3ad0ff', 0, -14, 0, -6), { lw: 1.6 });
+    [-1, 1].forEach(sd => vf(() => vC(sd * 3, -13, 2.6), vrg('#9aff6a', sd * 3, -13, 2.6), { lw: 1 }));
+  } },
+  owlfeather: { f: '#5a3a22', d() {
+    vf(() => vX(22, 10, 1, 0.5, () => { ctx.moveTo(0, -22); ctx.bezierCurveTo(8, -12, 8, 8, 0, 20); ctx.bezierCurveTo(-8, 8, -8, -12, 0, -22); ctx.closePath(); }), vsh('#c89a6a', 12, -12, 20, 44), { lw: 1.6 });
+    vX(22, 10, 1, 0.5, () => { vline(0, -22, 0, 24, '#6a4a2a', 1.2); [-10, -4, 2, 8].forEach(fy => vline(-6, fy, 6, fy + 1, '#8a6a4a', 1.4)); });
+    // the owl
+    vf(() => { ctx.moveTo(-26, -18); ctx.lineTo(-18, -26); ctx.quadraticCurveTo(-6, -22, 0, -22); ctx.quadraticCurveTo(6, -22, 14, -26); ctx.lineTo(20, -18); ctx.bezierCurveTo(24, 6, 12, 22, -3, 22); ctx.bezierCurveTo(-18, 22, -30, 6, -26, -18); ctx.closePath(); }, vsh('#a87a4a', -28, -26, 50, 48, 0.4, 0.45), { lw: 2 });
+    vf(() => vE(-3, 8, 12, 12), vsh('#e8cc9a', -15, -4, 24, 24), { lw: 0 });
+    for (let k = 0; k < 6; k++) vl(() => ctx.arc(-3 + (k % 3 - 1) * 6, 6 + Math.floor(k / 3) * 6, 2.4, 0.2, Math.PI - 0.2), '#a87a4a', 1.2);
+    [-1, 1].forEach(sd => { vf(() => vC(-3 + sd * 9, -10, 8), vrg('#f8f0d8', -3 + sd * 9, -10, 8), { lw: 1.6 }); vf(() => vC(-3 + sd * 9, -10, 4.5), vrg('#ffb020', -3 + sd * 9, -10, 4.5, 0.4, 0.4), { lw: 0 }); vf(() => vC(-3 + sd * 9, -10, 2.2), '#140a06', { lw: 0 }); vgl(-3 + sd * 9 - 1.2, -11.4, 0.9, 0.7, 0, 1); });
+    vf(() => vP([-5, -4, -1, -4, -3, 2]), '#f2a030', { lw: 1 });
+  } },
+  snailshell: { f: '#b8904a', d() {
+    vf(() => { ctx.moveTo(-30, 20); ctx.quadraticCurveTo(-30, 8, -16, 10); ctx.lineTo(24, 10); ctx.quadraticCurveTo(34, 12, 30, 22); ctx.closePath(); }, vsh('#e8d0a0', -30, 8, 64, 14), { lw: 1.8 });
+    vf(() => vC(0, -4, 20), vrg('#c87a3a', -2, -8, 22, 0.45, 0.4), { lw: 2.2 });
+    vspiral(2, -3, 17, 2.2, '#7a4418', 2.6);
+    vgl(-8, -14, 5, 2.6, -0.6, 0.6);
+    // stalks
+    [-24, -19].forEach((sx, i) => { vline(sx, 12, sx - 4 + i * 2, -2, '#c8a870', 1.8); vf(() => vC(sx - 4 + i * 2, -3, 2.4), '#e8d0a0', { lw: 1 }); });
+    [[18, 20], [26, 16], [10, 22]].forEach(([cx, cy]) => vcoin(cx, cy, 4.2));
+  } },
+});
+Object.assign(BADGE_ART, {
+  leviathan: { f: '#141a4a', d() {
+    vclip(() => vC(0, 0, 44), () => {
+      vf(() => vC(18, -22, 9), vrg('#fff4c8', 18, -22, 9, 0.3, 0.2), { lw: 0 });
+      ctx.save(); ctx.globalAlpha = 0.25; vf(() => vC(18, -22, 16), '#fff4c8', { lw: 0 }); ctx.restore();
+    });
+    // serpent coils breaking the surface
+    [[-24, 12, 9], [0, 12, 10], [22, 12, 8]].forEach(([cx, cy, r], i) => vf(() => { ctx.moveTo(cx - r, cy); ctx.arc(cx, cy, r, Math.PI, 0); ctx.lineTo(cx + r - 4, cy); ctx.arc(cx, cy, r - 4, 0, Math.PI, true); ctx.closePath(); }, vsh('#2a9a8a', cx - r, cy - r, r * 2, r), { lw: 1.8 }));
+    vf(() => { ctx.moveTo(-30, 12); ctx.bezierCurveTo(-34, -10, -26, -30, -12, -30); ctx.bezierCurveTo(-2, -30, 2, -22, -2, -18); ctx.lineTo(-10, -20); ctx.bezierCurveTo(-18, -20, -22, -6, -22, 12); ctx.closePath(); }, vsh('#3ab8a0', -34, -30, 36, 42, 0.45, 0.4), { lw: 2 });
+    vf(() => vP([-12, -30, -8, -40, -4, -28]), '#1a6a5a', { lw: 1.2 }); vf(() => vP([-18, -28, -18, -38, -12, -29]), '#1a6a5a', { lw: 1.2 });
+    vEye(-10, -24, 3.2, '#ff5a3a', true);
+    [-8, -4].forEach(tx => vf(() => vP([tx - 1.6, -19, tx + 1.6, -19, tx, -15]), '#ffffff', { lw: 0.6 }));
+    for (let k = 0; k < 5; k++) vf(() => vE(-26 + k * 1.5, -6 + k * 5, 2, 1.2, 0.4), '#1a6a5a', { lw: 0 });
+    vclip(() => vC(0, 0, 44), () => vwater(14, 2, '#1a3a8a'));
+    [[-34, 18], [12, 20], [30, 16]].forEach(([fx, fy]) => vl(() => { ctx.moveTo(fx - 5, fy); ctx.quadraticCurveTo(fx, fy - 4, fx + 5, fy); }, '#bfe8ff', 1.6));
+  } },
+  foreverglades: { f: '#2a6a4a', d() {
+    vclip(() => vC(0, 0, 44), () => {
+      vf(() => vR(-50, -50, 100, 64, 0), vlg('#ffcf6a', 0, -44, 0, 14, 0.5, 0.25), { lw: 0 });
+      vf(() => vC(0, 8, 18), vrg('#fff0b0', 0, 8, 18, 0.4, 0.1), { lw: 0 });
+      [[-34, 2, 20], [30, 0, 22], [-16, 6, 14], [14, 6, 12]].forEach(([tx, ty, th]) => { vf(() => vR(tx - 1.5, ty - th, 3, th + 10, 1), '#2a3a2a', { lw: 0 }); vf(() => vE(tx, ty - th, 8, 4.5), '#2f5a32', { lw: 0 }); });
+      vwater(12, 1, '#3a8aa0');
+      ctx.save(); ctx.globalAlpha = 0.5; vf(() => vE(0, 18, 14, 2), '#fff0b0', { lw: 0 }); ctx.restore();
+    });
+    // the infinity loop hanging in the dawn sky
+    const inf = () => { ctx.moveTo(0, -22); ctx.bezierCurveTo(8, -34, 26, -34, 26, -22); ctx.bezierCurveTo(26, -10, 8, -10, 0, -22); ctx.bezierCurveTo(-8, -34, -26, -34, -26, -22); ctx.bezierCurveTo(-26, -10, -8, -10, 0, -22); };
+    vl(inf, VINK, 8); vl(inf, '#fff4c8', 5); vl(inf, '#ffe070', 2);
+    vsp(-30, -34, 4); vsp(32, -36, 3.5);
+  } },
+  millionfang: { f: '#3a1a5a', d() {
+    const rows = [[0, -24], [-7, -12], [7, -12], [-14, 0], [0, 0], [14, 0], [-21, 12], [-7, 12], [7, 12], [21, 12]];
+    rows.forEach(([tx, ty], i) => vtoothFill(tx, ty + 6, 0.34, i % 4 === 0 ? '#ffe070' : i % 3 === 0 ? '#bff4ff' : VTOOTH));
+    vf(() => vR(-30, 22, 60, 9, 3), vsh('#f2c848', -30, 22, 60, 9), { lw: 1.6 });
+    vtext('1000000', 0, 24.2, '#6a3a08', 1.1);
+    vsp(-28, -20, 5); vsp(28, -24, 4); vsp(0, -40, 3);
+  } },
+  lantern: { f: '#14203a', d() {
+    ctx.save(); ctx.globalAlpha = 0.5; vf(() => vC(0, 4, 28), vrg('#ffd86a', 0, 4, 30, 0.6, 1), { lw: 0 }); ctx.restore();
+    vl(() => ctx.arc(0, -26, 8, Math.PI, 0), '#2a323a', 3);
+    vf(() => vR(-14, -24, 28, 7, 2), vmetal(['#10141a', '#2a323a', '#4a545c', '#7a868e', '#aab4bc'], -14, -24, 14, -17), { lw: 1.6 });
+    vf(() => vR(-12, -17, 24, 36, 4), 'rgba(255,230,140,0.55)', { lw: 2, ink: '#3a2a10' });
+    [-12, 12].forEach(px => vf(() => vR(px - 2, -17, 4, 36, 1), '#2a323a', { lw: 1 }));
+    vf(() => vR(-14, 18, 28, 7, 2), vmetal(['#10141a', '#2a323a', '#4a545c', '#7a868e', '#aab4bc'], -14, 18, 14, 25), { lw: 1.6 });
+    [[-4, -6], [4, 2], [-3, 10], [5, -10]].forEach(([fx, fy]) => { ctx.save(); ctx.globalAlpha = 0.7; vf(() => vC(fx, fy, 4), '#fff06a', { lw: 0 }); ctx.restore(); vf(() => vC(fx, fy, 1.6), '#ffffff', { lw: 0 }); });
+    [[-24, -14], [22, 8], [-20, 22]].forEach(([fx, fy]) => { ctx.save(); ctx.globalAlpha = 0.6; vf(() => vC(fx, fy, 3), '#f8f080', { lw: 0 }); ctx.restore(); });
+  } },
+  canteen: { f: '#4a5a2a', d() {
+    vl(() => { ctx.moveTo(-18, -8); ctx.bezierCurveTo(-30, -40, 30, -40, 18, -8); }, '#8a6a3a', 4);
+    vf(() => vC(0, 6, 22), vsh('#6a8a3a', -22, -16, 44, 44, 0.4, 0.4), { lw: 2.2 });
+    vl(() => vC(0, 6, 17), '#4a6a2a', 1.6);
+    vf(() => vR(-5, -22, 10, 8, 2), vmetal(VMETAL.silver, -5, -22, 5, -14), { lw: 1.6 });
+    vf(() => vR(-6, -26, 12, 5, 2), vsh('#3a3a3a', -6, -26, 12, 5), { lw: 1.4 });
+    vf(() => vR(-12, 0, 24, 11, 2), vsh('#f0e0b8', -12, 0, 24, 11, 0.3, 0.25), { lw: 1.2 });
+    vtext('H2O', 0, 3, '#4a6a2a', 1.4);
+    vgl(-9, -6, 5, 3, -0.6, 0.45);
+  } },
+  skeeter: { f: '#2a4a3a', d() {
+    ctx.save(); ctx.globalAlpha = 0.7;
+    vf(() => { vE(-6, -14, 16, 6, -0.6); vE(8, -14, 16, 6, 0.6); }, vlg('#e8f8ff', -20, -24, 20, -6, 0.5, 0.2), { lw: 1.2, ink: '#6a8a9a' });
+    ctx.restore();
+    vf(() => vE(2, 4, 8, 16, 0.2), vsh('#8a6a4a', -6, -12, 16, 32), { lw: 1.8 });
+    for (let k = 0; k < 4; k++) vline(-5 + k * 0.6, 2 + k * 5, 8 + k * 0.6, 3 + k * 5, '#5a3a2a', 1.2);
+    vf(() => vC(-2, -12, 7), vsh('#6a4a3a', -9, -19, 14, 14), { lw: 1.8 });
+    [-1, 1].forEach(sd => vf(() => vC(-2 + sd * 3.6, -14, 2.4), vrg('#ff3a3a', -2 + sd * 3.6, -14, 2.4), { lw: 0.8 }));
+    vline(-4, -7, -14, 10, '#3a2a1a', 1.6);
+    vf(() => vP([-6, -7, -2, -7, -4, -3]), vmetal(VMETAL.gold, -6, -7, -2, -3), { lw: 0.8 });
+    [[-2, 8, -18, 18], [0, 12, -12, 26], [6, 12, 16, 26], [8, 8, 22, 16]].forEach(([a, b2, c2, d2]) => vl(() => { ctx.moveTo(a, b2); ctx.quadraticCurveTo((a + c2) / 2, b2 - 6, c2, d2); }, '#3a2a1a', 1.2));
+    vcoin(20, -26, 6);
+  } },
+  totem: { f: '#6a3a1a', d() {
+    const face = (y, col, mouth) => {
+      vf(() => vR(-16, y - 10, 32, 20, 4), vsh(col, -16, y - 10, 32, 20, 0.35, 0.45), { lw: 2 });
+      [-1, 1].forEach(sd => { vf(() => vE(sd * 7, y - 3, 4, 3), '#fbf2d8', { lw: 1 }); vf(() => vC(sd * 7, y - 3, 1.6), '#1a0a06', { lw: 0 }); });
+      if (mouth) { vf(() => vR(-9, y + 3, 18, 5, 1.5), '#3a1408', { lw: 1 }); [-6, -2, 2, 6].forEach(tx => vf(() => vP([tx - 1.6, y + 3, tx + 1.6, y + 3, tx, y + 6]), '#ffffff', { lw: 0 })); }
+      else vl(() => ctx.arc(0, y + 3, 5, 0.2, Math.PI - 0.2), '#3a1408', 1.8);
+    };
+    [-1, 1].forEach(sd => vf(() => vP([sd * 16, -22, sd * 32, -30, sd * 28, -16, sd * 16, -14]), vsh('#e8603a', sd > 0 ? 16 : -32, -30, 16, 16), { lw: 1.8 }));
+    face(-20, '#5cb84a', true);
+    face(2, '#d8a040', false);
+    face(24, '#4a8ad0', true);
+    vf(() => vP([-6, -30, 0, -40, 6, -30]), '#e8403a', { lw: 1.4 });
+  } },
+  hound: { f: '#5a4028', d() {
+    [-1, 1].forEach(sd => vf(() => { ctx.moveTo(sd * 12, -20); ctx.bezierCurveTo(sd * 30, -18, sd * 30, 8, sd * 22, 14); ctx.bezierCurveTo(sd * 16, 8, sd * 14, -6, sd * 12, -20); ctx.closePath(); }, vsh('#6a4222', sd > 0 ? 12 : -30, -20, 18, 34), { lw: 1.8 }));
+    vf(() => { ctx.moveTo(-16, -14); ctx.bezierCurveTo(-16, -30, 16, -30, 16, -14); ctx.bezierCurveTo(18, 4, 12, 20, 0, 22); ctx.bezierCurveTo(-12, 20, -18, 4, -16, -14); ctx.closePath(); }, vsh('#c89a5a', -18, -30, 36, 52, 0.45, 0.4), { lw: 2 });
+    vf(() => vE(0, 10, 10, 8), vsh('#e8c890', -10, 2, 20, 16), { lw: 0 });
+    vf(() => vE(0, 4, 5, 3.6), '#2a1810', { lw: 1 }); vgl(-1.6, 3, 1.6, 1, 0, 0.8);
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 7, -8, 3), '#2a1810', { lw: 0 }); vgl(sd * 7 - 1, -9, 1, 0.8, 0, 1); vl(() => ctx.arc(sd * 7, -9, 5, Math.PI + 0.4, -0.4), '#8a6a3a', 1.2); });
+    vl(() => { ctx.moveTo(0, 8); ctx.lineTo(0, 12); ctx.quadraticCurveTo(-4, 16, -7, 13); ctx.moveTo(0, 12); ctx.quadraticCurveTo(4, 16, 7, 13); }, '#2a1810', 1.4);
+    // collar with a tooth tag
+    vf(() => vR(-14, 20, 28, 6, 3), vsh('#d8403a', -14, 20, 28, 6), { lw: 1.4 });
+    vtoothFill(0, 31, 0.24, '#ffe070');
+  } },
+  moonshine: { f: '#1a1838', d() {
+    vf(() => vC(-20, -24, 8), vrg('#fff4c8', -20, -24, 8, 0.3, 0.2), { lw: 0 });
+    vf(() => vC(-16, -27, 7), '#1a1838', { lw: 0 });
+    vf(() => { ctx.moveTo(-8, -18); ctx.lineTo(8, -18); ctx.lineTo(8, -12); ctx.bezierCurveTo(24, -8, 26, 26, 14, 28); ctx.lineTo(-14, 28); ctx.bezierCurveTo(-26, 26, -24, -8, -8, -12); ctx.closePath(); }, vsh('#d8b888', -24, -18, 48, 46, 0.45, 0.45), { lw: 2.2 });
+    vf(() => vR(-9, -26, 18, 9, 3), vsh('#8a5a2a', -9, -26, 18, 9), { lw: 1.6 });
+    vl(() => { ctx.moveTo(10, -14); ctx.bezierCurveTo(26, -18, 28, 4, 18, 6); }, '#a88858', 3.4);
+    vtext('XXX', 0, 6, '#5a2a10', 2.2);
+    vgl(-12, -2, 3, 8, 0.2, 0.4);
+    [[18, -26], [26, -12]].forEach(([bx, by]) => vl(() => vC(bx, by, 2.2), 'rgba(255,255,255,0.7)', 1.2));
+  } },
+  suncharm: { f: '#e87a1a', d() {
+    for (let k = 0; k < 12; k++) vf(() => vX(0, 0, 1, k * VTAU / 12, () => vP([-5, -24, 0, -38, 5, -24])), vsh('#ffd84a', -5, -38, 10, 14), { lw: 1.4 });
+    vf(() => vC(0, 0, 23), vrg('#ffd84a', 0, 0, 23, 0.55, 0.3), { lw: 2.2 });
+    vf(() => { ctx.moveTo(-18, -6); ctx.lineTo(18, -6); ctx.lineTo(16, 2); ctx.quadraticCurveTo(10, 6, 4, 1); ctx.lineTo(-4, 1); ctx.quadraticCurveTo(-10, 6, -16, 2); ctx.closePath(); }, vsh('#2a2a3a', -18, -6, 36, 10, 0.5, 0.2), { lw: 1.4 });
+    vgl(-10, -3, 3, 1, 0, 0.7); vgl(10, -3, 3, 1, 0, 0.7);
+    vl(() => ctx.arc(0, 6, 9, 0.35, Math.PI - 0.35), '#8a3a08', 2);
+    ctx.save(); ctx.globalAlpha = 0.5; [-1, 1].forEach(sd => vf(() => vE(sd * 14, 8, 4, 2.4), '#ff7a4a', { lw: 0 })); ctx.restore();
+  } },
+  msgbottle: { f: '#1a5a8a', d() {
+    vclip(() => vC(0, 0, 44), () => vwater(16, 2.4, '#2a8ac8'));
+    vX(0, 2, 1, -0.5, () => {
+      vf(() => { ctx.moveTo(-18, -10); ctx.lineTo(10, -10); ctx.lineTo(16, -5); ctx.lineTo(26, -5); ctx.lineTo(26, 5); ctx.lineTo(16, 5); ctx.lineTo(10, 10); ctx.lineTo(-18, 10); ctx.quadraticCurveTo(-24, 0, -18, -10); ctx.closePath(); }, 'rgba(180,240,200,0.55)', { lw: 2, ink: '#1a4a3a' });
+      vf(() => vR(24, -5, 7, 10, 2), vsh('#a8804a', 24, -5, 7, 10), { lw: 1.4 });
+      vf(() => vR(-14, -5, 22, 10, 3), vsh('#f4ecd0', -14, -5, 22, 10, 0.3, 0.2), { lw: 1.2 });
+      vf(() => vR(-6, -6, 4, 12, 1), '#d8403a', { lw: 0.8 });
+      vgl(-6, -7, 10, 1.4, 0, 0.6);
+    });
+    vsp(24, -24, 4.5); vsp(-26, -18, 3);
+  } },
+  starfish: { f: '#1a9a9a', d() {
+    vf(() => vX(0, 2, 1, 0, () => { for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 13 : 32; const px = Math.cos(a) * r, py = Math.sin(a) * r; if (i) ctx.quadraticCurveTo(Math.cos(a - Math.PI / 10) * (i % 2 ? 22 : 18), Math.sin(a - Math.PI / 10) * (i % 2 ? 22 : 18), px, py); else ctx.moveTo(px, py); } ctx.quadraticCurveTo(Math.cos(-Math.PI / 2 - Math.PI / 10) * 18, Math.sin(-Math.PI / 2 - Math.PI / 10) * 18, 0, -32); ctx.closePath(); }), vrg('#ff8a3a', 0, 0, 34, 0.45, 0.35), { lw: 2.2 });
+    for (let k = 0; k < 5; k++) { const a = -Math.PI / 2 + k * VTAU / 5; for (let j = 1; j < 4; j++) vf(() => vC(Math.cos(a) * j * 7, 2 + Math.sin(a) * j * 7, 1.4), '#ffd0a0', { lw: 0 }); }
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 5, -1, 2.2), '#2a1008', { lw: 0 }); vgl(sd * 5 - 0.8, -1.8, 0.8, 0.7, 0, 1); });
+    vl(() => ctx.arc(0, 3, 4, 0.3, Math.PI - 0.3), '#2a1008', 1.4);
+  } },
+  coconut: { f: '#1a8a7a', d() {
+    vf(() => { ctx.moveTo(-26, -2); ctx.lineTo(26, -2); ctx.bezierCurveTo(26, 22, -26, 22, -26, -2); ctx.closePath(); }, vsh('#7a4a22', -26, -2, 52, 22, 0.35, 0.45), { lw: 2.2 });
+    vf(() => vE(0, -2, 26, 6), vsh('#fbf4e8', -26, -8, 52, 12, 0.3, 0.2), { lw: 2 });
+    vf(() => vE(0, -2, 20, 3.6), '#f0e8d0', { lw: 0 });
+    for (let k = 0; k < 7; k++) vline(-20 + k * 6, 6, -22 + k * 6, 14, '#5a3418', 1.2);
+    vline(4, -2, 16, -30, '#ff5a8a', 3); vline(16, -30, 22, -30, '#ff5a8a', 3);
+    // paper umbrella
+    vf(() => { ctx.moveTo(-26, -14); ctx.quadraticCurveTo(-12, -34, 2, -14); ctx.closePath(); }, vsh('#ffd84a', -26, -30, 28, 16), { lw: 1.4 });
+    [-18, -12, -6].forEach(ux => vline(-12, -26, ux, -14, '#d8a020', 1));
+    vline(-12, -14, -4, -2, '#a8804a', 1.6);
+  } },
+  palmfrond: { f: '#d8603a', d() {
+    vclip(() => vC(0, 0, 44), () => vf(() => vC(0, 16, 22), vrg('#ffd070', 0, 16, 22, 0.4, 0.2), { lw: 0 }));
+    for (let k = 0; k < 7; k++) {
+      const a = -Math.PI + 0.3 + k * 0.42;
+      vf(() => vLeaf(0, 16, 40, 9, a), vsh(k % 2 ? '#3a9a3a' : '#5ab84a', -40, -30, 80, 50, 0.4, 0.4), { lw: 1.6 });
+      vline(0, 16, Math.cos(a) * 36, 16 + Math.sin(a) * 36, '#2a6a2a', 1.2);
+    }
+    vf(() => vC(0, 16, 5), vsh('#8a5a2a', -5, 11, 10, 10), { lw: 1.6 });
+  } },
+  jurassic: { f: '#8a4a10', d() {
+    vf(() => vX(0, 0, 1, 0, () => vPolyN(0, 0, 7, 30, 0.2)), vrg('#ffb030', -4, -6, 34, 0.5, 0.35), { lw: 2.4, ink: '#5a2a06' });
+    ctx.save(); ctx.globalAlpha = 0.35; vf(() => vPolyN(-4, -6, 7, 18, 0.5), '#fff0a0', { lw: 0 }); ctx.restore();
+    // the mosquito sealed inside
+    vf(() => vE(0, 2, 7, 3, -0.4), '#4a2a10', { lw: 0 });
+    vf(() => vC(-7, 6, 2.6), '#3a1a08', { lw: 0 });
+    vline(-8, 7, -14, 12, '#3a1a08', 1);
+    ctx.save(); ctx.globalAlpha = 0.6; vf(() => { vE(2, -4, 7, 2.6, -0.9); vE(6, -2, 7, 2.6, -0.3); }, '#fff0c0', { lw: 0.8, ink: '#6a3a10' }); ctx.restore();
+    [[-3, 4, -6, 12], [2, 4, 1, 12], [5, 3, 9, 10]].forEach(([a, b2, c2, d2]) => vline(a, b2, c2, d2, '#3a1a08', 0.9));
+    vgl(-12, -14, 6, 3, -0.6, 0.6);
+    vsp(24, -22, 4);
+  } },
+  trex: { f: '#6a3a0a', d() {
+    vf(() => { ctx.moveTo(-30, -6); ctx.bezierCurveTo(-30, -26, 0, -32, 18, -24); ctx.lineTo(34, -16); ctx.lineTo(34, -2); ctx.lineTo(10, 0); ctx.lineTo(8, 10); ctx.lineTo(30, 10); ctx.lineTo(28, 20); ctx.lineTo(-6, 22); ctx.bezierCurveTo(-24, 18, -30, 8, -30, -6); ctx.closePath(); }, vsh('#efe4c8', -30, -32, 64, 54, 0.5, 0.4), { lw: 2.4 });
+    vf(() => vE(-12, -12, 7, 6), '#1a0a06', { lw: 0 });
+    vf(() => vC(-12, -12, 2.4), '#ff4a2a', { lw: 0 });
+    vf(() => vE(8, -12, 4, 3), '#1a0a06', { lw: 0 });
+    vf(() => vE(-18, 6, 5, 7), '#1a0a06', { lw: 0 });
+    [12, 17, 22, 27, 31].forEach(tx => vf(() => vP([tx - 2, -2, tx + 2, -2, tx, 4]), '#ffffff', { lw: 0.8 }));
+    [12, 17, 22].forEach(tx => vf(() => vP([tx - 2, 10, tx + 2, 10, tx, 5]), '#ffffff', { lw: 0.8 }));
+    vgl(-16, -22, 8, 3, -0.3, 0.5);
+    vsp(28, -28, 5, '#ffe080');
+  } },
+  yardstick: { f: '#c89a1a', d() {
+    const seg = (x, y, rot) => vX(x, y, 1, rot, () => { vf(() => vR(-4, -20, 8, 40, 1.5), vsh('#ffe04a', -4, -20, 8, 40, 0.5, 0.3), { lw: 1.6 }); for (let k = 0; k < 9; k++) vline(-4, -16 + k * 4, k % 2 ? -1 : 1, -16 + k * 4, '#5a3a08', 0.9); });
+    seg(-16, 2, 0.5); seg(0, -2, -0.5); seg(16, 2, 0.5);
+    [[-8, -14], [8, 16], [-24, 18], [24, -14]].forEach(([hx, hy]) => vf(() => vC(hx, hy, 2.4), vmetal(VMETAL.silver, hx - 2, hy - 2, hx + 2, hy + 2), { lw: 1 }));
+  } },
+  tycoon: { f: '#1f6a3a', d() {
+    vf(() => vE(0, 12, 30, 7), vsh('#2a2a3a', -30, 5, 60, 14, 0.4, 0.3), { lw: 2 });
+    vf(() => vR(-18, -28, 36, 40, 4), vsh('#2a2a3a', -18, -28, 36, 40, 0.35, 0.3), { lw: 2 });
+    vf(() => vR(-18, 0, 36, 7, 0), vsh('#d8a020', -18, 0, 36, 7), { lw: 1.4 });
+    vtext('$$$', 0, 1.2, '#5a3a08', 1.4);
+    vgl(-10, -18, 3, 8, 0.1, 0.35);
+    // monocle + chain
+    vl(() => vC(20, 20, 7), '#f2c848', 2.4);
+    ctx.save(); ctx.globalAlpha = 0.4; vf(() => vC(20, 20, 6), '#dff4ff', { lw: 0 }); ctx.restore();
+    vl(() => { ctx.moveTo(14, 24); ctx.quadraticCurveTo(0, 34, -14, 26); }, '#f2c848', 1.2, { dash: [2, 2] });
+    [[-26, -18], [24, -24]].forEach(([bx, by]) => vf(() => vX(bx, by, 1, 0.3, () => vR(-7, -4, 14, 8, 1)), vsh('#7ac87a', bx - 7, by - 4, 14, 8), { lw: 1.2 }));
+  } },
+  domino: { f: '#202830', d() {
+    [[-22, 8, -0.9], [-8, 2, -0.55], [8, -2, -0.2], [22, -4, 0]].forEach(([dx, dy, rot], i) => vX(dx, dy, 1, rot, () => {
+      vf(() => vR(-7, -16, 14, 30, 3), vsh('#fbf6e8', -7, -16, 14, 30, 0.4, 0.3), { lw: 1.8 });
+      vline(-5, -1, 5, -1, '#2a2a3a', 1.2);
+      const pips = [[1, 3], [2, 4], [3, 5], [6, 6]][i];
+      const at = (n, cy) => { const P = { 1: [[0, 0]], 2: [[-3, -3], [3, 3]], 3: [[-3, -3], [0, 0], [3, 3]], 4: [[-3, -3], [3, -3], [-3, 3], [3, 3]], 5: [[-3, -3], [3, -3], [0, 0], [-3, 3], [3, 3]], 6: [[-3, -4], [3, -4], [-3, 0], [3, 0], [-3, 4], [3, 4]] }[n]; P.forEach(([px, py]) => vf(() => vC(px, cy + py, 1.3), '#1a1a2a', { lw: 0 })); };
+      at(pips[0], -8); at(pips[1], 7);
+    }));
+    vl(() => { ctx.moveTo(-30, 22); ctx.lineTo(32, 22); }, '#8a949c', 1.6);
+  } },
+  lowtide: { f: '#e0c080', d() {
+    vclip(() => vC(0, 0, 44), () => {
+      vf(() => vR(-50, -50, 100, 44, 0), vlg('#8ad8f0', 0, -44, 0, -6, 0.3, 0.2), { lw: 0 });
+      vwater(-8, 2, '#2a8ac8');
+      vf(() => { ctx.moveTo(-50, 50); ctx.lineTo(-50, 2); ctx.quadraticCurveTo(0, -6, 50, 4); ctx.lineTo(50, 50); ctx.closePath(); }, vlg('#f0d8a0', 0, 0, 0, 40, 0.3, 0.25), { lw: 1.6 });
+    });
+    vf(() => { ctx.moveTo(-10, 22); ctx.quadraticCurveTo(-14, 10, -4, 10); ctx.quadraticCurveTo(2, 8, 6, 14); ctx.quadraticCurveTo(8, 22, -10, 22); ctx.closePath(); }, vsh('#ff9aa8', -14, 8, 22, 14), { lw: 1.4 });
+    for (let k = 0; k < 4; k++) vline(-6 + k * 3, 12, -8 + k * 4, 21, '#d86a7a', 0.9);
+    vf(() => vS(18, 16, 5, 6, 2.6), vrg('#ff8a3a', 18, 16, 6), { lw: 1 });
+    // tide arrow pointing down
+    vf(() => vP([-4, -34, 4, -34, 4, -24, 9, -24, 0, -14, -9, -24, -4, -24]), vsh('#ffffff', -9, -34, 18, 20, 0.2, 0.2), { lw: 1.6 });
+  } },
+  highnoon: { f: '#d86a20', d() {
+    vf(() => vC(0, 4, 24), vsh('#fbf2d8', -24, -20, 48, 48, 0.4, 0.3), { lw: 2.2 });
+    for (let k = 0; k < 12; k++) { const a = k * VTAU / 12 - Math.PI / 2; vline(Math.cos(a) * 19, 4 + Math.sin(a) * 19, Math.cos(a) * 22, 4 + Math.sin(a) * 22, '#8a5a2a', k % 3 ? 1.2 : 2.4); }
+    vline(0, 4, 0, -14, '#2a1a10', 3); vline(0, 4, 0, -10, '#2a1a10', 3);
+    vf(() => vC(0, 4, 2.4), '#e0403a', { lw: 1 });
+    // the sun sitting right on top of twelve, with a cowboy hat
+    vf(() => vC(0, -30, 9), vrg('#ffd84a', 0, -30, 9), { lw: 1.6 });
+    vf(() => vE(0, -34, 16, 3.4), vsh('#a8703a', -16, -38, 32, 7), { lw: 1.6 });
+    vf(() => { ctx.moveTo(-8, -34); ctx.quadraticCurveTo(-8, -46, 0, -44); ctx.quadraticCurveTo(8, -46, 8, -34); ctx.closePath(); }, vsh('#a8703a', -8, -46, 16, 12), { lw: 1.6 });
+  } },
+  perfection: { f: '#f0e8d8', d() {
+    ['#e0302a', '#ffffff', '#e0302a', '#ffffff', '#e0302a'].forEach((c, i) => vf(() => vC(0, 2, 32 - i * 6.4), c, { lw: i ? 0.8 : 2.2 }));
+    vf(() => vC(0, 2, 5), '#ffd84a', { lw: 1 });
+    // arrow dead centre
+    vline(0, 2, 26, -24, '#8a5a2a', 3);
+    vf(() => vP([22, -26, 32, -30, 28, -20]), '#e8e8f0', { lw: 1 }); vf(() => vP([26, -22, 32, -30, 30, -18]), '#c8d4dc', { lw: 1 });
+    vf(() => vP([-2, 4, 5, -1, 3, -3]), '#8a949c', { lw: 0.8 });
+    vsp(-24, -24, 5); vsp(-28, 22, 3.5);
+  } },
+  metronome: { f: '#7a4a2a', d() {
+    vf(() => vP([-10, -30, 10, -30, 22, 26, -22, 26]), vsh('#c8804a', -22, -30, 44, 56, 0.4, 0.45), { lw: 2.2 });
+    vf(() => vP([-6, -22, 6, -22, 14, 14, -14, 14]), vsh('#f4e0b8', -14, -22, 28, 36, 0.3, 0.25), { lw: 1.4 });
+    for (let k = 0; k < 6; k++) vline(-4 + k * 0.2, -16 + k * 5, 4 - k * 0.2, -16 + k * 5, '#8a6a3a', 1);
+    vf(() => vR(-22, 22, 44, 7, 2), vsh('#8a5a2a', -22, 22, 44, 7), { lw: 1.6 });
+    // swinging arm with the weight
+    vline(0, 14, 16, -24, '#2a2a3a', 2.6);
+    vf(() => vX(10, -10, 1, 0.4, () => vR(-4, -3, 8, 6, 1.5)), vmetal(VMETAL.gold, 6, -13, 14, -7), { lw: 1.2 });
+    [0, 1].forEach(k => vl(() => ctx.arc(0, 14, 34 + k * 4, -1.35, -0.95), '#fff6d8', 1.6));
+  } },
+  ricochet: { f: '#1a2a5a', d() {
+    vl(() => { ctx.moveTo(-34, -20); ctx.lineTo(-10, 26); ctx.lineTo(12, -24); ctx.lineTo(30, 14); }, 'rgba(255,240,180,0.9)', 2, { dash: [4, 3] });
+    [[-10, 26], [12, -24]].forEach(([sx, sy]) => { vf(() => vS(sx, sy, 6, 8, 3.4), vrg('#ffe04a', sx, sy, 8), { lw: 1.2 }); });
+    vf(() => vC(30, 14, 8), vrg('#ff5a3a', 30, 14, 8), { lw: 1.8 });
+    vl(() => ctx.arc(30, 14, 5, -2.4, -1.2), '#ffffff', 1.6);
+    [[-34, -8], [-30, 0]].forEach(([lx, ly]) => vline(lx, ly, lx + 8, ly, '#8ab8ff', 1.8));
+  } },
+  ferris: { f: '#3a1a4a', d() {
+    vl(() => vC(0, -4, 26), '#f2c848', 3);
+    vl(() => vC(0, -4, 18), 'rgba(242,200,72,0.6)', 1.4);
+    for (let k = 0; k < 8; k++) { const a = k * VTAU / 8; vline(0, -4, Math.cos(a) * 26, -4 + Math.sin(a) * 26, '#f2c848', 1.4); }
+    vline(0, -4, -16, 30, '#c8a040', 2.6); vline(0, -4, 16, 30, '#c8a040', 2.6);
+    for (let k = 0; k < 8; k++) { const a = k * VTAU / 8 + 0.2, cx = Math.cos(a) * 26, cy = -4 + Math.sin(a) * 26; vf(() => vR(cx - 4.5, cy, 9, 7, 2), vsh(['#ff5a8a', '#5ac8ff', '#ffd84a', '#7aff6a'][k % 4], cx - 4.5, cy, 9, 7), { lw: 1.2 }); }
+    vf(() => vC(0, -4, 4), vrg('#ffffff', 0, -4, 4), { lw: 1.2 });
+    [[-28, -30], [28, -30], [30, 20]].forEach(([sx, sy]) => vsp(sx, sy, 3.5, '#fff6c0'));
+  } },
+});
+Object.assign(BADGE_ART, {
+  boomer: { f: '#2a8ac8', d() {
+    vl(() => ctx.arc(0, 4, 30, -2.6, 0.2), 'rgba(255,255,255,0.8)', 1.6, { dash: [3, 4] });
+    vf(() => vX(-2, 2, 1, -0.3, () => { ctx.moveTo(-26, 10); ctx.quadraticCurveTo(-4, -26, 2, -24); ctx.quadraticCurveTo(8, -22, 26, 10); ctx.quadraticCurveTo(22, 16, 16, 12); ctx.quadraticCurveTo(4, -8, 0, -10); ctx.quadraticCurveTo(-6, -8, -16, 14); ctx.quadraticCurveTo(-22, 16, -26, 10); ctx.closePath(); }), vsh('#e8a040', -26, -26, 52, 42, 0.5, 0.4), { lw: 2.2 });
+    vX(-2, 2, 1, -0.3, () => { vl(() => { ctx.moveTo(-20, 6); ctx.quadraticCurveTo(-2, -20, 2, -18); ctx.quadraticCurveTo(6, -16, 20, 6); }, '#fff0c8', 1.4); [[-12, -4], [12, -4]].forEach(([dx, dy]) => vf(() => vC(dx, dy, 2), '#c8402a', { lw: 0 })); });
+    vf(() => vP([26, 6, 32, 2, 30, 10]), '#ffffff', { lw: 0 });
+  } },
+  daredevil: { f: '#9a1a14', d() {
+    vflame(-20, 14, 0.8, '#ff6a1a', '#ffd84a'); vflame(20, 14, 0.8, '#ff6a1a', '#ffd84a'); vflame(0, 20, 1.05, '#ff5a1a', '#ffe070');
+    [-1, 1].forEach(sd => vf(() => { ctx.moveTo(sd * 8, -18); ctx.quadraticCurveTo(sd * 22, -22, sd * 20, -36); ctx.quadraticCurveTo(sd * 16, -24, sd * 4, -22); ctx.closePath(); }, vsh('#e8302a', sd > 0 ? 4 : -22, -36, 18, 18), { lw: 1.8 }));
+    vSkull(0, -4, 0.95);
+    vf(() => vP([-4, 14, 4, 14, 0, 22]), '#3a0a08', { lw: 0 });
+  } },
+  snakecharm: { f: '#c8661a', d() {
+    vf(() => { ctx.moveTo(-18, 6); ctx.lineTo(18, 6); ctx.lineTo(14, 28); ctx.lineTo(-14, 28); ctx.closePath(); }, vsh('#c89a4a', -18, 6, 36, 22), { lw: 2 });
+    for (let k = 0; k < 4; k++) vline(-17 + k * 0.8, 10 + k * 5, 17 - k * 0.8, 10 + k * 5, '#8a6a2a', 1.2);
+    vf(() => vE(0, 6, 18, 4), vsh('#6a4a1a', -18, 2, 36, 8), { lw: 1.6 });
+    vl(() => { ctx.moveTo(-4, 6); ctx.bezierCurveTo(-14, -6, 10, -8, 0, -18); ctx.bezierCurveTo(-6, -24, 2, -30, 6, -28); }, VINK, 9);
+    vl(() => { ctx.moveTo(-4, 6); ctx.bezierCurveTo(-14, -6, 10, -8, 0, -18); ctx.bezierCurveTo(-6, -24, 2, -30, 6, -28); }, '#6ac85a', 6);
+    vf(() => vE(8, -29, 6, 4, 0.2), vsh('#6ac85a', 2, -33, 12, 8), { lw: 1.6 });
+    vf(() => vC(9, -30.5, 1.2), '#1a1008', { lw: 0 });
+    vl(() => { ctx.moveTo(14, -28); ctx.lineTo(18, -27); ctx.moveTo(18, -27); ctx.lineTo(20, -29); ctx.moveTo(18, -27); ctx.lineTo(20, -25); }, '#e0302a', 1);
+    // flute + notes
+    vX(-22, -12, 1, 0.5, () => { vf(() => vR(-3, -14, 6, 28, 3), vsh('#8a5a2a', -3, -14, 6, 28), { lw: 1.6 }); [-6, 0, 6].forEach(hy => vf(() => vC(0, hy, 1.1), '#2a1408', { lw: 0 })); });
+    vf(() => vE(20, -10, 2.8, 2, -0.4), '#fff6d8', { lw: 1 }); vline(22.4, -11, 22.4, -19, '#fff6d8', 1.4);
+  } },
+  gemcutter: { f: '#4a2a7a', d() {
+    vf(() => vGemPath(-4, 6, 1.35), vlg('#5ae0ff', -28, -12, 20, 30, 0.5, 0.35), { lw: 2.2 });
+    vl(() => { ctx.moveTo(-17.5, -10); ctx.lineTo(-10, -3); ctx.lineTo(-4, -10); ctx.lineTo(2, -3); ctx.lineTo(9.5, -10); ctx.moveTo(-28, 2); ctx.lineTo(-10, -3); ctx.lineTo(-4, 30); ctx.lineTo(2, -3); ctx.lineTo(20, 2); }, 'rgba(255,255,255,0.6)', 1.2);
+    vgl(-12, -4, 4, 2, -0.4, 0.8);
+    // chisel striking the facet
+    vX(18, -18, 1, 0.8, () => { vf(() => vR(-3, -18, 6, 18, 1.5), vsh('#8a5a2a', -3, -18, 6, 18), { lw: 1.6 }); vf(() => vP([-3, 0, 3, 0, 2, 10, -2, 10]), vmetal(VMETAL.silver, -3, 0, 3, 10), { lw: 1.4 }); });
+    [[6, -8], [12, -2], [2, -14]].forEach(([cx, cy]) => vf(() => vP([cx, cy - 2.4, cx + 2, cy, cx, cy + 2.4, cx - 2, cy]), '#bff8ff', { lw: 0.6 }));
+    vsp(-26, -22, 4.5); vsp(24, 22, 3.5);
+  } },
+  insurance: { f: '#2a5aa8', d() {
+    [[-18, 14], [-4, 20], [12, 12], [24, 22]].forEach(([rx, ry]) => vl(() => { ctx.moveTo(rx, ry - 34); ctx.lineTo(rx - 2, ry - 30); }, '#bfe8ff', 1.6));
+    vf(() => { ctx.moveTo(-30, -2); ctx.bezierCurveTo(-30, -30, 30, -30, 30, -2); ctx.quadraticCurveTo(25, -7, 20, -2); ctx.quadraticCurveTo(15, -7, 10, -2); ctx.quadraticCurveTo(5, -7, 0, -2); ctx.quadraticCurveTo(-5, -7, -10, -2); ctx.quadraticCurveTo(-15, -7, -20, -2); ctx.quadraticCurveTo(-25, -7, -30, -2); ctx.closePath(); }, vsh('#e8403a', -30, -30, 60, 28, 0.45, 0.35), { lw: 2.2 });
+    [-20, -10, 0, 10, 20].forEach(ux => vline(0, -26, ux * 1.1, -3, 'rgba(0,0,0,0.25)', 1));
+    vline(0, -2, 0, 22, '#3a3a3a', 2.2); vl(() => ctx.arc(-4, 22, 4, 0, Math.PI), '#3a3a3a', 2.2);
+    vtoothFill(12, 16, 0.46);
+  } },
+  filmreel: { f: '#1e1e2a', d() {
+    vf(() => { ctx.moveTo(8, 12); ctx.bezierCurveTo(24, 16, 30, 26, 38, 18); ctx.lineTo(40, 28); ctx.bezierCurveTo(30, 36, 22, 26, 6, 24); ctx.closePath(); }, vsh('#3a3a4a', 6, 12, 34, 22), { lw: 1.6 });
+    for (let k = 0; k < 5; k++) vf(() => vR(12 + k * 6, 17 + k * 1.4 - (k > 2 ? 2 : 0), 3, 3, 0.6), '#fbf6e8', { lw: 0 });
+    vf(() => vC(-6, -4, 26), vmetal(VMETAL.silver, -32, -30, 20, 22), { lw: 2.2 });
+    for (let k = 0; k < 6; k++) { const a = k * VTAU / 6; vf(() => vC(-6 + Math.cos(a) * 14, -4 + Math.sin(a) * 14, 5.6), '#1e1e2a', { lw: 1.2 }); }
+    vf(() => vC(-6, -4, 4), vrg('#c8d4dc', -6, -4, 4), { lw: 1.2 });
+  } },
+  telescope: { f: '#141c3a', d() {
+    [[-26, -24], [-10, -30], [22, -26], [28, 4], [-28, 12]].forEach(([sx, sy], i) => vsp(sx, sy, 2.4 + (i % 3), '#fff6c0'));
+    vX(0, 2, 1, -0.45, () => {
+      vf(() => vR(-30, -6, 20, 12, 3), vmetal(VMETAL.gold, -30, -6, -10, 6), { lw: 1.8 });
+      vf(() => vR(-12, -8, 24, 16, 3), vsh('#8a3a2a', -12, -8, 24, 16), { lw: 1.8 });
+      vf(() => vR(10, -10, 22, 20, 3), vmetal(VMETAL.gold, 10, -10, 32, 10), { lw: 1.8 });
+      [-12, 10].forEach(bx => vf(() => vR(bx - 1.5, -9, 3, 18, 1), vmetal(VMETAL.gold, bx - 1.5, -9, bx + 1.5, 9), { lw: 1 }));
+      vf(() => vE(32, 0, 2.6, 9), vrg('#bff0ff', 32, 0, 9), { lw: 1.4 });
+    });
+    vline(-4, 8, -14, 30, '#5a3a1a', 2.4); vline(-4, 8, 6, 30, '#5a3a1a', 2.4);
+  } },
+  minimalist: { f: '#dde4e8', d() {
+    vtoothFill(0, 0, 1.15, '#ffffff');
+    vline(-24, 28, 24, 28, '#2a3440', 1.4);
+    vl(() => vC(0, 0, 36), 'rgba(42,52,64,0.35)', 1);
+  } },
+  librarian: { f: '#6a1a2a', d() {
+    [['#3a6ab0', 20, 0], ['#d8a040', 12, 1], ['#3a8a4a', 4, -1], ['#c8403a', -4, 1]].forEach(([c, by, off]) => vf(() => vR(-24 + off * 3, by, 48, 9, 2), vsh(c, -24, by, 48, 9, 0.4, 0.35), { lw: 1.6 }));
+    [[20], [12], [4], [-4]].forEach(([by]) => { vline(-18, by + 2, -18, by + 7, 'rgba(255,255,255,0.5)', 1); vline(16, by + 2, 16, by + 7, 'rgba(255,255,255,0.5)', 1); });
+    // round spectacles resting on top
+    [-1, 1].forEach(sd => { vl(() => vC(sd * 9, -12, 7), '#2a1a10', 2.2); ctx.save(); ctx.globalAlpha = 0.3; vf(() => vC(sd * 9, -12, 6), '#dff4ff', { lw: 0 }); ctx.restore(); });
+    vl(() => { ctx.moveTo(-2, -13); ctx.quadraticCurveTo(0, -16, 2, -13); }, '#2a1a10', 2);
+    // tooth bookmark ribbon
+    vf(() => vP([8, 20, 14, 20, 14, 34, 11, 31, 8, 34]), '#ffd84a', { lw: 1.2 });
+    vtoothFill(11, 24, 0.14, '#fff6d0');
+  } },
+  stampbook: { f: '#e8d8b0', d() {
+    ctx.save(); ctx.rotate(0.08);
+    vf(() => { const s = 26; for (let i = 0; i < 4; i++) { const ang = i * Math.PI / 2; } vR(-s, -s, s * 2, s * 2, 0); }, '#fbf6e8', { lw: 0 });
+    vf(() => { for (let i = -26; i <= 26; i += 5.2) { vC(i, -26, 2.2); vC(i, 26, 2.2); vC(-26, i, 2.2); vC(26, i, 2.2); } }, '#e8d8b0', { lw: 0 });
+    vf(() => vR(-20, -20, 40, 40, 1), vlg('#7ac8e0', -20, -20, 20, 20, 0.3, 0.2), { lw: 1.4 });
+    vclip(() => vR(-20, -20, 40, 40, 1), () => { vwater(8, 1, '#2a7a9a'); vGator(0, 4, 0.7); });
+    vtext('5C', 13, -18, '#8a1a1a', 1.5);
+    ctx.restore();
+    // postmark
+    ctx.save(); ctx.globalAlpha = 0.65; vl(() => vC(14, 14, 11), '#3a2a6a', 1.6); for (let k = 0; k < 3; k++) vl(() => { ctx.moveTo(-6, 6 + k * 5); ctx.quadraticCurveTo(4, 2 + k * 5, 14, 6 + k * 5); ctx.quadraticCurveTo(24, 10 + k * 5, 34, 6 + k * 5); }, '#3a2a6a', 1.2); ctx.restore();
+  } },
+  trophy: { f: '#3a1a5a', d() {
+    [-1, 1].forEach(sd => vl(() => { ctx.moveTo(sd * 16, -22); ctx.bezierCurveTo(sd * 32, -24, sd * 30, -2, sd * 14, -2); }, VINK, 6));
+    [-1, 1].forEach(sd => vl(() => { ctx.moveTo(sd * 16, -22); ctx.bezierCurveTo(sd * 32, -24, sd * 30, -2, sd * 14, -2); }, '#f2c848', 3.4));
+    vf(() => { ctx.moveTo(-18, -26); ctx.lineTo(18, -26); ctx.bezierCurveTo(18, -2, 8, 6, 0, 6); ctx.bezierCurveTo(-8, 6, -18, -2, -18, -26); ctx.closePath(); }, vmetal(VMETAL.gold, -18, -26, 18, 6), { lw: 2.2 });
+    vf(() => vR(-4, 6, 8, 10, 1), vmetal(VMETAL.gold, -4, 6, 4, 16), { lw: 1.6 });
+    vf(() => vR(-16, 16, 32, 12, 2), vsh('#5a3a22', -16, 16, 32, 12), { lw: 1.8 });
+    vf(() => vR(-9, 19, 18, 5, 1), vmetal(VMETAL.gold, -9, 19, 9, 24), { lw: 0.8 });
+    vGator(0, -12, 0.42, { noMouth: true });
+    vgl(-10, -20, 2.4, 8, 0.1, 0.55);
+    vsp(24, -30, 5); vsp(-28, 20, 3.5);
+  } },
+  scrapbook: { f: '#1f6a6a', d() {
+    const pola = (x, y, rot, scene) => vX(x, y, 1, rot, () => {
+      vf(() => vR(-14, -16, 28, 32, 1.5), vsh('#fbf8f0', -14, -16, 28, 32, 0.2, 0.25), { lw: 1.6 });
+      vf(() => vR(-11, -13, 22, 20, 0.5), vlg(scene, -11, -13, 11, 7, 0.3, 0.3), { lw: 1 });
+    });
+    pola(-10, 4, -0.3, '#7ac8e0');
+    pola(10, -2, 0.2, '#ffb85a');
+    vX(10, -2, 1, 0.2, () => { vclip(() => vR(-11, -13, 22, 20, 0.5), () => { vwater(2, 1, '#2a7a9a', -12, 12); vGator(0, 2, 0.45); }); });
+    vf(() => vX(10, -2, 1, 0.2, () => vR(-5, -19, 10, 5, 0)), 'rgba(255,240,180,0.8)', { lw: 0 });
+  } },
+  sugarrush: { f: '#e04a8a', d() {
+    vf(() => { ctx.moveTo(-16, 2); ctx.lineTo(16, 2); ctx.lineTo(12, 26); ctx.lineTo(-12, 26); ctx.closePath(); }, vsh('#ff8ab8', -16, 2, 32, 24), { lw: 2 });
+    for (let k = 0; k < 5; k++) vline(-12 + k * 6, 4, -10 + k * 5, 25, 'rgba(160,40,80,0.5)', 1.2);
+    vf(() => { ctx.moveTo(-20, 4); ctx.bezierCurveTo(-24, -10, -12, -14, -8, -12); ctx.bezierCurveTo(-6, -24, 10, -26, 10, -14); ctx.bezierCurveTo(18, -16, 24, -6, 20, 4); ctx.closePath(); }, vsh('#fbf0f4', -24, -26, 48, 30, 0.4, 0.25), { lw: 2 });
+    [['#ff4a4a', -12, -4], ['#4ac8ff', 2, -8], ['#ffe04a', 12, -2], ['#7aff6a', -4, -14], ['#c86aff', 8, -16]].forEach(([c, sx, sy]) => vf(() => vX(sx, sy, 1, sx * 0.1, () => vR(-2.4, -0.9, 4.8, 1.8, 0.9)), c, { lw: 0 }));
+    vf(() => vC(1, -26, 4.5), vrg('#e8203a', 1, -26, 4.5), { lw: 1.4 });
+    vf(() => vBolt(24, -20, 0.5), vsh('#ffe04a', 18, -30, 14, 22), { lw: 1.4 });
+  } },
+  echofang: { f: '#28206a', d() {
+    [[-16, 0.25], [-8, 0.5]].forEach(([ox, a]) => { ctx.save(); ctx.globalAlpha = a; vfangFill(ox + 8, 0, 1.1, '#bfb4ff'); ctx.restore(); });
+    vfangFill(8, 0, 1.1);
+    vgl(3, -10, 2, 8, 0, 0.7);
+    [0, 1, 2].forEach(k => vl(() => ctx.arc(8, 0, 26 + k * 6, -0.5, 0.5), 'rgba(191,180,255,' + (0.9 - k * 0.25) + ')', 1.8));
+  } },
+  anchorjaw: { f: '#1a2a5a', d() {
+    vl(() => vC(0, -24, 5), VINK, 5); vl(() => vC(0, -24, 5), '#c8d4dc', 3);
+    vf(() => vR(-3.5, -19, 7, 42, 2), vmetal(VMETAL.silver, -3.5, -19, 3.5, 23), { lw: 1.8 });
+    vf(() => vR(-16, -12, 32, 6, 2), vmetal(VMETAL.silver, -16, -12, 16, -6), { lw: 1.6 });
+    vl(() => { ctx.moveTo(-24, 6); ctx.quadraticCurveTo(-20, 26, 0, 26); ctx.quadraticCurveTo(20, 26, 24, 6); }, VINK, 8);
+    vl(() => { ctx.moveTo(-24, 6); ctx.quadraticCurveTo(-20, 26, 0, 26); ctx.quadraticCurveTo(20, 26, 24, 6); }, '#c8d4dc', 5);
+    [-1, 1].forEach(sd => vf(() => vP([sd * 24, 1, sd * 30, 10, sd * 19, 8]), '#c8d4dc', { lw: 1.4 }));
+    // teeth along the fluke
+    [-14, -7, 7, 14].forEach(tx => vf(() => vP([tx - 2.4, 22 - Math.abs(tx) * 0.1, tx + 2.4, 22 - Math.abs(tx) * 0.1, tx, 15 - Math.abs(tx) * 0.1]), '#ffffff', { lw: 0.8 }));
+  } },
+  lighthouse: { f: '#10183a', d() {
+    ctx.save(); ctx.globalAlpha = 0.5; vf(() => vP([0, -22, -44, -40, -44, -8]), '#fff6c0', { lw: 0 }); vf(() => vP([0, -22, 44, -36, 44, -12]), '#fff6c0', { lw: 0 }); ctx.restore();
+    vclip(() => vC(0, 0, 44), () => vwater(22, 1.6, '#1a4a8a'));
+    vf(() => vP([-10, 24, -6, -16, 6, -16, 10, 24]), vsh('#fbf6e8', -10, -16, 20, 40, 0.3, 0.3), { lw: 2 });
+    vclip(() => vP([-10, 24, -6, -16, 6, -16, 10, 24]), () => { [-8, 6].forEach(by => vf(() => vR(-12, by, 24, 7, 0), '#e0302a', { lw: 0 })); });
+    vl(() => vP([-10, 24, -6, -16, 6, -16, 10, 24]), VINK, 2);
+    vf(() => vR(-7, -26, 14, 10, 2), vrg('#ffe070', 0, -21, 8), { lw: 1.8 });
+    vf(() => vP([-9, -26, 0, -34, 9, -26]), '#e0302a', { lw: 1.6 });
+    vf(() => vR(-12, -17, 24, 3, 1), '#2a2a3a', { lw: 1 });
+  } },
+  crabclaw: { f: '#e0c080', d() {
+    vf(() => { ctx.moveTo(-26, 26); ctx.bezierCurveTo(-28, 10, -16, 2, -6, 4); ctx.lineTo(-2, 12); ctx.bezierCurveTo(-12, 12, -18, 18, -16, 28); ctx.closePath(); }, vsh('#e0402a', -28, 2, 26, 26), { lw: 2 });
+    vf(() => { ctx.moveTo(-8, 8); ctx.bezierCurveTo(-12, -16, 6, -30, 22, -24); ctx.bezierCurveTo(12, -18, 6, -10, 8, -4); ctx.bezierCurveTo(16, -8, 26, -6, 30, 2); ctx.bezierCurveTo(20, 10, 4, 16, -8, 8); ctx.closePath(); }, vsh('#ff5a3a', -12, -30, 42, 44, 0.45, 0.4), { lw: 2.2 });
+    [[-2, -6], [4, -14], [6, 4]].forEach(([dx, dy]) => vf(() => vC(dx, dy, 1.6), '#ffb0a0', { lw: 0 }));
+    vgl(-2, -12, 4, 2, -0.8, 0.5);
+    vf(() => vS(22, 18, 5, 5, 2.2), vrg('#ff8a3a', 22, 18, 5), { lw: 1 });
+    vf(() => { ctx.moveTo(-22, -20); ctx.quadraticCurveTo(-28, -30, -18, -32); ctx.quadraticCurveTo(-10, -28, -14, -20); ctx.closePath(); }, vsh('#f4d8e8', -28, -32, 18, 12), { lw: 1.2 });
+  } },
+  papercrane: { f: '#3a9ad0', d() {
+    vf(() => vP([-30, 6, -8, -2, 0, 16]), vsh('#f4f0ff', -30, -2, 30, 18, 0.3, 0.3), { lw: 1.8 });
+    vf(() => vP([-8, -2, 4, -30, 10, 4, 0, 16]), vsh('#fbf8ff', -8, -30, 18, 46, 0.3, 0.35), { lw: 1.8 });
+    vf(() => vP([0, 16, 10, 4, 30, -8, 22, 10]), vsh('#e0dcf0', 0, -8, 30, 24, 0.3, 0.3), { lw: 1.8 });
+    vf(() => vP([22, 10, 30, -8, 34, -20, 36, -18, 32, 0]), '#ffffff', { lw: 1.6 });
+    vf(() => vP([34, -20, 40, -18, 36, -17]), '#e0302a', { lw: 0.8 });
+    vl(() => { ctx.moveTo(-8, -2); ctx.lineTo(0, 16); ctx.lineTo(10, 4); }, 'rgba(90,90,140,0.4)', 1);
+    // printed dental-chart lines on the paper
+    ctx.save(); ctx.globalAlpha = 0.3; [-20, -14].forEach(ly => vline(ly, 2, ly + 6, 8, '#3a6ab0', 1)); ctx.restore();
+    vcloud(-18, -24, 0.8, 'rgba(255,255,255,0.7)');
+  } },
+  hourhand: { f: '#e8dcc0', d() {
+    vf(() => vC(0, 2, 30), vsh('#fbf6e8', -30, -28, 60, 60, 0.3, 0.3), { lw: 2.4 });
+    vl(() => vC(0, 2, 26), '#c8a060', 1.4);
+    for (let k = 0; k < 12; k++) { const a = k * VTAU / 12; vline(Math.cos(a) * 21, 2 + Math.sin(a) * 21, Math.cos(a) * 25, 2 + Math.sin(a) * 25, '#3a2a1a', k % 3 ? 1.2 : 2.6); }
+    vf(() => vX(0, 2, 1, -0.6, () => vP([-2.6, 0, 0, -20, 2.6, 0, 0, 4])), vsh('#2a2a3a', -3, -20, 6, 24), { lw: 1 });
+    vf(() => vX(0, 2, 1, 1.2, () => vP([-2, 0, 0, -14, 2, 0, 0, 3])), '#e0302a', { lw: 1 });
+    vf(() => vC(0, 2, 3), vmetal(VMETAL.gold, -3, -1, 3, 5), { lw: 1 });
+    // bell on top, ringing
+    vf(() => vR(-4, -34, 8, 5, 2), vmetal(VMETAL.gold, -4, -34, 4, -29), { lw: 1.4 });
+    [-1, 1].forEach(sd => vl(() => ctx.arc(0, -30, 10, sd > 0 ? -0.9 : Math.PI - 0.3, sd > 0 ? -0.3 : Math.PI + 0.3), '#8a6a3a', 1.6));
+  } },
+  tightrope: { f: '#b8202a', d() {
+    vclip(() => vC(0, 0, 44), () => { for (let k = -6; k < 6; k++) vf(() => vP([0, -60, k * 12, 60, k * 12 + 6, 60]), k & 1 ? '#d83a3a' : '#f4e8d0', { lw: 0 }); });
+    ctx.save(); ctx.globalAlpha = 0.5; vf(() => vC(0, 0, 44), '#8a1a1a', { lw: 0 }); ctx.restore();
+    vl(() => { ctx.moveTo(-44, 12); ctx.quadraticCurveTo(0, 20, 44, 12); }, '#f4e0b0', 2);
+    // a tooth acrobat with a balance pole
+    vline(-26, -4, 26, -12, '#8a5a2a', 2.2);
+    vtoothFill(0, -2, 0.62, VTOOTH, -0.08);
+    [-1, 1].forEach(sd => vf(() => vC(sd * 3.6, -5, 1.3), '#2a1418', { lw: 0 }));
+    vl(() => ctx.arc(0, -2, 2.4, 0.3, Math.PI - 0.3), '#2a1418', 1.1);
+    vline(-2, 10, -3, 16, '#2a1418', 1.4); vline(2, 10, 3, 16, '#2a1418', 1.4);
+    vsp(-26, -24, 4); vsp(28, -26, 3.5);
+  } },
+});
+// any id that somehow has no art falls back to a plain star medal
+// cached badge canvases, one per (badge, finish, resolution)
+function badgeCanvas(id, rar, ed, trex, sc) {
+  const key = 'bdg:' + id + ':' + (ed || '') + ':' + (trex ? 1 : 0) + ':' + sc;
+  return getCached(key, 32 * sc, 42 * sc, () => {
+    ctx.save(); ctx.scale(sc, sc); ctx.translate(16, 15); ctx.scale(0.25, 0.25);
+    const art = (trex ? BADGE_ART.trex : BADGE_ART[id]) || BADGE_ART_DEFAULT;
+    const metal = ed === 'golden' ? 'gold' : ed === 'diamond' ? 'ice' : ed === 'rusty' ? 'rust' : null;
+    vRibbon(rar);
+    const fr = vFrame(rar, art.f, metal);
+    ctx.save(); art.d(); ctx.restore();
+    vDome(fr);
+    ctx.restore();
+  });
+}
+const BADGE_ART_DEFAULT = { f: '#3a4a5a', d() { vf(() => vS(0, 0, 5, 26, 11), vrg('#ffd84a', 0, 0, 26), { lw: 2.4 }); } };
+// the resolution a sprite needs for the transform it is drawn under
+function artRes() { const t = ctx.getTransform(); const s = Math.hypot(t.a, t.b) / RS; return s > 2.4 ? 3 : s > 1.25 ? 2 : 1; }
+
+// ============================== SNACK-SHELF ITEMS ================================
+//  One-use items are packaged snacks and drinks, each with its own swamp mascot.
+//  Working space: 128 x 176 units (0.25 logical px each), centred on (0,0).
+// ================================================================================
+function mDot(x, y, r) { vf(() => vC(x, y, r), '#1a0f14', { lw: 0 }); vgl(x - r * 0.35, y - r * 0.35, r * 0.34, r * 0.3, 0, 1); }
+function mBlush(x, y, r) { ctx.save(); ctx.globalAlpha = 0.45; vf(() => vE(x, y, r, r * 0.6), '#ff7a9a', { lw: 0 }); ctx.restore(); }
+function mSmile(x, y, r, lw) { vl(() => ctx.arc(x, y, r, 0.25, Math.PI - 0.25), '#1a0f14', lw || 2); }
+// ---- the mascots, each about 50 units across at s = 1 ----
+const MASCOT = {
+  heron(x, y, s) { vX(x, y, s, 0, () => {
+    [[-0.5, -30], [-0.8, -26], [-1.1, -20]].forEach(([a, l]) => vf(() => vLeaf(-8, -10, l, 4, Math.PI + a), vsh('#8aa8c0', -36, -30, 30, 24), { lw: 1.4 }));
+    vf(() => vE(0, 0, 19, 17), vsh('#f6fafc', -19, -17, 38, 34, 0.4, 0.3), { lw: 2.2 });
+    vf(() => vP([10, -4, 44, 4, 10, 8]), vsh('#f8c030', 10, -4, 34, 12, 0.5, 0.35), { lw: 1.8 });
+    vline(12, 2, 40, 4, '#b8801a', 1.2);
+    vf(() => vE(4, -5, 6, 6), '#fff8d0', { lw: 1.2 }); mDot(5, -5, 3);
+    vl(() => { ctx.moveTo(-2, -12); ctx.lineTo(12, -10); }, '#2a3440', 2.4);
+    mBlush(-6, 6, 4);
+  }); },
+  owl(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => vf(() => vP([sd * 10, -18, sd * 24, -30, sd * 20, -12]), vsh('#8a5a2a', sd > 0 ? 10 : -24, -30, 14, 18), { lw: 1.6 }));
+    vf(() => vC(0, 0, 22), vsh('#a8703a', -22, -22, 44, 44, 0.4, 0.4), { lw: 2.2 });
+    vf(() => vE(0, 6, 16, 14), '#e8c890', { lw: 0 });
+    // x-ray goggles
+    vline(-22, -4, 22, -4, '#2a2a3a', 3);
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 9, -4, 9), vmetal(VMETAL.silver, sd * 9 - 9, -13, sd * 9 + 9, 5), { lw: 1.8 }); vf(() => vC(sd * 9, -4, 6.2), vrg('#5ae0ff', sd * 9, -4, 6.2, 0.5, 0.3), { lw: 1 }); mDot(sd * 9, -4, 2.4); });
+    vf(() => vP([-4, 6, 4, 6, 0, 13]), '#f2a030', { lw: 1.2 });
+    mBlush(-14, 10, 3.6); mBlush(14, 10, 3.6);
+  }); },
+  raccoon(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 16, -16, 8), vsh('#8a8578', sd * 16 - 8, -24, 16, 16), { lw: 1.8 }); vf(() => vC(sd * 16, -16, 4), '#3a3530', { lw: 0 }); });
+    vf(() => vE(0, 0, 22, 19), vsh('#aaa496', -22, -19, 44, 38, 0.4, 0.35), { lw: 2.2 });
+    vf(() => { ctx.moveTo(-22, -4); ctx.quadraticCurveTo(0, -12, 22, -4); ctx.quadraticCurveTo(14, 6, 0, 2); ctx.quadraticCurveTo(-14, 6, -22, -4); ctx.closePath(); }, '#2a2622', { lw: 0 });
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 8, -3, 4), '#f8f4ec', { lw: 0 }); mDot(sd * 8, -3, 2.2); });
+    vf(() => vE(0, 9, 10, 8), '#efe8d8', { lw: 0 });
+    vf(() => vE(0, 5, 3.6, 2.6), '#1a1614', { lw: 0 });
+    mSmile(0, 7, 4, 1.8);
+  }); },
+  otter(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => vf(() => vC(sd * 17, -14, 6), vsh('#7a4c28', sd * 17 - 6, -20, 12, 12), { lw: 1.8 }));
+    vf(() => vE(0, 0, 21, 19), vsh('#9a643a', -21, -19, 42, 38, 0.45, 0.35), { lw: 2.2 });
+    vf(() => vE(0, 8, 13, 9), '#f0dcb8', { lw: 0 });
+    // shades
+    vf(() => { ctx.moveTo(-18, -8); ctx.lineTo(18, -8); ctx.lineTo(16, -1); ctx.quadraticCurveTo(10, 2, 3, -2); ctx.lineTo(-3, -2); ctx.quadraticCurveTo(-10, 2, -16, -1); ctx.closePath(); }, vsh('#1a1a2a', -18, -8, 36, 10, 0.5, 0.2), { lw: 1.4 });
+    vgl(-10, -5, 3, 1.2, 0, 0.7); vgl(10, -5, 3, 1.2, 0, 0.7);
+    vf(() => vE(0, 4, 4, 3), '#2a1508', { lw: 0 });
+    mSmile(0, 7, 5, 1.8);
+    [-1, 1].forEach(sd => { vline(sd * 8, 8, sd * 22, 6, 'rgba(255,255,255,0.7)', 1); vline(sd * 8, 10, sd * 22, 12, 'rgba(255,255,255,0.7)', 1); });
+  }); },
+  panther(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => { vf(() => vP([sd * 6, -18, sd * 20, -30, sd * 21, -10]), vsh('#c8904a', sd > 0 ? 6 : -21, -30, 15, 20), { lw: 1.8 }); vf(() => vP([sd * 10, -17, sd * 18, -25, sd * 18, -13]), '#f0a8a0', { lw: 0 }); });
+    vf(() => vE(0, 0, 22, 19), vsh('#d8a05a', -22, -19, 44, 38, 0.4, 0.35), { lw: 2.2 });
+    vf(() => vE(0, 9, 12, 8), '#f4e0c0', { lw: 0 });
+    [-1, 1].forEach(sd => { vf(() => vE(sd * 9, -4, 5.4, 4.4, sd * 0.2), '#e8ffc0', { lw: 1.2 }); vf(() => vE(sd * 9, -4, 1.4, 3.6), '#1a1008', { lw: 0 }); vl(() => { ctx.moveTo(sd * 3, -10); ctx.lineTo(sd * 15, -8); }, '#5a3a18', 2); });
+    vf(() => vP([-3, 4, 3, 4, 0, 7]), '#8a3a3a', { lw: 0.8 });
+    vl(() => { ctx.moveTo(-7, 10); ctx.quadraticCurveTo(0, 15, 8, 9); }, '#1a0f14', 1.8);
+    vf(() => vP([-4, 11, -1, 11, -2.6, 16]), '#ffffff', { lw: 0.8 }); vf(() => vP([3, 11, 6, 10, 5, 15]), '#ffffff', { lw: 0.8 });
+  }); },
+  hog(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => vf(() => vP([sd * 8, -16, sd * 22, -24, sd * 20, -6]), vsh('#a8604a', sd > 0 ? 8 : -22, -24, 14, 18), { lw: 1.8 }));
+    vf(() => vE(0, 0, 21, 19), vsh('#c87a5a', -21, -19, 42, 38, 0.4, 0.35), { lw: 2.2 });
+    vf(() => vE(0, 8, 11, 8), vsh('#f0a090', -11, 0, 22, 16), { lw: 1.8 });
+    [-1, 1].forEach(sd => vf(() => vE(sd * 4, 8, 2.2, 3.2), '#7a3a2a', { lw: 0 }));
+    [-1, 1].forEach(sd => vf(() => vP([sd * 10, 12, sd * 16, 4, sd * 14, 14]), '#fff8e8', { lw: 1 }));
+    [-1, 1].forEach(sd => mDot(sd * 9, -6, 2.8));
+    vf(() => vE(-12, -18, 4, 2, 0.5), '#6a3a1a', { lw: 0 });
+  }); },
+  fairy(x, y, s) { vX(x, y, s, 0, () => {
+    ctx.save(); ctx.globalAlpha = 0.72;
+    [[-1, -12, -0.5], [1, -12, 0.5], [-1, 4, 0.4], [1, 4, -0.4]].forEach(([sd, wy, r]) => vf(() => vE(sd * 22, wy, 17, 8, r), vrg('#dffcff', sd * 22, wy, 17), { lw: 1.2, ink: '#3a7a9a' }));
+    ctx.restore();
+    vf(() => vC(0, 0, 15), vsh('#5ad0ff', -15, -15, 30, 30, 0.45, 0.35), { lw: 2 });
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 7, -3, 6), vrg('#8aff6a', sd * 7, -3, 6, 0.5, 0.3), { lw: 1.2 }); mDot(sd * 7, -3, 2.4); });
+    mSmile(0, 5, 4, 1.6);
+    [-1, 1].forEach(sd => { vl(() => { ctx.moveTo(sd * 4, -14); ctx.quadraticCurveTo(sd * 8, -24, sd * 14, -24); }, '#1a3a4a', 1.4); vf(() => vC(sd * 14, -24, 2.4), '#ffe070', { lw: 0.8 }); });
+  }); },
+  gator(x, y, s) { vGator(x, y, s * 1.05); },
+  armadillo(x, y, s) { vX(x, y, s, 0, () => {
+    vf(() => vE(0, 2, 20, 18), vsh('#c8a078', -20, -16, 40, 36, 0.4, 0.35), { lw: 2.2 });
+    for (let k = 0; k < 3; k++) vl(() => ctx.arc(0, 2, 20 - k * 5, Math.PI + 0.4, -0.4), '#8a6a4a', 1.4);
+    vf(() => { ctx.moveTo(-6, 6); ctx.quadraticCurveTo(0, 26, 6, 6); ctx.closePath(); }, vsh('#e0b890', -6, 6, 12, 20), { lw: 1.6 });
+    vf(() => vC(0, 20, 2.4), '#3a2010', { lw: 0 });
+    [-1, 1].forEach(sd => mDot(sd * 8, 2, 2.6));
+    // prospector hat
+    vf(() => vE(0, -14, 26, 6), vsh('#8a5a2a', -26, -20, 52, 12), { lw: 1.8 });
+    vf(() => { ctx.moveTo(-14, -14); ctx.quadraticCurveTo(-14, -32, 0, -30); ctx.quadraticCurveTo(14, -32, 14, -14); ctx.closePath(); }, vsh('#a8703a', -14, -32, 28, 18), { lw: 1.8 });
+    vf(() => vR(-14, -18, 28, 4, 1), '#5a3418', { lw: 0 });
+    mBlush(-12, 8, 3.2); mBlush(12, 8, 3.2);
+  }); },
+  bee(x, y, s) { vX(x, y, s, 0, () => {
+    ctx.save(); ctx.globalAlpha = 0.72; [-1, 1].forEach(sd => vf(() => vE(sd * 14, -16, 11, 7, sd * 0.6), '#e8f8ff', { lw: 1.2, ink: '#6a8a9a' })); ctx.restore();
+    vf(() => vC(0, 0, 19), vsh('#ffd030', -19, -19, 38, 38, 0.45, 0.35), { lw: 2.2 });
+    vclip(() => vC(0, 0, 19), () => { [4, 13].forEach(by => vf(() => vR(-22, by, 44, 5, 0), '#2a2010', { lw: 0 })); });
+    [-1, 1].forEach(sd => { mDot(sd * 7, -5, 2.8); vl(() => { ctx.moveTo(sd * 4, -18); ctx.quadraticCurveTo(sd * 6, -28, sd * 12, -28); }, '#2a2010', 1.6); vf(() => vC(sd * 12, -28, 2.4), '#2a2010', { lw: 0 }); });
+    mSmile(0, -1, 4, 1.6); mBlush(-11, -1, 3); mBlush(11, -1, 3);
+  }); },
+  flamingo(x, y, s) { vX(x, y, s, 0, () => {
+    vf(() => vE(0, 0, 18, 16), vsh('#ff8ab0', -18, -16, 36, 32, 0.45, 0.35), { lw: 2.2 });
+    vf(() => { ctx.moveTo(12, -4); ctx.quadraticCurveTo(30, -6, 34, 8); ctx.quadraticCurveTo(30, 12, 26, 8); ctx.quadraticCurveTo(22, 4, 12, 6); ctx.closePath(); }, vsh('#fbf4ec', 12, -6, 22, 18), { lw: 1.8 });
+    vf(() => { ctx.moveTo(28, 2); ctx.quadraticCurveTo(34, 2, 34, 8); ctx.quadraticCurveTo(30, 12, 26, 8); ctx.closePath(); }, '#2a1a1a', { lw: 0 });
+    mDot(4, -5, 3); mBlush(-4, 6, 4);
+    [-0.4, -0.1].forEach(a => vf(() => vLeaf(-12, -10, 14, 4, Math.PI + a), '#ff6a9a', { lw: 1.2 }));
+  }); },
+  pelican(x, y, s) { vX(x, y, s, 0, () => {
+    vf(() => vE(-4, -4, 17, 15), vsh('#fbfbf6', -21, -19, 34, 30, 0.4, 0.3), { lw: 2.2 });
+    vf(() => { ctx.moveTo(6, -6); ctx.lineTo(40, -2); ctx.quadraticCurveTo(34, 18, 12, 14); ctx.quadraticCurveTo(4, 8, 6, -6); ctx.closePath(); }, vsh('#f8a030', 6, -6, 34, 22), { lw: 1.8 });
+    vline(8, -2, 38, -1, '#b8701a', 1.2);
+    mDot(0, -8, 2.8); mBlush(-10, 2, 3.4);
+    vf(() => vP([-14, -16, -22, -26, -8, -18]), '#e8e0d0', { lw: 1.2 });
+  }); },
+  turtle(x, y, s) { vX(x, y, s, 0, () => {
+    vf(() => vE(0, 14, 26, 12), vsh('#5a7a3a', -26, 2, 52, 24), { lw: 2 });
+    vf(() => vE(0, -2, 18, 17), vsh('#8ab85a', -18, -19, 36, 34, 0.45, 0.35), { lw: 2.2 });
+    vf(() => { ctx.moveTo(-6, 4); ctx.quadraticCurveTo(0, 16, 6, 4); ctx.lineTo(0, 8); ctx.closePath(); }, '#c8b060', { lw: 1.4 });
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 7, -5, 4.4), '#fff8d0', { lw: 1 }); mDot(sd * 7, -5, 2.4); vl(() => { ctx.moveTo(sd * 2, -11); ctx.lineTo(sd * 12, -9); }, '#2a3a1a', 2); });
+    [[-12, 12], [0, 18], [12, 12]].forEach(([px, py]) => vf(() => vPolyN(px, py, 6, 5, 0), '#4a6a2a', { lw: 1 }));
+  }); },
+  frog(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => vf(() => vC(sd * 11, -14, 8.5), vsh('#6ac84a', sd * 11 - 8, -22, 17, 17), { lw: 2 }));
+    vf(() => vE(0, 2, 24, 16), vsh('#6ac84a', -24, -14, 48, 32, 0.45, 0.35), { lw: 2.2 });
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 11, -14, 5), '#fffbe0', { lw: 0 }); mDot(sd * 11, -14, 2.8); });
+    vf(() => { ctx.moveTo(-14, 4); ctx.quadraticCurveTo(0, 16, 14, 4); ctx.quadraticCurveTo(0, 9, -14, 4); ctx.closePath(); }, '#7a2a3a', { lw: 1.6 });
+    mBlush(-16, 4, 3.6); mBlush(16, 4, 3.6);
+  }); },
+  possum(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => { vf(() => vC(sd * 15, -15, 7.5), vsh('#6a6a78', sd * 15 - 8, -23, 15, 15), { lw: 1.8 }); vf(() => vC(sd * 15, -15, 4), '#f0a8bc', { lw: 0 }); });
+    vf(() => vE(0, 0, 20, 18), vsh('#b8b8c8', -20, -18, 40, 36, 0.45, 0.35), { lw: 2.2 });
+    vf(() => { ctx.moveTo(-10, -8); ctx.quadraticCurveTo(0, -14, 10, -8); ctx.lineTo(4, 16); ctx.lineTo(-4, 16); ctx.closePath(); }, '#fbfbff', { lw: 0 });
+    [-1, 1].forEach(sd => { vf(() => vE(sd * 8, -3, 5, 4.4), '#4a4a58', { lw: 0 }); mDot(sd * 8, -3, 2.4); });
+    vf(() => vE(0, 13, 3.6, 2.6), '#e87a9a', { lw: 1 });
+    mSmile(0, 13, 4, 1.4);
+  }); },
+  tortoise(x, y, s) { vX(x, y, s, 0, () => {
+    vf(() => vE(0, 2, 17, 16), vsh('#9ab860', -17, -14, 34, 32, 0.45, 0.35), { lw: 2.2 });
+    [-1, 1].forEach(sd => mDot(sd * 7, 2, 2.6));
+    mSmile(0, 7, 4.5, 1.6); mBlush(-11, 8, 3); mBlush(11, 8, 3);
+    // explorer's pith helmet
+    vf(() => vE(0, -10, 24, 5), vsh('#d8c088', -24, -15, 48, 10), { lw: 1.8 });
+    vf(() => { ctx.moveTo(-15, -10); ctx.bezierCurveTo(-15, -30, 15, -30, 15, -10); ctx.closePath(); }, vsh('#e8d098', -15, -28, 30, 18), { lw: 1.8 });
+    vf(() => vR(-15, -13, 30, 3, 1), '#8a6a3a', { lw: 0 });
+    vf(() => vC(0, -27, 2.4), '#c8a060', { lw: 1 });
+  }); },
+  crab(x, y, s) { vX(x, y, s, 0, () => {
+    [-1, 1].forEach(sd => { vl(() => { ctx.moveTo(sd * 12, 4); ctx.quadraticCurveTo(sd * 26, 0, sd * 26, -12); }, VINK, 6); vl(() => { ctx.moveTo(sd * 12, 4); ctx.quadraticCurveTo(sd * 26, 0, sd * 26, -12); }, '#e8402a', 4); vf(() => { ctx.moveTo(sd * 22, -12); ctx.quadraticCurveTo(sd * 20, -26, sd * 28, -26); ctx.lineTo(sd * 28, -18); ctx.lineTo(sd * 32, -24); ctx.quadraticCurveTo(sd * 36, -12, sd * 28, -8); ctx.closePath(); }, vsh('#ff5a3a', sd > 0 ? 20 : -36, -26, 16, 18), { lw: 1.6 }); });
+    vf(() => vE(0, 6, 20, 13), vsh('#ff5a3a', -20, -7, 40, 26, 0.45, 0.35), { lw: 2.2 });
+    [-1, 1].forEach(sd => { vline(sd * 6, -4, sd * 7, -14, VINK, 2); vf(() => vC(sd * 7, -15, 4.2), '#fffbe8', { lw: 1.2 }); mDot(sd * 7, -15, 2.2); });
+    mSmile(0, 6, 5, 1.8); mBlush(-12, 6, 3); mBlush(12, 6, 3);
+  }); },
+  manatee(x, y, s) { vX(x, y, s, 0, () => {
+    vf(() => vE(0, 0, 22, 19), vsh('#9aa8b0', -22, -19, 44, 38, 0.45, 0.35), { lw: 2.2 });
+    vf(() => vE(0, 9, 14, 9), vsh('#b8c4ca', -14, 0, 28, 18), { lw: 1.6 });
+    for (let k = 0; k < 6; k++) vf(() => vC(-7 + (k % 3) * 7, 7 + Math.floor(k / 3) * 5, 0.9), '#6a7880', { lw: 0 });
+    [-1, 1].forEach(sd => mDot(sd * 9, -6, 2.4));
+    [-1, 1].forEach(sd => vl(() => ctx.arc(sd * 9, -9, 4, Math.PI + 0.5, -0.5), '#5a6a72', 1.2));
+    mSmile(0, 10, 5, 1.6); mBlush(-15, 2, 3.4); mBlush(15, 2, 3.4);
+    ctx.save(); ctx.globalAlpha = 0.8; vtext('Z', 22, -24, '#dff4ff', 2.2); vtext('z', 28, -32, '#dff4ff', 1.8); ctx.restore();
+  }); },
+};
+// ---- packaging shapes ----
+function pkBag(col, band) {
+  const path = () => {
+    ctx.moveTo(-44, -64);
+    for (let x = -44; x < 44; x += 8) { ctx.lineTo(x + 4, -70); ctx.lineTo(x + 8, -64); }
+    ctx.quadraticCurveTo(56, 0, 46, 64);
+    for (let x = 46; x > -46; x -= 8) { ctx.lineTo(x - 4, 70); ctx.lineTo(x - 8, 64); }
+    ctx.quadraticCurveTo(-56, 0, -44, -64); ctx.closePath();
+  };
+  vf(path, vlg(col, -50, 0, 50, 0, 0.35, 0.4), { lw: 2.6 });
+  vclip(path, () => {
+    vf(() => vR(-60, -72, 120, 16, 0), vlg(band, 0, -72, 0, -56, 0.3, 0.3), { lw: 0 });
+    vf(() => vR(-60, 56, 120, 16, 0), vlg(band, 0, 56, 0, 72, 0.3, 0.3), { lw: 0 });
+    ctx.save(); ctx.globalAlpha = 0.28; vf(() => vR(-40, -56, 8, 112, 4), '#ffffff', { lw: 0 }); ctx.restore();
+    ctx.save(); ctx.globalAlpha = 0.14; [-20, 6, 24].forEach(cx => vl(() => { ctx.moveTo(cx, -56); ctx.quadraticCurveTo(cx + 6, 0, cx - 2, 56); }, '#000000', 1.4)); ctx.restore();
+  });
+}
+function pkCan(col, tall) {
+  const h = tall ? 72 : 58, w = tall ? 36 : 44;
+  vf(() => vR(-w, -h, w * 2, h * 2, 10), vlg(col, -w, 0, w, 0, 0.45, 0.45), { lw: 2.6 });
+  vf(() => vE(0, -h + 4, w - 2, 8), vmetal(VMETAL.silver, -w, -h - 4, w, -h + 12), { lw: 2 });
+  vf(() => vE(0, -h + 4, w - 10, 4.5), vmetal(VMETAL.silver, w, -h, -w, -h + 8), { lw: 1.2 });
+  vf(() => vR(-8, -h, 16, 5, 2.4), vmetal(VMETAL.silver, -8, -h, 8, -h + 5), { lw: 1.2 });
+  vf(() => vR(-w + 4, h - 10, w * 2 - 8, 8, 4), vmetal(VMETAL.silver, -w, h - 10, w, h), { lw: 1.4 });
+  ctx.save(); ctx.globalAlpha = 0.3; vf(() => vR(-w + 8, -h + 14, 8, h * 2 - 30, 4), '#ffffff', { lw: 0 }); ctx.restore();
+}
+function pkBox(col, side, topCol) {
+  vf(() => vP([-40, -56, 40, -56, 52, -66, -28, -66]), vsh(topCol || mixC(col, '#ffffff', 0.3), -40, -66, 92, 10), { lw: 2 });
+  vf(() => vP([40, -56, 52, -66, 52, 58, 40, 70]), vsh(side || mixC(col, '#000000', 0.35), 40, -66, 12, 136), { lw: 2 });
+  vf(() => vR(-40, -56, 80, 126, 3), vlg(col, -40, -56, 40, 70, 0.35, 0.35), { lw: 2.6 });
+  ctx.save(); ctx.globalAlpha = 0.22; vf(() => vR(-34, -50, 7, 114, 3), '#ffffff', { lw: 0 }); ctx.restore();
+}
+function pkJar(col, lid) {
+  vf(() => { ctx.moveTo(-34, -40); ctx.lineTo(34, -40); ctx.bezierCurveTo(48, -32, 48, 60, 30, 66); ctx.lineTo(-30, 66); ctx.bezierCurveTo(-48, 60, -48, -32, -34, -40); ctx.closePath(); }, vlg(col, -46, 0, 46, 0, 0.45, 0.4), { lw: 2.6 });
+  vf(() => vR(-36, -62, 72, 24, 5), vlg(lid, 0, -62, 0, -38, 0.4, 0.4), { lw: 2.4 });
+  for (let k = -28; k <= 28; k += 8) vline(k, -60, k, -40, 'rgba(0,0,0,0.25)', 1.4);
+  ctx.save(); ctx.globalAlpha = 0.35; vf(() => vR(-34, -30, 8, 86, 4), '#ffffff', { lw: 0 }); ctx.restore();
+}
+function pkLabel(y, h, col, ink) { vf(() => vR(-38, y, 76, h, 6), vlg(col, 0, y, 0, y + h, 0.3, 0.2), { lw: 1.8, ink: ink || VINK }); }
+// big product word on the pack
+function pkWord(s, y, col, sc, ink) { vtext(s, 0, y, col, sc || 3.4, ink || VINK); }
+// the little effect sticker in the corner
+function pkSticker(x, y, col, txt) {
+  vf(() => vS(x, y, 10, 15, 12, 0), vrg(col, x, y, 15, 0.4, 0.35), { lw: 1.8 });
+  vtext(txt, x, y - 3.8, '#ffffff', 1.6, VINK);
+}
+const SNACK_ART = {
+  panorama() {
+    pkBag('#f07a1a', '#6a2a8a');
+    pkWord('HOOT', -62, '#ffe8a0', 2.8); pkWord('VISION', -46, '#ffffff', 2.5);
+    MASCOT.owl(0, 4, 1.05);
+    [[-26, 44, -0.4], [-6, 50, -0.1], [18, 46, 0.3]].forEach(([cx, cy, r]) => { vf(() => vX(cx, cy, 1, r, () => { ctx.moveTo(-5, -10); ctx.lineTo(5, -10); ctx.lineTo(0, 14); ctx.closePath(); }), vsh('#ff8a2a', cx - 5, cy - 10, 10, 24), { lw: 1.4 }); vf(() => vX(cx, cy, 1, r, () => vLeaf(0, -10, 10, 3, -Math.PI / 2)), '#5ab84a', { lw: 1 }); });
+    pkSticker(32, 30, '#e0302a', 'ALL');
+  },
+  novocaine() {
+    vf(() => vR(-48, -26, 96, 70, 16), vlg('#2a8ad8', -48, 0, 48, 0, 0.45, 0.4), { lw: 2.6 });
+    vf(() => vR(-52, -40, 104, 22, 10), vmetal(VMETAL.silver, -52, -40, 52, -18), { lw: 2.2 });
+    ctx.save(); ctx.globalAlpha = 0.3; vf(() => vR(-42, -16, 7, 54, 3), '#ffffff', { lw: 0 }); ctx.restore();
+    pkWord('MELLOW', -34, '#2a5a8a', 2.6, '#ffffff');
+    MASCOT.manatee(0, 8, 0.9);
+    pkWord('MINTS', 30, '#ffffff', 2.8);
+    [[-38, 56], [-14, 60], [12, 58], [36, 54]].forEach(([mx2, my2]) => { vf(() => vC(mx2, my2, 8), vrg('#e8fbff', mx2, my2, 8), { lw: 1.6 }); vl(() => vC(mx2, my2, 4.5), '#7ad8ff', 1.4); });
+  },
+  extract() {
+    // a long twist of taffy in a striped wrapper
+    [-1, 1].forEach(sd => vf(() => vP([sd * 30, -8, sd * 54, -26, sd * 50, 0, sd * 54, 26, sd * 30, 8]), vsh('#ffe070', sd > 0 ? 30 : -54, -26, 24, 52), { lw: 2 }));
+    vf(() => vR(-34, -22, 68, 44, 12), vlg('#ff6a9a', 0, -22, 0, 22, 0.45, 0.35), { lw: 2.6 });
+    vclip(() => vR(-34, -22, 68, 44, 12), () => { for (let k = -60; k < 60; k += 14) vf(() => vP([k, -24, k + 7, -24, k - 13, 24, k - 20, 24]), 'rgba(255,255,255,0.45)', { lw: 0 }); });
+    pkWord('YANK-O', -12, '#ffffff', 2.8);
+    MASCOT.raccoon(0, -48, 0.95);
+    // stretchy taffy strand the raccoon is pulling
+    vl(() => { ctx.moveTo(-18, -36); ctx.quadraticCurveTo(-30, -20, -24, -22); }, '#ff9ac0', 4);
+    vtoothFill(-2, 50, 0.7);
+    vl(() => { ctx.moveTo(-2, 36); ctx.lineTo(-2, 22); }, '#ff9ac0', 3);
+    pkSticker(34, 44, '#8a3ad8', 'PULL');
+  },
+  fluoride() {
+    pkCan('#1aa8a0');
+    pkLabel(-38, 26, '#fbfbf2');
+    pkWord('FLUORIDE', -32, '#1a7a74', 2.2, '#ffffff');
+    MASCOT.otter(0, 12, 0.95);
+    [[-26, 38], [24, 44], [-18, 50], [10, 34]].forEach(([bx, by]) => vl(() => vC(bx, by, 3.4), 'rgba(255,255,255,0.8)', 1.4));
+    pkWord('FIZZ', 36, '#ffe070', 3);
+    pkSticker(30, -48, '#ff8a2a', '+25');
+  },
+  shot() {
+    pkCan('#1a1a24', true);
+    vclip(() => vR(-36, -72, 72, 144, 10), () => { vf(() => vBolt(0, 10, 3.2), 'rgba(232,48,42,0.55)', { lw: 0 }); });
+    MASCOT.panther(0, -18, 1);
+    pkWord('PANTHER', 14, '#ff4a3a', 2.4, '#ffffff');
+    pkWord('PUNCH', 30, '#ffe070', 3.2);
+    vf(() => vBolt(22, 50, 0.7), vsh('#ffe04a', 14, 36, 18, 30), { lw: 1.6 });
+    pkSticker(-22, 50, '#3aa84a', '+1');
+  },
+  mudbath() {
+    vf(() => { ctx.moveTo(-46, -22); ctx.lineTo(46, -22); ctx.lineTo(34, 60); ctx.quadraticCurveTo(0, 68, -34, 60); ctx.closePath(); }, vlg('#8a5a32', -46, 0, 46, 0, 0.4, 0.45), { lw: 2.6 });
+    vf(() => vE(0, -22, 48, 12), vmetal(VMETAL.silver, -48, -34, 48, -10), { lw: 2.2 });
+    vf(() => vE(0, -24, 40, 7), vsh('#5a3418', -40, -31, 80, 14), { lw: 1.2 });
+    // spoon + a dollop
+    vf(() => vX(24, -40, 1, 0.5, () => { vR(-3, -26, 6, 34, 3); vE(0, 10, 7, 10); }), vmetal(VMETAL.silver, 14, -70, 34, -20), { lw: 1.6 });
+    vf(() => { ctx.moveTo(-26, -26); ctx.quadraticCurveTo(-20, -44, -6, -34); ctx.quadraticCurveTo(0, -46, 8, -30); ctx.closePath(); }, vsh('#6a4020', -26, -44, 34, 18), { lw: 1.6 });
+    MASCOT.hog(0, 12, 0.9);
+    pkWord('MUD PIE', 40, '#ffe8c0', 2.6);
+  },
+  fairydust() {
+    vf(() => vR(-3, 10, 6, 64, 3), vsh('#fbf4e0', -3, 10, 6, 64), { lw: 1.8 });
+    [[-18, -26, 26], [14, -30, 24], [0, -8, 30], [-26, 2, 18], [24, 0, 20], [0, -46, 22]].forEach(([cx, cy, r]) => vf(() => vC(cx, cy, r), vrg('#ffb0d8', cx, cy, r, 0.5, 0.2), { lw: 0 }));
+    ctx.save(); ctx.globalAlpha = 0.3; vf(() => vR(-50, -70, 100, 100, 30), '#e0f4ff', { lw: 2, ink: '#9ac0e0' }); ctx.restore();
+    vf(() => vP([-6, 28, 6, 28, 3, 36, -3, 36]), '#ff6aa0', { lw: 1.4 });
+    MASCOT.fairy(0, -18, 0.95);
+    pkWord('FAIRY', 44, '#ffffff', 2.8, '#8a3a7a');
+    pkWord('FLOSS', 58, '#ffe070', 2.6, '#8a3a7a');
+    [[-40, -56, 5], [38, -50, 4], [-36, 20, 3.5], [40, 24, 4]].forEach(([sx, sy, r]) => vsp(sx, sy, r, '#fff6c0'));
+  },
+  loupe() {
+    // the breadsticks poking out of the top of the box
+    [-26, -14, -2, 10, 22].forEach((bx, i) => { const top = -84 + (i % 2) * 8; vf(() => vX(bx, top, 1, (i - 2) * 0.06, () => vR(-4, 0, 8, 40, 4)), vsh('#e0a050', bx - 4, top, 8, 40, 0.5, 0.35), { lw: 1.6 }); for (let k = 0; k < 3; k++) vf(() => vC(bx + (k - 1) * 1.6, top + 6 + k * 7, 1), '#fff4d0', { lw: 0 }); });
+    pkBox('#2a7ab8', null, '#4a9ad8');
+    pkWord('HERON', -48, '#ffffff', 3);
+    MASCOT.heron(-6, -2, 1);
+    pkLabel(30, 30, '#ffe070');
+    pkWord('STICKS', 36, '#2a5a8a', 2.6, '#fff6d0');
+    pkSticker(30, 60, '#e0302a', 'X3');
+  },
+  snack() {
+    vf(() => { ctx.moveTo(-40, -52); ctx.quadraticCurveTo(0, -62, 40, -52); ctx.lineTo(48, 60); ctx.quadraticCurveTo(0, 70, -48, 60); ctx.closePath(); }, vlg('#c8a060', -48, 0, 48, 0, 0.4, 0.45), { lw: 2.6 });
+    for (let k = 0; k < 6; k++) vline(-40 + k * 16, -52, -44 + k * 18, 60, 'rgba(90,60,20,0.25)', 1.2);
+    vl(() => { ctx.moveTo(-40, -52); ctx.quadraticCurveTo(0, -44, 40, -52); }, '#6a4a1a', 2.4);
+    vf(() => vR(-16, -66, 32, 12, 3), vsh('#8a5a2a', -16, -66, 32, 12), { lw: 1.8 });
+    MASCOT.gator(0, -14, 1.05);
+    pkLabel(20, 22, '#e0302a');
+    pkWord('GATOR', 22, '#ffffff', 2.4);
+    pkWord('CHOW', 42, '#6a3a0a', 3.2, '#ffe8b0');
+    [[-28, 56, 0.3], [26, 58, -0.4]].forEach(([bx, by, r]) => vf(() => vX(bx, by, 1, r, () => { vC(-7, -3, 3.4); vC(-7, 3, 3.4); vC(7, -3, 3.4); vC(7, 3, 3.4); vR(-7, -3, 14, 6, 2); }), '#f4ecd8', { lw: 1.2 }));
+  },
+  goldmolar() {
+    pkBox('#e8b020', '#a87a10', '#f8d060');
+    vf(() => vR(-40, -56, 80, 24, 3), vlg('#2a5aa8', 0, -56, 0, -32, 0.3, 0.3), { lw: 2 });
+    pkWord('GOLD', -52, '#ffe070', 2.6);
+    pkWord('NUGGETS', -40, '#ffffff', 2.2);
+    MASCOT.armadillo(-2, 6, 1);
+    // a bowl of golden tooth-shaped nuggets
+    vf(() => { ctx.moveTo(-30, 42); ctx.lineTo(30, 42); ctx.quadraticCurveTo(28, 64, 0, 64); ctx.quadraticCurveTo(-28, 64, -30, 42); ctx.closePath(); }, vsh('#f4f0e8', -30, 42, 60, 22), { lw: 1.8 });
+    [[-18, 40], [-6, 36], [8, 38], [20, 40], [0, 44]].forEach(([nx, ny]) => vtoothFill(nx, ny, 0.24, '#ffd040'));
+  },
+  ambermolar() {
+    pkJar('#e8900a', '#8a5a2a');
+    vf(() => { ctx.moveTo(-36, -38); ctx.quadraticCurveTo(-30, -24, -24, -30); ctx.quadraticCurveTo(-18, -12, -12, -30); ctx.quadraticCurveTo(-4, -36, 4, -30); ctx.quadraticCurveTo(10, -16, 14, -30); ctx.quadraticCurveTo(24, -34, 36, -38); ctx.closePath(); }, vsh('#ffc040', -36, -38, 72, 26), { lw: 1.6 });
+    pkLabel(-10, 58, '#fbf2d8');
+    pkWord('AMBER', -6, '#a85a0a', 2.8, '#ffffff');
+    MASCOT.bee(0, 24, 0.85);
+    pkWord('HONEY', 42, '#a85a0a', 2.4, '#ffffff');
+  },
+  rubymolar() {
+    vf(() => vR(-3, -40, 6, 112, 3), vsh('#f4ecd8', -3, -40, 6, 112), { lw: 1.8 });
+    [[-14, -22, 16], [12, -18, 15], [-10, 2, 14], [14, 6, 13], [0, -40, 13], [-2, 22, 12]].forEach(([cx, cy, r], i) => vf(() => vPolyN(cx, cy, 5 + (i % 2), r, i), vlg('#ff3a5a', cx - r, cy - r, cx + r, cy + r, 0.55, 0.4), { lw: 1.8 }));
+    ctx.save(); ctx.globalAlpha = 0.3; vf(() => vR(-40, -64, 80, 104, 24), '#e8f4ff', { lw: 2, ink: '#b8d0e0' }); ctx.restore();
+    vf(() => vP([-10, 38, 10, 38, 6, 48, -6, 48]), '#ffd040', { lw: 1.4 });
+    MASCOT.flamingo(-6, 56, 0.72);
+    pkWord('RUBY', -76, '#ffffff', 2.8, '#8a1a2a');
+    pkWord('ROCKS', 70, '#ffe070', 2.3, '#8a1a2a');
+  },
+  polish() {
+    vf(() => vR(-3, 6, 6, 70, 3), vsh('#fbf4e8', -3, 6, 6, 70), { lw: 1.8 });
+    vf(() => vC(0, -22, 38), vrg('#5ad0ff', 0, -22, 38, 0.5, 0.3), { lw: 2.6 });
+    vclip(() => vC(0, -22, 36), () => vspiral(0, -22, 38, 2.8, '#ffffff', 5));
+    vl(() => vC(0, -22, 38), VINK, 2.6);
+    ctx.save(); ctx.globalAlpha = 0.35; vf(() => vC(0, -22, 44), '#e8f8ff', { lw: 2, ink: '#b8d8e8' }); ctx.restore();
+    vf(() => vP([-14, 10, 14, 10, 6, 20, -6, 20]), '#ff6aa0', { lw: 1.4 });
+    MASCOT.pelican(-4, 40, 0.8);
+    pkWord('SPARKLE', -66, '#ffffff', 2.4, '#2a5a8a');
+    [[-40, -44, 6], [40, -10, 5], [30, -58, 4]].forEach(([sx, sy, r]) => vsp(sx, sy, r, '#ffffff'));
+  },
+  cavity() {
+    vf(() => { ctx.moveTo(-42, -56); ctx.lineTo(42, -56); ctx.lineTo(46, 58); ctx.quadraticCurveTo(0, 68, -46, 58); ctx.closePath(); }, vlg('#7ad83a', -46, 0, 46, 0, 0.4, 0.45), { lw: 2.6 });
+    vf(() => vR(-42, -64, 84, 12, 3), vlg('#4a9a2a', 0, -64, 0, -52), { lw: 2 });
+    vf(() => vC(0, -58, 4), '#1a3a10', { lw: 1 });
+    pkWord('SNAPPER', -44, '#ffffff', 2.4);
+    MASCOT.turtle(0, -4, 1);
+    pkWord('SOURS', 32, '#ffe070', 3, '#2a5a10');
+    [[-24, 52, '#ff5a5a'], [0, 56, '#ffe04a'], [24, 52, '#5ac8ff']].forEach(([cx, cy, c]) => { vf(() => vPolyN(cx, cy, 5, 8, cx), vrg(c, cx, cy, 8), { lw: 1.4 }); ctx.save(); ctx.globalAlpha = 0.8; [[-3, -2], [2, 2], [3, -3]].forEach(([dx, dy]) => vf(() => vC(cx + dx, cy + dy, 0.9), '#ffffff', { lw: 0 })); ctx.restore(); });
+  },
+  roottonic() {
+    vf(() => { ctx.moveTo(-10, -80); ctx.lineTo(10, -80); ctx.lineTo(10, -52); ctx.bezierCurveTo(30, -44, 34, -30, 34, -16); ctx.lineTo(34, 62); ctx.quadraticCurveTo(0, 72, -34, 62); ctx.lineTo(-34, -16); ctx.bezierCurveTo(-34, -30, -30, -44, -10, -52); ctx.closePath(); }, 'rgba(120,60,20,0.85)', { lw: 2.6 });
+    vf(() => vR(-12, -86, 24, 12, 3), vmetal(VMETAL.gold, -12, -86, 12, -74), { lw: 1.8 });
+    ctx.save(); ctx.globalAlpha = 0.35; vf(() => vR(-28, -24, 7, 80, 3), '#ffe8c0', { lw: 0 }); ctx.restore();
+    pkLabel(-18, 62, '#fbf2d8');
+    pkWord('ROOT', -14, '#7a3a10', 2.8, '#ffffff');
+    MASCOT.frog(0, 16, 0.8);
+    pkWord('TONIC', 34, '#3a7a2a', 2.4, '#ffffff');
+  },
+  swampbrew() {
+    vf(() => { ctx.moveTo(-38, -44); ctx.lineTo(38, -44); ctx.lineTo(30, 64); ctx.lineTo(-30, 64); ctx.closePath(); }, vlg('#f4ecd8', -38, 0, 38, 0, 0.35, 0.3), { lw: 2.6 });
+    vf(() => vR(-44, -58, 88, 16, 5), vlg('#4a3a2a', 0, -58, 0, -42, 0.4, 0.3), { lw: 2.2 });
+    vf(() => vR(-14, -66, 28, 10, 3), vlg('#4a3a2a', 0, -66, 0, -56), { lw: 1.8 });
+    vf(() => { ctx.moveTo(-35, -6); ctx.lineTo(35, -6); ctx.lineTo(32, 36); ctx.lineTo(-32, 36); ctx.closePath(); }, vlg('#3a8a4a', -35, 0, 35, 0, 0.35, 0.4), { lw: 2 });
+    MASCOT.possum(0, -22, 0.8);
+    pkWord('SWAMP', 2, '#ffe070', 2.4);
+    pkWord('BREW', 18, '#ffffff', 2.8);
+    [0, 1, 2].forEach(k => vl(() => { ctx.moveTo(-10 + k * 10, -70); ctx.bezierCurveTo(-16 + k * 10, -76, -4 + k * 10, -80, -10 + k * 10, -88); }, 'rgba(255,255,255,0.75)', 2.2));
+    pkSticker(-28, 52, '#e8a020', '+3');
+  },
+  compass() {
+    vf(() => vR(-48, -40, 96, 96, 14), vlg('#2a6a4a', -48, 0, 48, 0, 0.4, 0.45), { lw: 2.6 });
+    vf(() => vR(-52, -52, 104, 24, 10), vlg('#d8a040', 0, -52, 0, -28, 0.45, 0.35), { lw: 2.4 });
+    pkWord('COMPASS', -46, '#5a3a08', 2.2, '#fff4d0');
+    MASCOT.tortoise(0, -4, 0.95);
+    pkWord('COOKIES', 30, '#ffe8b0', 2.4);
+    [[-24, 50], [0, 52], [24, 50]].forEach(([cx, cy]) => { vf(() => vC(cx, cy, 9), vrg('#d8a050', cx, cy, 9), { lw: 1.6 }); [[-3, -2], [3, 1], [-1, 4]].forEach(([dx, dy]) => vf(() => vC(cx + dx, cy + dy, 1.4), '#5a3010', { lw: 0 })); });
+    vf(() => vX(34, -66, 1, 0, () => { vC(0, 0, 10); }), vmetal(VMETAL.gold, 24, -76, 44, -56), { lw: 1.6 });
+    vf(() => vX(34, -66, 1, 0.6, () => vP([0, -8, 3, 0, 0, 8, -3, 0])), '#e0302a', { lw: 0.8 });
+  },
+  firecracker() {
+    vf(() => vR(-40, -54, 80, 118, 8), vlg('#1a1a3a', -40, 0, 40, 0, 0.4, 0.4), { lw: 2.6 });
+    vclip(() => vR(-40, -54, 80, 118, 8), () => { for (let k = 0; k < 10; k++) { const a = k * VTAU / 10; vf(() => vP([0, 0, Math.cos(a - 0.12) * 90, Math.sin(a - 0.12) * 90, Math.cos(a + 0.12) * 90, Math.sin(a + 0.12) * 90]), k % 2 ? 'rgba(255,90,60,0.35)' : 'rgba(255,220,80,0.3)', { lw: 0 }); } });
+    vf(() => vR(-40, -64, 80, 16, 4), vmetal(VMETAL.silver, -40, -64, 40, -48), { lw: 2 });
+    for (let x = -36; x < 40; x += 8) vline(x, -62, x, -50, 'rgba(0,0,0,0.3)', 1.4);
+    MASCOT.crab(0, -14, 1);
+    pkWord('KABOOM!', 20, '#ffe070', 2.6, '#8a1a10');
+    [[-24, 46, '#ff5a5a'], [-8, 52, '#5ae0ff'], [8, 48, '#ffe04a'], [24, 52, '#9aff6a']].forEach(([cx, cy, c]) => vf(() => vC(cx, cy, 4), vrg(c, cx, cy, 4), { lw: 1 }));
+    [[-34, -40, 5], [36, -30, 6], [30, 34, 4]].forEach(([sx, sy, r]) => vsp(sx, sy, r, '#fff6c0'));
+  },
+};
+const SNACK_INFO = {
+  panorama: { name: 'HOOT VISION', flav: 'Carrot crisps for owl-sharp eyes.' },
+  novocaine: { name: 'MELLOW MINTS', flav: 'Numbs the gums. Merle swears by them.' },
+  extract: { name: 'YANK-O TAFFY', flav: 'Stretchy enough to pull a tooth.' },
+  fluoride: { name: 'FLUORIDE FIZZ', flav: 'Bubbles you can feel in your molars.' },
+  shot: { name: 'PANTHER PUNCH', flav: 'One can. Nine lives. Maybe.' },
+  mudbath: { name: 'MUD PIE CUP', flav: 'Tastes like a spa day in a swamp.' },
+  fairydust: { name: 'FAIRY FLOSS', flav: 'Spun from dragonfly dreams.' },
+  loupe: { name: 'HERON STICKS', flav: 'Crunchy breadsticks. Heron-sharp eyes.' },
+  snack: { name: 'GATOR CHOW', flav: 'A fed gator forgets a trap or two.' },
+  goldmolar: { name: 'GOLD NUGGETS', flav: 'Part of a balanced prospecting breakfast.' },
+  ambermolar: { name: 'AMBER HONEY', flav: 'Bottled by bees that dream of dinosaurs.' },
+  rubymolar: { name: 'RUBY ROCKS', flav: 'Rock candy, flamingo approved.' },
+  polish: { name: 'SPARKLE POPS', flav: 'Your teeth will squeak. Literally.' },
+  cavity: { name: 'SNAPPER SOURS', flav: 'So sour the weak teeth just leave.' },
+  roottonic: { name: 'ROOT TONIC', flav: 'Old-fashioned root beer for old roots.' },
+  swampbrew: { name: 'SWAMP BREW', flav: 'Possum-roasted. Suspiciously good.' },
+  compass: { name: 'COMPASS COOKIES', flav: 'Every crumb points north.' },
+  firecracker: { name: 'KABOOM CRACKLE', flav: 'Popping candy with a real bang.' },
+};
+function snackCanvas(id, sc) {
+  return getCached('snk:' + id + ':' + sc, 32 * sc, 44 * sc, () => {
+    ctx.save(); ctx.scale(sc, sc); ctx.translate(16, 22); ctx.scale(0.25, 0.25);
+    ctx.save(); ctx.globalAlpha = 0.32; ctx.fillStyle = '#000'; ctx.beginPath(); vE(4, 80, 50, 7); ctx.fill(); ctx.restore();
+    (SNACK_ART[id] || SNACK_ART.snack)();
+    ctx.restore();
+  });
+}
+
+// one-use items wear their product names and taglines
+CONS.forEach(c => { const sn = SNACK_INFO[c.id]; if (sn) { c.name = sn.name; c.flav = sn.flav; } });
+function drawSnackFace(x, y, def, o) {
+  o = o || {};
+  x |= 0; y |= 0;
+  ctx.drawImage(snackCanvas(def.id, artRes()), x - 1, y - 1, 32, 44);
+  if (o.price !== undefined) {
+    rr(x - 3, y - 5, 20, 9, 2, '#00000088');
+    drawText('$' + o.price, x - 1, y - 3, o.afford ? C.gold : C.red, 1);
+  }
+}
+// any shop item's art centred on (cx, cy) at scale sc: badge, snack or tool
+function itemKind(def) { return def.picks ? 'tool' : CHARMS.includes(def) || CHARMS.some(c => c.id === def.id) ? 'charm' : 'cons'; }
+function drawItemArt(def, cx, cy, sc) {
+  sc = sc || 1;
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc);
+  const k = itemKind(def);
+  if (k === 'charm') drawBadgeFace(-15, -17, def, {});
+  else if (k === 'tool') drawToolItem(-15, -21, def, {});
+  else drawSnackFace(-15, -21, def, {});
+  ctx.restore();
+}
+
 function drawBadgeFace(x, y, def, o) {
   o = o || {};
   x |= 0; y |= 0;
   const trex = def.id === 'jurassic' && trexActive();
   const ed = def.ed && EDITIONS[def.ed]; // GOLDEN / DIAMOND / RUSTY finish
-  const rim = trex ? '#ffd54a' : ed ? ed.col : RAR_COL[def.rar || 0];
-  const cx2 = x + 15, cy2 = y + 15;
-  // edition aura: a soft pulsing halo in the finish colour
+  const rar = def.rar || 0, cx2 = x + 15, cy2 = y + 15;
+  // edition aura / epic glow: a soft pulsing halo behind the medal
   if (ed) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 4 + cx2) * 0.12; fillCircle(cx2, cy2, 17, ed.col); ctx.restore(); }
-  // ribbon tails
-  rect(x + 7, y + 26, 6, 12, '#8a2a16');
-  rect(x + 17, y + 26, 6, 12, '#8a2a16');
-  rect(x + 8, y + 27, 4, 10, '#b8452a');
-  rect(x + 18, y + 27, 4, 10, '#b8452a');
-  rect(x + 9, y + 36, 2, 3, '#8a2a16'); rect(x + 19, y + 36, 2, 3, '#8a2a16');
-  // disc with rarity rim (+ soft outer glow on epic and up)
-  if ((def.rar || 0) >= 3 || trex) { ctx.save(); ctx.globalAlpha = 0.22 + Math.sin(tNow * 3) * 0.08; fillCircle(cx2, cy2, 16, rim); ctx.restore(); }
-  fillCircle(cx2, cy2 + 2, 14, '#00000066');
-  fillCircle(cx2, cy2, 14, rim);
-  fillCircle(cx2, cy2, 12, trex ? '#3a3020' : '#2a3a30');
-  fillCircle(cx2, cy2 - 1, 11, trex ? '#4a3e28' : '#33463a');
-  // brushed top-light arc for a little dimension
-  ctx.save(); ctx.globalAlpha = 0.16;
-  for (let a = 0; a < 7; a++) { const ang = (-0.85 + a / 7 * 1.2); rect(cx2 + Math.cos(ang - 1.57) * 9 - 1, cy2 + Math.sin(ang - 1.57) * 9 - 1, 2, 1, '#ffffff'); }
-  ctx.restore();
-  // stitched edge dots
-  for (let a = 0; a < 8; a++) {
-    const ang = a / 8 * Math.PI * 2;
-    rect(cx2 + Math.cos(ang) * 12 - 1, cy2 + Math.sin(ang) * 12 - 1, 1, 1, '#00000055');
+  else if (rar >= 3 || trex) { ctx.save(); ctx.globalAlpha = 0.2 + Math.sin(tNow * 3) * 0.08; fillCircle(cx2, cy2, 17, trex ? '#ffd54a' : RAR_COL[rar]); ctx.restore(); }
+  // the medal itself: hi-res vector art, cached at the resolution it is shown at
+  ctx.drawImage(badgeCanvas(def.id, rar, def.ed, trex, artRes()), x - 1, y, 32, 42);
+  // a glint that sweeps across legendary and mythical medals
+  if (rar >= 4 || trex) {
+    const gs = (tNow * 0.6 + cx2 * 0.01) % 2.4;
+    if (gs < 1) { ctx.save(); ctx.beginPath(); ctx.arc(cx2, cy2, 11, 0, Math.PI * 2); ctx.clip(); ctx.globalAlpha = 0.35; ctx.fillStyle = '#ffffff'; ctx.translate(cx2 - 16 + gs * 32, cy2); ctx.rotate(0.5); ctx.fillRect(-2, -16, 4, 32); ctx.restore(); }
   }
-  (trex ? ICONS.trex : (ICONS[def.ico] || ICONS.star))(cx2 - 6, cy2 - 7);
-  // pin glint
-  rect(cx2 - 8, cy2 - 10, 2, 2, '#ffffff88');
-  if ((def.rar || 0) >= 4 || trex) { // legendary+ sparkle sweep
-    const sh = (tNow * 3 | 0) % 3;
-    rect(cx2 - 10 + sh * 8, cy2 - 12, 1, 2, '#bffff8');
-    if (Math.sin(tNow * 5) > 0.6) rect(cx2 + 7, cy2 + 6, 1, 1, '#ffffff');
-  }
-  if (ed) { // edition finish: inner ring + a little gem badge on the ribbon
-    ctx.save(); ctx.globalAlpha = 0.9;
-    for (let a = 0; a < 12; a++) { const ang = a / 12 * Math.PI * 2; rect(cx2 + Math.cos(ang) * 13 - 1, cy2 + Math.sin(ang) * 13 - 1, 1, 1, ed.edge); }
-    ctx.restore();
-    // finish-specific shimmer
+  if (ed) {
     if (def.ed === 'diamond') { const sh = (tNow * 4 | 0) % 4; ctx.save(); ctx.globalAlpha = 0.7; rect(cx2 - 12 + sh * 6, cy2 - 10 + sh * 4, 2, 2, '#eaffff'); ctx.restore(); }
     else if (def.ed === 'golden') { if (Math.sin(tNow * 6 + cx2) > 0.5) rect(cx2 + 6 - (tNow * 8 | 0) % 12, cy2 - 8, 1, 1, '#fff6c8'); }
-    else { rect(cx2 - 5, cy2 + 5, 1, 1, '#5e2e12'); rect(cx2 + 4, cy2 - 4, 1, 1, '#5e2e12'); } // rusty flecks
-    // edition gem set into the base ribbon
-    fillCircle(cx2, y + 34, 4, ed.edge);
-    fillCircle(cx2, y + 34, 3, ed.col);
-    rect(cx2 - 1, y + 32, 1, 1, ed.gem);
+    // edition gem set into the ribbon
+    fillCircle(cx2, y + 33, 3, ed.edge); fillCircle(cx2, y + 33, 2, ed.col); rect(cx2 - 1, y + 32, 1, 1, ed.gem);
   }
   if (o.price !== undefined) {
     rr(x - 3, y - 5, 20, 9, 2, '#00000088');
@@ -5898,6 +7601,7 @@ function drawCardFace(x, y, def, kind, o) {
   x |= 0; y |= 0; // integer position keeps the pixel art crisp
   if (kind === 'charm') { drawBadgeFace(x, y, def, o); return; } // badges, not cards
   if (kind === 'tool' || def.picks) { drawToolItem(x, y, def, o); return; } // real tools, not cards
+  if (kind === 'cons' || SNACK_ART[def.id]) { drawSnackFace(x, y, def, o); return; } // one-use snacks
   const isCons = kind === 'cons';
   const isTool = kind === 'tool' || !!def.picks;
   const frame = isTool ? '#3a9a8a' : isCons ? '#8a5fd0' : RAR_COL[def.rar || 0];
@@ -6212,7 +7916,7 @@ function drawTopBar(inShop) {
     }
   }
   const kx0 = 385;
-  drawText('CARDS', kx0, 2, C.dim, 1);
+  drawText('ITEMS', kx0, 2, C.dim, 1);
   for (let i = 0; i < 3; i++) {
     const x = kx0 + i * 31, y = 12;
     if (i < G.cons.length) {
@@ -6813,7 +8517,7 @@ function drawShop() {
     rr(x - 1, tgY + 1, 44, 34, 1, '#00000055');
     rr(x - 2, tgY, 44, 34, 1, '#8a6a10'); rect(x - 1, tgY + 1, 42, 32, it.sold ? '#d8d0b8' : '#ffe24a');
     rect(x - 1, tgY + 1, 42, 7, kcol);
-    drawTextC(it.kind === 'charm' ? 'BADGE' : it.kind === 'tool' ? 'TOOL' : 'CARD', x + 20, tgY + 2, '#ffffff', 1);
+    drawTextC(it.kind === 'charm' ? 'BADGE' : it.kind === 'tool' ? 'TOOL' : 'SNACK', x + 20, tgY + 2, '#ffffff', 1);
     const nl = fitLines(it.def.name, 40);
     if (nl.length > 1) { drawTextC(nl[0], x + 20, tgY + 10, '#2a1a0c', 1); drawTextC(nl[1], x + 20, tgY + 17, '#2a1a0c', 1); }
     else drawTextC(nl[0], x + 20, tgY + 13, '#2a1a0c', 1);
@@ -8000,43 +9704,37 @@ function menuStatic() {
 
 // ---- the title sign: carved letters, painted enamel, extruded ----
 function menuLogo() {
-  const w = 272, h = 76;
-  // the carved board
-  rr(2, 4, w - 4, h - 20, 5, '#00000066');
-  plasticBox(0, 0, w - 4, h - 22, 5, ['#140a04', '#3a2210', '#50301a', '#684024', '#8a5a32'], { seed: 19 });
-  woodGrain(4, 4, w - 12, h - 30, '#3a2210', '#684024', 5);
-  rr(6, 5, w - 16, h - 32, 3, '#2a1808');
-  rr(7, 6, w - 18, h - 34, 3, '#3a2412');
-  // iron corner brackets
-  [[2, 2], [w - 18, 2], [2, h - 36], [w - 18, h - 36]].forEach(([bx, by]) => { rr(bx, by, 12, 12, 2, '#1a1a1a'); rr(bx + 1, by + 1, 10, 10, 2, '#4a4a4a'); rect(bx + 2, by + 2, 8, 1, '#7a7a7a'); fillCircle(bx + 6, by + 6, 1, '#1a1a1a'); });
-  // letters: extrusion and ink outline on the board...
-  const text = 'BITE DOWN', sc = 5, tx = Math.round((w - 4 - textW(text, sc)) / 2), ty = 11;
-  for (let d = 4; d >= 1; d--) drawText(text, tx + Math.round(d * 0.5), ty + d, d > 2 ? '#1a0e06' : '#5a3a18', sc);
-  [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1], [2, 0], [-2, 0], [0, 2]].forEach(([ox, oy]) => drawText(text, tx + ox, ty + oy, '#1a0e06', sc));
-  // ...then the enamel paint on its own layer, so the lighting only touches paint
-  const paint = getCached('menulogoPaint', textW(text, sc) + 2, 5 * sc + 2, () => {
-    drawText('BITE', 0, 0, '#f4ecd4', sc);
-    drawText('DOWN', textW('BITE ', sc) + 1, 0, '#7ed05a', sc);
+  const w = 276, h = 80;
+  // a clean painted board: three flat tones and two plank seams, no grain noise
+  rr(3, 5, w - 6, h - 22, 7, '#00000070');
+  rr(0, 0, w - 6, h - 24, 7, '#1a0d05');
+  rr(2, 2, w - 10, h - 28, 6, '#6a4222');
+  rect(4, 3, w - 14, 5, '#86582e'); rect(6, 3, w - 18, 1, '#a8743e');
+  rect(4, h - 34, w - 14, 5, '#4e2e16');
+  rect(4, 22, w - 14, 1, '#4e2e16'); rect(4, 23, w - 14, 1, '#86582e');
+  rect(4, 38, w - 14, 1, '#4e2e16'); rect(4, 39, w - 14, 1, '#86582e');
+  // brass corner rivets
+  [[7, 6], [w - 15, 6], [7, h - 36], [w - 15, h - 36]].forEach(([bx, by]) => { fillCircle(bx + 1, by + 1, 3, '#2a1a06'); fillCircle(bx + 1, by + 1, 2, '#d09a1e'); rect(bx, by, 1, 1, '#ffe89a'); });
+  // letters: a fat ink outline, a short extrusion, then flat enamel paint
+  const text = 'BITE DOWN', sc = 5, tx = Math.round((w - 6 - textW(text, sc)) / 2), ty = 12;
+  for (let d = 4; d >= 1; d--) drawText(text, tx, ty + d, d > 2 ? '#140a04' : '#3a2410', sc);
+  [[-2, 0], [2, 0], [0, -2], [-1, -1], [1, -1], [-1, 1], [1, 1], [-2, 1], [2, 1], [-2, -1], [2, -1], [-1, -2], [1, -2]].forEach(([ox, oy]) => drawText(text, tx + ox, ty + oy, '#140a04', sc));
+  const paint = getCached('menulogoPaint2', textW(text, sc) + 2, 5 * sc + 2, () => {
+    drawText('BITE', 0, 0, '#fbf2dc', sc);
+    drawText('DOWN', textW('BITE ', sc) + 1, 0, '#86dc5e', sc);
     ctx.save(); ctx.globalCompositeOperation = 'source-atop';
-    for (let y = 0; y < 5 * sc; y++) {
-      const f = y / (5 * sc);
-      if (f < 0.2) { ctx.globalAlpha = 0.7; rect(0, y, textW(text, sc), 1, '#ffffff'); }
-      else if (f < 0.28 && (y & 1)) { ctx.globalAlpha = 0.5; for (let x = 0; x < textW(text, sc); x += 2) rect(x + (y & 2 ? 1 : 0), y, 1, 1, '#ffffff'); }
-      else if (f > 0.8) { ctx.globalAlpha = 0.55; rect(0, y, textW(text, sc), 1, '#3a2a10'); }
-    }
-    ctx.globalAlpha = 0.45;
-    for (let k = 0; k < 200; k++) rect(Math.floor(hash2(k, 71) * textW(text, sc)), Math.floor(hash2(k, 72) * 5 * sc), 1, 1, k % 3 ? '#6a5a30' : '#ffffff');
-    // enamel teeth: a notch of gum-pink at the foot of BITE
-    ctx.globalAlpha = 0.8; for (let x = 0; x < textW('BITE', sc); x += 5) rect(x + 2, 5 * sc - 2, 2, 2, '#d8707e');
+    ctx.globalAlpha = 0.85; rect(0, 0, textW(text, sc), sc, '#ffffff');            // one clean top highlight
+    ctx.globalAlpha = 0.35; rect(0, 4 * sc, textW(text, sc), sc, '#3a2a10');        // and a soft foot shadow
+    ctx.globalAlpha = 0.9; for (let x = 0; x < textW('BITE', sc); x += 5) rect(x + 2, 5 * sc - 2, 2, 2, '#e07888');
     ctx.restore();
   });
   ctx.drawImage(paint, tx, ty, paint.width / RS, paint.height / RS);
-  // tagline plank
-  const pw = 200, px = Math.round((w - 4 - pw) / 2), py = h - 20;
-  rect(px + 20, py - 4, 2, 5, '#b8a070'); rect(px + pw - 22, py - 4, 2, 5, '#b8a070');
-  rr(px + 1, py + 2, pw, 14, 2, '#00000066');
-  plasticBox(px, py, pw, 14, 2, ['#1a0e06', '#5a3a1a', '#7a522a', '#946638', '#b08050'], { seed: 23, noShine: 1 });
-  drawTextC('A SWAMP DENTISTRY ROGUELIKE', px + pw / 2, py + 4, '#f4e2b8', 1);
+  // tagline plank hung under the board
+  const pw = 206, px = Math.round((w - 6 - pw) / 2), py = h - 20;
+  rect(px + 22, py - 6, 2, 7, '#c8b080'); rect(px + pw - 24, py - 6, 2, 7, '#c8b080');
+  rr(px + 1, py + 2, pw, 15, 3, '#00000066');
+  rr(px, py, pw, 15, 3, '#1a0d05'); rr(px + 1, py + 1, pw - 2, 13, 2, '#7a522a'); rect(px + 3, py + 1, pw - 6, 2, '#946638');
+  drawTextC('A SWAMP DENTISTRY ROGUELIKE', px + pw / 2, py + 5, '#fbeccc', 1);
 }
 
 // two small icons only the title screen needs
@@ -8075,14 +9773,9 @@ function signPlank(x, y, w, h, dir, label, col, cb, o) {
     const tone = j === 0 || j === h - 1 ? P[0] : j === 1 ? P[4] : j < h * 0.35 ? P[3] : j > h * 0.75 ? P[1] : P[2];
     rect(x0, yy + j, x1 - x0, 1, tone);
     rect(x0, yy + j, 1, 1, P[0]); rect(x1 - 1, yy + j, 1, 1, P[0]);
-    // weathered paint: bare wood showing through, plank grain
-    for (let i = x0 + 2; i < x1 - 2; i++) {
-      const q = hash2(i - x + w, j + id.length * 7);
-      if (q < 0.035) rect(i, yy + j, 2, 1, '#8a6034');
-      else if (q > 0.93) rect(i, yy + j, 1, 1, P[1]);
-    }
   }
-  for (let j = 3; j < h - 3; j += 3) { const gx = xx + 6 + Math.floor(hash2(j, w) * (w - 30)); rect(gx, yy + j, 10 + (j % 7), 1, P[1]); }
+  // a single plank seam - clean paint, no weathering noise
+  rect(xx + (dir > 0 ? 4 : tip + 2), yy + Math.floor(h / 2), w - tip - 8, 1, P[1]);
   // nail heads and the rope lashing at the post end
   const ne = dir > 0 ? xx + 5 : xx + w - 7;
   rect(ne, yy + 3, 2, 2, '#2a2a2a'); rect(ne, yy + 3, 1, 1, '#9a9a9a'); rect(ne, yy + h - 5, 2, 2, '#2a2a2a'); rect(ne, yy + h - 5, 1, 1, '#9a9a9a');
@@ -8278,34 +9971,30 @@ function drawMenu(dt) {
   }
 
   // ---- the title sign, top-left, hanging on two ropes ----
-  const TS = 0.62, lx = 6, ly = 8 + Math.round(Math.sin(tNow * 0.9) * 1);
-  [lx + 24, lx + 142].forEach(rx => { for (let y = 0; y < ly + 3; y += 2) rect(rx, y, 2, 2, (y >> 1) & 1 ? '#c8b080' : '#a08858'); });
-  ctx.save(); ctx.translate(lx, ly); ctx.scale(TS, TS);
-  paintCached('menulogo', 0, 0, 272, 76, menuLogo);
-  const gl = (tNow * 0.35) % 2.2;
-  if (gl < 1) { ctx.globalAlpha = 0.5; const gx2 = 20 + gl * 230; for (let k = 0; k < 22; k++) rect(gx2 + k * 0.4, 13 + k, 2, 1, '#ffffff'); }
-  ctx.restore();
+  const lx = 4, ly = 5 + Math.round(Math.sin(tNow * 0.9) * 1);
+  [lx + 34, lx + 232].forEach(rx => { for (let y = 0; y < ly + 3; y += 2) rect(rx, y, 2, 2, (y >> 1) & 1 ? '#c8b080' : '#a08858'); });
+  paintCached('menulogo2', lx, ly, 276, 80, menuLogo);
 
   // ---- the signpost: every option is a trail arrow, all down the left ----
   const PX = 14;
-  rect(PX - 4, 58, 9, 190, '#1a0e06'); rect(PX - 3, 58, 7, 190, '#4e3218'); rect(PX - 3, 58, 2, 190, '#6a4a28'); woodGrain(PX - 1, 60, 4, 180, '#3a2412', '#7c5430', 3);
+  rect(PX - 4, 84, 9, 170, '#1a0e06'); rect(PX - 3, 84, 7, 170, '#4e3218'); rect(PX - 3, 84, 2, 170, '#6a4a28');
   ensureDaily();
   const idxAll = indexEntries();
   const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
-  signPlank(6, 60, 158, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
-  signPlank(6, 96, 132, 20, 1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
-  signPlank(6, 120, 132, 20, 1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
-  signPlank(6, 144, 132, 20, 1, 'FIELD GUIDE', '#3a7a44', () => { G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'FIELD GUIDE|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator you have met') });
-  if (idxNew) { const bx = 128, by = 142; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
-  woodTile(8, 170, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
-  woodTile(34, 170, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
-  woodTile(60, 170, 22, 'giftic', () => { G.boothOv = 'gifts'; }, { id: 'giftbtn', tip: 'FREE GIFTS|Follow us for a wombat hat + tee' });
+  signPlank(6, 88, 162, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
+  signPlank(6, 124, 136, 20, 1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
+  signPlank(6, 148, 136, 20, 1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
+  signPlank(6, 172, 136, 20, 1, 'CROCPEDIA', '#3a7a44', () => { cpEnter(); G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'CROCPEDIA|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator, boss, badge and tooth you have met') });
+  if (idxNew) { const bx = 132, by = 170; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
+  woodTile(8, 200, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
+  woodTile(34, 200, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
+  woodTile(60, 200, 22, 'giftic', () => { G.boothOv = 'gifts'; }, { id: 'giftbtn', tip: 'FREE GIFTS|Follow us for a wombat hat + tee' });
   if (G.boothOv) { drawBoothOverlay(); return; }
 
   // ---- the shift log, pinned to the pier post ----
   (function board() {
-    const bx = 8, by = 200, bw = 76, bh = 56;
-    rect(bx + 46, by - 12, 8, 14, '#2a1c12');
+    const bx = 90, by = 198, bw = 76, bh = 56;
+    rect(bx + 46, by - 6, 8, 8, '#2a1c12');
     paperSheet(bx, by, bw, bh, { ruled: 1, ruledTop: 16 });
     pushPin(bx + bw / 2, by + 2, PINS[2]);
     drawText('SHIFT LOG', bx + 6, by + 6, '#8a5a1a', 1);
@@ -8338,6 +10027,7 @@ function indexEntries() {
   BOSSES.forEach(b => list.push({ key: 'boss_' + b.id, boss: b.id, name: b.name, col: '#ff8a8a', tier: 3, abil: 'BOSS RULE', tag: 'BOSS RULE', desc: b.desc, flav: BOSS_QUIPS[b.id] || 'It is very hungry.' }));
   return list;
 }
+function cpEnter() { G.cp = null; }
 function drawIndex() {
   const th = THEMES.night;
   drawSceneBack(th); drawSceneFront(th);
@@ -9139,7 +10829,7 @@ function drawHow() {
     ['(one-shot) and SPECIAL TEETH for your deck.', C.dim],
     ['CLICK any card for details. DRAG cards onto the', C.white],
     ['gator to use them. DRAG charms to the barrel', C.white],
-    ['to sell. EXTRACTION drags onto a single tooth.', C.white],
+    ['to sell. YANK-O TAFFY drags onto a single tooth.', C.white],
     ['', C.dim],
     ['Pick your path on the SWAMP TRAIL each ante:', C.green],
     ['easy, risky or golden gators, and ? EVENTS.', C.dim],
@@ -10809,7 +12499,7 @@ function drawGachaShowcase() {
   overlayDim(0.78);
   hit(0, 0, W, H, { id: 'gsblock', cb: () => { } });
   const all = [];
-  exchangeItems().forEach(d => all.push({ name: d.name, desc: d.desc, ico: d.ico, rar: d.tier <= 5 ? 0 : d.tier <= 10 ? 1 : 2, owned: !!meta.unlocked[d.id], kind: CHARMS.includes(d) ? 'BADGE' : TOOLS.includes(d) ? 'TOOL' : 'CARD' }));
+  exchangeItems().forEach(d => all.push({ name: d.name, desc: d.desc, ico: d.ico, rar: d.tier <= 5 ? 0 : d.tier <= 10 ? 1 : 2, owned: !!meta.unlocked[d.id], kind: CHARMS.includes(d) ? 'BADGE' : TOOLS.includes(d) ? 'TOOL' : 'SNACK' }));
   GLOVE_ORDER.forEach(k => { if (GLOVES[k].gacha) all.push({ name: GLOVES[k].name, desc: 'GLOVE SKIN - ' + GLOVES[k].flav, ico: 'glove', skin: GLOVES[k].skin, rar: 2, owned: !!meta.gachaOwn[k], kind: 'GLOVE' }); });
   HAT_ORDER.forEach(k => { if (HATS[k].gacha) all.push({ name: HATS[k].name, desc: 'HAT - ' + HATS[k].flav, ico: 'hat', hatKey: k, rar: 3, owned: !!meta.hatOwn[k], kind: 'HAT' }); });
   GEAR_ORDER.forEach(k => { if (GEAR[k].gacha) all.push({ name: GEAR[k].name, desc: 'GEAR - ' + GEAR[k].flav, ico: 'gear', gearKey: k, rar: GEAR[k].rar || 3, owned: !!meta.gearOwn[k], kind: 'GEAR' }); });
@@ -11963,7 +13653,7 @@ function drawInspect() {
   let sub;
   if (kind === 'charm') sub = 'PARK BADGE  -  ' + RAR_NAME[def.rar || 0];
   else if (kind === 'tool' || def.picks) sub = 'DENTIST TOOL  -  WORKS ON YOUR DECK';
-  else if (kind === 'cons') sub = 'CARD  -  ONE-TIME USE';
+  else if (kind === 'cons') sub = 'SNACK  -  ONE-TIME USE';
   else sub = 'SPECIAL TOOTH  -  JOINS YOUR DECK';
   drawText(sub, tx, py + 26, def.picks ? '#7fd0c0' : kind === 'cons' ? C.purple : RAR_COL[def.rar || 0], 1);
   let y = py + 40;
@@ -12107,6 +13797,7 @@ function drawFx() {
     const k = easeOut(f.t);
     const x = lerp(f.x, f.tx, k), y = lerp(f.y, f.ty, k);
     if (f.tooth) { drawTooth(x - 5, y - 7, 11, 14, true, f.tooth, {}); }
+    else if (f.def) drawItemArt(f.def, x, y, 0.6 + 0.4 * k);
     else {
       rr(x - 8, y - 11, 16, 22, 2, f.col);
       rr(x - 7, y - 10, 14, 20, 2, '#232f3a');
