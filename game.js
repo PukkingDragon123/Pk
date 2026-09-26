@@ -7834,12 +7834,70 @@ function snackCanvas(id, sc) {
   });
 }
 
+// ============================= PIXEL-ART BAKER ==================================
+//  Badges and snacks are designed as vector art, then baked down to true pixel
+//  art at one pixel per game pixel: every pixel takes the DOMINANT colour of its
+//  block (so edges stay crisp instead of going soft), dark linework is weighted
+//  up so it survives, the whole sprite is snapped to a small palette with a
+//  median cut, and the silhouette gets a hard ink rim.
+const PIX_CACHE = new Map();
+function pxMedianCut(cols, n) {
+  let boxes = [cols];
+  while (boxes.length < n) {
+    let bi = -1, bestR = 0, ch = 0;
+    boxes.forEach((b, i) => { if (b.length < 2) return; for (let c = 0; c < 3; c++) { let lo = 255, hi = 0; b.forEach(p => { if (p[c] < lo) lo = p[c]; if (p[c] > hi) hi = p[c]; }); if (hi - lo > bestR) { bestR = hi - lo; bi = i; ch = c; } } });
+    if (bi < 0 || bestR < 10) break;
+    const b = boxes[bi].slice().sort((p, q) => p[ch] - q[ch]), m = b.length >> 1;
+    boxes.splice(bi, 1, b.slice(0, m), b.slice(m));
+  }
+  return boxes.map(b => { const s = [0, 0, 0]; let wsum = 0; b.forEach(p => { s[0] += p[0] * p[3]; s[1] += p[1] * p[3]; s[2] += p[2] * p[3]; wsum += p[3]; }); return [s[0] / wsum, s[1] / wsum, s[2] / wsum]; });
+}
+function pixelBake(key, src, w, h, colours) {
+  let c = PIX_CACHE.get(key); if (c) return c;
+  const sw = src.width, sh = src.height, bx = sw / w, by = sh / h;
+  const d = src.getContext('2d').getImageData(0, 0, sw, sh).data;
+  const px = new Array(w * h).fill(null);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const x0 = Math.floor(x * bx), x1 = Math.max(x0 + 1, Math.floor((x + 1) * bx)), y0 = Math.floor(y * by), y1 = Math.max(y0 + 1, Math.floor((y + 1) * by));
+    const buckets = new Map(); let solid = 0, total = 0;
+    for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) {
+      const i = (yy * sw + xx) * 4; total++;
+      if (d[i + 3] < 120) continue; solid++;
+      const r = d[i], g = d[i + 1], b = d[i + 2], k = (r >> 5) << 6 | (g >> 5) << 3 | (b >> 5);
+      const lum = r * 0.3 + g * 0.59 + b * 0.11, wt = lum < 60 ? 1.9 : lum > 225 ? 1.3 : 1;
+      let e = buckets.get(k); if (!e) { e = [0, 0, 0, 0, 0]; buckets.set(k, e); }
+      e[0] += wt; e[1] += r; e[2] += g; e[3] += b; e[4]++;
+    }
+    if (solid * 2 < total) continue;
+    let best = null; buckets.forEach(e => { if (!best || e[0] > best[0]) best = e; });
+    px[y * w + x] = [best[1] / best[4], best[2] / best[4], best[3] / best[4], 1];
+  }
+  // snap to a small palette so it reads as hand-picked pixel colours
+  const pal = pxMedianCut(px.filter(Boolean), colours || 18);
+  const near = p => { let bd = 1e9, bc = pal[0]; pal.forEach(q => { const dd = (p[0] - q[0]) ** 2 * 0.3 + (p[1] - q[1]) ** 2 * 0.59 + (p[2] - q[2]) ** 2 * 0.11; if (dd < bd) { bd = dd; bc = q; } }); return bc; };
+  c = document.createElement('canvas'); c.width = w; c.height = h;
+  const o = c.getContext('2d'), out = o.createImageData(w, h), od = out.data;
+  const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && !!px[y * w + x];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = px[y * w + x]; if (!p) continue;
+    let q = near(p);
+    if (!on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1)) q = [q[0] * 0.38 + 6, q[1] * 0.34 + 4, q[2] * 0.4 + 8];   // ink rim
+    const j = (y * w + x) * 4; od[j] = q[0]; od[j + 1] = q[1]; od[j + 2] = q[2]; od[j + 3] = 255;
+  }
+  o.putImageData(out, 0, 0);
+  if (PIX_CACHE.size > 1500) PIX_CACHE.clear();
+  PIX_CACHE.set(key, c);
+  return c;
+}
+const pixelBadge = (id, rar, ed, trex) => pixelBake('pb:' + id + ':' + rar + ':' + (ed || '') + ':' + (trex ? 1 : 0), badgeCanvas(id, rar, ed, trex, 2), 32, 42, 18);
+const pixelSnack = id => pixelBake('ps:' + id, snackCanvas(id, 2), 32, 44, 18);
+
 // one-use items wear their product names and taglines
 CONS.forEach(c => { const sn = SNACK_INFO[c.id]; if (sn) { c.name = sn.name; c.flav = sn.flav; } });
 function drawSnackFace(x, y, def, o) {
   o = o || {};
   x |= 0; y |= 0;
-  ctx.drawImage(snackCanvas(def.id, artRes()), x - 1, y - 1, 32, 44);
+  ctx.drawImage(pixelSnack(def.id), x - 1, y - 1, 32, 44);
   if (o.price !== undefined) {
     rr(x - 3, y - 5, 20, 9, 2, '#00000088');
     drawText('$' + o.price, x - 1, y - 3, o.afford ? C.gold : C.red, 1);
@@ -7867,7 +7925,7 @@ function drawBadgeFace(x, y, def, o) {
   if (ed) { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 4 + cx2) * 0.12; fillCircle(cx2, cy2, 17, ed.col); ctx.restore(); }
   else if (rar >= 3 || trex) { ctx.save(); ctx.globalAlpha = 0.2 + Math.sin(tNow * 3) * 0.08; fillCircle(cx2, cy2, 17, trex ? '#ffd54a' : RAR_COL[rar]); ctx.restore(); }
   // the medal itself: hi-res vector art, cached at the resolution it is shown at
-  ctx.drawImage(badgeCanvas(def.id, rar, def.ed, trex, artRes()), x - 1, y, 32, 42);
+  ctx.drawImage(pixelBadge(def.id, rar, def.ed, trex), x - 1, y, 32, 42);
   // a glint that sweeps across legendary and mythical medals
   if (rar >= 4 || trex) {
     const gs = (tNow * 0.6 + cx2 * 0.01) % 2.4;
@@ -10060,9 +10118,6 @@ function introShot(shot, t, dt) {
       if (dv < 1) { ctx.save(); ctx.translate(px, py); ctx.rotate(1.3); gPelican(0, 0, -1, 0.9); ctx.restore(); }
       else if (!G.cut.dove) { G.cut.dove = true; sfx.splash(); for (let k = 0; k < 14; k++) parts.push({ x: px, y: 220, vx: (rnd() - 0.5) * 90, vy: -40 - rnd() * 70, t: 0, life: 0.7, col: '#fff0d8', sz: 2, g: 220 }); addRipple(px, 222, true); }
     }
-    // a manatee surfaces for a breath beside the boat
-    const mt = (tNow % 5) / 5, up = Math.sin(clamp(mt * 2, 0, 1) * Math.PI);
-    if (up > 0.05) { const my2 = 238 - up * 5; rr(120, my2, 34, 8, 4, '#5a6a72'); rr(122, my2 - 1, 30, 5, 4, '#7a8a92'); rr(150, my2 - 3, 9, 7, 3, '#6a7a82'); rect(157, my2 - 1, 1, 1, '#1a1a1a'); if (up > 0.8) for (let k = 0; k < 3; k++) rect(160 + k * 2, my2 - 6 - k * 2, 1, 1, '#e8f8ff'); }
     const bob = Math.sin(tNow * 2.4) * 1;
     drawAirboat(270, 222 + bob, slow > 0.2, dt);
     gReeds(0, 270, 8, '#2a1a1a', 29, 36);
@@ -11224,7 +11279,7 @@ function cpPostcard(e, x, y, w, h, rot) {
   ctx.restore();
   for (let t2 = 0; t2 < 5; t2++) { const tx = x + 4 + t2 * 14, th = 5 + (t2 * 5) % 5; rect(tx, y + 3 + ph - th, 2, th, '#1a2a20'); rr(tx - 3, y + ph - th, 8, 4, 2, '#1a2a20'); }
   const bs = (ph + 6) / 42;
-  ctx.drawImage(badgeCanvas(def.id, def.rar || 0, null, false, 2), cx2 - 16 * bs, y + 2, 32 * bs, 42 * bs);
+  ctx.drawImage(pixelBadge(def.id, def.rar || 0, null, false), cx2 - 16 * bs, y + 2, 32 * bs, 42 * bs);
   ctx.restore();
   // a little stamp and its postmark in the corner
   rr(x + w - 13, y + 4, 9, 11, 1, '#fbf4e2'); rr(x + w - 12, y + 5, 7, 9, 1, rc);
@@ -11302,7 +11357,7 @@ function cpZoom(dt) {
     // cypress silhouettes along the bottom of the scene
     for (let t2 = 0; t2 < 9; t2++) { const tx = x + 10 + t2 * 28, th = 18 + (t2 * 13) % 16; rect(tx, y + chh - 8 - th, 3, th, '#1a2a20'); rr(tx - 7, y + chh - 12 - th, 17, 8, 3, '#1a2a20'); }
     rect(x + 7, y + chh - 16, cw - 14, 9, '#16303a');
-    ctx.drawImage(badgeCanvas(def.id, def.rar || 0, def.ed, false, 3), x + 18, y + 14, 32 * 3.3, 42 * 3.3);
+    ctx.drawImage(pixelBadge(def.id, def.rar || 0, def.ed, false), x + 18, y + 14, 32 * 3.3, 42 * 3.3);
     ctx.restore();
     drawTextSh('GREETINGS FROM THE', x + 126, y + 16, '#fff4d0', 1, '#00000088');
     drawTextSh('EVERGLADES', x + 126, y + 26, '#ffe070', 2, '#00000088');
@@ -11323,7 +11378,7 @@ function cpZoom(dt) {
     rr(sx2 - 2, sy2 - 2, 40, 48, 1, '#e8dcc0');
     for (let k2 = 0; k2 < 10; k2++) { fillCircle(sx2 - 2 + k2 * 4.4, sy2 - 2, 1, '#fbf4e2'); fillCircle(sx2 - 2 + k2 * 4.4, sy2 + 46, 1, '#fbf4e2'); }
     rr(sx2, sy2, 36, 44, 1, mixHex(art.f, '#ffffff', 0.25));
-    ctx.drawImage(badgeCanvas(def.id, def.rar || 0, def.ed, false, 2), sx2 + 3, sy2 + 1, 30, 40);
+    ctx.drawImage(pixelBadge(def.id, def.rar || 0, def.ed, false), sx2 + 3, sy2 + 1, 30, 40);
     ctx.save(); ctx.globalAlpha = 0.55; ctx.strokeStyle = '#2a2a5a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx2 - 4, sy2 + 34, 13, 0, Math.PI * 2); ctx.stroke();
     for (let k2 = 0; k2 < 4; k2++) { ctx.beginPath(); ctx.moveTo(sx2 + 10, sy2 + 26 + k2 * 5); for (let q = 0; q < 30; q += 3) ctx.lineTo(sx2 + 10 + q, sy2 + 26 + k2 * 5 + Math.sin(q * 0.5) * 1.5); ctx.stroke(); }
     ctx.restore();
