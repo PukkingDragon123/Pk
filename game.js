@@ -177,60 +177,177 @@ const sfx = {
   spray() { noiseHit(0.3, 0.12, 0, 3000); },
   inject() { tone(1200, 0.04, 'sine', 0.07); tone(700, 0.1, 'sine', 0.06, -200, 0.05); },
 };
-// ---- per-screen soundtracks: bass + lead voices over a hat tick -----------
-// note values in Hz, 0 = rest; each track is an 8-step loop
-const TRACKS = {
-  menu: { step: 0.30, bass: [55, 0, 65.4, 0, 49, 0, 58.3, 61.7], lead: [220, 0, 261.6, 293.7, 0, 246.9, 0, 196], lt: 'triangle', lv: 0.035 },
-  map: { step: 0.26, bass: [49, 0, 55, 0, 58.3, 0, 55, 0], lead: [196, 220, 0, 246.9, 0, 220, 196, 0], lt: 'triangle', lv: 0.03 },
-  fight: { step: 0.22, bass: [55, 0, 55, 65.4, 0, 49, 58.3, 0], lead: [0, 220, 0, 0, 261.6, 0, 220, 0], lt: 'square', lv: 0.022 },
-  boss: { step: 0.19, bass: [49, 49, 0, 46.2, 49, 0, 55, 46.2], lead: [196, 0, 185, 0, 196, 220, 0, 185], lt: 'sawtooth', lv: 0.02 },
-  shop: { step: 0.28, bass: [65.4, 0, 73.4, 0, 61.7, 0, 65.4, 0], lead: [261.6, 293.7, 0, 329.6, 0, 293.7, 261.6, 0], lt: 'triangle', lv: 0.035 },
+// ================================ THE SOUNDTRACK =================================
+//  A little four-channel chiptune band, all original tunes: a pulse-wave lead,
+//  a pulse "stab" / arpeggio harmony, a triangle bass and a noise drum kit.
+//  Songs are written as 16-step bars (one token per 16th: a note like E5, '-'
+//  holds the previous note, '.' is a rest) over a chord per half bar.
+// ================================================================================
+const NOTE_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+function noteMidi(n) { const m = /^([A-G])([#b]?)(\d)$/.exec(n); if (!m) return 0; return NOTE_PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (+m[3] + 1) * 12; }
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+const CHORD_Q = { '': [0, 4, 7], m: [0, 3, 7], '7': [0, 4, 7, 10], m7: [0, 3, 7, 10], maj7: [0, 4, 7, 11], dim: [0, 3, 6], aug: [0, 4, 8], sus: [0, 5, 7], '6': [0, 4, 7, 9] };
+function parseChord(c) { const m = /^([A-G])([#b]?)(.*)$/.exec(c); const root = NOTE_PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0); return { root: (root + 12) % 12, iv: CHORD_Q[m[3]] || CHORD_Q[''] }; }
+const DRUMS = {
+  strut: 'k.h.s.h.k.hks.h.', paddle: 'k.h.s.hkk.h.s.h.', boogie: 'k.hhs.hhk.hks.hh', chomp: 'k.hks.hkk.hks.hs',
+  calypso: 'k.hh.hh.k.hh.hs.', chase: 'khskkhs.khskkhss', lazy: 'k...h...s...h.h.', fill: 'k.h.s.h.s.ssssss',
 };
-function trackNow() {
-  if (typeof G === 'undefined') return TRACKS.menu;
+// the songs ---------------------------------------------------------------------
+const SONGS = {
+  menu: { name: 'SWAMP STRUT', bpm: 150, swing: 0.12, lead: 25, bass: 'oompah', harm: 'stab', drums: 'strut', order: 'AABA', parts: {
+    A: { ch: ['C', 'Am', 'F', 'G', 'C', 'Am', 'Dm G', 'C'], mel: [
+      'E5 - G5 . C6 - - . G5 . E5 . G5 A5 G5 .', 'E5 - - . C5 . D5 E5 . . A4 . C5 - - .', 'F5 - A5 . C6 - - . A5 . F5 . A5 Bb5 A5 .', 'G5 - - . F5 . E5 . D5 . B4 . G4 - - .',
+      'E5 - G5 . C6 - - . G5 . E5 . G5 A5 G5 .', 'E5 - - . G5 . A5 C6 . . A5 . G5 - - .', 'F5 . E5 . D5 . F5 . E5 . D5 . C5 . B4 .', 'C5 - - - G4 . C5 . E5 G5 C6 - - - . .'] },
+    B: { ch: ['F', 'C', 'Dm', 'G', 'F', 'C', 'Dm G7', 'C'], mel: [
+      'A5 . A5 . A5 . G5 A5 - . F5 . C5 - . .', 'G5 . G5 . G5 . F5 G5 - . E5 . C5 - . .', 'F5 . F5 . A5 . F5 . D5 . F5 . A5 - . .', 'G5 - . B5 - . D6 - . B5 G5 . F5 D5 . .',
+      'A5 . C6 . A5 . F5 . C6 . A5 . F5 . A5 .', 'G5 . E5 . C5 . E5 . G5 . C6 . E6 - . .', 'D6 . C6 . B5 . A5 . G5 . F5 . D5 . B4 .', 'C5 . . E5 G5 . C6 . . . G4 . C5 - - .'] } } },
+  map: { name: 'PADDLE ALONG', bpm: 128, swing: 0.18, lead: 50, bass: 'walk', harm: 'stab', drums: 'paddle', order: 'AABA', parts: {
+    A: { ch: ['F', 'Dm', 'Bb', 'C', 'F', 'Dm', 'Gm C', 'F'], mel: [
+      'C5 . F5 . A5 . . G5 F5 . . . A5 . C6 .', 'D6 - - . C6 . A5 . F5 . . . D5 - - .', 'D5 . F5 . Bb5 . . A5 G5 . . . Bb5 . D6 .', 'C6 - - . Bb5 . A5 . G5 . E5 . C5 - - .',
+      'C5 . F5 . A5 . . G5 F5 . . . A5 . C6 .', 'F6 - - . E6 . D6 . C6 . A5 . F5 - - .', 'G5 . Bb5 . D6 . Bb5 . C6 . E5 . G5 . Bb5 .', 'A5 - - - F5 . . . C5 . F5 - - - . .'] },
+    B: { ch: ['Bb', 'F', 'C', 'F', 'Bb', 'F', 'G7', 'C7'], mel: [
+      'F5 . F5 G5 . F5 D5 . Bb4 - - . D5 . F5 .', 'A5 . A5 Bb5 . A5 F5 . C5 - - . F5 . A5 .', 'G5 . G5 A5 . G5 E5 . C5 - . E5 G5 . C6 .', 'A5 - - . . . F5 . A5 . C6 . F6 - - .',
+      'D6 . D6 . C6 . Bb5 . A5 . Bb5 . D6 - . .', 'C6 . A5 . F5 . A5 . C6 . F6 . C6 - . .', 'B5 . B5 . A5 . G5 . F5 . D5 . B4 . G4 .', 'C5 - - . E5 - - . G5 - - . Bb5 - C6 .'] } } },
+  fight: { name: 'BITE DOWN BOOGIE', bpm: 158, swing: 0.1, lead: 25, bass: 'oompah', harm: 'stab', drums: 'boogie', order: 'AABA', parts: {
+    A: { ch: ['G', 'G', 'C', 'C', 'G', 'Em', 'Am D', 'G'], mel: [
+      'G5 . . B5 D6 . B5 . G5 . A5 B5 . . . .', 'D6 . B5 . G5 . D5 . E5 F#5 G5 . . . D5 .', 'E5 . . G5 C6 . G5 . E5 . F#5 G5 . . . .', 'C6 . G5 . E5 . C5 . D5 E5 F#5 . . . D5 .',
+      'G5 . . B5 D6 . B5 . G5 . A5 B5 . . G6 .', 'E6 . D6 . B5 . G5 . E5 . G5 . B5 . E6 .', 'C6 . B5 . A5 . C6 . D6 . C6 . A5 . F#5 .', 'G5 - - . D5 . G5 . B5 - - . . . . .'] },
+    B: { ch: ['C', 'D', 'Bm', 'Em', 'C', 'D', 'Am D7', 'G'], mel: [
+      'E6 . E6 . D6 . C6 . . . G5 . C6 - . .', 'F#6 . F#6 . E6 . D6 . . . A5 . D6 - . .', 'D6 . B5 . F#5 . B5 . D6 . F#6 . D6 . B5 .', 'E6 - - . B5 . G5 . E5 - - . G5 . B5 .',
+      'C6 . E6 . G6 . E6 . C6 . G5 . E5 . G5 .', 'D6 . F#6 . A6 . F#6 . D6 . A5 . F#5 . A5 .', 'C6 . B5 . A5 . G5 . F#5 . E5 . D5 . F#5 .', 'G5 . B5 . D6 . G6 - - - . . . . . .'] } } },
+  boss: { name: 'BIG CHOMP SHOWDOWN', bpm: 168, swing: 0, lead: 25, bass: 'drive', harm: 'arp', drums: 'chomp', order: 'AABA', parts: {
+    A: { ch: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Dm', 'Bb C', 'Dm'], mel: [
+      'D5 . D5 . F5 . D5 . A5 - - . G5 . F5 .', 'E5 . F5 . G5 . E5 . C5 - - . D5 . E5 .', 'F5 . F5 . Bb5 . F5 . D6 - - . C6 . Bb5 .', 'A5 . G5 . A5 . C6 . E5 - - . F5 . G5 .',
+      'D5 . D5 . F5 . D5 . A5 - - . Bb5 . C6 .', 'D6 - - . C6 . A5 . F5 - - . E5 . D5 .', 'D5 . F5 . Bb5 . D6 . C6 . E5 . G5 . C6 .', 'D6 - - - A5 - - - D5 . . . . . . .'] },
+    B: { ch: ['F', 'C', 'Bb', 'A7', 'F', 'C', 'Bb', 'A7'], mel: [
+      'A5 - - . C6 . A5 . F5 - - . A5 . C6 .', 'G5 - - . C6 . G5 . E5 - - . G5 . C6 .', 'F5 . Bb5 . D6 . F6 . D6 . Bb5 . F5 . D5 .', 'E5 . A5 . C#6 . E6 . G6 - - . E6 . C#6 .',
+      'F6 - - . E6 . D6 . C6 - - . A5 . C6 .', 'E6 - - . D6 . C6 . G5 - - . C6 . E6 .', 'D6 . C6 . Bb5 . A5 . G5 . F5 . E5 . D5 .', 'C#5 . E5 . A5 . C#6 . E6 . G6 . A6 - . .'] } } },
+  shop: { name: "OWL'S EMPORIUM", bpm: 112, swing: 0.2, lead: 50, bass: 'calypso', harm: 'stab', drums: 'calypso', order: 'AA', parts: {
+    A: { ch: ['Bb', 'Eb', 'F', 'Bb', 'Bb', 'Eb', 'F7', 'Bb'], mel: [
+      'F5 . . D5 . . F5 . G5 . F5 . D5 . Bb4 .', 'G5 . . Eb5 . . G5 . Bb5 . G5 . Eb5 . C5 .', 'A5 . . F5 . . A5 . C6 . A5 . F5 . Eb5 .', 'D5 - - . F5 . Bb5 . . . F5 . D5 - - .',
+      'F5 . . D5 . . F5 . G5 . F5 . D5 . Bb4 .', 'Bb5 . . G5 . . Eb5 . G5 . Bb5 . C6 . Bb5 .', 'A5 . G5 . F5 . Eb5 . C5 . D5 . Eb5 . A4 .', 'Bb4 - - . D5 . F5 . Bb5 - - - . . . .'] } } },
+  enc: { name: 'TRAIL TROUBLE', bpm: 176, swing: 0, lead: 25, bass: 'drive', harm: 'stab', drums: 'chase', order: 'AA', parts: {
+    A: { ch: ['Am', 'Am', 'F', 'G', 'Am', 'Am', 'F G', 'Am'], mel: [
+      'A5 . C6 . E6 . C6 . A5 . E5 . A5 . C6 .', 'B5 . A5 . G5 . E5 . G5 - A5 . . . . .', 'F5 . A5 . C6 . A5 . F5 . C5 . F5 . A5 .', 'G5 . B5 . D6 . B5 . G5 - - . D5 . G5 .',
+      'A5 . C6 . E6 . C6 . A6 - - . G6 . E6 .', 'D6 . C6 . B5 . A5 . E5 - - . G5 . A5 .', 'C6 . A5 . F5 . A5 . D6 . B5 . G5 . B5 .', 'A5 - - - E5 - - - A4 . . . . . . .'] } } },
+  rest: { name: 'LAZY AFTERNOON', bpm: 104, swing: 0.22, lead: 50, bass: 'walk', harm: 'stab', drums: 'lazy', order: 'AA', parts: {
+    A: { ch: ['G', 'Em', 'C', 'D', 'G', 'Em', 'Am D', 'G'], mel: [
+      'B4 . D5 . G5 - - . F#5 . G5 . A5 - - .', 'B5 - - . G5 . E5 . D5 - - . E5 . G5 .', 'E5 . G5 . C6 - - . B5 . A5 . G5 - - .', 'F#5 - - . E5 . D5 . A4 - - . . . D5 .',
+      'B4 . D5 . G5 - - . F#5 . G5 . B5 - - .', 'E6 - - . D6 . B5 . G5 - - . A5 . B5 .', 'C6 . B5 . A5 . G5 . F#5 . G5 . A5 . F#5 .', 'G5 - - - - - . . D5 . G5 - - - . .'] } } },
+};
+// compile every song into flat per-step tables once
+function compileSong(s) {
+  const steps = [];
+  for (const part of s.order) {
+    const P = s.parts[part];
+    P.mel.forEach((line, b) => {
+      let tok = line.trim().split(/\s+/);
+      if (tok.length !== 16) { console.warn('bar length', s.name, part, b, tok.length); tok = tok.concat(Array(16).fill('.')).slice(0, 16); }
+      const chs = P.ch[b].split(' ').map(parseChord);
+      tok.forEach((t, i) => {
+        let len = 0;
+        if (t !== '.' && t !== '-') { len = 1; while (i + len < 16 && tok[i + len] === '-') len++; }
+        steps.push({ note: len ? noteMidi(t) : 0, len, chord: chs[chs.length > 1 && i >= 8 ? 1 : 0], half: chs.length > 1 && i >= 8 ? 1 : 0, bar: steps.length >> 4, i, next: null });
+      });
+    });
+  }
+  // the chord that follows each half bar (for walking basslines)
+  for (let k = 0; k < steps.length; k++) { const n = steps[(Math.floor(k / 8) + 1) * 8 % steps.length]; steps[k].next = n.chord; }
+  s.steps = steps; s.stepDur = 60 / s.bpm / 4;
+  return s;
+}
+Object.values(SONGS).forEach(compileSong);
+// the band's instruments ------------------------------------------------------
+let musBus = null, pulseWaves = {}, noiseBuf = null;
+function musInit(ac) {
+  if (musBus) return;
+  musBus = ac.createGain(); musBus.gain.value = 1;
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 3;
+  musBus.connect(comp); comp.connect(ac.destination);
+  [12, 25, 50].forEach(d => {
+    const n = 48, re = new Float32Array(n), im = new Float32Array(n), du = d / 100;
+    for (let k = 1; k < n; k++) { re[k] = Math.sin(2 * Math.PI * k * du) / (k * Math.PI); im[k] = (1 - Math.cos(2 * Math.PI * k * du)) / (k * Math.PI); }
+    pulseWaves[d] = ac.createPeriodicWave(re, im);
+  });
+  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = rnd() * 2 - 1;
+}
+function musVoice(ac, t0, hz, dur, duty, vol, o) {
+  o = o || {};
+  const osc = ac.createOscillator(), g = ac.createGain();
+  if (duty === 'tri') osc.type = 'triangle'; else osc.setPeriodicWave(pulseWaves[duty]);
+  osc.frequency.setValueAtTime(hz, t0);
+  if (o.slideFrom) { osc.frequency.setValueAtTime(o.slideFrom, t0); osc.frequency.exponentialRampToValueAtTime(hz, t0 + 0.04); }
+  if (o.vib && dur > 0.18) {
+    const lfo = ac.createOscillator(), lg = ac.createGain(); lfo.frequency.value = 5.5; lg.gain.setValueAtTime(0, t0); lg.gain.linearRampToValueAtTime(hz * 0.012, t0 + 0.2);
+    lfo.connect(lg); lg.connect(osc.frequency); lfo.start(t0); lfo.stop(t0 + dur + 0.05);
+  }
+  g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + 0.006);
+  g.gain.exponentialRampToValueAtTime(vol * (o.sus || 0.6), t0 + Math.min(dur, 0.1));
+  g.gain.setValueAtTime(vol * (o.sus || 0.6), t0 + Math.max(0.01, dur - 0.03));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + (o.rel || 0.05));
+  osc.connect(g); g.connect(musBus); osc.start(t0); osc.stop(t0 + dur + (o.rel || 0.05) + 0.02);
+}
+function musNoise(ac, t0, dur, vol, type, freq) {
+  const s = ac.createBufferSource(); s.buffer = noiseBuf;
+  const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; if (type === 'bandpass') f.Q.value = 1.2;
+  const g = ac.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  s.connect(f); f.connect(g); g.connect(musBus); s.start(t0, rnd() * 0.5); s.stop(t0 + dur + 0.02);
+}
+function musDrum(ac, t0, ch, v) {
+  if (ch === 'k') {
+    const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine';
+    o.frequency.setValueAtTime(160, t0); o.frequency.exponentialRampToValueAtTime(42, t0 + 0.12);
+    g.gain.setValueAtTime(0.32 * v, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+    o.connect(g); g.connect(musBus); o.start(t0); o.stop(t0 + 0.18);
+  } else if (ch === 's') { musNoise(ac, t0, 0.12, 0.16 * v, 'bandpass', 1900); const o = ac.createOscillator(), g = ac.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(220, t0); o.frequency.exponentialRampToValueAtTime(120, t0 + 0.06); g.gain.setValueAtTime(0.1 * v, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08); o.connect(g); g.connect(musBus); o.start(t0); o.stop(t0 + 0.1); }
+  else if (ch === 'h') musNoise(ac, t0, 0.03, 0.05 * v, 'highpass', 7200);
+  else if (ch === 'o') musNoise(ac, t0, 0.14, 0.05 * v, 'highpass', 6500);
+}
+// which song is playing where
+function songNow() {
+  if (typeof G === 'undefined') return SONGS.menu;
   if (G.paused) return null;
   switch (G.state) {
-    case 'menu': case 'ranger': case 'how': case 'skins': case 'index': case 'tutorial': case 'pass': case 'gameover': case 'win': return TRACKS.menu;
-    case 'intro': return TRACKS.boss;
-    case 'map': case 'event': return TRACKS.map;
-    case 'shop': case 'bench': return TRACKS.shop;
-    default: return (G.round === 2 ? TRACKS.boss : TRACKS.fight);
+    case 'menu': case 'ranger': case 'how': case 'skins': case 'index': case 'tutorial': case 'pass': case 'gameover': case 'win': return SONGS.menu;
+    case 'intro': case 'map': return SONGS.map;
+    case 'event': return G.event && G.event.kind === 'rest' ? SONGS.rest : SONGS.enc;
+    case 'shop': case 'bench': return SONGS.shop;
+    case 'bosscut': case 'bossintro': return SONGS.boss;
+    default: return (G.round === 2 ? SONGS.boss : SONGS.fight);
   }
 }
-let musicNext = 0, musicStep = 0;
+let musicNext = 0, musicStep = 0, musicSong = null;
 function musicTick() {
   const ac = AC; if (!ac || muted) return;
-  const tr = trackNow(); if (!tr) { musicNext = ac.currentTime; return; }
+  const song = songNow(); if (!song) { musicNext = ac.currentTime; return; }
   const mg = musGain(); if (mg <= 0) { musicNext = ac.currentTime; return; }
-  while (musicNext < ac.currentTime + 0.25) {
+  musInit(ac);
+  musBus.gain.value = mg * 0.8;
+  if (song !== musicSong) { musicSong = song; musicStep = 0; musicNext = Math.max(musicNext, ac.currentTime + 0.08); }
+  while (musicNext < ac.currentTime + 0.2) {
     if (musicNext < ac.currentTime) musicNext = ac.currentTime;
-    const t0 = musicNext, i = musicStep % 8;
-    const bf = tr.bass[i];
-    if (bf) {
-      const o = ac.createOscillator(), g = ac.createGain(), fl = ac.createBiquadFilter();
-      o.type = 'square'; o.frequency.value = bf;
-      fl.type = 'lowpass'; fl.frequency.value = 260;
-      g.gain.setValueAtTime(0.055 * mg, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + tr.step + 0.04);
-      o.connect(fl); fl.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + tr.step + 0.08);
-    }
-    const lf = tr.lead[i];
-    if (lf) {
-      const o = ac.createOscillator(), g = ac.createGain(), fl = ac.createBiquadFilter();
-      o.type = tr.lt; o.frequency.value = lf;
-      fl.type = 'lowpass'; fl.frequency.value = 1400;
-      g.gain.setValueAtTime(tr.lv * mg, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + tr.step * 1.6);
-      o.connect(fl); fl.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + tr.step * 1.8);
-    }
-    if (i % 2 === 0) {
-      const n = Math.floor(ac.sampleRate * 0.03);
-      const buf = ac.createBuffer(1, n, ac.sampleRate); const d = buf.getChannelData(0);
-      for (let k = 0; k < n; k++) d[k] = (rnd() * 2 - 1) * (1 - k / n);
-      const src = ac.createBufferSource(); src.buffer = buf;
-      const g = ac.createGain(); g.gain.setValueAtTime(0.016 * mg, t0 + tr.step * 0.5);
-      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6000;
-      src.connect(hp); hp.connect(g); g.connect(ac.destination); src.start(t0 + tr.step * 0.5);
-    }
-    musicStep++; musicNext += tr.step;
+    const S = song, st = S.steps[musicStep % S.steps.length], sd = S.stepDur;
+    const t0 = musicNext + ((st.i & 1) ? S.swing * sd : 0);
+    // lead
+    if (st.note) musVoice(ac, t0, midiHz(st.note), st.len * sd * 0.92, S.lead, 0.075, { vib: true, sus: 0.7 });
+    // harmony
+    const C = st.chord, pc = C.root;
+    if (S.harm === 'stab' && (st.i % 4) === 2) C.iv.slice(0, 3).forEach(iv => musVoice(ac, t0, midiHz(60 + pc + iv - (pc > 5 ? 12 : 0)), sd * 0.7, 12, 0.022, { sus: 0.3, rel: 0.03 }));
+    if (S.harm === 'arp') { const seq = [0, 1, 2, 1, 0, 2, 1, 2], iv = C.iv[seq[st.i % 8] % C.iv.length]; musVoice(ac, t0, midiHz(62 + pc + iv - (pc > 5 ? 12 : 0) + (st.i % 8 >= 4 ? 12 : 0)), sd * 0.8, 12, 0.02, { sus: 0.4, rel: 0.02 }); }
+    // bass
+    const root = 36 + pc, fifth = root + 7, i8 = st.i % 8;
+    let bn = 0, bl = 1;
+    if (S.bass === 'oompah') { if (i8 === 0) { bn = root; bl = 3; } else if (i8 === 4) { bn = fifth; bl = 3; } }
+    else if (S.bass === 'walk') { if (i8 % 2 === 0) { const nr = 36 + st.next.root, w = [root, root + C.iv[1], fifth, nr + (nr > fifth ? -1 : 1)]; bn = w[i8 >> 1]; bl = 2; } }
+    else if (S.bass === 'drive') { if (i8 % 2 === 0) { bn = i8 === 6 ? root + 12 : root; bl = 1; } }
+    else if (S.bass === 'calypso') { if (i8 === 0 || i8 === 3) { bn = root; bl = 2; } else if (i8 === 6) { bn = fifth; bl = 2; } }
+    if (bn) musVoice(ac, t0, midiHz(bn), bl * sd * 0.9, 'tri', 0.2, { sus: 0.8, rel: 0.03 });
+    // drums (a fill closes every 8th bar)
+    const pat = (st.bar % 8 === 7) ? DRUMS.fill : DRUMS[S.drums], dch = pat[st.i];
+    if (dch && dch !== '.') musDrum(ac, t0, dch, S.drums === 'lazy' ? 0.6 : S.drums === 'calypso' ? 0.7 : 1);
+    if (st.bar % 8 === 0 && st.i === 0) musNoise(ac, t0, 0.5, 0.05, 'highpass', 5000);   // crash on the downbeat
+    musicStep++; musicNext += sd;
   }
 }
 
