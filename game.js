@@ -13822,7 +13822,7 @@ function drawMap() {
   pxLine(452, 24, 452 + Math.cos(na) * 8, 24 + Math.sin(na) * 8, '#c8301f', 2); pxLine(452, 24, 452 - Math.cos(na) * 7, 24 - Math.sin(na) * 7, '#3a3a3a', 1);
   rect(451, 23, 2, 2, UGOLD[0]); rect(446, 14, 4, 1, '#ffffff');
   pxLine(398, 258, 446, 246, '#1a1206', 4); pxLine(399, 257, 445, 245, '#e8b830', 2); rect(446, 244, 4, 4, '#e87a8a'); rect(396, 258, 3, 2, '#3a2a1a');
-  drawTextC(G.boat ? 'FULL THROTTLE...' : hovNode ? 'CLICK TO ROW THERE' : 'PICK YOUR NEXT STOP', W / 2, H - 12, '#f4e2b8', 1);
+  drawTextC(G.boat ? 'FULL THROTTLE...' : hovNode ? 'CLICK TO RIDE THERE' : 'PICK YOUR NEXT STOP', W / 2, H - 12, '#f4e2b8', 1);
 }
 
 function drawRowBoat(x, y, lean, moving) {
