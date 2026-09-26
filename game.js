@@ -4751,7 +4751,7 @@ function cashOut() {
     addRP(30, 'RUN WON');
     meta.summer.won = true; meta.summer.unlocked = true; // legacy save fields
     saveMeta();
-    G.state = 'win';
+    G.state = 'win'; clearRun();
     return;
   }
   enterShop();
@@ -4922,7 +4922,7 @@ function reroll() {
 function nextRound() { afterShop(); }
 
 function gameOver() {
-  G.state = 'gameover';
+  G.state = 'gameover'; clearRun();
   G.deckOpen = false; G.drag = null; G.inspect = null; clearFx();
   if (G.ante > best) { best = G.ante; saveBest(); }
   quest('run1', 1);
@@ -10959,6 +10959,117 @@ function signPlank(x, y, w, h, dir, label, col, cb, o) {
   hit(x - 4, y, w + 8, h, { id, cursor: true, cb, tip: o.tip });
 }
 // small square wooden tile with an icon (settings, credits, sound)
+// ================================ SAVE SYSTEM ===================================
+//  Your run autosaves to this browser every time you are back on the trail map
+//  (localStorage - on itch.io that is kept per game, so it survives closing the
+//  tab), and the menu offers to CONTINUE.  The SAVE DATA panel exports all of it
+//  - the run, cookies, unlocks, cosmetics, the Crocpedia - as a backup code you
+//  can copy or download, and imports a code back.  Quitting offers a backup too.
+const RUN_KEY = 'bd_run', SAVE_VER = 1;
+const RUN_SKIP = new Set(['state', 'drag', 'inspect', 'seq', 'pack', 'bench', 'cut', 'bcut', 'event', 'boat', 'cp', 'rf', 'rfKnock', 'crabs', 'xanim', 'pool', 'mouth',
+  'drawPile', 'cash', 'overlay', 'paused', 'boothOv', 'wd', 'playFlash', 'mode', 'menuLook', 'snapT', 'snapIdx', 'swapT', 'deckOpen', 'jawClose', 'saveUi', 'quitAsk']);
+function runReplacer(k, v) {
+  if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.id === 'string') {
+    if (CONS.some(c => c.id === v.id) && (CONS.includes(v) || !CHARMS.some(c => c.id === v.id))) return { __k: v.id };
+    if (TOOLS.some(c => c.id === v.id)) return { __t: v.id };
+    if (BOSSES.includes(v) || v === FINAL_BOSS) return { __b: v.id };
+    if (CHARMS.some(c => c.id === v.id)) return { __c: v.id, ed: v.ed || null };
+  }
+  if (typeof HTMLCanvasElement !== 'undefined' && v instanceof HTMLCanvasElement) return undefined;
+  return v;
+}
+function runReviver(k, v) {
+  if (v && typeof v === 'object' && !Array.isArray(v)) {
+    if (v.__k) return CONS.find(c => c.id === v.__k) || null;
+    if (v.__t) return TOOLS.find(c => c.id === v.__t) || null;
+    if (v.__b) return BOSSES.find(b => b.id === v.__b) || (FINAL_BOSS.id === v.__b ? FINAL_BOSS : null);
+    if (v.__c) { const c = CHARMS.find(c2 => c2.id === v.__c); return c ? Object.assign({}, c, v.ed ? { ed: v.ed } : {}) : null; }
+  }
+  return v;
+}
+function runSnapshot() { const o = {}; Object.keys(G).forEach(k => { if (!RUN_SKIP.has(k)) o[k] = G[k]; }); return o; }
+function saveRun() {
+  if (!G.map || !G.deck || !G.deck.length) return;
+  try { localStorage.setItem(RUN_KEY, JSON.stringify({ v: SAVE_VER, at: Date.now(), uid: UID, ranger: G.ranger, ante: G.ante, summer: !!G.summer, g: runSnapshot() }, runReplacer)); } catch (e) { console.warn('save failed', e); }
+}
+function loadRunData() {
+  try { const s = localStorage.getItem(RUN_KEY); if (!s) return null; const d = JSON.parse(s, runReviver); return d && d.v === SAVE_VER && d.g ? d : null; } catch (e) { return null; }
+}
+let runSaveCache = { t: -9, d: null };
+function runSaveInfo() { if (tNow - runSaveCache.t > 1) runSaveCache = { t: tNow, d: loadRunData() }; return runSaveCache.d; }
+function clearRun() { try { localStorage.removeItem(RUN_KEY); } catch (e) { } runSaveCache = { t: -9, d: null }; }
+function continueRun() {
+  const d = loadRunData(); if (!d) return false;
+  Object.keys(d.g).forEach(k => { G[k] = d.g[k]; });
+  G.charms = (G.charms || []).filter(Boolean); G.cons = (G.cons || []).filter(Boolean);
+  UID = Math.max(UID, d.uid || 1, ...(G.deck || []).map(t => (t.id | 0) + 1));
+  Object.assign(G, { drag: null, inspect: null, seq: null, pack: null, bench: null, event: null, boat: null, cut: null, bcut: null, paused: false, overlay: null, mode: 'idle', deckOpen: false, mouth: [], pool: null });
+  floats = []; parts = []; shake = 0; flyers = []; bossShot = null; charmPop = {};
+  G.state = 'map';
+  sfx.buy();
+  return true;
+}
+// autosave: whenever the map is showing and something changed (and every 15s)
+let asSig = '', asT = 0;
+function autosaveTick(dt) {
+  if (G.state !== 'map' || G.boat || !G.map) return;
+  asT -= dt;
+  const sig = [G.ante, G.map.stage, G.money, G.charms.length, G.cons.length, G.deck.length].join(':');
+  if (sig !== asSig || asT <= 0) { asSig = sig; asT = 15; saveRun(); G.savedFlash = 1.4; }
+}
+addEventListener('beforeunload', () => { try { saveMeta(); if (G.state === 'map' && !G.boat) saveRun(); } catch (e) { } });
+addEventListener('visibilitychange', () => { if (document.hidden) { try { saveMeta(); if (G.state === 'map' && !G.boat) saveRun(); } catch (e) { } } });
+// ---- backup codes ----
+function saveCode() {
+  saveMeta(); if (G.state === 'map' && !G.boat) saveRun();
+  let run = null; try { run = localStorage.getItem(RUN_KEY); } catch (e) { }
+  const data = { app: 'bitedown', v: SAVE_VER, at: new Date().toISOString(), meta, run, best };
+  return 'BITEDOWN1:' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+}
+function applySaveCode(code) {
+  code = (code || '').trim();
+  if (!code.startsWith('BITEDOWN1:')) throw new Error('That is not a Bite Down save code.');
+  const d = JSON.parse(decodeURIComponent(escape(atob(code.slice(10).replace(/\s+/g, '')))));
+  if (!d || d.app !== 'bitedown' || !d.meta) throw new Error('That save code is damaged.');
+  localStorage.setItem('bd_meta', JSON.stringify(d.meta));
+  if (d.run) localStorage.setItem(RUN_KEY, d.run); else localStorage.removeItem(RUN_KEY);
+  if (d.best) localStorage.setItem('bitedown_best', '' + d.best);
+}
+// a real HTML panel over the canvas, so codes can be selected, copied and pasted
+// even inside itch.io's embed frame (clipboard and downloads may be blocked there)
+function openSavePanel(mode, after) {
+  if (document.getElementById('bdsave')) return;
+  const code = saveCode();
+  const wrap = document.createElement('div'); wrap.id = 'bdsave';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(5,4,2,.78);display:flex;align-items:center;justify-content:center;z-index:99;font-family:monospace';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#2a1a0c;border:4px solid #c8902a;box-shadow:0 0 0 4px #140a04,0 10px 40px #000;padding:18px 20px;width:min(560px,92vw);color:#f4e2b8;image-rendering:pixelated';
+  const btn = (label, bg, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'font:bold 14px monospace;margin:6px 8px 0 0;padding:8px 14px;border:3px solid #140a04;background:' + bg + ';color:#fff8e8;cursor:pointer;box-shadow:0 3px 0 #140a04'; b.onclick = fn; return b; };
+  const h = document.createElement('div'); h.style.cssText = 'font:bold 20px monospace;color:#ffd23f;margin-bottom:6px;letter-spacing:1px'; h.textContent = mode === 'quit' ? 'BACK UP BEFORE YOU GO?' : 'SAVE DATA';
+  const p = document.createElement('div'); p.style.cssText = 'font-size:13px;line-height:1.5;margin-bottom:10px;color:#e8d8b0';
+  p.textContent = (mode === 'quit' ? 'Your run is auto-saved in this browser whenever you are on the trail map. ' : 'Everything auto-saves in this browser (itch.io keeps it per game). ') + 'Copy this backup code or download it to keep your run, cookies, unlocks and cosmetics safe - or paste a code below and press IMPORT to load one.';
+  const ta = document.createElement('textarea'); ta.value = code; ta.spellcheck = false;
+  ta.style.cssText = 'width:100%;height:110px;box-sizing:border-box;background:#140a04;color:#bfe8a0;border:3px solid #6a4222;font:11px monospace;padding:8px;resize:none';
+  const msg = document.createElement('div'); msg.style.cssText = 'min-height:18px;font-size:13px;margin-top:6px;color:#8ad04a';
+  const close = () => { wrap.remove(); if (after) after(); };
+  const row = document.createElement('div');
+  row.appendChild(btn('COPY CODE', '#3a7a44', () => { ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { } if (navigator.clipboard) navigator.clipboard.writeText(ta.value).then(() => { msg.textContent = 'Copied to the clipboard!'; }, () => { if (!ok) msg.textContent = 'Select the code and copy it (Ctrl+C).'; }); if (ok) msg.textContent = 'Copied to the clipboard!'; }));
+  row.appendChild(btn('DOWNLOAD .TXT', '#2a6ab8', () => { try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ta.value], { type: 'text/plain' })); a.download = 'bite-down-save-' + new Date().toISOString().slice(0, 10) + '.txt'; document.body.appendChild(a); a.click(); a.remove(); msg.textContent = 'Downloaded (check your downloads).'; } catch (e) { msg.textContent = 'Download blocked here - use COPY CODE instead.'; } }));
+  const file = document.createElement('input'); file.type = 'file'; file.accept = '.txt,text/plain'; file.style.display = 'none';
+  file.onchange = () => { const f = file.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { ta.value = String(r.result || ''); msg.style.color = '#ffd23f'; msg.textContent = 'Code loaded from the file - press IMPORT to use it.'; }; r.readAsText(f); };
+  row.appendChild(btn('LOAD FILE', '#7a4a9a', () => file.click()));
+  row.appendChild(btn('IMPORT', '#b8402a', () => { try { applySaveCode(ta.value); msg.style.color = '#8ad04a'; msg.textContent = 'Imported! Reloading...'; setTimeout(() => location.reload(), 600); } catch (e) { msg.style.color = '#ff8a6a'; msg.textContent = e.message; } }));
+  row.appendChild(btn(mode === 'quit' ? 'QUIT TO MENU' : 'CLOSE', '#4a4438', close));
+  box.append(h, p, ta, row, msg, file); wrap.appendChild(box);
+  wrap.onclick = e => { if (e.target === wrap) close(); };
+  document.body.appendChild(wrap);
+  ta.focus(); ta.select();
+}
+ICONS.diskic = (x, y) => {
+  rr(x + 1, y + 1, 10, 10, 1, '#1a2a4a'); rr(x + 2, y + 2, 8, 8, 1, '#3a6ab8'); rect(x + 3, y + 2, 6, 3, '#e8f0f4'); rect(x + 7, y + 2, 1, 2, '#3a6ab8');
+  rect(x + 3, y + 7, 6, 3, '#c8d4da'); rect(x + 4, y + 8, 4, 1, '#8a969c');
+};
+
 function woodTile(x, y, s, icon, cb, o) {
   o = o || {};
   const hov = mx >= x && mx < x + s && my >= y && my < y + s;
@@ -11151,11 +11262,16 @@ function drawMenu(dt) {
   ensureDaily();
   const idxAll = indexEntries();
   const idxNew = idxAll.filter(e => meta.index.seen[e.key] && !meta.index.claimed[e.key]).length;
-  signPlank(6, 88, 162, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
-  signPlank(6, 124, 136, 20, 1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
-  signPlank(6, 148, 136, 20, 1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
-  signPlank(6, 172, 136, 20, 1, 'CROCPEDIA', '#3a7a44', () => { cpEnter(); G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'CROCPEDIA|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator, boss, badge and tooth you have met') });
-  if (idxNew) { const bx = 132, by = 170; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
+  const saved = runSaveInfo(), LY = saved ? [136, 157, 178] : [124, 148, 172], LH = saved ? 18 : 20;
+  if (saved) {
+    const rn = (RANGERS[saved.ranger] || RANGERS.scout).name;
+    signPlank(6, 88, 162, 30, 1, 'CONTINUE', '#2a8a4a', () => { if (continueRun()) startTransition(() => { }); }, { id: 'continue', sc: 2, sub: 'ANTE ' + saved.ante + ' - ' + rn, tip: 'CONTINUE|Pick up your saved run on the trail map' });
+    signPlank(6, 120, 112, 14, 1, 'NEW SHIFT', '#b8402a', diveIn, { id: 'start', tip: 'NEW SHIFT|Start over - your saved run is replaced once you reach the trail' });
+  } else signPlank(6, 88, 162, 30, 1, 'START SHIFT', '#b8402a', diveIn, { id: 'start', sc: 2, sub: 'REPORT TO RANGER HQ', tip: 'START SHIFT|Head to HQ and pick your ranger' });
+  signPlank(6, LY[0], 136, LH, 1, 'WARDROBE', '#3a6a8a', () => { G.wd = null; G.state = 'skins'; sfx.click(2); }, { id: 'skinsbtn', icon: 'glove', tip: 'WARDROBE|Hats, shirts, pants, shoes, costumes and more' });
+  signPlank(6, LY[1], 136, LH, 1, 'TRADING BOOTH', '#7a4a9a', () => { ensureDaily(); boothEnter(); G.state = 'pass'; }, { id: 'passbtn', icon: 'cookie', tip: "MRS OWLET'S TRADING BOOTH|" + fmt(meta.rp || 0) + ' cookies - new stock every 5 seconds' });
+  signPlank(6, LY[2], 136, LH, 1, 'CROCPEDIA', '#3a7a44', () => { cpEnter(); G.state = 'index'; sfx.click(2); }, { id: 'idxbtn', icon: 'book', sub: null, tip: 'CROCPEDIA|' + (idxNew ? idxNew + ' new finds to claim' : 'Every gator, boss, badge and tooth you have met') });
+  if (idxNew) { const bx = 132, by = LY[2] - 2; plasticBox(bx, by, 16, 10, 3, ['#3a0806', '#a8201a', '#e8403a', '#ff806a', '#ffc0b0'], { noShine: 1 }); drawTextC('+' + idxNew, bx + 8, by + 3, '#ffffff', 1); }
   woodTile(8, 200, 22, 'gearic', () => { G.overlay = 'settings'; }, { id: 'setbtn', tip: 'SETTINGS' });
   woodTile(34, 200, 22, 'scrollic', () => { G.overlay = 'credits'; }, { id: 'credbtn', tip: 'CREDITS' });
   woodTile(60, 200, 22, 'giftic', () => { G.boothOv = 'gifts'; }, { id: 'giftbtn', tip: 'FREE GIFTS|Follow us for a wombat hat + tee' });
@@ -17095,6 +17211,7 @@ function frame(ms) {
     if (G.swapT > 0.45) { newMouth(); G.state = 'play'; }
   }
   musicTick();
+  autosaveTick(dt);
 
   ctx.save();
   if (shake > 0 && meta.set.shake) ctx.translate(ri(-shake, shake) / 2, ri(-shake, shake) / 2);
@@ -17183,7 +17300,7 @@ function drawPauseOverlay() {
   button(W / 2 - 50, 92, 100, 20, 'RESUME', '#d94f30', '#8a2a16', () => { G.paused = false; }, { id: 'presume' });
   button(W / 2 - 50, 116, 100, 20, 'SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, { id: 'pset' });
   button(W / 2 - 50, 140, 100, 20, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'pcred' });
-  button(W / 2 - 50, 164, 100, 20, 'QUIT TO MENU', '#7a4fd0', '#4a2a8a', () => { G.paused = false; G.state = 'menu'; }, { id: 'pquit' });
+  button(W / 2 - 50, 164, 100, 20, 'QUIT TO MENU', '#7a4fd0', '#4a2a8a', () => { saveMeta(); if (G.state === 'map' && !G.boat) saveRun(); openSavePanel('quit', () => { G.paused = false; G.state = 'menu'; }); }, { id: 'pquit' });
 }
 function drawSettingsOverlay() {
   overlayDim(0.7);
@@ -17204,7 +17321,8 @@ function drawSettingsOverlay() {
       sfx.pin();
     }, { id: 'set' + key });
   });
-  button(W / 2 - 40, 182, 80, 18, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'setback' });
+  button(W / 2 - 86, 182, 86, 18, 'SAVE DATA', '#2a6ab8', '#16407a', () => openSavePanel('menu'), { id: 'setsave', tip: 'SAVE DATA|Export a backup code or import one' });
+  button(W / 2 + 4, 182, 80, 18, '< BACK', '#d94f30', '#8a2a16', () => { G.overlay = null; }, { id: 'setback' });
 }
 function drawCreditsOverlay() {
   overlayDim(0.75);
