@@ -11,7 +11,7 @@
 // Logical play-field stays 480x270, but the backing store is SUPERSAMPLED by
 // RS so curves, rotations, gradients and text render at much higher resolution
 // (the whole scene is drawn with a base ctx.scale(RS) each frame).
-const W = 480, H = 270, RS = 3;
+const W = 480, H = 270, RS = /[?&]rs=4/.test(location.search) ? 4 : 3;
 const canvas = document.getElementById('game');
 canvas.width = W * RS; canvas.height = H * RS;
 let ctx = canvas.getContext('2d');   // let: offscreen passes (silhouettes) swap it briefly
@@ -60,6 +60,7 @@ function mixHex(a, b, t) {
 }
 const easeOut = t => 1 - (1 - t) * (1 - t);
 const easeIn = t => t * t * t;
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function fmt(n) { n = Math.floor(n); const s = '' + n; let o = ''; for (let i = 0; i < s.length; i++) { o += s[i]; const left = s.length - 1 - i; if (left > 0 && left % 3 === 0) o += ','; } return o; }
 let UID = 1; const uid = () => UID++;
@@ -113,6 +114,7 @@ const C = {
 
 // ------------------------------------------------------------ audio -------
 let AC = null, muted = false;
+let TR = null, TR_LOG = null, TR_SONG, TR_GAIN = null;   // the trailer director (see THE TRAILER)
 // volume settings live in meta (loaded later); read lazily
 function sfxGain() { try { return [0, 0.5, 1][meta.set.sfx]; } catch (e) { return 1; } }
 function musGain() { try { return [0, 0.5, 1][meta.set.mus]; } catch (e) { return 1; } }
@@ -122,6 +124,7 @@ function audio() {
   return AC;
 }
 function tone(freq, dur, type, vol, slide, delay) {
+  if (TR_LOG && TR) TR_LOG.push([0, TR.t, freq, dur, type, vol, slide, delay || 0]);
   const ac = AC; if (!ac || muted) return;
   const t0 = ac.currentTime + (delay || 0);
   const o = ac.createOscillator(), g = ac.createGain();
@@ -136,6 +139,7 @@ function tone(freq, dur, type, vol, slide, delay) {
   o.start(t0); o.stop(t0 + dur + 0.02);
 }
 function noiseHit(dur, vol, delay, lp) {
+  if (TR_LOG && TR) TR_LOG.push([1, TR.t, dur, vol, delay || 0, lp]);
   const ac = AC; if (!ac || muted) return;
   const t0 = ac.currentTime + (delay || 0);
   const n = Math.floor(ac.sampleRate * dur);
@@ -306,6 +310,7 @@ function musDrum(ac, t0, ch, v) {
 }
 // which song is playing where
 function songNow() {
+  if (TR_SONG !== undefined) return TR_SONG;
   if (typeof G === 'undefined') return SONGS.menu;
   if (G.paused) return null;
   switch (G.state) {
@@ -323,7 +328,7 @@ function musicTick() {
   const song = songNow(); if (!song) { musicNext = ac.currentTime; return; }
   const mg = musGain(); if (mg <= 0) { musicNext = ac.currentTime; return; }
   musInit(ac);
-  musBus.gain.value = mg * 0.8;
+  if (TR_GAIN) musBus.gain.setValueAtTime(mg * 0.8 * TR_GAIN(ac), ac.currentTime); else musBus.gain.value = mg * 0.8;
   if (song !== musicSong) { musicSong = song; musicStep = 0; musicNext = Math.max(musicNext, ac.currentTime + 0.08); }
   while (musicNext < ac.currentTime + 0.2) {
     if (musicNext < ac.currentTime) musicNext = ac.currentTime;
@@ -344,9 +349,9 @@ function musicTick() {
     else if (S.bass === 'calypso') { if (i8 === 0 || i8 === 3) { bn = root; bl = 2; } else if (i8 === 6) { bn = fifth; bl = 2; } }
     if (bn) musVoice(ac, t0, midiHz(bn), bl * sd * 0.9, 'tri', 0.2, { sus: 0.8, rel: 0.03 });
     // drums (a fill closes every 8th bar)
-    const pat = (st.bar % 8 === 7) ? DRUMS.fill : DRUMS[S.drums], dch = pat[st.i];
+    const pat = (st.bar % 8 === 7 && S.drums !== 'none') ? DRUMS.fill : DRUMS[S.drums], dch = pat[st.i];
     if (dch && dch !== '.') musDrum(ac, t0, dch, S.drums === 'lazy' ? 0.6 : S.drums === 'calypso' ? 0.7 : 1);
-    if (st.bar % 8 === 0 && st.i === 0) musNoise(ac, t0, 0.5, 0.05, 'highpass', 5000);   // crash on the downbeat
+    if (st.bar % 8 === 0 && st.i === 0 && S.drums !== 'none') musNoise(ac, t0, 0.5, 0.05, 'highpass', 5000);   // crash on the downbeat
     musicStep++; musicNext += sd;
   }
 }
@@ -1478,7 +1483,7 @@ function drawBobble(cx, gy, key, o) {
   const clR = [OL, p.cl[1], p.cl[2], p.cl[3], p.cl[4]];
   // ---- the outfit: shirt / pants / shoes / costume (only on your own ranger) ----
   const FT = o.fit || null;
-  const pick = (cat) => { const k = FT && FT[cat]; return k && FITS[k] && fitUnlocked(k) && FITS[k].src !== 'free' ? FITS[k] : null; };
+  const pick = (cat) => { const k = FT && FT[cat]; return k && FITS[k] && (o.fitAny || fitUnlocked(k)) && FITS[k].src !== 'free' ? FITS[k] : null; };
   const suit = pick('suit'), shirt = suit ? null : pick('shirt'), pants = suit ? null : pick('pants'), shoes = pick('shoes');
   const skR = [OL, p.sk[1], p.sk[2], p.sk[3], p.sk[4]];
   const legR = suit ? rampOf(suit.col) : pants ? rampOf(pants.col) : clR;
@@ -3224,7 +3229,7 @@ if (!meta.gear) meta.gear = 'none';
 if (!meta.index) meta.index = { seen: {}, claimed: {} };
 // per-ranger MASTERY: field hours logged, which rank up into exclusive badges
 if (!meta.mastery) meta.mastery = {};
-function saveMeta() { try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
+function saveMeta() { if (TR) return; try { localStorage.setItem('bd_meta', JSON.stringify(meta)); } catch (e) { } }
 
 // ============================== OUTFITS ====================================
 //  Four more wardrobe slots on top of hats, face gear and gloves: SHIRTS,
@@ -10672,7 +10677,7 @@ function drawBossCut(dt) {
   }
   rect(0, 0, W, 24, '#000'); rect(0, H - 22, W, 22, '#000');
   if (caption) letterboxCaption(caption);
-  drawText('TAP TO SKIP', W - 64, 9, '#6a6a6a', 1);
+  if (!TR) drawText('TAP TO SKIP', W - 64, 9, '#6a6a6a', 1);
   hit(0, 0, W, H, { id: 'bcutskip', cb: done, cursor: true });
 }
 
@@ -11036,11 +11041,11 @@ function autosaveTick(dt) {
   const sig = [G.ante, G.map.stage, G.money, G.charms.length, G.cons.length, G.deck.length].join(':');
   if (sig !== asSig || asT <= 0) { asSig = sig; asT = 15; saveRun(); G.savedFlash = 1.4; }
 }
-addEventListener('beforeunload', () => { try { saveMeta(); if (G.state === 'map' && !G.boat) saveRun(); } catch (e) { } });
-addEventListener('visibilitychange', () => { if (document.hidden) { try { saveMeta(); if (G.state === 'map' && !G.boat) saveRun(); } catch (e) { } } });
+addEventListener('beforeunload', () => { try { saveMeta(); if (G.state === 'map' && !G.boat && !TR) saveRun(); } catch (e) { } });
+addEventListener('visibilitychange', () => { if (document.hidden) { try { saveMeta(); if (G.state === 'map' && !G.boat && !TR) saveRun(); } catch (e) { } } });
 // ---- backup codes ----
 function saveCode() {
-  saveMeta(); if (G.state === 'map' && !G.boat) saveRun();
+  saveMeta(); if (G.state === 'map' && !G.boat && !TR) saveRun();
   let run = null; try { run = localStorage.getItem(RUN_KEY); } catch (e) { }
   const data = { app: 'bitedown', v: SAVE_VER, at: new Date().toISOString(), meta, run, best };
   return 'BITEDOWN1:' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
@@ -12296,7 +12301,7 @@ function drawTutorial(dt) {
       if (n.t < 1.2) { ctx.save(); ctx.translate(O.x + 22, O.y - 86); ctx.scale(0.55, 0.55); tBang(0, 0, n.lvl >= 3 ? 'UGH!' : '!!', '#ff6a3a', n.t); ctx.restore(); }
     }
   }
-  if (iv.phase !== 'result') button(W - 58, 3, 54, 14, 'SKIP', '#4a4438', '#28241c', ivFinish, { id: 'ivskip', tip: 'SKIP TRAINING|Straight to the swamp' });
+  if (iv.phase !== 'result' && !TR) button(W - 58, 3, 54, 14, 'SKIP', '#4a4438', '#28241c', ivFinish, { id: 'ivskip', tip: 'SKIP TRAINING|Straight to the swamp' });
 }
 function ivAdvance(iv) {
   const S = IV_SCRIPT[iv.step];
@@ -13639,7 +13644,7 @@ function cmToothRect(i) {
 // m = { open, teeth[], sheet, sheetT, xr, xrA }, st = { hov }
 // shiny-plastic dressing for the toy model: specular streaks, a mould seam,
 // the hinge screws and a price sticker, drawn in the croc's own coordinates
-function toyCrocGloss(closeT) {
+function toyCrocGloss(closeT, noTag) {
   const L = mouthLayout(), maw = L.maw, bx = maw.x - 22, bw = maw.w + 44, jy = maw.y - 58 + closeT * (maw.h - 26), ly = maw.y + maw.h - 6;
   ctx.save();
   ctx.globalAlpha = 0.45; rr(bx + 16, jy + 7, bw - 70, 6, 3, '#ffffff'); rr(bx + 12, ly + 12, bw - 90, 5, 2, '#ffffff');
@@ -13655,6 +13660,7 @@ function toyCrocGloss(closeT) {
     rect(sx - 3, sy, 7, 1, '#4a5058'); rect(sx, sy - 3, 1, 7, '#4a5058'); rect(sx - 3, sy - 3, 2, 1, '#ffffff');
   });
   // the price sticker, slightly crooked
+  if (noTag) return;
   ctx.save(); ctx.translate(bx + bw - 44, ly + 20); ctx.rotate(-0.12);
   rr(-17, -7, 34, 14, 3, '#8a1a10'); rr(-16, -6, 32, 12, 2, '#ffe24a'); rect(-14, -5, 28, 1, '#fff6b0');
   drawTextC('$4999', 0, -3, '#8a1a10', 1);
@@ -18069,6 +18075,427 @@ function drawFx() {
 }
 
 // ------------------------------------------------------------ main loop ---
+// ================================ THE TRAILER ====================================
+//  An 82-second cinematic trailer that the game performs itself.  Open the page
+//  with ?trailer to watch it live.  The capture script steps it frame by frame
+//  and replays every logged sound offline to build the video.  Everything after
+//  the opening is real gameplay - real fights, events, bosses and Mrs Owlet -
+//  staged by a little director: shots, cues, camera moves and captions.
+// ==================================================================================
+DRUMS.none = '................';
+SONGS.tlull = compileSong({ name: 'MUSIC BOX', bpm: 96, swing: 0, lead: 12, bass: 'none', harm: 'arp', drums: 'none', order: 'A', parts: { A: { ch: ['C', 'F', 'G', 'C', 'Am', 'F', 'G', 'C'], mel: [
+  'E5 . G5 . C6 - - . B5 . G5 . E5 - - .', 'F5 . A5 . C6 - - . A5 . F5 . C5 - - .', 'D5 . G5 . B5 - - . A5 . G5 . D5 - - .', 'E5 . G5 . C6 - E6 - D6 - C6 - G5 - - .',
+  'A5 . C6 . E6 - - . C6 . A5 . E5 - - .', 'F5 . A5 . C6 - - . A5 . F5 . A5 - - .', 'G5 . B5 . D6 - - . B5 . G5 . F5 - - .', 'E5 - - - C5 - - - . . . . . . . .'] } } });
+const TR_BAR = 60 / 158 * 4, TR_BBAR = 60 / 168 * 4, TR_DROP = 14.0;
+// the trailer's own sound effects (built on tone/noiseHit, so they are logged too)
+const trsfx = {
+  boom() { tone(62, 1.5, 'sine', 0.42, -30); tone(124, 0.5, 'square', 0.1, -80); noiseHit(1.3, 0.42, 0, 320); noiseHit(0.3, 0.3, 0, 4200); },
+  hit() { noiseHit(0.12, 0.2, 0, 3400); tone(190, 0.12, 'square', 0.07, -100); },
+  riser(d) { const n = Math.round(d * 14); for (let k = 0; k < n; k++) { const f = k / n; noiseHit(0.13, 0.03 + f * f * 0.34, k * d / n, 500 + f * 6000); if (k % 2 === 0) tone(200 + f * 700, 0.15, 'sawtooth', 0.016 + f * 0.07, 40, k * d / n); } },
+  // a cartoon voice: a run of little pitched syllables
+  babble(n, base) { for (let k = 0; k < n; k++) { const p = base * (0.86 + 0.28 * (0.5 + 0.5 * Math.sin(k * 2.3 + base))); tone(p, 0.055, 'square', 0.05, p * 0.12, k * 0.08); tone(p * 2, 0.03, 'triangle', 0.025, 0, k * 0.08 + 0.01); } },
+  scratch() { tone(1300, 0.22, 'sawtooth', 0.14, -1100); tone(500, 0.18, 'square', 0.08, 800, 0.07); noiseHit(0.25, 0.25, 0, 5000); },
+  click() { tone(2400, 0.02, 'square', 0.06); tone(1500, 0.035, 'square', 0.05, -300, 0.012); },
+  thump() { tone(58, 0.22, 'sine', 0.32, -12); },
+  ding() { [1047, 1319, 1568, 2093].forEach((f, i) => tone(f, 0.45, 'triangle', 0.08, 0, i * 0.07)); },
+  cut() { noiseHit(0.07, 0.07, 0, 6000); },
+};
+// the music plan: which song plays when, and how loud
+function trSongAt(t) {
+  if (t < 6.4) return SONGS.tlull;   // (a music box, played up loud)
+  if (t < TR_DROP - 0.08) return null;
+  if (t < 48.87) return SONGS.fight;
+  if (t < 68.95) return SONGS.boss;
+  if (t < 72.9) return SONGS.tlull;
+  if (t < 74.22) return null;
+  return SONGS.menu;
+}
+function trGainAt(t) {
+  if (t < 6.4) return 2.1;
+  if (t > 64.66 && t < 68.95) return 0.28;          // duck under Mrs Owlet
+  if (t > 68.95 && t < 72.9) return 1.8;
+  if (t > 79.5) return Math.max(0, 1 - (t - 79.5) / 2.3);
+  return 1;
+}
+// ---- text: huge outlined pixel captions that pop in on the beat ----
+function trBig(s, x, y, sc, col) {
+  const w = textW(s, sc), x0 = Math.round(x - w / 2), o = Math.max(1, Math.ceil(sc / 2));
+  for (let d = 1; d <= o + 1; d++) drawText(s, x0, y + d + 1, '#0a0604', sc);
+  [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([ox, oy]) => drawText(s, x0 + ox * o, y + oy * o, '#0a0604', sc));
+  drawText(s, x0, y, col, sc);
+  ctx.save(); ctx.globalAlpha = 0.35; drawText(s, x0, y - Math.max(1, sc >> 1), '#ffffff', sc); ctx.restore();
+  drawText(s, x0, y, col, sc);
+}
+function trCap(lines, lt, t0, t1, o) {
+  o = o || {};
+  if (lt < t0 || lt > t1) return;
+  const k = lt - t0, sc = o.sc || 3, lh = sc * 6 + 5;
+  const key = 'cap' + TR.i + '_' + t0; if (!TR.fired[key]) { TR.fired[key] = 1; if (o.sfx !== false) trsfx.hit(); }
+  const a = Math.min(1, k / 0.07, (t1 - lt) / 0.18), s = 1 + Math.max(0, 1 - k / 0.14) * 0.3;
+  const y0 = o.y !== undefined ? o.y : H - 30 - lines.length * lh;
+  ctx.save(); ctx.globalAlpha = a; ctx.translate(W / 2, y0 + lines.length * lh / 2); ctx.scale(s, s); ctx.translate(0, -lines.length * lh / 2);
+  if (o.band) {
+    const bw = Math.max(...lines.map(l => textW(l, sc))) + 34, bh = lines.length * lh + 12;
+    ctx.save(); ctx.globalAlpha = a * 0.75; rect(-bw / 2, -8, bw, bh, '#0a0806'); ctx.restore();
+    rect(-bw / 2, -8, bw, 2, o.band); rect(-bw / 2, bh - 10, bw, 2, o.band);
+  }
+  lines.forEach((l, i) => trBig(l, 0, i * lh, sc, o.hl === i ? (o.hlCol || '#ffd23f') : (o.col || '#fffaf0')));
+  ctx.restore();
+}
+function trBars(k) { const h = Math.round(28 * clamp(k, 0, 1)); if (h > 0) { rect(0, 0, W, h, '#000'); rect(0, H - h, W, h, '#000'); } }
+function trOnce(key, fn) { if (!TR.fired[key]) { TR.fired[key] = 1; fn(); } }
+// ---- the toy: the plastic training gator, anywhere at any size ----
+function trToy(snap) { const vals = [3, 5, 2, 4, 6, 3]; return { open: 1, openT: 1, teeth: vals.map((v, i) => ({ v, snap: i === snap, pressed: false, rev: null, mark: false })) }; }
+function drawToyGator(m, x, y, sc, noTag) {
+  cmWithMouth(m, () => {
+    ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc); ctx.translate(-294, -252);
+    const _mx = mx, _my = my, _t = tNow; mx = 298; my = 330; tNow = 0.4; crocStyleOverride = TOY_CROC;
+    try { drawCroc(1 - clamp(m.open, 0, 1), { mood: 'calm', dry: 1, noFx: 1 }); toyCrocGloss(1 - clamp(m.open, 0, 1), noTag); }
+    finally { mx = _mx; my = _my; tNow = _t; crocStyleOverride = null; }
+    ctx.restore();
+  });
+}
+function toyToothAt(m, i, x, y, sc) { return cmWithMouth(m, () => { const sl = mouthLayout().slots[i]; return { x: x + (sl.x + sl.w / 2 - 294) * sc, y: y + (sl.y + sl.h / 2 - 252) * sc }; }); }
+// ---- the kid's bedroom, at night ----
+function trBedPaint() {
+  // wallpaper: soft navy with a stripe and little gold stars
+  rect(0, 0, W, 178, '#2c3866');
+  for (let x = 0; x < W; x += 18) rect(x, 0, 7, 178, '#303e70');
+  for (let y = 10; y < 170; y += 24) for (let x = (y / 24) % 2 ? 9 : 0; x < W; x += 36) { rect(x + 3, y, 1, 3, '#c8b060'); rect(x + 2, y + 1, 3, 1, '#c8b060'); }
+  for (let k = 0; k < 300; k++) rect(hash2(k, 1) * W, hash2(k, 2) * 176, 1, 1, '#26305a');
+  // skirting board and the wooden floor
+  rect(0, 172, W, 8, '#5a3a20'); rect(0, 172, W, 1, '#8a6038'); rect(0, 179, W, 1, '#2a1a0c');
+  texBoards('trfloor', 0, 180, W, 90, ['#2a1a0c', '#4a3018', '#5a3c20', '#7a5230'], false, 9);
+  // the window: night sky, a moon, cypress silhouettes, curtains
+  rr(314, 40, 92, 92, 2, '#2a1a0e'); ctx.save(); ctx.beginPath(); ctx.rect(318, 44, 84, 84); ctx.clip();
+  for (let y = 44; y < 128; y++) rect(318, y, 84, 1, mixC('#0e1636', '#2a3a6a', (y - 44) / 84));
+  for (let k = 0; k < 26; k++) rect(318 + hash2(k, 5) * 84, 44 + hash2(k, 6) * 60, 1, 1, '#fffce0');
+  fillCircle(382, 64, 9, '#fff6d0'); fillCircle(379, 62, 7, '#fffdf0'); rect(377, 66, 2, 2, '#e8dcb0');
+  for (let k = 0; k < 6; k++) { const cx = 322 + k * 16, h = 20 + (k * 7) % 14; rect(cx, 128 - h, 3, h, '#0a1020'); for (let j = 0; j < 3; j++) rect(cx - 5 + j, 128 - h + j * 3, 13 - j * 2, 2, '#0a1020'); }
+  rect(318, 120, 84, 8, '#0a1424');
+  ctx.restore();
+  rect(358, 44, 3, 84, '#2a1a0e'); rect(318, 84, 84, 3, '#2a1a0e');
+  rr(310, 130, 100, 6, 2, '#6a4424'); rect(310, 130, 100, 1, '#9a6a3a');
+  rr(328, 120, 10, 10, 2, '#a84a2a'); rect(331, 112, 2, 9, '#3a8a3a'); rect(329, 114, 6, 2, '#3a8a3a');
+  texCurtain('trcurtL', 298, 34, 22, 112, ['#3a1a3a', '#5a2a5a', '#6a3a6a', '#8a4a8a', '#a86aa8']);
+  texCurtain('trcurtR', 400, 34, 22, 112, ['#3a1a3a', '#5a2a5a', '#6a3a6a', '#8a4a8a', '#a86aa8']);
+  rect(294, 32, 132, 3, '#8a6a3a');
+  // the bed: headboard, quilt, pillow, a plush gator
+  rr(12, 100, 14, 92, 3, '#4a2a14'); rr(14, 102, 10, 88, 2, '#7a4a28');
+  rr(18, 150, 136, 30, 4, '#e8e0d0');
+  for (let x = 60; x < 152; x += 12) for (let y = 146; y < 184; y += 12) rect(x, y, 12, 12, ((x / 12 + y / 12) | 0) % 2 ? '#c84a4a' : '#e8c060');
+  rr(58, 144, 96, 40, 4, '#00000000'); rect(58, 144, 96, 2, '#f4ecd8'); rect(58, 182, 96, 3, '#8a2a2a');
+  rr(24, 138, 36, 14, 5, '#fffaf0'); rect(28, 140, 26, 2, '#ffffff');
+  rr(148, 136, 8, 56, 2, '#4a2a14'); rr(149, 137, 6, 54, 2, '#7a4a28');
+  rr(34, 130, 20, 10, 4, '#3aa84a'); rect(50, 132, 6, 4, '#3aa84a'); rect(38, 131, 2, 2, '#ffffff'); rect(44, 131, 2, 2, '#ffffff'); rect(39, 132, 1, 1, '#000'); rect(45, 132, 1, 1, '#000');
+  // nightstand and lamp
+  rr(160, 150, 32, 34, 2, '#4a2a14'); rr(161, 151, 30, 32, 2, '#7a4a28'); rect(163, 162, 26, 1, '#4a2a14'); rect(174, 156, 4, 2, '#d0a050');
+  rr(170, 140, 12, 10, 2, '#c8a060'); rect(175, 128, 2, 12, '#8a6a3a');
+  ctx.fillStyle = '#ffd87a'; ctx.beginPath(); ctx.moveTo(166, 130); ctx.lineTo(186, 130); ctx.lineTo(182, 114); ctx.lineTo(170, 114); ctx.fill();
+  rect(166, 129, 20, 1, '#e8a840');
+  // the shelf of treasures
+  rr(198, 86, 92, 5, 1, '#6a4424'); rect(198, 86, 92, 1, '#9a6a3a'); rect(206, 91, 3, 6, '#4a2a14'); rect(280, 91, 3, 6, '#4a2a14');
+  [['#c84a4a', 10], ['#3a6ac8', 12], ['#e8c040', 9], ['#3a9a5a', 11]].forEach(([c, h], i) => { rect(204 + i * 6, 86 - h, 5, h, c); rect(204 + i * 6, 86 - h, 5, 1, mixC(c, '#ffffff', 0.4)); });
+  rr(234, 70, 8, 16, 3, '#e8e8f0'); rect(236, 64, 4, 6, '#e8402a'); rect(233, 82, 10, 3, '#e8402a');
+  rr(252, 76, 14, 10, 2, '#d8a830'); rect(256, 70, 6, 6, '#d8a830'); rect(255, 71, 8, 1, '#fff0a0');
+  fillCircle(278, 78, 7, '#bfe0f0'); rect(273, 83, 10, 3, '#8a5a2a'); rect(277, 76, 2, 3, '#3a8a3a');
+  // a swamp-ranger poster
+  rr(428, 40, 44, 62, 1, '#e8dcc0'); rect(430, 42, 40, 16, '#2a6a3a'); drawTextC('SWAMP', 450, 44, '#ffe89a', 1); drawTextC('RANGER', 450, 51, '#ffe89a', 1);
+  fillCircle(450, 76, 12, '#8a5a2a'); fillCircle(444, 66, 4, '#8a5a2a'); fillCircle(456, 66, 4, '#8a5a2a'); fillCircle(450, 79, 7, '#e8d0a8'); rect(446, 74, 2, 2, '#1a1008'); rect(453, 74, 2, 2, '#1a1008'); rect(448, 80, 4, 2, '#3a2010');
+  rect(432, 92, 36, 6, '#c84a2a'); drawTextC('JUNIOR', 450, 93, '#ffffff', 1);
+  // the round rug on the floor
+  const rugC = ['#6a1a1a', '#b83a2a', '#e8c878', '#3a6a9a', '#e8e0c8', '#b83a2a'];
+  for (let y = -30; y <= 30; y++) { const f = y / 30, hw = Math.round(150 * Math.sqrt(1 - f * f)); for (let x = -hw; x <= hw; x++) { const d = Math.sqrt((x / 150) ** 2 + f * f), band = Math.min(5, Math.floor(d * 6)); rect(262 + x, 230 + y, 1, 1, rugC[5 - band]); } }
+  for (let k = 0; k < 600; k++) { const a = hash2(k, 8) * 6.28, r = hash2(k, 9); rect(262 + Math.cos(a) * r * 146, 230 + Math.sin(a) * r * 28, 1, 1, '#00000022'); }
+  // toys on the floor: alphabet blocks and a little airboat
+  [['A', '#e84a4a', 96, 236], ['B', '#3a8ae8', 110, 238], ['C', '#e8c040', 103, 226]].forEach(([l, c, bx, by]) => { rr(bx, by, 12, 12, 1, '#1a1008'); rr(bx + 1, by + 1, 10, 10, 1, c); drawTextC(l, bx + 6, by + 3, '#ffffff', 1); });
+}
+function trBedroom(lt, S) {
+  const cam = S.cam || { x: W / 2, y: H / 2, z: 1 };
+  ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
+  ctx.drawImage(getCached('trbed', W, H, trBedPaint), 0, 0, W, H);
+  // the lamp's warm pool and the moonbeam through the window
+  const fl = 0.5 + 0.5 * Math.sin(tNow * 7) * Math.sin(tNow * 3.1);
+  glow(176, 126, 96, '#ffc870', 0.2 + fl * 0.03); glow(176, 122, 26, '#fff0b0', 0.35);
+  ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = '#c8d8ff'; ctx.beginPath(); ctx.moveTo(318, 128); ctx.lineTo(402, 128); ctx.lineTo(452, 262); ctx.lineTo(300, 262); ctx.fill(); ctx.restore();
+  for (let k = 0; k < 14; k++) { const ph = (tNow * 0.05 + k / 14) % 1; ctx.save(); ctx.globalAlpha = 0.5 * Math.sin(ph * Math.PI); rect(330 + hash2(k, 3) * 90 + Math.sin(tNow + k) * 6, 250 - ph * 110, 1, 1, '#fff8e0'); ctx.restore(); }
+  ctx.save(); ctx.translate(414, 252); ctx.scale(0.3, 0.3); drawAirboat(0, 0, false, undefined, { empty: true }); ctx.restore();
+  // the toy and the kid (the toy airboat above is tiny because of the camera)
+  const K = S.kid, T = S.toy;
+  drawToyGator(T.m, T.x, T.y, T.sc, true);
+  if (K) {
+    const kx = K.x, ky = K.y + (K.dy || 0);
+    ctx.save(); if (K.rot) { ctx.translate(kx, ky - 16); ctx.rotate(K.rot); ctx.translate(-kx, -(ky - 16)); }
+    drawBobble(kx, ky, 'scout', { sc: 1.15, act: K.act || 'sit', arms: K.arms, expr: K.expr || 'happy', fit: { suit: 'crocsuit' }, fitAny: true, glove: 'bare', t: K.fast ? tNow * 2 : undefined });
+    ctx.restore();
+    if (K.bandage) { rr(kx + 14, ky - 30, 5, 4, 1, '#fffaf0'); rect(kx + 15, ky - 29, 3, 1, '#e8a0a0'); }
+    // the reaching paw: sleeve and a little otter hand on the tooth
+    if (K.reach) {
+      const p = K.reach, sx = kx + 12, sy = ky - 24, n = Math.ceil(Math.hypot(p.x - sx, p.y - sy));
+      for (let i = 0; i <= n; i++) { const f = i / n, ax = lerp(sx, p.x, f), ay = lerp(sy, p.y, f) - Math.sin(f * Math.PI) * 4; rect(ax - 2, ay - 2, 4, 4, '#1a2a10'); }
+      for (let i = 0; i <= n; i++) { const f = i / n, ax = lerp(sx, p.x, f), ay = lerp(sy, p.y, f) - Math.sin(f * Math.PI) * 4; rect(ax - 1, ay - 1, 3, 3, '#4a9a3a'); }
+      fillCircle(p.x, p.y, 3, '#2a1a0c'); fillCircle(p.x, p.y, 2, '#a8784a'); rect(p.x - 1, p.y - 2, 1, 1, '#d8a878');
+    }
+    if (K.stars) dazedStars(kx, ky - 62, 12);
+    if (K.sweat) comicSweat(kx + 10, ky - 58, lt);
+  }
+  ctx.restore();
+  // a soft vignette keeps it cosy
+  ctx.save(); for (let k = 0; k < 6; k++) { ctx.globalAlpha = 0.06; rect(0, 0, W, 10 + k * 8, '#05060e'); rect(0, H - 10 - k * 8, W, 10 + k * 8, '#05060e'); rect(0, 0, 14 + k * 10, H, '#05060e'); rect(W - 14 - k * 10, 0, 14 + k * 10, H, '#05060e'); } ctx.restore();
+}
+// the kid presses the toy's teeth on a schedule and the last one bites
+function trPlayToy(S, lt, dt, presses, snapAt) {
+  const T = S.toy, K = S.kid;
+  T.m.open += (T.m.openT - T.m.open) * Math.min(1, dt * (T.m.openT > T.m.open ? 5 : 30));
+  K.reach = null; K.arms = 'sit';
+  presses.forEach((p, n) => {
+    const d = lt - p.t;
+    if (d > -0.35 && d < 0.3) { const tp = toyToothAt(T.m, p.i, T.x, T.y, T.sc), k = d < 0 ? easeOut(clamp((d + 0.35) / 0.3, 0, 1)) : 1 - clamp(d / 0.3, 0, 1); K.arms = 'point'; K.reach = { x: lerp(K.x + 22, tp.x, k), y: lerp(K.y - 20, tp.y, k) }; }
+    if (d >= 0) trOnce('press' + TR.i + '_' + n, () => {
+      const Th = T.m.teeth[p.i];
+      if (Th.snap) { T.m.openT = 0; sfx.snap(); trsfx.thump(); shake = Math.max(shake, 12); TR.flash = 0.8; }
+      else { Th.pressed = true; trsfx.click(); sfx.click(2 + n); }
+    });
+  });
+}
+// ---- the badge wall ----
+function trBadgeWall(lt) {
+  rect(0, 0, W, H, '#140c08');
+  texBoards('trwall', 0, 0, W, H, ['#0e0804', '#1a100a', '#22160c', '#2e1e12'], true, 12);
+  glow(W / 2, 110, 200, '#ffc860', 0.12);
+  const picks = TR.badges || (TR.badges = (() => { const byR = CHARMS.slice().sort((a, b) => (a.rar || 0) - (b.rar || 0)), out = []; for (let k = 0; k < 18; k++) out.push(byR[Math.floor(k / 18 * byR.length + hash2(k, 4) * (byR.length / 18))]); return shuffle(out.slice()); })());
+  const sc = 1.55, gap = 10, cw = Math.round(30 * sc), x0 = Math.round((W - (6 * cw + 5 * gap)) / 2), y0 = 30;
+  picks.forEach((def, i) => {
+    const t0 = 0.06 + i * 0.1, k = lt - t0; if (k < 0 || !def) return;
+    const cx = x0 + (i % 6) * (cw + gap), cy = y0 + Math.floor(i / 6) * (cw + gap + 6), pop = k < 0.16 ? 1.35 - easeOut(k / 0.16) * 0.35 : 1, bob = Math.sin(tNow * 3 + i) * 1.2;
+    trOnce('bdg' + i, () => tone(700 + (i % 6) * 110, 0.05, 'triangle', 0.05));
+    if ((def.rar || 0) >= 3) glow(cx + cw / 2, cy + cw / 2 + bob, cw * 0.8, (def.rar || 0) >= 4 ? '#ff9a3a' : '#ffe07a', 0.3);
+    ctx.save(); ctx.translate(cx + cw / 2, cy + cw / 2 + bob); ctx.scale(sc * pop, sc * pop); ctx.translate(-15, -15);
+    drawBadgeFace(0, 0, def, {});
+    ctx.restore();
+  });
+}
+// ---- the end card ----
+function trEndCard(lt) {
+  trailBackdrop('night', tNow * 6);
+  // two gator eyes glinting just above the water
+  const ex = 360, ey = 214, bl = (tNow % 3.5) < 0.12;
+  ctx.save(); ctx.globalAlpha = 0.9; rr(ex - 22, ey - 2, 44, 8, 4, '#0a140c'); ctx.restore();
+  if (!bl) { rect(ex - 14, ey, 5, 3, '#ffe066'); rect(ex + 9, ey, 5, 3, '#ffe066'); rect(ex - 12, ey, 1, 3, '#1a1008'); rect(ex + 11, ey, 1, 3, '#1a1008'); glow(ex, ey + 1, 22, '#ffe066', 0.15); }
+  for (let k = 0; k < 14; k++) { const on = Math.sin(tNow * 2 + k * 1.7); if (on > 0.1) { const fx = 30 + hash2(k, 9) * 420 + Math.sin(tNow * 0.5 + k) * 20, fy = 120 + hash2(k, 8) * 90 + Math.sin(tNow + k) * 8; ctx.save(); ctx.globalAlpha = on; glow(fx, fy, 6, '#f8f080', 0.4); rect(fx, fy, 1, 1, '#fcffa0'); ctx.restore(); } }
+  ctx.save(); ctx.globalAlpha = 0.45; rect(0, 0, W, H, '#05060e'); ctx.restore();
+  if (lt > 0.3) {
+    const k = lt - 0.3, s = k < 0.16 ? 2.6 - easeOut(k / 0.16) * 1.6 : 1 + Math.max(0, Math.sin((k - 0.16) * 18) * 0.04 * Math.max(0, 1 - (k - 0.16) * 3));
+    trOnce('endboom', () => { trsfx.boom(); shake = Math.max(shake, 9); TR.flash = 0.7; fxConfetti(W / 2, 70, 30); });
+    ctx.save(); ctx.translate(W / 2, 74); ctx.scale(s * 1.3, s * 1.3); ctx.translate(-135, -40); paintCached('menulogo2', 0, 0, 276, 80, menuLogo); ctx.restore();
+  }
+  if (lt > 1.3) { trOnce('endtag', () => trsfx.hit()); ctx.save(); ctx.globalAlpha = clamp((lt - 1.3) / 0.3, 0, 1); trBig('PRESS YOUR LUCK.', W / 2, 138, 2, '#ffe6b0'); ctx.restore(); }
+  if (lt > 1.8) { trOnce('endtag2', () => trsfx.hit()); ctx.save(); ctx.globalAlpha = clamp((lt - 1.8) / 0.3, 0, 1); trBig('KEEP YOUR FINGERS.', W / 2, 156, 2, '#86dc5e'); ctx.restore(); }
+  if (lt > 2.6) {
+    trOnce('endcta', () => trsfx.ding());
+    const k = easeOut(clamp((lt - 2.6) / 0.3, 0, 1)), pulse = 1 + Math.sin(tNow * 5) * 0.03;
+    ctx.save(); ctx.globalAlpha = k; ctx.translate(W / 2, 204); ctx.scale(pulse, pulse);
+    rr(-104, -14, 208, 30, 5, '#1a0d05'); rr(-102, -12, 204, 26, 4, '#e8a020'); rr(-100, -10, 200, 10, 3, '#ffc848'); rect(-96, 10, 192, 2, '#98650e');
+    trBig('PLAY FREE ON ITCH.IO', 0, -5, 2, '#fffaf0');
+    ctx.restore();
+  }
+}
+// ================================ THE SHOT LIST ===================================
+function trShots() {
+  const L = [];
+  let t = 0;
+  const add = (dur, s) => { s.t0 = t; s.t1 = t + dur; t += dur; L.push(s); return s; };
+  const bed = (s) => { s.toy = { m: trToy(3), x: 304, y: 246, sc: 0.3 }; s.kid = { x: 250, y: 238, expr: 'happy' }; };
+  // 1. a kid, a bedroom, a toy
+  add(9.4, { id: 'bed1', state: 'trailer', enter(s) { bed(s); },
+    tick(lt, dt, s) {
+      const K = s.kid, pz = easeInOut(clamp(lt / 6.2, 0, 1));
+      s.cam = { x: lerp(240, 282, pz), y: lerp(150, 206, pz), z: lerp(1, 2.05, pz) };
+      K.expr = lt < 2.2 ? 'happy' : lt < 4.4 ? 'wow' : 'worry'; K.sweat = lt > 4.4 && lt < 6.4;
+      trPlayToy(s, lt, dt, [{ t: 2.5, i: 0 }, { t: 3.7, i: 1 }, { t: 4.9, i: 2 }, { t: 6.4, i: 3 }], 6.4);
+      if (lt > 6.4) {
+        const k = lt - 6.4;
+        trOnce('scr', () => trsfx.scratch());
+        s.cam = { x: 286, y: 204, z: 2.05 + Math.max(0, 0.35 - k) * 0.8 };
+        K.reach = null; K.arms = undefined; K.act = k < 1.3 ? 'hurt' : 'cheer'; K.expr = k < 1.3 ? 'shocked' : 'happy'; K.dy = k < 0.5 ? -Math.sin(k / 0.5 * Math.PI) * 14 : 0; K.stars = k < 1.4; K.sweat = false;
+      }
+    },
+    draw(lt, dt, s) { trBedroom(lt, s); },
+    over(lt, s) {
+      trBars(1);
+      trCap(['HAVE YOU EVER', 'PLAYED THIS TOY?'], lt, 0.7, 5.6, { y: 34, sc: 3 });
+      if (lt > 6.4 && lt < 7.3) tBang(W / 2 + 40, 86, 'SNAP!', '#ffe04a', lt - 6.4);
+      if (lt > 6.7 && lt < 7.9) { trOnce('v1', () => trsfx.babble(6, 760)); comicBubble(W / 2 - 40, 96, 'OW OW OW!', W / 2 - 20, 128); }
+      if (lt > 8.0) { trOnce('v2', () => trsfx.babble(4, 820)); comicBubble(W / 2 - 34, 92, 'AGAIN!!', W / 2 - 22, 124); }
+    } });
+  // 2. what if...
+  add(4.6, { id: 'whatif', state: 'trailer', enter(s) { s.m = trToy(-1); },
+    tick(lt, dt, s) { [0.35, 0.62, 1.25, 1.52].forEach((b, n) => { if (lt > b) trOnce('hb' + n, () => trsfx.thump()); }); if (lt > 1.6) trOnce('rise', () => trsfx.riser(3.0)); },
+    draw(lt, dt, s) {
+      rect(0, 0, W, H, '#000');
+      if (lt > 2.0) {
+        const z = lt < 3.9 ? 1 + (lt - 2.0) * 0.05 : 1.1 + Math.pow((lt - 3.9) / 0.7, 3) * 9;
+        ctx.save(); ctx.translate(W / 2, 150); ctx.scale(z, z); ctx.translate(-W / 2, -150);
+        drawToyGator(s.m, W / 2, 214, 0.62, true);
+        ctx.restore();
+        // a spotlight in the dark
+        const a = clamp((lt - 2.0) / 0.6, 0, 1);
+        ctx.save(); ctx.fillStyle = '#000'; ctx.globalAlpha = 1 - a * 0.9 + 0.1; ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.arc(W / 2, 160, 120, 0, Math.PI * 2, true); ctx.fill();
+        ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(W / 2, 160, 120, 0, Math.PI * 2); ctx.arc(W / 2, 160, 90, 0, Math.PI * 2, true); ctx.fill(); ctx.restore();
+        if (lt > 3.2 && lt < 3.9) { const g = Math.sin((lt - 3.2) / 0.7 * Math.PI); ctx.save(); ctx.globalAlpha = g; comicItem('star', W / 2 - 34, 110, 1.4); comicItem('star', W / 2 + 34, 110, 1.4); ctx.restore(); }
+        if (lt > 4.3) { ctx.save(); ctx.globalAlpha = clamp((lt - 4.3) / 0.25, 0, 1); rect(0, 0, W, H, '#000'); ctx.restore(); }
+      }
+    },
+    over(lt) {
+      trBars(1);
+      trCap(['WHAT IF...'], lt, 0.35, 1.95, { y: 116, sc: 4 });
+      trCap(['WE MADE IT', 'INTO A GAME?'], lt, 2.1, 3.95, { y: 42, sc: 3, hl: 1 });
+    } });
+  // 3. the title drop
+  add(2 * TR_BAR, { id: 'title', state: 'trailer', flash: 1, enter(s) { rollMenuLook(); menuGator.t = 7.02 - 2.0; menuGator.snapped = false; trsfx.boom(); shake = 10; },
+    draw(lt, dt) { G.mouth = G.menuLook.teeth; paintCached('menu', 0, 0, W, H, menuStatic); drawMenuCroc(dt); },
+    over(lt) {
+      const s = lt < 0.16 ? 2.8 - easeOut(lt / 0.16) * 1.8 : 1 + Math.max(0, Math.sin((lt - 0.16) * 20) * 0.05 * Math.max(0, 1 - (lt - 0.16) * 3));
+      ctx.save(); ctx.translate(W / 2, 52); ctx.scale(s * 1.2, s * 1.2); ctx.translate(-135, -40); paintCached('menulogo2', 0, 0, 276, 80, menuLogo); ctx.restore();
+      if (lt < 0.5) { ctx.save(); ctx.globalAlpha = 0.6 * (1 - lt / 0.5); ring(W / 2, 52, 20 + lt * 500, '#fff8d0', 1); ring(W / 2, 52, 18 + lt * 480, '#ffd23f', 1); ctx.restore(); }
+    } });
+  // 4-5. real gameplay: press, stack, bank... and lose it all
+  let fightT = 0;
+  const playSetup = () => { newRun('scout'); genMap(); G.ante = 3; G.money = 14; G.charms = ['sweet', 'greedy', 'overbite'].map(id => CHARMS.find(c => c.id === id)).filter(Boolean); startFight({ type: 'big', mods: [], mut: null }); G.mut = null; merle = null; };
+  const safeTeeth = () => G.mouth.map((s2, i) => [s2, i]).filter(([s2]) => s2 && !s2.snap && !s2.pressed && !s2.gone).map(([, i]) => i);
+  add(4 * TR_BAR, { id: 'play1', state: 'play', flash: 1, enter(s) { playSetup(); s.n = 0; },
+    tick(lt, dt, s) {
+      const beats = [0.45, 1.21, 1.97, 2.73, 3.49, 4.25, 5.01, 5.77];
+      while (s.n < beats.length && lt >= beats[s.n]) {
+        const safe = safeTeeth();
+        if (s.n === 3) { const sn = G.mouth.findIndex(x => x && x.snap && !x.revealed); if (sn >= 0 && G.xrays > 0) { G.mode = 'xray'; pressTooth(sn); G.mode = 'idle'; } }
+        else if (safe.length) pressTooth(safe[0]);
+        s.n++;
+      }
+    },
+    over(lt) { trCap(['PRESS ITS TEETH...'], lt, 0.25, 2.95, { band: '#3aa84a' }); trCap(['STACK YOUR MULT'], lt, 3.05, 6.0, { band: '#e8a020', hl: 0 }); } });
+  add(3 * TR_BAR, { id: 'play2', state: 'play', enter(s) { s.n = 0; if (G.state !== 'play') playSetup(); },
+    tick(lt, dt, s) {
+      if (lt > 0.15) trOnce('bank', () => { bank(false); });
+      if (lt > 2.5 && G.state === 'play' && !G.seq) trOnce('p1', () => { const sf = safeTeeth(); if (sf.length) pressTooth(sf[0]); });
+      if (lt > 3.3 && G.state === 'play' && !G.seq) trOnce('snap', () => { const sn = G.mouth.findIndex(x => x && x.snap && !x.pressed); if (sn >= 0) pressTooth(sn); });
+    },
+    over(lt) { trCap(['BANK THE BITE...'], lt, 0.12, 2.6, { band: '#3a8ad0' }); trCap(['...OR LOSE IT ALL!'], lt, 3.35, 4.5, { band: '#c8302a', col: '#ffd8c8' }); } });
+  // 6. the badge wall
+  add(2 * TR_BAR, { id: 'badges', state: 'trailer', flash: 1, draw(lt) { trBadgeWall(lt); },
+    over(lt) { trCap([CHARMS.length + ' BADGES', 'TO BREAK THE RULES'], lt, 0.2, 3.0, { band: '#ffd23f', hl: 0 }); } });
+  // 7. the map
+  add(2 * TR_BAR, { id: 'map', state: 'map', enter(s) {
+      newRun('scout'); genMap(); G.state = 'map';
+      const n = G.map.stages[0].length, p = nodePos(0, Math.min(1, n - 1), n), to = boatPark(p), from2 = MAP_DOCK;
+      G.boat = { x: from2.x, y: from2.y, sx: from2.x, sy: from2.y, tx: to.x, ty: to.y, t: 0, k: Math.min(1, n - 1), dur: 3.6, lean: 0 };
+    },
+    over(lt) { trCap(['EXPLORE THE', 'EVERGLADES'], lt, 0.2, 3.0, { band: '#3aa8a0', hl: 1, hlCol: '#8ae0a0' }); } });
+  // 8. the trail-event montage: one cut per bar
+  const EVS = ['python', 'storm', 'hogs', 'bear', 'skeeters', 'wildfire', 'kayak', 'campfire'];
+  add(8 * TR_BAR, { id: 'events', state: 'event', enter(s) { s.cut = -1; },
+    tick(lt, dt, s) {
+      const c = Math.min(EVS.length - 1, Math.floor(lt / TR_BAR));
+      if (c !== s.cut) {
+        s.cut = c; const k = EVS[c], g = TRAIL[k];
+        G.state = 'event'; G.event = { game: k, kind: g.kind, phase: 'play', t: 0, s: {}, pay: 0, cookies: 0, lines: [], grade: '' };
+        g.init(G.event.s); for (let i = 0; i < 30; i++) { if (g.update) g.update(G.event.s, 0.03); if (G.event.phase !== 'play') break; }
+        G.event.phase = 'play'; s.tap = 0; if (c > 0) { TR.flash = 0.35; trsfx.cut(); }
+      }
+      const ev = G.event; if (!ev || !ev.s) return;
+      const S2 = ev.s, k = EVS[c];
+      s.tap -= dt;
+      if (k === 'storm') my = 216 + Math.sin(lt * 3.1) * 26;
+      if (k === 'hogs') my = [222, 238, 252][Math.floor(lt * 1.3) % 3];
+      if (k === 'skeeters' && S2.bugs && S2.bugs[0]) { mx = S2.bugs[0].x; my = S2.bugs[0].y; }
+      if (k === 'wildfire' && S2.fires) { const f = S2.fires.find(f2 => f2.hp > 0); if (f) { mx = f.x; my = f.y - 8; } }
+      if (k === 'campfire') { if (S2.toast > 0.66 && S2.toast < 0.78) { TRAIL.campfire.tap(S2); } return; }
+      const every = k === 'bear' ? 0.11 : k === 'kayak' ? (S2.period || 0.62) : k === 'python' ? 0.55 : k === 'storm' ? 99 : 0.38;
+      if (s.tap <= 0) { s.tap = every; if (ev.phase === 'play') TRAIL[k].tap(S2); }
+      if (ev.phase !== 'play') ev.phase = 'play';
+    },
+    over(lt) { trCap(['24 WILD TRAIL EVENTS'], lt, 0.2, 4 * TR_BAR - 0.15, { band: '#e8a020', sc: 3 }); trCap(['RACE. RESCUE. ROAST.'], lt, 4 * TR_BAR + 0.2, 8 * TR_BAR - 0.1, { band: '#c8402a', sc: 3 }); } });
+  // 9. a comic choice... and the bear sits on you
+  add(2 * TR_BAR, { id: 'comic', state: 'event', flash: 1, enter(s) { G.state = 'event'; G.event = { game: 'bear', kind: 'enc', phase: 'choice', t: 0.4, s: null, pay: 0, cookies: 0, lines: [], grade: '' }; G.money = 20; G.cons = [CONS[0]]; },
+    tick(lt, dt, s) {
+      if (lt > 1.05) trOnce('pick', () => { const ch = STORY.bear.choices[2], c0 = ch.chance; ch.chance = 0; comicChoose(G.event, STORY.bear, 2); ch.chance = c0; G.event.comic.t0 = tNow - 0.9; });
+      if (G.event && G.event.phase === 'done') G.event.phase = 'comic';
+    },
+    over(lt) { trCap(['EVERY CHOICE', 'IS A GAMBLE'], lt, 0.15, 1.0, { y: 108, band: '#9a5ad8' }); } });
+  // 10. the boss rams you
+  add(5 * TR_BBAR, { id: 'bosscut', state: 'bosscut', enter(s) { newRun('scout'); genMap(); G.ante = 3; startFight({ type: 'boss', mods: [], mut: null }); G.boss = BOSSES.find(b => b.id === 'hydra') || G.boss; G.state = 'bosscut'; G.bcut = { t: 0 }; bossShot = null; merle = null; },
+    tick(lt) { if (G.state !== 'bosscut' && lt < 6.8) { } },
+    over(lt) { trCap(['FACE LEGENDARY BOSSES'], lt, 4.3, 5 * TR_BBAR - 0.05, { band: '#c8302a', sc: 3 }); } });
+  // 11. boss fights, one per bar, fists flying
+  const BF = ['snakegator', 'mecha', 'pirate', 'apexpred'];
+  add(4 * TR_BBAR, { id: 'bossfights', state: 'play', enter(s) { s.cut = -1; },
+    tick(lt, dt, s) {
+      const c = Math.min(BF.length - 1, Math.floor(lt / TR_BBAR));
+      if (c !== s.cut) {
+        s.cut = c; newRun(['scout', 'medic', 'trader', 'frog'][c] || 'scout'); genMap(); G.ante = 5; startFight({ type: 'boss', mods: [], mut: null });
+        G.boss = BOSSES.concat([FINAL_BOSS]).find(b => b.id === BF[c]) || G.boss; G.bcut = null; G.state = 'play'; bossShot = null; merle = null; s.n = 0; TR.flash = 0.4; trsfx.cut();
+      }
+      const lb = lt - c * TR_BBAR, beats = [0.2, 0.55, 0.9, 1.2];
+      while (s.n < beats.length && lb >= beats[s.n]) {
+        if (G.state === 'play' && !G.seq) { if (s.n === 3) { bank(false); rangerFx('punch'); } else { const sf = safeTeeth(); if (sf.length) pressTooth(sf[0]); if (s.n === 1) rangerFx('punch'); } }
+        s.n++;
+      }
+    },
+    over(lt) { trCap(['EACH WITH THEIR', 'OWN DIRTY TRICKS'], lt, 0.2, 4 * TR_BBAR - 0.1, { band: '#c8302a', hl: 1 }); } });
+  // 12. the rangers
+  add(2 * TR_BBAR, { id: 'rangers', state: 'ranger', flash: 1, enter(s) { G.state = 'ranger'; },
+    over(lt) { trCap(['5 RANGERS.', '100s OF OUTFITS.'], lt, 0.2, 2 * TR_BBAR - 0.05, { band: '#3aa84a', hl: 1 }); } });
+  // 13. Mrs Owlet has had it with you
+  add(3 * TR_BBAR, { id: 'owl', state: 'tutorial', enter(s) { startTutorial('scout'); const iv = G.iv; iv.m.sheet = 0; iv.owl.x = OWL_SPOTS.model.x; iv.owl.y = OWL_SPOTS.model.y; iv.rg.x = 96; ivStep(iv, 6); iv.sayT = 99; iv.idle = 12.05; },
+    tick(lt, dt, s) { const iv = G.iv; if (!iv) return; trOnce('owlv1', () => trsfx.babble(11, 230)); if (lt > 2.55) trOnce('owl3', () => { iv.sayT = 99; iv.idle = 18.05; trsfx.babble(10, 210); }); },
+    over(lt) { trCap(['LEARN FROM', 'THE BEST'], lt, 0.25, 2.3, { y: 40, band: '#8a5a2a', hl: 1 }); } });
+  // 14. back in the bedroom: one more go
+  add(5.05, { id: 'bed2', state: 'trailer', enter(s) { bed(s); s.kid.bandage = true; s.kid.expr = 'mad'; s.toy.m = trToy(4); },
+    tick(lt, dt, s) {
+      const K = s.kid; s.cam = { x: 282, y: 206, z: 2.05 + lt * 0.05 };
+      K.expr = lt < 2.6 ? 'mad' : 'worry'; K.sweat = lt > 2.8;
+      trPlayToy(s, lt, dt, [{ t: 1.3, i: 0 }, { t: 2.2, i: 1 }, { t: 3.95, i: 4 }], 3.95);
+      if (lt > 3.95) { K.reach = null; K.arms = undefined; K.act = 'hurt'; K.expr = 'shocked'; K.stars = true; }
+    },
+    draw(lt, dt, s) { trBedroom(lt, s); if (lt > 4.0) rect(0, 0, W, H, '#000'); },
+    over(lt) {
+      trBars(1);
+      if (lt > 0.3 && lt < 1.2) { trOnce('v3', () => trsfx.babble(6, 700)); comicBubble(W / 2 - 30, 90, 'ONE MORE TIME...', W / 2 - 20, 124); }
+      if (lt > 4.0) { trOnce('chompbig', () => { trsfx.thump(); }); ctx.save(); ctx.translate(W / 2, H / 2 - 6); ctx.scale(3.2, 3.2); tBang(0, 0, 'CHOMP!', '#ffe04a', lt - 4.0); ctx.restore(); }
+    } });
+  // 15. the end card
+  add(8.0, { id: 'end', state: 'trailer', draw(lt) { trEndCard(lt); },
+    over(lt) { if (lt > 7.2) { ctx.save(); ctx.globalAlpha = clamp((lt - 7.2) / 0.7, 0, 1); rect(0, 0, W, H, '#000'); ctx.restore(); } } });
+  return L;
+}
+function startTrailer() {
+  TR = { t: 0, i: -1, fired: {}, shots: trShots(), flash: 0, s: {} };
+  TR_GAIN = TR_GAIN || (() => trGainAt(TR ? TR.t : 0));
+  G.paused = false; G.overlay = null; G.pack = null; G.inspect = null;
+  TR.achBak = Object.assign({}, meta.ach); Object.keys(RANGERS).forEach(k => { if (RANGERS[k].ach) meta.ach[RANGERS[k].ach] = true; });
+}
+function endTrailer() { if (TR && TR.achBak) meta.ach = TR.achBak; TR = null; TR_SONG = undefined; TR_GAIN = null; G.iv = null; G.event = null; G.state = 'menu'; }
+function trailerTick(dt) {
+  if (!TR) return;
+  TR.t += dt;
+  const i = TR.shots.findIndex(s => TR.t >= s.t0 && TR.t < s.t1);
+  if (i < 0) { endTrailer(); return; }
+  const S = TR.shots[i];
+  if (i !== TR.i) { TR.i = i; TR.s = {}; if (S.state) G.state = S.state; if (S.enter) S.enter(TR.s); if (S.flash) TR.flash = 0.5; G.paused = false; }
+  if (S.tick) S.tick(TR.t - S.t0, dt, TR.s);
+  if (TR.flash > 0) TR.flash = Math.max(0, TR.flash - dt * 4);
+  toasts.length = 0; merle = null; G.overlay = null;
+  TR_SONG = trSongAt(TR.t);
+}
+function drawTrailerScene(dt) { const S = TR && TR.shots[TR.i]; if (S && S.draw) S.draw(TR.t - S.t0, dt, TR.s); else rect(0, 0, W, H, '#000'); }
+function trailerOverlay() {
+  if (!TR) return;
+  const S = TR.shots[TR.i];
+  if (S && S.over) { ctx.save(); ctx.setTransform(RS, 0, 0, RS, 0, 0); S.over(TR.t - S.t0, TR.s); ctx.restore(); }
+  if (TR.flash > 0) { ctx.save(); ctx.globalAlpha = Math.min(1, TR.flash); rect(0, 0, W, H, '#ffffff'); ctx.restore(); }
+  if (TR.t < 0.6) { ctx.save(); ctx.globalAlpha = 1 - TR.t / 0.6; rect(0, 0, W, H, '#000'); ctx.restore(); }
+}
+if (/[?&]trailer/.test(location.search)) addEventListener('load', () => setTimeout(startTrailer, 50));
 let tNow = 0, tLast = 0;
 function frame(ms) {
   requestAnimationFrame(frame);
@@ -18095,14 +18522,16 @@ function frame(ms) {
     G.swapT += dt;
     if (G.swapT > 0.45) { newMouth(); G.state = 'play'; }
   }
+  trailerTick(dt);
   musicTick();
-  autosaveTick(dt);
+  if (!TR) autosaveTick(dt);
 
   ctx.save();
   if (shake > 0 && meta.set.shake) ctx.translate(ri(-shake, shake) / 2, ri(-shake, shake) / 2);
 
   if (G.state === 'map') updateBoat(dt);
   switch (G.state) {
+    case 'trailer': drawTrailerScene(dt); break;
     case 'menu': drawMenu(dt); break;
     case 'how': drawHow(); break;
     case 'skins': drawSkins(); break;
@@ -18168,6 +18597,7 @@ function frame(ms) {
   drawDraggedCard();
   drawHand();
   drawTransition(dt);
+  trailerOverlay();
 }
 requestAnimationFrame(frame);
 
@@ -18185,7 +18615,7 @@ function drawPauseOverlay() {
   button(W / 2 - 50, 92, 100, 20, 'RESUME', '#d94f30', '#8a2a16', () => { G.paused = false; }, { id: 'presume' });
   button(W / 2 - 50, 116, 100, 20, 'SETTINGS', '#3a5560', '#243a44', () => { G.overlay = 'settings'; }, { id: 'pset' });
   button(W / 2 - 50, 140, 100, 20, 'CREDITS', '#3a5560', '#243a44', () => { G.overlay = 'credits'; }, { id: 'pcred' });
-  button(W / 2 - 50, 164, 100, 20, 'QUIT TO MENU', '#7a4fd0', '#4a2a8a', () => { saveMeta(); if (G.state === 'map' && !G.boat) saveRun(); openSavePanel('quit', () => { G.paused = false; G.state = 'menu'; }); }, { id: 'pquit' });
+  button(W / 2 - 50, 164, 100, 20, 'QUIT TO MENU', '#7a4fd0', '#4a2a8a', () => { saveMeta(); if (G.state === 'map' && !G.boat && !TR) saveRun(); openSavePanel('quit', () => { G.paused = false; G.state = 'menu'; }); }, { id: 'pquit' });
 }
 function drawSettingsOverlay() {
   overlayDim(0.7);

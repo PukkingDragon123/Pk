@@ -14,6 +14,10 @@ tooth**, and pressing it costs you the whole unbanked bite.
 Open `index.html` in a browser — that's it. No build, no dependencies, no assets.
 (Or serve it: `python3 -m http.server` and visit `http://localhost:8000`.)
 
+**Trailer:** open `index.html?trailer` to watch the 80-second trailer the game
+plays itself, or run `node promo/make-trailer.js` (Playwright + ffmpeg) to render
+it to a 1080p MP4 with sound.
+
 ### The loop
 
 - **Press teeth** — each safe tooth adds its value to TEETH and grows the MULT chain +1
