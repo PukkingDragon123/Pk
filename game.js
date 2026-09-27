@@ -2274,7 +2274,11 @@ function baseCrocStyle() {
   if (lilGator()) return CROC_STYLES.lilgator;
   return CROC_STYLES.small;
 }
+// the tutorial's training model is a moulded plastic toy in candy colours
+const TOY_CROC = { a: '#46d052', b: '#27a03a', c: '#9af58a', d: '#157028', maw: '#e0405a', mawD: '#a02036', tongue: '#ff7a9a', tongueHi: '#ffb4c8', sclera: '#ffffff', toy: true, mut: null };
+let crocStyleOverride = null;
 function crocStyle() {
+  if (crocStyleOverride) return crocStyleOverride;
   const base = baseCrocStyle();
   const mut = G.state === 'menu' ? (G.menuLook && G.menuLook.mut) : G.mut;
   if (mut && MUTATIONS[mut]) return Object.assign({}, base, MUTATIONS[mut].tint || {}, { mut });
@@ -5607,6 +5611,17 @@ function bossFxFront(id, g) {
 // a cached shading overlay for the croc's jaws: dithered falloff toward the
 // base, dark rolled-off sides, a lit rim along the top and a pitted hide grain
 function crocShade(part, w, h, st) {
+  if (st.toy) return getCached('crocShadeToy' + part + w + 'x' + h, w, h, () => {
+    // cel-shaded moulded plastic: clean shadow bands, a rim light, no grain at all
+    const up = part === 'up';
+    for (let y = 2; y < h - 1; y++) {
+      const f = y / h, ins = y > h - 6 ? 2 + (6 - (h - y)) : 2;
+      if (up ? f > 0.6 : f > 0.5) rect(ins, y, w - ins * 2, 1, st.b);
+      if (up ? f > 0.84 : f > 0.78) rect(ins, y, w - ins * 2, 1, st.d);
+      rect(2, y, 2, 1, st.b); rect(w - 4, y, 2, 1, st.b);
+    }
+    rect(6, 2, w - 12, 1, mixC(st.c, '#ffffff', 0.55));
+  });
   return getCached('crocShade' + part + w + st.a + st.b + st.c, w, h, () => {
     const up = part === 'up';
     for (let y = 0; y < h; y++) {
@@ -5666,6 +5681,7 @@ function drawCroc(closeT, opts) {
   rr(bodyX + 3, maw.y + maw.h + 8, bodyW - 6, 26, 4, st.a);
   ctx.drawImage(crocShade('lo', bodyW, 40, st), bodyX, maw.y + maw.h - 6, bodyW, 40);
   // belly plate bands on the chin, with scutes and pond light playing over them
+  if (!st.toy) {
   ctx.save(); ctx.globalAlpha = 0.42;
   for (let ry = 0; ry < 5; ry++) {
     const sy3 = maw.y + maw.h + 8 + ry * 7, off = (ry % 2) * 5;
@@ -5684,6 +5700,7 @@ function drawCroc(closeT, opts) {
     rect(cx3 - 2 + wob * 0.6, cy3 + 3, 5, 1, '#9fd8f0');
   }
   ctx.restore();
+  }
   if (st.skinny) { rect(bodyX + 14, maw.y + maw.h + 14, 3, 14, st.b); rect(bodyX + bodyW - 17, maw.y + maw.h + 14, 3, 14, st.b); }
 
   // --- maw interior ---
@@ -5787,6 +5804,7 @@ function drawCroc(closeT, opts) {
   rr(bodyX - 1, jy + 3, bodyW + 2, 52, 4, st.a);
   rr(bodyX + 6, jy + 5, bodyW - 12, 10, 3, st.c);
   ctx.drawImage(crocShade('up', bodyW + 8, 62, st), bodyX - 4, jy, bodyW + 8, 62);
+  if (!st.toy) {
   for (let k = 0; k < 7; k++) {
     rect(bodyX + 14 + k * 36, jy + 22 + (k % 2) * 8, 3, 3, st.b);
   }
@@ -5818,6 +5836,7 @@ function drawCroc(closeT, opts) {
     rect(gx, gy, 1, 1, k & 1 ? st.b : st.c);
   }
   ctx.restore();
+  }
   // ---- nostrils flaring on the snout tip ----
   (function nostrils() {
     const flare = Math.round(Math.max(0, Math.sin(tNow * 1.6)) * 1.5);
@@ -11911,7 +11930,7 @@ function ivPress(iv, i, demo) {
   }
   T.pressed = true;
   iv.pool.teeth += T.v; iv.pool.mult += 1;
-  if (!demo) iv.pressedN++;
+  if (!demo) { iv.pressedN++; ivPoke(iv); }
   float(r.cx, r.cy - 16, '+' + T.v, '#9fe0ff', 1);
   fxPop(r.cx, r.cy - 6, '#ffe089');
   sfx.click(3);
@@ -11919,7 +11938,7 @@ function ivPress(iv, i, demo) {
 function ivBank(iv) {
   const v = iv.pool.teeth * iv.pool.mult;
   if (v <= 0) { sfx.error(); ivSay('Nothing to bank. Press a tooth first.'); return; }
-  iv.banked += v; iv.bankedN++;
+  iv.banked += v; iv.bankedN++; ivPoke(iv);
   iv.pool = { teeth: 0, mult: 1 };
   float(BOARD.x + 60, BOARD.y + 40, '+' + v, '#f0e080', 2, 1.2);
   sfx.coin(); sfx.buy();
@@ -11932,7 +11951,7 @@ function ivScan(iv, i) {
   const T = iv.m.teeth[i];
   if (!T || T.pressed || T.rev) { sfx.error(); return; }
   T.rev = T.snap ? 'snap' : 'safe';
-  iv.lastScan = T.rev; iv.scannedN++; iv.scanned = i;
+  iv.lastScan = T.rev; iv.scannedN++; iv.scanned = i; ivPoke(iv);
   iv.mode = 'idle';
   iv.beam = { i, t: 0 };
   if (iv.prac) iv.prac.xrays--;
@@ -12006,7 +12025,7 @@ function ivDialog(iv, S, canGo) {
   ctx.save(); ctx.beginPath(); ctx.rect(x + 8, y + 8, 36, 36); ctx.clip();
   ctx.translate(x + 26, y + 32); ctx.scale(1.05, 1.05);
   const talking = iv.sayT < iv.said.length / 40 + 0.15;
-  drawOwletHead({ expr: (S && S.expr) || 'grump', talk: talking, look: { x: 0.4, y: 0.2 } });
+  drawOwletHead({ expr: iv.faceExpr || (S && S.expr) || 'grump', talk: talking, look: { x: 0.4, y: 0.2 } });
   ctx.restore();
   woodBanner(x + 52, y - 6, 74, 11, 'MRS. OWLET', { col: '#ffe6b0' });
   const total = IV_SCRIPT.length;
@@ -12036,7 +12055,7 @@ function ivTools(iv, allow) {
   const xrOn = allow.xray && iv.mode !== 'xray', bkOn = allow.bank;
   button(x + 5, y + 14, w - 10, 17, iv.mode === 'xray' ? 'PICK A TOOTH' : 'X-RAY', '#3f8cff', '#1e4fa3', () => {
     if (iv.mode === 'xray') { iv.mode = 'idle'; return; }
-    iv.mode = 'xray'; sfx.xray();
+    iv.mode = 'xray'; sfx.xray(); iv.idle = 0; if (iv.nag) iv.nag.calm = true;
   }, { id: 'ivxray', disabled: !allow.xray });
   button(x + 5, y + 33, w - 10, 17, 'BANK BITE', '#3aa84a', '#1c5a24', () => ivBank(iv), { id: 'ivbank', disabled: !bkOn });
   const glow = (bx, by) => { ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(tNow * 6) * 0.2; rr(bx - 2, by - 2, w - 6, 21, 4, '#ffe89a'); ctx.restore(); };
@@ -12044,6 +12063,83 @@ function ivTools(iv, allow) {
   if (bkOn && !iv.prac && iv.pool.teeth > 0) glow(x + 5, y + 33);
 }
 
+// ---- stand there doing nothing and she WILL notice ----
+//  Every beat that needs you knows what it needs.  Idle too long and Mrs Owlet
+//  points it out, then scolds you (pointer WHACK on the desk), then grabs your
+//  hand and does it for you.  Click the wrong thing and she corrects you.
+const IV_NAG = {
+  press: ["The TEETH, ranger. The white pointy things in its mouth. CLICK ONE.", "Are you asleep? I have seen FENCE POSTS learn faster. Click. A. Tooth.", "Oh, for goodness sake. Give me your hand. Like THIS."],
+  bank: ["The green BANK BITE button. Bottom right. It does not bite.", "BANK. IT. Before I bank YOU in the swamp.", "Fine. I will press it myself. Watch and weep."],
+  xray: ["The blue X-RAY button first. THEN click a tooth.", "Blue button. Then a tooth. Two clicks. I believe in you. Barely.", "Give me that. Blue button... and a tooth. THERE."],
+  read: ["Well? Click to carry on. I do not have all day.", "I am not getting any younger, ranger. CLICK.", "Right. I will turn the page myself, then."],
+  prac: ["Tick tock. Press a tooth, or BANK what you have.", "The model is not going to press ITSELF. Move.", "Scared? Use an X-RAY. That is what they are FOR."],
+};
+const IV_MISS = {
+  press: ["Not THERE. The teeth are in the MOUTH.", "That is the wall. Do you press walls at home?", "Closer. Closer. No. The TEETH."],
+  bank: ["Not that. The green BANK BITE button.", "BANK. BITE. Green. Bottom right. Honestly."],
+  xray: ["The BLUE X-RAY button first. Then a tooth.", "Blue. Button. Then. Tooth."],
+};
+function ivNeed(iv, S) {
+  if (iv.phase === 'prac') return iv.prac && iv.prac.wait <= 0 && !iv.prac.done ? 'prac' : null;
+  if (iv.phase !== 'lesson' || !S || S.auto) return null;
+  if (S.wait && !S.wait(iv)) return S.xray ? 'xray' : S.bank ? 'bank' : S.press ? 'press' : null;
+  return iv.t >= (S.min || 0.3) ? 'read' : null;
+}
+function ivPoke(iv) { if (!iv) return; iv.idle = 0; iv.help = null; if (iv.nag) iv.nag.calm = true; }
+function ivNagTick(iv, S, dt, typed) {
+  const need = ivNeed(iv, S);
+  if (!need) { iv.idle = 0; iv.nag = null; return null; }
+  if (iv.nag) iv.nag.t += dt;
+  if (iv.missT > 0) iv.missT -= dt;
+  if (!typed || iv.help || iv.snapT != null || iv.reset != null) return need;
+  iv.idle = (iv.idle || 0) + dt;
+  const th = need === 'read' ? [9, 17, 25] : need === 'prac' ? [8, 15, 22] : [6, 12, 18];
+  const lvl = iv.idle >= th[2] ? 3 : iv.idle >= th[1] ? 2 : iv.idle >= th[0] ? 1 : 0;
+  const cur = iv.nag && iv.nag.need === need && !iv.nag.calm ? iv.nag.lvl : 0;
+  if (lvl > cur) {
+    iv.nag = { need, lvl, t: 0 };
+    ivSay(IV_NAG[need][lvl - 1]);
+    if (lvl >= 2) { shake = Math.max(shake, 5); sfx.thunk(); noiseHit(0.09, 0.22, 0, 1800); }   // the pointer WHACKS the desk
+    else sfx.pause();
+    if (lvl === 3 && need !== 'prac') iv.help = { need, t: 0, i: ivHelpTooth(iv) };
+  }
+  return need;
+}
+// a safe, unpressed tooth for her to guide your hand to
+function ivHelpTooth(iv) {
+  const ok = iv.m.teeth.map((T, i) => i).filter(i => !iv.m.teeth[i].pressed && !iv.m.teeth[i].snap && !iv.m.teeth[i].rev);
+  return ok.length ? ok[0] : 0;
+}
+// where the guide hand should be for what she wants from you
+function ivNagTarget(iv, need, stage) {
+  if (need === 'press' || need === 'prac') { const r = cmToothRect(iv.help ? iv.help.i : ivHelpTooth(iv)); return { x: r.cx, y: r.y + r.h - 2 }; }
+  if (need === 'bank') return { x: 422, y: 256 };
+  if (need === 'xray') { if (stage || iv.mode === 'xray') { const r = cmToothRect(iv.help ? iv.help.i : ivHelpTooth(iv)); return { x: r.cx, y: r.y + r.h - 2 }; } return { x: 422, y: 237 }; }
+  return { x: 342, y: 262 };
+}
+// her hand on yours: the glove glides over and clicks it for you
+function ivHelpTick(iv, dt) {
+  const h = iv.help; if (!h) return;
+  h.t += dt;
+  const step = t => { if (h.fired && h.fired[t]) return false; (h.fired || (h.fired = {}))[t] = 1; return true; };
+  if (h.need === 'press' && h.t > 1.2 && step('a')) { const i = h.i; iv.help = null; ivPress(iv, i, false); return; }
+  if (h.need === 'bank' && h.t > 1.2 && step('a')) { iv.help = null; ivBank(iv); return; }
+  if (h.need === 'read' && h.t > 1.4 && step('a')) { iv.help = null; ivAdvance(iv); return; }
+  if (h.need === 'xray') {
+    if (h.t > 1.2 && step('a')) { iv.mode = 'xray'; sfx.xray(); }
+    if (h.t > 2.3 && step('b')) { const i = h.i; iv.help = null; ivScan(iv, i); return; }
+  }
+}
+// a cartoon glove pointing up at (x, y)
+function drawGuideHand(x, y, press) {
+  x = Math.round(x); y = Math.round(y) + (press ? 2 : 0);
+  ctx.save(); ctx.globalAlpha = 0.3; rr(x - 1, y + 6, 14, 14, 5, '#000'); ctx.restore();
+  const K = '#1a1008', Wt = '#fffdf4', Sh = '#d8d0c0';
+  rr(x - 2, y - 1, 6, 12, 2, K); rr(x - 1, y, 4, 11, 2, Wt); rect(x, y + 1, 1, 3, '#ffffff');
+  rr(x - 3, y + 7, 14, 11, 4, K); rr(x - 2, y + 8, 12, 9, 3, Wt);
+  rect(x + 3, y + 9, 1, 5, Sh); rect(x + 6, y + 9, 1, 5, Sh); rect(x - 2, y + 14, 12, 1, Sh);
+  rr(x - 1, y + 17, 10, 5, 2, K); rect(x, y + 18, 8, 3, '#ffd23f'); rect(x, y + 18, 8, 1, '#fff0a0');
+}
 function drawTutorial(dt) {
   const iv = G.iv; if (!iv) { G.state = 'menu'; return; }
   iv.t += dt; iv.sayT += dt;
@@ -12097,9 +12193,12 @@ function drawTutorial(dt) {
 
   // Mrs Owlet is behind the desk until she comes round it
   const owlBehind = O.x < 228 && O.y < 208;
-  const owlExpr = (S && S.expr) || (iv.phase === 'quiz' ? (iv.quiz && iv.quiz.timeLeft < 3 ? 'stern' : 'grump') : 'grump');
+  const nagging = iv.nag && !iv.nag.calm && iv.nag.t < 6;
+  iv.faceExpr = nagging ? (iv.nag.lvl >= 2 ? 'stern' : 'grump') : null;
+  const owlExpr = iv.faceExpr || (S && S.expr) || (iv.phase === 'quiz' ? (iv.quiz && iv.quiz.timeLeft < 3 ? 'stern' : 'grump') : 'grump');
   const talking = iv.sayT < iv.said.length / 40 + 0.15;
   let pt = S && S.point ? ivPointAt(iv, S.point) : null;
+  if (iv.nag && !iv.nag.calm && iv.nag.need !== 'read' && iv.nag.t < 6) pt = ivNagTarget(iv, iv.nag.need, iv.help && iv.help.t > 1.2);
   if (iv.phase === 'prac' && iv.hover >= 0 && iv.hover !== undefined) pt = null;
   const owlO = { flip: !O.walk && pt && pt.x < O.x - 4, expr: owlExpr, talk: talking, walk: O.walk, point: O.walk ? null : pt, broke: iv.broke, look: pt ? { x: 1, y: -0.2 } : { x: -0.6, y: 0.2 }, clip: iv.phase === 'quiz' || (!pt && iv.phase === 'result') };
   if (owlBehind) {
@@ -12139,6 +12238,8 @@ function drawTutorial(dt) {
 
   // ------------------------------------------------------ interaction ----
   const typed = iv.sayT * 40 >= iv.said.length;
+  const need = ivNagTick(iv, S, dt, typed);
+  ivHelpTick(iv, dt);
   let canGo = false;
   if (iv.phase === 'lesson' && S) {
     const waiting = S.wait && !S.wait(iv);
@@ -12149,6 +12250,12 @@ function drawTutorial(dt) {
   // clicking the dialogue (or anywhere empty) moves her along
   hit(0, 0, W, H, { id: 'ivadv', cb: () => {
     if (!typed) { iv.sayT = 99; return; }
+    if (need === 'press' || need === 'bank' || need === 'xray') {
+      // wrong spot: she corrects you on the spot
+      if (!(iv.missT > 0)) { iv.miss = (iv.miss || 0) + 1; iv.missT = 1.4; const L = IV_MISS[need]; ivSay(L[(iv.miss - 1) % L.length]); iv.nag = { need, lvl: 1, t: 0, miss: true }; iv.idle = Math.max(iv.idle || 0, 6); sfx.error(); }
+      return;
+    }
+    ivPoke(iv);
     if (canGo) ivAdvance(iv);
     else if (iv.phase === 'quizwhy') ivQuizNext(iv);
   } });
@@ -12175,11 +12282,25 @@ function drawTutorial(dt) {
     rect(0, 0, W, bh, '#000'); rect(0, H - bh, W, bh, '#000');
     if (iv.t < 2.2) { ctx.save(); ctx.globalAlpha = clamp(iv.t * 2, 0, 1) * clamp((2.2 - iv.t) * 3, 0, 1); drawTextCSh("EVERGLADES HQ  -  THE PARK MANAGER'S OFFICE", W / 2, 8, '#ffe6b0', 1); ctx.restore(); }
   }
+  if (iv.nag && !iv.nag.calm && need) {
+    const n = iv.nag, tg = ivNagTarget(iv, n.need, iv.help && iv.help.t > 1.2);
+    let hx = tg.x, hy = tg.y + 3, press = false;
+    if (iv.help) { const h = iv.help, from = { x: R.x + 18, y: 170 }, k = easeOut(clamp(h.t / 1.0, 0, 1)); const k2 = h.need === 'xray' && h.t > 1.2 ? easeOut(clamp((h.t - 1.3) / 0.8, 0, 1)) : 1; const b0 = h.need === 'xray' && h.t > 1.2 ? { x: 422, y: 240 } : from; hx = lerp(b0.x, tg.x, h.need === 'xray' && h.t > 1.2 ? k2 : k); hy = lerp(b0.y, tg.y + 3, h.need === 'xray' && h.t > 1.2 ? k2 : k); press = (h.t % 1.1) > 0.95; }
+    else hy += Math.abs(Math.sin(tNow * 5)) * 4 - 2;
+    const pulse = (Math.sin(tNow * 7) + 1) / 2;
+    ctx.save(); ctx.globalAlpha = 0.5 + pulse * 0.4; ring(tg.x, tg.y - 2, 7 + Math.round(pulse * 4), '#ffe89a', 1); ring(tg.x, tg.y - 2, 5 + Math.round(pulse * 3), '#ff9a3a', 1); ctx.restore();
+    drawGuideHand(hx, hy, press);
+    // she fumes when she has to say it twice
+    if (n.lvl >= 2 && n.t < 3.5) {
+      for (let k = 0; k < 4; k++) { const ph = (tNow * 1.6 + k / 4) % 1, sd = k % 2 ? 1 : -1; ctx.save(); ctx.globalAlpha = (1 - ph) * 0.8; pxDust(O.x + sd * (10 + ph * 8), O.y - 68 - ph * 18, 2 + ph * 3, '#e8e8e8'); ctx.restore(); }
+      if (n.t < 1.2) { ctx.save(); ctx.translate(O.x + 22, O.y - 86); ctx.scale(0.55, 0.55); tBang(0, 0, n.lvl >= 3 ? 'UGH!' : '!!', '#ff6a3a', n.t); ctx.restore(); }
+    }
+  }
   if (iv.phase !== 'result') button(W - 58, 3, 54, 14, 'SKIP', '#4a4438', '#28241c', ivFinish, { id: 'ivskip', tip: 'SKIP TRAINING|Straight to the swamp' });
 }
 function ivAdvance(iv) {
   const S = IV_SCRIPT[iv.step];
-  iv.waitDone = 0;
+  iv.waitDone = 0; ivPoke(iv); iv.nag = null; iv.miss = 0;
   if (S && S.next === 'quiz') { ivStartQuiz(iv); return; }
   if (iv.step + 1 < IV_SCRIPT.length) ivStep(iv, iv.step + 1);
   sfx.click(1);
@@ -13516,6 +13637,29 @@ function cmToothRect(i) {
   });
 }
 // m = { open, teeth[], sheet, sheetT, xr, xrA }, st = { hov }
+// shiny-plastic dressing for the toy model: specular streaks, a mould seam,
+// the hinge screws and a price sticker, drawn in the croc's own coordinates
+function toyCrocGloss(closeT) {
+  const L = mouthLayout(), maw = L.maw, bx = maw.x - 22, bw = maw.w + 44, jy = maw.y - 58 + closeT * (maw.h - 26), ly = maw.y + maw.h - 6;
+  ctx.save();
+  ctx.globalAlpha = 0.45; rr(bx + 16, jy + 7, bw - 70, 6, 3, '#ffffff'); rr(bx + 12, ly + 12, bw - 90, 5, 2, '#ffffff');
+  ctx.globalAlpha = 0.95; rr(bx + 24, jy + 8, 34, 3, 1, '#ffffff'); rr(bx + 64, jy + 8, 8, 3, 1, '#ffffff'); rr(bx + 18, ly + 13, 18, 2, 1, '#ffffff'); rect(bx + 40, ly + 13, 4, 2, '#ffffff');
+  ctx.globalAlpha = 0.7; rect(bx + bw - 30, jy + 12, 10, 2, '#ffffff'); rect(bx + bw - 16, jy + 12, 3, 2, '#ffffff');
+  ctx.restore();
+  // the parting line where the two halves of the mould met
+  for (let x = bx + 2; x < bx + bw - 2; x++) { rect(x, jy + 44, 1, 1, TOY_CROC.d); if (x % 4 === 0) rect(x, jy + 45, 1, 1, TOY_CROC.c); }
+  for (let x = bx + 2; x < bx + bw - 2; x++) rect(x, ly + 22, 1, 1, TOY_CROC.d);
+  // chrome hinge screws at both corners of the jaw
+  [[bx + 6, maw.y + 30 - closeT * 20], [bx + bw - 6, maw.y + 30 - closeT * 20]].forEach(([sx, sy]) => {
+    fillCircle(sx, sy, 6, '#2a2e34'); fillCircle(sx, sy, 5, '#a8b0b8'); fillCircle(sx - 1, sy - 1, 3, '#dfe6ec');
+    rect(sx - 3, sy, 7, 1, '#4a5058'); rect(sx, sy - 3, 1, 7, '#4a5058'); rect(sx - 3, sy - 3, 2, 1, '#ffffff');
+  });
+  // the price sticker, slightly crooked
+  ctx.save(); ctx.translate(bx + bw - 44, ly + 20); ctx.rotate(-0.12);
+  rr(-17, -7, 34, 14, 3, '#8a1a10'); rr(-16, -6, 32, 12, 2, '#ffe24a'); rect(-14, -5, 28, 1, '#fff6b0');
+  drawTextC('$4999', 0, -3, '#8a1a10', 1);
+  ctx.restore();
+}
 function drawCrocModel(m, st) {
   st = st || {};
   // ---- the lab plinth it stands on ----
@@ -13527,9 +13671,10 @@ function drawCrocModel(m, st) {
   // ---- the real croc, scaled down ----
   cmWithMouth(m, () => {
     ctx.save(); ctx.translate(CM_OX, CM_OY); ctx.scale(CMS, CMS); ctx.translate(-294, -252);
-    const _mx = mx, _my = my; mx = 294 + (mx - CM_OX) / CMS; my = 252 + (my - CM_OY) / CMS;
-    drawCroc(1 - clamp(m.open, 0, 1), { mood: m.open < 0.3 ? 'angry' : m.xr >= 0 ? 'worried' : 'calm', dry: 1 });
-    mx = _mx; my = _my;
+    // a moulded plastic toy: a painted-on face, frozen stiff - only the jaw hinge moves
+    const _mx = mx, _my = my, _t = tNow; mx = 298; my = 330; tNow = 0.4; crocStyleOverride = TOY_CROC;
+    try { drawCroc(1 - clamp(m.open, 0, 1), { mood: 'calm', dry: 1, noFx: 1 }); toyCrocGloss(1 - clamp(m.open, 0, 1)); }
+    finally { mx = _mx; my = _my; tNow = _t; crocStyleOverride = null; }
     ctx.restore();
   });
   // brass bolts: it is a model, after all
