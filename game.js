@@ -1466,7 +1466,7 @@ function drawBobble(cx, gy, key, o) {
     lean = Math.sin(t * 0.55) * 0.025;         // slow weight shift
   }
   const tilt = lean * 0.7 + Math.sin(t * 1.1 - 0.5) * 0.018;
-  const look = { x: clamp((mx - cx) / 80, -1, 1), y: clamp((my - (gy - 38 * sc)) / 80, -1, 1) };
+  const look = o.look || { x: clamp((mx - cx) / 80, -1, 1), y: clamp((my - (gy - 38 * sc)) / 80, -1, 1) };
 
   ctx.save();
   ctx.translate(cx | 0, gy | 0);
@@ -1526,6 +1526,7 @@ function drawBobble(cx, gy, key, o) {
   const gR = [OL, mixHex(g.skin, '#000000', 0.4), g.skin, mixHex(g.skin, '#ffffff', 0.32), '#ffffff'];
   const aa = o.arms || act;
   const pose = (side) => {
+    if (side > 0 && o.armR !== undefined) return { x: 12, y: by + 3, r: o.armR, len: o.armLen };
     if (aa === 'cheer') return { x: side * 11, y: by - 2 + Math.sin(t * 5) * 1.5, r: side * (1.7 + Math.sin(t * 5) * 0.14) };
     if (aa === 'row') return { x: side * 10, y: by + 5 + Math.sin(t * 2.2) * 2, r: side * (0.3 + Math.sin(t * 2.2) * 0.34) };
     if (aa === 'walk') return { x: side * 10, y: by + 6, r: side * 0.18 + Math.sin(t * 5.4) * 0.34 * side };
@@ -8389,7 +8390,7 @@ function drawRangerFighter() {
       if (!f.hit) { f.hit = true; shake = Math.max(shake, 7); tsfx.crash(); sfx.snap(); fxStars(222, 222, '#ffe070', 10, 120); fxRing(222, 222, '#ffffff', 4, 40, 0.3); f.pow = 0; }
     } else if (T < 0.74) { const k = easeIn((T - 0.46) / 0.28); x = lerp(tx, HX, k); y = lerp(ty - 18, HY, k) - Math.sin(k * Math.PI) * 18; act = 'jump'; expr = 'happy'; rot = -k * 6.28; }
     else f.kind = 'guard';
-    if (f.pow !== undefined) { f.pow += dt; if (f.pow < 0.55) { ctx.save(); ctx.translate(234, 196); const s = f.pow < 0.1 ? 1.8 - f.pow * 6 : 1.2; ctx.scale(s, s); ctx.rotate(-0.15); vf(() => vS(0, 0, 12, 28, 15, 0), '#ffd23f', { lw: 2 }); drawTextCSh('POW!', 0, -4, '#ffffff', 1, '#8a1a10'); ctx.restore(); } }
+    if (f.pow !== undefined) { f.pow += dt; if (f.pow < 0.55) { ctx.save(); ctx.translate(234, 196); const s = f.pow < 0.1 ? 1.8 - f.pow * 6 : 1.2; ctx.scale(s, s); ctx.rotate(-0.05); tBang(0, 0, 'POW!', '#ffd23f', f.pow); ctx.restore(); } }
   } else if (f.kind === 'hurt') {
     const T = f.t, k = clamp(T / 0.5, 0, 1);
     x = HX - Math.sin(k * Math.PI * 0.5) * 16; y = HY - Math.sin(k * Math.PI) * 20; rot = k < 1 ? -k * 5 : 0; act = 'hurt'; expr = 'panic';
@@ -10597,8 +10598,8 @@ function drawBossCut(dt) {
       drawBobble(rx, ry, G.ranger, Object.assign({ sc: 1, act: 'hurt', expr: 'panic' }, myFit()));
       ctx.restore();
       const bt = k - hit, bs = bt < 0.12 ? 1 + (1 - bt / 0.12) * 1.5 : 1;
-      ctx.save(); ctx.globalAlpha = clamp(1 - (bt - 0.45) / 0.25, 0, 1); ctx.translate(250, 70); ctx.scale(bs * 1.6, bs * 1.6); ctx.rotate(-0.08);
-      vf(() => vS(0, 0, 14, 50, 26, 0), sig.col, { lw: 2 }); drawTextCSh(sig.word, 0, -4, '#ffffff', 1, '#8a1a10');
+      ctx.save(); ctx.globalAlpha = clamp(1 - (bt - 0.45) / 0.25, 0, 1); ctx.translate(250, 70); ctx.scale(bs * 1.2, bs * 1.2);
+      tBang(0, 0, sig.word, sig.col, bt);
       ctx.restore();
       if (bt < 0.1) { ctx.save(); ctx.globalAlpha = 1 - bt / 0.1; rect(0, 0, W, H, '#ffffff'); ctx.restore(); }
     }
@@ -14471,12 +14472,16 @@ const tsfx = {
 function tDebris(x, y, n, cols, pow) {
   for (let k = 0; k < n; k++) parts.push({ x: x + (rnd() - 0.5) * 10, y: y + (rnd() - 0.5) * 10, vx: (rnd() - 0.3) * (pow || 160), vy: -60 - rnd() * (pow || 160), t: 0, life: 0.9 + rnd() * 0.5, col: cols[k % cols.length], sz: 2 + (k % 2), g: 380 });
 }
-// a comic-book impact word
+// a comic-book sound effect: chunky hand-lettered word that pops in and wobbles
 function tBang(x, y, txt, col, t) {
-  const k = clamp(t / 0.12, 0, 1), s = 1 + (1 - k) * 0.8;
-  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(-0.12);
-  vf(() => vS(0, 0, 10, 26, 16, 0), col || '#ffe04a', { lw: 2 });
-  drawTextCSh(txt, 0, -4, '#ffffff', 1, '#8a1a10');
+  t = t || 0;
+  const k = clamp(t / 0.12, 0, 1), s = 1 + (1 - k) * 0.55, wob = Math.sin(t * 34) * Math.max(0, 1 - t * 3) * 0.07;
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(-0.1 + wob);
+  const sc = 2, w = textW(txt, sc), x0 = Math.round(-w / 2), y0 = -5, K = '#1a0806';
+  for (let d = 1; d <= 3; d++) drawText(txt, x0 + d, y0 + d + 1, K, sc);
+  [[-2, 0], [2, 0], [0, -2], [0, 2], [-1, -1], [1, -1], [-1, 1], [1, 1], [-2, -1], [2, -1], [-2, 1], [2, 1], [-1, -2], [1, -2], [-1, 2], [1, 2]].forEach(([ox, oy]) => drawText(txt, x0 + ox, y0 + oy, K, sc));
+  drawText(txt, x0, y0, col || '#ffe04a', sc);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0 - 2, y0, w + 4, 4); ctx.clip(); ctx.globalAlpha = 0.5; drawText(txt, x0, y0, '#ffffff', sc); ctx.restore();
   ctx.restore();
 }
 // ---- the generic drive-in shot, per biome ----
@@ -18156,107 +18161,177 @@ function drawToyGator(m, x, y, sc, noTag) {
   });
 }
 function toyToothAt(m, i, x, y, sc) { return cmWithMouth(m, () => { const sl = mouthLayout().slots[i]; return { x: x + (sl.x + sl.w / 2 - 294) * sc, y: y + (sl.y + sl.h / 2 - 252) * sc }; }); }
-// ---- the kid's bedroom, at night ----
+// ---- the sleepover: a kid's bedroom at midnight, friends round the toy ----
 function trBedPaint() {
-  // wallpaper: soft navy with a stripe and little gold stars
-  rect(0, 0, W, 178, '#2c3866');
-  for (let x = 0; x < W; x += 18) rect(x, 0, 7, 178, '#303e70');
-  for (let y = 10; y < 170; y += 24) for (let x = (y / 24) % 2 ? 9 : 0; x < W; x += 36) { rect(x + 3, y, 1, 3, '#c8b060'); rect(x + 2, y + 1, 3, 1, '#c8b060'); }
-  for (let k = 0; k < 300; k++) rect(hash2(k, 1) * W, hash2(k, 2) * 176, 1, 1, '#26305a');
-  // skirting board and the wooden floor
-  rect(0, 172, W, 8, '#5a3a20'); rect(0, 172, W, 1, '#8a6038'); rect(0, 179, W, 1, '#2a1a0c');
-  texBoards('trfloor', 0, 180, W, 90, ['#2a1a0c', '#4a3018', '#5a3c20', '#7a5230'], false, 9);
-  // the window: night sky, a moon, cypress silhouettes, curtains
-  rr(314, 40, 92, 92, 2, '#2a1a0e'); ctx.save(); ctx.beginPath(); ctx.rect(318, 44, 84, 84); ctx.clip();
-  for (let y = 44; y < 128; y++) rect(318, y, 84, 1, mixC('#0e1636', '#2a3a6a', (y - 44) / 84));
-  for (let k = 0; k < 26; k++) rect(318 + hash2(k, 5) * 84, 44 + hash2(k, 6) * 60, 1, 1, '#fffce0');
-  fillCircle(382, 64, 9, '#fff6d0'); fillCircle(379, 62, 7, '#fffdf0'); rect(377, 66, 2, 2, '#e8dcb0');
-  for (let k = 0; k < 6; k++) { const cx = 322 + k * 16, h = 20 + (k * 7) % 14; rect(cx, 128 - h, 3, h, '#0a1020'); for (let j = 0; j < 3; j++) rect(cx - 5 + j, 128 - h + j * 3, 13 - j * 2, 2, '#0a1020'); }
-  rect(318, 120, 84, 8, '#0a1424');
+  // wallpaper: deep blue with little gold moons and stars, a damask stripe
+  rect(0, 0, W, 186, '#233254');
+  for (let x = 0; x < W; x += 24) { rect(x, 0, 10, 128, '#26385c'); rect(x + 4, 0, 2, 128, '#2a3c62'); }
+  for (let y = 12; y < 124; y += 22) for (let x = ((y / 22) | 0) % 2 ? 12 : 0; x < W; x += 24) {
+    if (((x + y) / 2 | 0) % 3) { rect(x + 3, y, 1, 3, '#b89a50'); rect(x + 2, y + 1, 3, 1, '#b89a50'); }
+    else { fillCircle(x + 4, y + 1, 2, '#b89a50'); fillCircle(x + 5, y, 2, '#26385c'); }
+  }
+  for (let k = 0; k < 500; k++) rect(hash2(k, 1) * W, hash2(k, 2) * 128, 1, 1, '#1e2c4c');
+  // wooden wainscot, a chair rail and the skirting
+  texBoards('trwains', 0, 130, W, 52, ['#2a1a0c', '#4a2e18', '#5a3a20', '#7a5230'], true, 10);
+  for (let x = 6; x < W; x += 40) { rect(x, 138, 28, 1, '#3a2412'); rect(x, 138, 1, 36, '#3a2412'); rect(x + 28, 138, 1, 36, '#8a6038'); rect(x, 174, 28, 1, '#8a6038'); }
+  rect(0, 126, W, 5, '#6a4424'); rect(0, 126, W, 1, '#a8784a'); rect(0, 130, W, 1, '#2a1a0c');
+  rect(0, 180, W, 7, '#4a2e18'); rect(0, 180, W, 1, '#8a6038'); rect(0, 186, W, 1, '#1a0e06');
+  // the floorboards
+  texBoards('trfloor2', 0, 187, W, 83, ['#24160a', '#3e2814', '#4c321a', '#664428'], false, 8);
+  // the window: a big moon over the swamp, curtains tied back, a window seat
+  rr(146, 26, 92, 90, 2, '#2a1a0e');
+  ctx.save(); ctx.beginPath(); ctx.rect(150, 30, 84, 82); ctx.clip();
+  for (let y = 30; y < 112; y++) rect(150, y, 84, 1, mixC('#0a1230', '#2c3e70', (y - 30) / 82));
+  for (let k = 0; k < 30; k++) rect(150 + hash2(k, 5) * 84, 30 + hash2(k, 6) * 56, 1, 1, k % 4 ? '#e8ecff' : '#fffce0');
+  fillCircle(206, 54, 13, '#e8e0c0'); fillCircle(205, 53, 12, '#fff8dc'); fillCircle(201, 50, 3, '#ece2c0'); fillCircle(210, 58, 2, '#ece2c0'); fillCircle(208, 48, 1, '#ece2c0');
+  for (let k = 0; k < 7; k++) { const cx = 152 + k * 13, h = 16 + (k * 11) % 16; rect(cx, 112 - h, 3, h, '#060a18'); for (let j = 0; j < 3; j++) rect(cx - 6 + j, 112 - h + j * 3, 15 - j * 2, 2, '#060a18'); rect(cx + 4, 112 - h + 5, 1, 6, '#0c1426'); }
+  rect(150, 104, 84, 8, '#081020'); for (let x = 150; x < 234; x += 3) rect(x, 106 + (x % 2), 2, 1, '#2a3a60');
   ctx.restore();
-  rect(358, 44, 3, 84, '#2a1a0e'); rect(318, 84, 84, 3, '#2a1a0e');
-  rr(310, 130, 100, 6, 2, '#6a4424'); rect(310, 130, 100, 1, '#9a6a3a');
-  rr(328, 120, 10, 10, 2, '#a84a2a'); rect(331, 112, 2, 9, '#3a8a3a'); rect(329, 114, 6, 2, '#3a8a3a');
-  texCurtain('trcurtL', 298, 34, 22, 112, ['#3a1a3a', '#5a2a5a', '#6a3a6a', '#8a4a8a', '#a86aa8']);
-  texCurtain('trcurtR', 400, 34, 22, 112, ['#3a1a3a', '#5a2a5a', '#6a3a6a', '#8a4a8a', '#a86aa8']);
-  rect(294, 32, 132, 3, '#8a6a3a');
-  // the bed: headboard, quilt, pillow, a plush gator
-  rr(12, 100, 14, 92, 3, '#4a2a14'); rr(14, 102, 10, 88, 2, '#7a4a28');
-  rr(18, 150, 136, 30, 4, '#e8e0d0');
-  for (let x = 60; x < 152; x += 12) for (let y = 146; y < 184; y += 12) rect(x, y, 12, 12, ((x / 12 + y / 12) | 0) % 2 ? '#c84a4a' : '#e8c060');
-  rr(58, 144, 96, 40, 4, '#00000000'); rect(58, 144, 96, 2, '#f4ecd8'); rect(58, 182, 96, 3, '#8a2a2a');
-  rr(24, 138, 36, 14, 5, '#fffaf0'); rect(28, 140, 26, 2, '#ffffff');
-  rr(148, 136, 8, 56, 2, '#4a2a14'); rr(149, 137, 6, 54, 2, '#7a4a28');
-  rr(34, 130, 20, 10, 4, '#3aa84a'); rect(50, 132, 6, 4, '#3aa84a'); rect(38, 131, 2, 2, '#ffffff'); rect(44, 131, 2, 2, '#ffffff'); rect(39, 132, 1, 1, '#000'); rect(45, 132, 1, 1, '#000');
-  // nightstand and lamp
-  rr(160, 150, 32, 34, 2, '#4a2a14'); rr(161, 151, 30, 32, 2, '#7a4a28'); rect(163, 162, 26, 1, '#4a2a14'); rect(174, 156, 4, 2, '#d0a050');
-  rr(170, 140, 12, 10, 2, '#c8a060'); rect(175, 128, 2, 12, '#8a6a3a');
-  ctx.fillStyle = '#ffd87a'; ctx.beginPath(); ctx.moveTo(166, 130); ctx.lineTo(186, 130); ctx.lineTo(182, 114); ctx.lineTo(170, 114); ctx.fill();
-  rect(166, 129, 20, 1, '#e8a840');
-  // the shelf of treasures
-  rr(198, 86, 92, 5, 1, '#6a4424'); rect(198, 86, 92, 1, '#9a6a3a'); rect(206, 91, 3, 6, '#4a2a14'); rect(280, 91, 3, 6, '#4a2a14');
-  [['#c84a4a', 10], ['#3a6ac8', 12], ['#e8c040', 9], ['#3a9a5a', 11]].forEach(([c, h], i) => { rect(204 + i * 6, 86 - h, 5, h, c); rect(204 + i * 6, 86 - h, 5, 1, mixC(c, '#ffffff', 0.4)); });
-  rr(234, 70, 8, 16, 3, '#e8e8f0'); rect(236, 64, 4, 6, '#e8402a'); rect(233, 82, 10, 3, '#e8402a');
-  rr(252, 76, 14, 10, 2, '#d8a830'); rect(256, 70, 6, 6, '#d8a830'); rect(255, 71, 8, 1, '#fff0a0');
-  fillCircle(278, 78, 7, '#bfe0f0'); rect(273, 83, 10, 3, '#8a5a2a'); rect(277, 76, 2, 3, '#3a8a3a');
-  // a swamp-ranger poster
-  rr(428, 40, 44, 62, 1, '#e8dcc0'); rect(430, 42, 40, 16, '#2a6a3a'); drawTextC('SWAMP', 450, 44, '#ffe89a', 1); drawTextC('RANGER', 450, 51, '#ffe89a', 1);
-  fillCircle(450, 76, 12, '#8a5a2a'); fillCircle(444, 66, 4, '#8a5a2a'); fillCircle(456, 66, 4, '#8a5a2a'); fillCircle(450, 79, 7, '#e8d0a8'); rect(446, 74, 2, 2, '#1a1008'); rect(453, 74, 2, 2, '#1a1008'); rect(448, 80, 4, 2, '#3a2010');
-  rect(432, 92, 36, 6, '#c84a2a'); drawTextC('JUNIOR', 450, 93, '#ffffff', 1);
-  // the round rug on the floor
-  const rugC = ['#6a1a1a', '#b83a2a', '#e8c878', '#3a6a9a', '#e8e0c8', '#b83a2a'];
-  for (let y = -30; y <= 30; y++) { const f = y / 30, hw = Math.round(150 * Math.sqrt(1 - f * f)); for (let x = -hw; x <= hw; x++) { const d = Math.sqrt((x / 150) ** 2 + f * f), band = Math.min(5, Math.floor(d * 6)); rect(262 + x, 230 + y, 1, 1, rugC[5 - band]); } }
-  for (let k = 0; k < 600; k++) { const a = hash2(k, 8) * 6.28, r = hash2(k, 9); rect(262 + Math.cos(a) * r * 146, 230 + Math.sin(a) * r * 28, 1, 1, '#00000022'); }
-  // toys on the floor: alphabet blocks and a little airboat
-  [['A', '#e84a4a', 96, 236], ['B', '#3a8ae8', 110, 238], ['C', '#e8c040', 103, 226]].forEach(([l, c, bx, by]) => { rr(bx, by, 12, 12, 1, '#1a1008'); rr(bx + 1, by + 1, 10, 10, 1, c); drawTextC(l, bx + 6, by + 3, '#ffffff', 1); });
+  rect(190, 30, 3, 82, '#2a1a0e'); rect(150, 70, 84, 3, '#2a1a0e'); rect(191, 30, 1, 82, '#4a3018');
+  texCurtain('trcL2', 132, 22, 24, 104, ['#3a1a2a', '#5a2a3e', '#6e3450', '#8a4466', '#a8607e']);
+  texCurtain('trcR2', 228, 22, 24, 104, ['#3a1a2a', '#5a2a3e', '#6e3450', '#8a4466', '#a8607e']);
+  rect(128, 20, 128, 3, '#8a6a3a'); fillCircle(129, 21, 3, '#c8a040'); fillCircle(255, 21, 3, '#c8a040');
+  rr(136, 78, 12, 5, 2, '#c8a040'); rr(236, 78, 12, 5, 2, '#c8a040');
+  rr(140, 114, 104, 12, 3, '#4a2e18'); rr(142, 112, 100, 8, 3, '#6a8ac8'); rect(144, 112, 96, 2, '#8aa8e0');
+  rr(150, 104, 18, 10, 4, '#e8c060'); rr(214, 104, 18, 10, 4, '#e86a6a'); rect(154, 106, 10, 1, '#fff0a0');
+  // the bunk bed on the left, a sleepy snail on top
+  const BW = ['#1e1208', '#3a2412', '#5a3a1e', '#7a5230'];
+  [8, 104].forEach(px => { rr(px, 34, 8, 152, 2, BW[0]); rect(px + 1, 35, 6, 150, BW[2]); rect(px + 1, 35, 2, 150, BW[3]); });
+  rr(12, 80, 96, 8, 2, BW[1]); rr(12, 158, 96, 8, 2, BW[1]); rect(12, 80, 96, 1, BW[3]);
+  rr(14, 68, 90, 14, 3, '#e8e0d0');                                   // top mattress
+  rr(14, 146, 90, 14, 3, '#e8e0d0');                                  // bottom mattress
+  for (let x = 40; x < 102; x += 10) for (let y = 142; y < 160; y += 9) rect(x, y, 10, 9, ((x / 10 + y / 9) | 0) % 2 ? '#3a8ac8' : '#e8c060');
+  rect(40, 142, 62, 1, '#f4ecd8'); rect(40, 158, 62, 2, '#1e4a7a');
+  rr(18, 138, 22, 10, 4, '#fffaf0'); rect(21, 140, 16, 2, '#ffffff');
+  rr(26, 128, 16, 10, 4, '#3aa84a'); rect(28, 130, 2, 2, '#fff'); rect(35, 130, 2, 2, '#fff'); rect(29, 131, 1, 1, '#000'); rect(36, 131, 1, 1, '#000'); rect(30, 135, 8, 1, '#fffaf0');
+  rr(12, 34, 96, 6, 2, BW[1]); rect(12, 34, 96, 1, BW[3]);
+  for (let y = 44; y < 186; y += 14) rect(98, y, 12, 2, BW[2]);         // the ladder rungs
+  rr(52, 42, 44, 14, 1, '#f4ecd8'); rect(54, 44, 40, 10, '#e84a4a'); drawTextC('NO', 74, 45, '#ffffff', 1); drawTextC('GROWNUPS', 74, 51, '#ffffff', 1);
+  // fairy lights looped along the wall
+  for (let x = 262; x < W; x++) { const u = ((x - 262) % 72) / 72, y = 14 + Math.round(Math.sin(u * Math.PI) * 10); rect(x, y, 1, 1, '#2a2a1a'); }
+  // crayon drawings taped up: a gator with big teeth, a house, our otter
+  const paper = (x, y, w, h, rot, fn) => { ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(rot); ctx.translate(-w / 2, -h / 2); rect(1, 1, w, h, '#0e1830'); rect(0, 0, w, h, '#f4f0e4'); fn(w, h); rect(w / 2 - 4, -2, 8, 4, '#e8e0a0cc'); ctx.restore(); };
+  paper(270, 40, 34, 26, -0.08, (w, h) => { rr(4, 10, 24, 8, 3, '#3aa84a'); rect(24, 8, 6, 4, '#3aa84a'); for (let k = 0; k < 5; k++) rect(6 + k * 4, 17, 2, 3, '#ffffff'); rect(8, 9, 2, 2, '#1a1a1a'); rect(3, 20, 26, 1, '#5a8ae8'); });
+  paper(310, 46, 28, 24, 0.06, (w, h) => { rect(6, 12, 16, 10, '#e84a4a'); ctx.fillStyle = '#8a4a2a'; ctx.beginPath(); ctx.moveTo(4, 12); ctx.lineTo(14, 4); ctx.lineTo(24, 12); ctx.fill(); rect(12, 16, 4, 6, '#3a2a1a'); fillCircle(23, 4, 3, '#ffd23f'); });
+  paper(276, 72, 26, 24, 0.1, (w, h) => { fillCircle(13, 9, 5, '#8a5a2a'); rect(12, 14, 2, 6, '#8a5a2a'); rect(8, 16, 10, 1, '#8a5a2a'); rect(10, 20, 1, 3, '#8a5a2a'); rect(15, 20, 1, 3, '#8a5a2a'); rect(11, 8, 1, 1, '#000'); rect(14, 8, 1, 1, '#000'); drawText('ME', 3, 2, '#e84a4a', 1); });
+  // the clock says it is way past bedtime
+  fillCircle(362, 56, 13, '#3a2412'); fillCircle(362, 56, 11, '#f4ecd8'); for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; rect(362 + Math.cos(a) * 9, 56 + Math.sin(a) * 9, 1, 1, '#3a2412'); }
+  rect(362, 47, 1, 9, '#1a1008'); rect(361, 50, 2, 6, '#1a1008'); rect(361, 56, 2, 2, '#c83a2a');
+  // a GATORS pennant and a shelf of treasures
+  ctx.fillStyle = '#2a6a3a'; ctx.beginPath(); ctx.moveTo(392, 40); ctx.lineTo(452, 50); ctx.lineTo(392, 62); ctx.fill(); rect(390, 38, 3, 26, '#8a6a3a'); drawText('GATORS', 398, 47, '#ffe89a', 1);
+  rr(398, 90, 72, 5, 1, '#6a4424'); rect(398, 90, 72, 1, '#9a6a3a'); rect(404, 95, 3, 6, '#3a2412'); rect(460, 95, 3, 6, '#3a2412');
+  [['#c84a4a', 12], ['#3a6ac8', 10], ['#e8c040', 13]].forEach(([c, h], i) => { rect(402 + i * 6, 90 - h, 5, h, c); rect(402 + i * 6, 90 - h, 5, 1, mixC(c, '#ffffff', 0.4)); });
+  rr(424, 76, 12, 14, 2, '#a8b0b8'); rect(426, 79, 3, 3, '#5ae8ff'); rect(431, 79, 3, 3, '#5ae8ff'); rect(427, 85, 6, 1, '#4a5058'); rect(429, 72, 2, 4, '#a8b0b8'); fillCircle(430, 71, 2, '#e8402a');
+  rr(444, 80, 14, 10, 2, '#d8a830'); rect(448, 74, 6, 6, '#d8a830'); rect(447, 75, 8, 1, '#fff0a0');
+  // the blanket fort: a sheet over two chairs, glowing inside
+  rr(372, 150, 6, 40, 1, BW[1]); rr(462, 150, 6, 40, 1, BW[1]); rr(372, 128, 6, 26, 1, BW[2]); rr(462, 128, 6, 26, 1, BW[2]);
+  ctx.fillStyle = '#e8dcc0'; ctx.beginPath(); ctx.moveTo(366, 196); ctx.lineTo(420, 118); ctx.lineTo(474, 196); ctx.fill();
+  for (let k = 0; k < 7; k++) { ctx.fillStyle = k % 2 ? '#c8b8e0' : '#e8dcc0'; ctx.beginPath(); ctx.moveTo(420, 118); ctx.lineTo(366 + k * 15.4, 196); ctx.lineTo(366 + (k + 1) * 15.4, 196); ctx.fill(); }
+  ctx.fillStyle = '#3a2410'; ctx.beginPath(); ctx.moveTo(404, 196); ctx.lineTo(420, 150); ctx.lineTo(436, 196); ctx.fill();
+  ctx.fillStyle = '#ffc860'; ctx.beginPath(); ctx.moveTo(407, 196); ctx.lineTo(420, 156); ctx.lineTo(433, 196); ctx.fill();
+  fillCircle(420, 186, 6, '#8a5a2a'); fillCircle(416, 180, 2, '#8a5a2a'); fillCircle(424, 180, 2, '#8a5a2a'); rect(418, 185, 1, 1, '#000'); rect(421, 185, 1, 1, '#000');   // a teddy peeking out
+  // the rug, sleeping bags, snacks
+  const rugC = ['#5a1a2a', '#a83a4a', '#e8c878', '#3a7a8a', '#f0e8d0', '#a83a4a'];
+  for (let y = -26; y <= 26; y++) { const f = y / 26, hw = Math.round(118 * Math.sqrt(1 - f * f)); for (let x = -hw; x <= hw; x++) { const d = Math.sqrt((x / 118) ** 2 + f * f), band = Math.min(5, Math.floor(d * 6)); rect(262 + x, 236 + y, 1, 1, rugC[5 - band]); } }
+  for (let k = 0; k < 700; k++) { const a = hash2(k, 8) * 6.28, r = hash2(k, 9); rect(262 + Math.cos(a) * r * 114, 236 + Math.sin(a) * r * 24, 1, 1, k % 3 ? '#00000022' : '#ffffff18'); }
+  const bag = (x, y, w, c1, c2) => { rr(x, y, w, 16, 5, '#1a1008'); rr(x + 1, y + 1, w - 2, 14, 4, c1); for (let k = 6; k < w - 20; k += 6) rect(x + k, y + 2, 1, 12, c2); rr(x + w - 22, y + 2, 20, 12, 4, '#f4ecd8'); rect(x + w - 20, y + 3, 16, 2, '#ffffff'); };
+  bag(118, 212, 84, '#3a6ac8', '#2a4a9a'); bag(330, 246, 88, '#c84a4a', '#9a2a2a');
+  rr(150, 246, 30, 12, 4, '#1a1008'); rr(151, 246, 28, 9, 4, '#e8402a'); rect(154, 246, 22, 2, '#ff8a6a');     // the popcorn bowl
+  for (let k = 0; k < 16; k++) { const px2 = 152 + hash2(k, 21) * 26, py2 = 242 + hash2(k, 22) * 6; rr(px2, py2, 4, 3, 1, k % 3 ? '#fff6d8' : '#f4d888'); }
+  for (let k = 0; k < 9; k++) rr(186 + hash2(k, 23) * 30, 256 + hash2(k, 24) * 8, 3, 2, 1, '#fff6d8');
+  [[208, 250, '#3a9a5a'], [318, 262, '#e8a020']].forEach(([jx, jy, c]) => { rr(jx, jy - 12, 8, 12, 1, '#1a1008'); rect(jx + 1, jy - 11, 6, 10, c); rect(jx + 1, jy - 8, 6, 3, '#ffffff'); rect(jx + 5, jy - 15, 1, 4, '#e8e8e8'); });
+  rr(348, 212, 24, 16, 1, '#1a1008'); rect(349, 213, 22, 14, '#e8e0c0'); rect(350, 214, 20, 6, '#3a6ac8'); drawText('POW', 352, 221, '#e84a4a', 1);
+}
+// the lights: a cosy dark with warm pools, fairy bulbs and a flashlight
+let TR_DARK = null;
+function trBedLights(lt, cam) {
+  const fl = 0.5 + 0.5 * Math.sin(tNow * 7) * Math.sin(tNow * 3.1);
+  if (!TR_DARK) { TR_DARK = document.createElement('canvas'); TR_DARK.width = W * RS; TR_DARK.height = H * RS; }
+  const d = TR_DARK.getContext('2d');
+  d.setTransform(1, 0, 0, 1, 0, 0); d.globalCompositeOperation = 'source-over'; d.clearRect(0, 0, TR_DARK.width, TR_DARK.height);
+  d.fillStyle = 'rgba(8,10,34,0.5)'; d.fillRect(0, 0, TR_DARK.width, TR_DARK.height);
+  d.setTransform(RS, 0, 0, RS, 0, 0); d.globalCompositeOperation = 'destination-out';
+  const hole = (x, y, r, a) => { const g = d.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, 'rgba(0,0,0,' + a + ')'); g.addColorStop(0.55, 'rgba(0,0,0,' + a * 0.6 + ')'); g.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = g; d.fillRect(x - r, y - r, r * 2, r * 2); };
+  hole(262, 222, 150 + fl * 3, 1); hole(262, 222, 90, 1); hole(420, 176, 56, 0.9); hole(192, 70, 62, 0.7); hole(60, 90, 50, 0.35);
+  for (let x = 268; x < W; x += 12) { const u = ((x - 262) % 72) / 72; hole(x, 16 + Math.sin(u * Math.PI) * 10, 12, 0.55); }
+  ctx.drawImage(TR_DARK, 0, 0, W, H);
+  // the fort glows, and the coloured bulbs on the string
+  const BC = ['#ff6a6a', '#ffd84a', '#6af08a', '#6ac8ff', '#ff9aee'];
+  for (let x = 268, k = 0; x < W; x += 12, k++) { const u = ((x - 262) % 72) / 72, y = 16 + Math.round(Math.sin(u * Math.PI) * 10), on = 0.7 + 0.3 * Math.sin(tNow * 2 + k * 1.3); ctx.save(); ctx.globalAlpha = on; glow(x, y + 2, 7, BC[k % 5], 0.45); rr(x - 1, y + 1, 3, 4, 1, BC[k % 5]); rect(x, y + 1, 1, 1, '#ffffff'); ctx.restore(); }
+  glow(420, 180, 44, '#ffc860', 0.22 + fl * 0.04);
+  // drifting dust in the flashlight beam
+  for (let k = 0; k < 16; k++) { const ph = (tNow * 0.06 + k / 16) % 1; ctx.save(); ctx.globalAlpha = 0.45 * Math.sin(ph * Math.PI); rect(200 + hash2(k, 3) * 130 + Math.sin(tNow * 0.7 + k) * 6, 250 - ph * 90, 1, 1, '#fff8e0'); ctx.restore(); }
+}
+// one kid, sitting on the rug, with an arm that can reach for a tooth
+function trKid(K) {
+  const sc = 1.15, fx = K.flip ? -1 : 1, kx = K.x + (K.scoot || 0) * fx, ky = K.y + (K.dy || 0) - (K.lift || 0);
+  const o = { sc, act: K.act || 'sit', arms: K.arms, expr: K.expr || 'happy', fit: K.fit, fitAny: true, flip: !!K.flip, look: K.look, glove: 'bare', t: K.fast ? tNow * 2 : undefined };
+  if (K.reach) {
+    // aim the right arm at the tooth from the shoulder, at a natural length
+    const sx = kx + fx * 12 * sc, sy = ky - 20 * sc, dx = K.reach.x - sx, dy = K.reach.y - sy;
+    const aim = K.flip ? Math.atan2(dx, dy) : Math.atan2(-dx, dy), rest = 0.5, k = K.reach.k;
+    o.armR = lerp(rest, aim, k); o.armLen = lerp(1, clamp(Math.hypot(dx, dy) / (9.5 * sc), 0.8, 1.3), k);
+  }
+  ctx.save(); if (K.rot) { ctx.translate(kx, ky - 4); ctx.rotate(K.rot); ctx.translate(-kx, -(ky - 4)); }
+  drawBobble(Math.round(kx), Math.round(ky), K.key, o);
+  ctx.restore();
+  if (K.bandage) { rr(kx + fx * 16 - 2, ky - 18, 5, 4, 1, '#fffaf0'); rect(kx + fx * 16 - 1, ky - 17, 3, 1, '#e8a0a0'); }
+  if (K.stars) dazedStars(kx, ky - 62, 12);
+  if (K.sweat) comicSweat(kx + 8, ky - 58, tNow);
+  if (K.zzz) comicZzz(kx + 10, ky - 50, tNow);
 }
 function trBedroom(lt, S) {
   const cam = S.cam || { x: W / 2, y: H / 2, z: 1 };
   ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y);
-  ctx.drawImage(getCached('trbed', W, H, trBedPaint), 0, 0, W, H);
-  // the lamp's warm pool and the moonbeam through the window
+  ctx.drawImage(getCached('trbed3', W, H, trBedPaint), 0, 0, W, H);
+  // the sleepy snail up on the top bunk, tucked in
+  if (S.snail) { trKid(S.snail); rr(14, 66, 90, 12, 3, '#e8e0d0'); for (let x = 16; x < 102; x += 11) rect(x, 67, 10, 10, ((x / 11) | 0) % 2 ? '#8a4ac8' : '#f4d060'); rect(16, 66, 86, 1, '#fff4e0'); }
+  // a warm pool of flashlight on the rug, under everyone
   const fl = 0.5 + 0.5 * Math.sin(tNow * 7) * Math.sin(tNow * 3.1);
-  glow(176, 126, 96, '#ffc870', 0.2 + fl * 0.03); glow(176, 122, 26, '#fff0b0', 0.35);
-  ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = '#c8d8ff'; ctx.beginPath(); ctx.moveTo(318, 128); ctx.lineTo(402, 128); ctx.lineTo(452, 262); ctx.lineTo(300, 262); ctx.fill(); ctx.restore();
-  for (let k = 0; k < 14; k++) { const ph = (tNow * 0.05 + k / 14) % 1; ctx.save(); ctx.globalAlpha = 0.5 * Math.sin(ph * Math.PI); rect(330 + hash2(k, 3) * 90 + Math.sin(tNow + k) * 6, 250 - ph * 110, 1, 1, '#fff8e0'); ctx.restore(); }
-  ctx.save(); ctx.translate(414, 252); ctx.scale(0.3, 0.3); drawAirboat(0, 0, false, undefined, { empty: true }); ctx.restore();
-  // the toy and the kid (the toy airboat above is tiny because of the camera)
-  const K = S.kid, T = S.toy;
-  drawToyGator(T.m, T.x, T.y, T.sc, true);
-  if (K) {
-    const kx = K.x, ky = K.y + (K.dy || 0);
-    ctx.save(); if (K.rot) { ctx.translate(kx, ky - 16); ctx.rotate(K.rot); ctx.translate(-kx, -(ky - 16)); }
-    drawBobble(kx, ky, 'scout', { sc: 1.15, act: K.act || 'sit', arms: K.arms, expr: K.expr || 'happy', fit: { suit: 'crocsuit' }, fitAny: true, glove: 'bare', t: K.fast ? tNow * 2 : undefined });
-    ctx.restore();
-    if (K.bandage) { rr(kx + 14, ky - 30, 5, 4, 1, '#fffaf0'); rect(kx + 15, ky - 29, 3, 1, '#e8a0a0'); }
-    // the reaching paw: sleeve and a little otter hand on the tooth
-    if (K.reach) {
-      const p = K.reach, sx = kx + 12, sy = ky - 24, n = Math.ceil(Math.hypot(p.x - sx, p.y - sy));
-      for (let i = 0; i <= n; i++) { const f = i / n, ax = lerp(sx, p.x, f), ay = lerp(sy, p.y, f) - Math.sin(f * Math.PI) * 4; rect(ax - 2, ay - 2, 4, 4, '#1a2a10'); }
-      for (let i = 0; i <= n; i++) { const f = i / n, ax = lerp(sx, p.x, f), ay = lerp(sy, p.y, f) - Math.sin(f * Math.PI) * 4; rect(ax - 1, ay - 1, 3, 3, '#4a9a3a'); }
-      fillCircle(p.x, p.y, 3, '#2a1a0c'); fillCircle(p.x, p.y, 2, '#a8784a'); rect(p.x - 1, p.y - 2, 1, 1, '#d8a878');
-    }
-    if (K.stars) dazedStars(kx, ky - 62, 12);
-    if (K.sweat) comicSweat(kx + 10, ky - 58, lt);
-  }
+  glow(262, 232, 96, '#ffb860', 0.16 + fl * 0.02); glow(262, 228, 44, '#fff0c0', 0.12);
+  ctx.save(); ctx.globalAlpha = 0.1; ctx.fillStyle = '#fff4c8'; ctx.beginPath(); ctx.moveTo(360, 250); ctx.lineTo(262, 200); ctx.lineTo(262, 262); ctx.fill(); ctx.restore();
+  // friends at the back, the toy in the middle, the two players up front
+  const T = S.toy, jit = T.jitter ? Math.round(Math.sin(tNow * 60) * T.jitter) : 0;
+  (S.back || []).forEach(trKid);
+  drawToyGator(T.m, T.x + jit, T.y, T.sc, true);
+  (S.front || []).forEach(trKid);
+  // the flashlight lying on the rug, pointed at the game
+  rr(352, 246, 18, 7, 2, '#1a1a14'); rr(353, 247, 16, 5, 2, '#c83a2a'); rr(348, 245, 6, 9, 1, '#a8b0b8'); rect(347, 246, 1, 7, '#fff8d0'); glow(347, 249, 10, '#fff4c0', 0.4);
+  trBedLights(lt, cam);
   ctx.restore();
-  // a soft vignette keeps it cosy
-  ctx.save(); for (let k = 0; k < 6; k++) { ctx.globalAlpha = 0.06; rect(0, 0, W, 10 + k * 8, '#05060e'); rect(0, H - 10 - k * 8, W, 10 + k * 8, '#05060e'); rect(0, 0, 14 + k * 10, H, '#05060e'); rect(W - 14 - k * 10, 0, 14 + k * 10, H, '#05060e'); } ctx.restore();
+  // a soft vignette
+  ctx.save(); for (let k = 0; k < 6; k++) { ctx.globalAlpha = 0.06; rect(0, 0, W, 10 + k * 8, '#04050c'); rect(0, H - 10 - k * 8, W, 10 + k * 8, '#04050c'); rect(0, 0, 14 + k * 10, H, '#04050c'); rect(W - 14 - k * 10, 0, 14 + k * 10, H, '#04050c'); } ctx.restore();
 }
-// the kid presses the toy's teeth on a schedule and the last one bites
-function trPlayToy(S, lt, dt, presses, snapAt) {
-  const T = S.toy, K = S.kid;
+// the round of turns: each press scoots in, reaches, clicks the tooth, sits back
+function trPlayToy(S, lt, dt, presses) {
+  const T = S.toy;
   T.m.open += (T.m.openT - T.m.open) * Math.min(1, dt * (T.m.openT > T.m.open ? 5 : 30));
-  K.reach = null; K.arms = 'sit';
+  const kids = (S.front || []).concat(S.back || []);
+  kids.forEach(K => { K.reach = null; K.scoot = 0; K.lift = 0; });
   presses.forEach((p, n) => {
-    const d = lt - p.t;
-    if (d > -0.35 && d < 0.3) { const tp = toyToothAt(T.m, p.i, T.x, T.y, T.sc), k = d < 0 ? easeOut(clamp((d + 0.35) / 0.3, 0, 1)) : 1 - clamp(d / 0.3, 0, 1); K.arms = 'point'; K.reach = { x: lerp(K.x + 22, tp.x, k), y: lerp(K.y - 20, tp.y, k) }; }
+    const K = S[p.who], d = lt - p.t; if (!K) return;
+    if (d > -0.5 && d < 0.45) {
+      const k = d < -0.12 ? easeInOut(clamp((d + 0.5) / 0.38, 0, 1)) : d < 0.1 ? 1 : 1 - easeInOut(clamp((d - 0.1) / 0.35, 0, 1));
+      const tp = toyToothAt(T.m, p.i, T.x, T.y, T.sc);
+      K.scoot = (p.scoot || 0) * k; K.lift = (p.rise || 0) * k; K.reach = { x: tp.x, y: tp.y + (d >= 0 && d < 0.1 ? 1 : 0), k };
+    }
     if (d >= 0) trOnce('press' + TR.i + '_' + n, () => {
       const Th = T.m.teeth[p.i];
-      if (Th.snap) { T.m.openT = 0; sfx.snap(); trsfx.thump(); shake = Math.max(shake, 12); TR.flash = 0.8; }
+      if (Th.snap) { T.m.openT = 0; T.jitter = 0; sfx.snap(); trsfx.thump(); shake = Math.max(shake, 12); TR.flash = 0.7; }
       else { Th.pressed = true; trsfx.click(); sfx.click(2 + n); }
     });
   });
+}
+// every kid looks at the toy unless told otherwise
+function trLookAt(K, x, y) { K.look = { x: clamp((K.flip ? K.x - x : x - K.x) / 36, -1, 1), y: clamp((y - (K.y - 44)) / 50, -1, 1) }; }
+function trSleepover(s, snap) {
+  s.toy = { m: trToy(snap), x: 262, y: 240, sc: 0.26, jitter: 0 };
+  s.otter = { key: 'scout', x: 222, y: 242, fit: { suit: 'crocsuit' }, expr: 'happy' };
+  s.coon = { key: 'trader', x: 302, y: 242, flip: true, fit: { shirt: 'sailor', pants: 'pajama' }, expr: 'happy' };
+  s.frog = { key: 'frog', x: 198, y: 224, fit: { shirt: 'hoodie', pants: 'pajama' }, expr: 'wow' };
+  s.poss = { key: 'medic', x: 326, y: 224, flip: true, fit: { shirt: 'tiedye', pants: 'polka' }, expr: 'happy' };
+  s.snail = { key: 'snail', x: 58, y: 78, expr: 'sleepy', zzz: true, look: { x: 0, y: 0.3 } };
+  s.front = [s.otter, s.coon]; s.back = [s.frog, s.poss];
 }
 // ---- the badge wall ----
 function trBadgeWall(lt) {
@@ -18305,28 +18380,41 @@ function trShots() {
   const L = [];
   let t = 0;
   const add = (dur, s) => { s.t0 = t; s.t1 = t + dur; t += dur; L.push(s); return s; };
-  const bed = (s) => { s.toy = { m: trToy(3), x: 304, y: 246, sc: 0.3 }; s.kid = { x: 250, y: 238, expr: 'happy' }; };
-  // 1. a kid, a bedroom, a toy
-  add(9.4, { id: 'bed1', state: 'trailer', enter(s) { bed(s); },
+  // speech bubbles follow the kids through the camera
+  const said = (s, K, txt, lift) => { const c = s.cam, x = W / 2 + (K.x + (K.scoot || 0) * (K.flip ? -1 : 1) - c.x) * c.z, y = H / 2 + (K.y + (K.dy || 0) - 58 - (lift || 0) - c.y) * c.z; comicBubble(clamp(x, 60, W - 60), Math.max(40, y - 8), txt, x, Math.max(44, y)); };
+  // 1. a sleepover: four friends and the toy
+  add(9.4, { id: 'bed1', state: 'trailer', enter(s) { trSleepover(s, 4); },
     tick(lt, dt, s) {
-      const K = s.kid, pz = easeInOut(clamp(lt / 6.2, 0, 1));
-      s.cam = { x: lerp(240, 282, pz), y: lerp(150, 206, pz), z: lerp(1, 2.05, pz) };
-      K.expr = lt < 2.2 ? 'happy' : lt < 4.4 ? 'wow' : 'worry'; K.sweat = lt > 4.4 && lt < 6.4;
-      trPlayToy(s, lt, dt, [{ t: 2.5, i: 0 }, { t: 3.7, i: 1 }, { t: 4.9, i: 2 }, { t: 6.4, i: 3 }], 6.4);
+      const pz = easeInOut(clamp(lt / 6.0, 0, 1));
+      s.cam = { x: lerp(240, 262, pz), y: lerp(140, 212, pz), z: lerp(1.15, 2.15, pz) };
+      const { otter, coon, frog, poss, snail } = s;
+      [otter, coon, frog, poss].forEach(K => { trLookAt(K, 262, 222); K.act = 'sit'; K.rot = 0; K.dy = 0; K.stars = false; K.sweat = false; });
+      // the tension builds with every tooth
+      const tense = lt > 4.4;
+      otter.expr = lt < 3.4 ? 'happy' : tense ? 'worry' : 'wow'; coon.expr = lt < 4.6 ? 'smug' : 'worry';
+      frog.expr = tense ? 'scared' : 'wow'; poss.expr = tense ? 'worry' : 'happy';
+      frog.sweat = poss.sweat = lt > 5.1 && lt < 6.4; otter.sweat = lt > 5.6 && lt < 6.4;
+      if (lt > 1.9 && lt < 2.5) { frog.act = 'cheer'; } if (lt > 3.0 && lt < 3.6) { poss.act = 'cheer'; }
+      trPlayToy(s, lt, dt, [{ t: 1.7, who: 'otter', i: 3, scoot: 8 }, { t: 2.8, who: 'coon', i: 5, scoot: 6 }, { t: 3.9, who: 'otter', i: 0, scoot: 9, rise: 2 }, { t: 5.0, who: 'coon', i: 2, scoot: 7, rise: 2 }, { t: 6.4, who: 'otter', i: 4, scoot: 15 }]);
       if (lt > 6.4) {
         const k = lt - 6.4;
         trOnce('scr', () => trsfx.scratch());
-        s.cam = { x: 286, y: 204, z: 2.05 + Math.max(0, 0.35 - k) * 0.8 };
-        K.reach = null; K.arms = undefined; K.act = k < 1.3 ? 'hurt' : 'cheer'; K.expr = k < 1.3 ? 'shocked' : 'happy'; K.dy = k < 0.5 ? -Math.sin(k / 0.5 * Math.PI) * 14 : 0; K.stars = k < 1.4; K.sweat = false;
+        s.cam = { x: 262, y: 212, z: 2.15 + Math.max(0, 0.3 - k) * 0.9 };
+        otter.reach = null; otter.scoot = 0; otter.act = k < 1.4 ? 'hurt' : 'cheer'; otter.expr = k < 1.4 ? 'shocked' : 'happy'; otter.dy = k < 0.5 ? -Math.sin(k / 0.5 * Math.PI) * 16 : 0; otter.stars = k > 0.3 && k < 1.5;
+        coon.act = k > 0.35 ? 'cheer' : 'sit'; coon.expr = k > 0.35 ? 'happy' : 'shocked'; coon.rot = k > 0.35 ? 0.42 * Math.min(1, (k - 0.35) * 4) : 0; coon.fast = k > 0.35;
+        frog.act = k < 0.6 ? 'jump' : 'cheer'; frog.expr = k < 0.6 ? 'shocked' : 'happy'; frog.dy = k < 0.4 ? -Math.sin(k / 0.4 * Math.PI) * 8 : 0;
+        poss.expr = 'sleepy'; poss.rot = 1.3 * easeOut(Math.min(1, k * 2.5)); poss.dy = 6 * Math.min(1, k * 2.5);   // it plays dead, obviously
+        snail.expr = k > 0.1 && k < 2.4 ? 'shocked' : 'sleepy'; snail.zzz = k > 2.4; snail.dy = k > 0.1 && k < 0.35 ? -5 : 0;
       }
     },
     draw(lt, dt, s) { trBedroom(lt, s); },
     over(lt, s) {
       trBars(1);
-      trCap(['HAVE YOU EVER', 'PLAYED THIS TOY?'], lt, 0.7, 5.6, { y: 34, sc: 3 });
-      if (lt > 6.4 && lt < 7.3) tBang(W / 2 + 40, 86, 'SNAP!', '#ffe04a', lt - 6.4);
-      if (lt > 6.7 && lt < 7.9) { trOnce('v1', () => trsfx.babble(6, 760)); comicBubble(W / 2 - 40, 96, 'OW OW OW!', W / 2 - 20, 128); }
-      if (lt > 8.0) { trOnce('v2', () => trsfx.babble(4, 820)); comicBubble(W / 2 - 34, 92, 'AGAIN!!', W / 2 - 22, 124); }
+      trCap(['HAVE YOU EVER', 'PLAYED THIS TOY...'], lt, 0.7, 3.5, { y: 34, sc: 3 });
+      trCap(['...WITH YOUR FRIENDS?'], lt, 3.7, 6.2, { sc: 3, hl: 0, hlCol: '#86dc5e' });
+      if (lt > 6.65 && lt < 7.8) { trOnce('v1', () => trsfx.babble(6, 760)); said(s, s.otter, 'OWWW!'); }
+      if (lt > 6.9 && lt < 8.0) { trOnce('v1b', () => trsfx.babble(7, 900)); said(s, s.coon, 'HAHAHA!'); }
+      if (lt > 8.1) { trOnce('v2', () => trsfx.babble(4, 820)); said(s, s.otter, 'AGAIN!!'); }
     } });
   // 2. what if...
   add(4.6, { id: 'whatif', state: 'trailer', enter(s) { s.m = trToy(-1); },
@@ -18449,19 +18537,26 @@ function trShots() {
   add(3 * TR_BBAR, { id: 'owl', state: 'tutorial', enter(s) { startTutorial('scout'); const iv = G.iv; iv.m.sheet = 0; iv.owl.x = OWL_SPOTS.model.x; iv.owl.y = OWL_SPOTS.model.y; iv.rg.x = 96; ivStep(iv, 6); iv.sayT = 99; iv.idle = 12.05; },
     tick(lt, dt, s) { const iv = G.iv; if (!iv) return; trOnce('owlv1', () => trsfx.babble(11, 230)); if (lt > 2.55) trOnce('owl3', () => { iv.sayT = 99; iv.idle = 18.05; trsfx.babble(10, 210); }); },
     over(lt) { trCap(['LEARN FROM', 'THE BEST'], lt, 0.25, 2.3, { y: 40, band: '#8a5a2a', hl: 1 }); } });
-  // 14. back in the bedroom: one more go
-  add(5.05, { id: 'bed2', state: 'trailer', enter(s) { bed(s); s.kid.bandage = true; s.kid.expr = 'mad'; s.toy.m = trToy(4); },
+  // 14. back at the sleepover: one more go
+  add(5.05, { id: 'bed2', state: 'trailer', enter(s) { trSleepover(s, 4); s.otter.bandage = true; s.snail.zzz = false; s.snail.expr = 'wow'; },
     tick(lt, dt, s) {
-      const K = s.kid; s.cam = { x: 282, y: 206, z: 2.05 + lt * 0.05 };
-      K.expr = lt < 2.6 ? 'mad' : 'worry'; K.sweat = lt > 2.8;
-      trPlayToy(s, lt, dt, [{ t: 1.3, i: 0 }, { t: 2.2, i: 1 }, { t: 3.95, i: 4 }], 3.95);
-      if (lt > 3.95) { K.reach = null; K.arms = undefined; K.act = 'hurt'; K.expr = 'shocked'; K.stars = true; }
+      s.cam = { x: 262, y: 212, z: 2.15 + lt * 0.04 };
+      const { otter, coon, frog, poss } = s;
+      [otter, coon, frog, poss].forEach(K => { trLookAt(K, 262, 222); K.act = 'sit'; });
+      otter.expr = lt < 2.8 ? 'mad' : 'worry'; otter.sweat = lt > 3.0;
+      coon.expr = lt < 1.8 ? 'happy' : 'smug'; frog.expr = lt > 3.0 ? 'scared' : 'happy'; poss.expr = lt > 3.0 ? 'worry' : 'happy';
+      if (lt > 0.2 && lt < 1.1) { frog.act = 'cheer'; poss.act = 'cheer'; }
+      if (lt > 2.55 && lt < 3.1) { frog.act = 'cheer'; coon.act = 'cheer'; }
+      s.toy.jitter = lt > 3.25 && lt < 3.95 ? 1 : 0;
+      trPlayToy(s, lt, dt, [{ t: 1.4, who: 'coon', i: 5, scoot: 6 }, { t: 2.4, who: 'otter', i: 3, scoot: 8 }, { t: 3.95, who: 'otter', i: 4, scoot: 15 }]);
+      if (lt > 3.95) { otter.reach = null; otter.act = 'hurt'; otter.expr = 'shocked'; }
     },
     draw(lt, dt, s) { trBedroom(lt, s); if (lt > 4.0) rect(0, 0, W, H, '#000'); },
-    over(lt) {
+    over(lt, s) {
       trBars(1);
-      if (lt > 0.3 && lt < 1.2) { trOnce('v3', () => trsfx.babble(6, 700)); comicBubble(W / 2 - 30, 90, 'ONE MORE TIME...', W / 2 - 20, 124); }
-      if (lt > 4.0) { trOnce('chompbig', () => { trsfx.thump(); }); ctx.save(); ctx.translate(W / 2, H / 2 - 6); ctx.scale(3.2, 3.2); tBang(0, 0, 'CHOMP!', '#ffe04a', lt - 4.0); ctx.restore(); }
+      if (lt > 0.2 && lt < 1.2) { trOnce('v3', () => trsfx.babble(8, 840)); said(s, s.coon, 'ONE MORE TIME!'); }
+      if (lt > 3.05 && lt < 3.9) { trOnce('v4', () => trsfx.babble(2, 520)); said(s, s.otter, 'GULP.'); }
+      if (lt > 4.0) { trOnce('chompbig', () => { trsfx.thump(); }); ctx.save(); ctx.translate(W / 2, H / 2 - 6); ctx.scale(2.6, 2.6); tBang(0, 0, 'CHOMP!', '#ffe04a', lt - 4.0); ctx.restore(); }
     } });
   // 15. the end card
   add(8.0, { id: 'end', state: 'trailer', draw(lt) { trEndCard(lt); },
