@@ -1,7 +1,7 @@
 // Renders the store art straight out of the live game, so the promo images can
 // never drift from what the game actually looks like: the real title-menu
-// scene and gator, the real rangers, and the goofy title lettering the game's
-// own sign uses (goofyWord, in the Luckiest Guy UI font).
+// scene and gator, the real rangers, and the chunky pixel title lettering the
+// game's own sign uses (pixelWord, in the game's pixel font).
 //   node promo/make-keyart.js
 // Writes promo/thumbnail-630x500.png and promo/banner-1440x480.png.
 const { chromium } = require('playwright');
@@ -63,8 +63,8 @@ window.drawThumb = function (A) {
   const X0 = 165, Y0 = 0, cx = X0 + 315 / 2;
   promoOtter(MENU_CROC_X + 2, 230, 1.5, A);
   promoFlies(X0, W, 60, 230, A ? A.ph : 0);
-  const bob = A ? Math.sin(A.ph * Math.PI * 4) * 1.5 : 0;
-  goofyWord(TITLE_WORDS, cx, 9 + bob, 34, { center: true, maxW: 296 });
+  const bob = A ? Math.round(Math.sin(A.ph * Math.PI * 4) * 1.5) * 5 : 0;   // hops a whole font pixel
+  pixelWord(TITLE_WORDS, cx, 16 + bob, 7, { center: true });
   promoRibbon('A PRESS-YOUR-LUCK DENTAL ROGUELIKE', cx, 233, 1.4);
   const out = document.createElement('canvas'); out.width = 630; out.height = 500;
   const o = out.getContext('2d'); o.imageSmoothingEnabled = true; o.imageSmoothingQuality = 'high';
@@ -80,12 +80,12 @@ window.drawBanner = function (A) {
   const Y0 = 62;
   promoOtter(MENU_CROC_X + 2, 214, 1.1, A);
   const crew = [['medic', 'love', 'bunnyears'], ['trader', 'shocked', 'wombat'], ['frog', 'happy', 'flowers']];
-  crew.forEach(([k, ex, hat], i) => drawBobble(40 + i * 54, Y0 + 157, k, { sc: 0.85, act: 'cheer', expr: ex, t: (A ? A.t : 0.2) + i * 0.33, hat, gear: 'none', glove: 'bare' }));
+  crew.forEach(([k, ex, hat], i) => drawBobble(42 + i * 52, Y0 + 158, k, { sc: 0.72, act: 'cheer', expr: ex, t: (A ? A.t : 0.2) + i * 0.33, hat, gear: 'none', glove: 'bare' }));
   promoFlies(0, W, Y0 + 20, Y0 + 155, A ? A.ph : 0);
-  const bob = A ? Math.sin(A.ph * Math.PI * 4) * 1.2 : 0;
-  goofyWord([TITLE_WORDS[0]], 90, Y0 + 5 + bob, 33, { center: true });
-  goofyWord([TITLE_WORDS[1]], 100, Y0 + 44 - bob, 33, { center: true });
-  promoRibbon('A PRESS-YOUR-LUCK DENTAL ROGUELIKE', 95, Y0 + 86, 1);
+  const bob = A ? Math.round(Math.sin(A.ph * Math.PI * 4) * 1.2) * 5 : 0;   // hops a whole font pixel
+  pixelWord([TITLE_WORDS[0]], 96, Y0 + 12 + bob, 5.6, { center: true });
+  pixelWord([TITLE_WORDS[1]], 104, Y0 + 54 - bob, 5.6, { center: true });
+  promoRibbon('A PRESS-YOUR-LUCK DENTAL ROGUELIKE', 100, Y0 + 100, 1);
   const out = document.createElement('canvas'); out.width = 1440; out.height = 480;
   out.getContext('2d').drawImage(canvas, 0, Y0 * 3, 1440, 480, 0, 0, 1440, 480);
   return out;
@@ -103,7 +103,7 @@ async function openPage(b, rs, errs) {
   pg.on('pageerror', e => errs.push('PAGEERR ' + e.message));
   pg.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await pg.goto('file://' + OUT.replace(/\/promo$/, '') + '/index.html' + (rs === 4 ? '?rs=4' : ''));
-  await pg.waitForFunction(() => typeof UI_FONT_OK !== 'undefined' && UI_FONT_OK, null, { timeout: 10000 });
+  await pg.waitForTimeout(800);
   await pg.evaluate(HELPERS);
   await pg.evaluate(() => {   // promo art gets the full wardrobe
     Object.keys(HATS).forEach(k => meta.hatOwn[k] = 1);
