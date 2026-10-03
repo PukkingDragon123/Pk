@@ -18246,7 +18246,12 @@ function trCap(lines, lt, t0, t1, o) {
   if (lt < t0 || lt > t1) return;
   const sc = o.sc || 3, lh = sc * 6 + 5, y0 = o.y !== undefined ? o.y : H - 30 - lines.length * lh;
   ctx.save(); ctx.globalAlpha = Math.min(1, (lt - t0) / 0.25, (t1 - lt) / 0.25);
-  lines.forEach((l, i) => drawTextC(l, W / 2, y0 + i * lh, '#ffffff', sc));
+  // white pixel letters inside a one-pixel ink outline, readable over anything
+  lines.forEach((l, i) => {
+    const x = W / 2 - textW(l, sc) / 2, y = y0 + i * lh;
+    for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 1; dx++) pxText(l, x, y, sc, '#0a0a0e', { ox: dx, oy: dy });
+    pxText(l, x, y, sc, '#ffffff');
+  });
   ctx.restore();
 }
 function trBars(k) { const h = Math.round(28 * clamp(k, 0, 1)); if (h > 0) { rect(0, 0, W, h, '#000'); rect(0, H - h, W, h, '#000'); } }
